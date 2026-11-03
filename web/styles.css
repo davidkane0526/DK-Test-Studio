@@ -329,6 +329,8 @@ body{padding-bottom:var(--dkts-status-height)}
 .app-statusbar{position:fixed;bottom:0;left:0;right:0;z-index:80;height:var(--dkts-status-height);display:flex;align-items:stretch;gap:0;padding:0 7px;background:#eaf0f8;border-top:1px solid #d1dbe9;color:#445675;font-size:11px;user-select:none;app-region:drag;-webkit-app-region:drag}
 .statusbar-title{display:flex;align-items:center;gap:7px;min-width:145px;max-width:180px;padding:0 9px;white-space:nowrap;flex-shrink:0}
 .statusbar-title strong{font-size:11px;font-weight:700}
+.statusbar-title:active{cursor:grabbing}
+.statusbar-message:focus-visible,.statusbar-connection:focus-visible,.window-actions button:focus-visible{outline:2px solid #4b80cf;outline-offset:-2px}
 .statusbar-logo{display:grid;place-items:center;width:21px;height:21px;border-radius:5px;background:#213b69;color:#fff;font-weight:800;font-size:10px;letter-spacing:-.02em}
 .statusbar-message{app-region:no-drag;-webkit-app-region:no-drag;flex:1 1 auto;min-width:70px;display:flex;align-items:center;gap:7px;overflow:hidden;padding:0 8px;text-align:left;background:transparent;border:0;border-radius:0;font-weight:500;font-size:11px;color:#4e627e}
 .statusbar-message:hover{background:#dae5f3}

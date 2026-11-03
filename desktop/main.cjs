@@ -40,6 +40,8 @@ async function start(){
   // Keep the bottom maximize/restore button aligned with native window state.
   win.on('maximize',()=>{if(!win.isDestroyed())win.webContents.send('dkts:window-maximized',true);});
   win.on('unmaximize',()=>{if(!win.isDestroyed())win.webContents.send('dkts:window-maximized',false);});
+  // Keep native menus out of the reclaimed top edge.
+  win.setMenuBarVisibility(false);
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   win.webContents.on('will-navigate',(event,url)=>{
     if(!url.startsWith(serverInstance.url))event.preventDefault();
