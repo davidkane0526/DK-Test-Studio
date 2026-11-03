@@ -13,15 +13,20 @@ import androidx.webkit.WebViewAssetLoader;
 public final class MainActivity extends Activity {
     private WebView webView;
     private InstrumentBridge bridge;
+    private UiUpdateManager uiUpdates;
     private static final String APP_ORIGIN = "https://appassets.androidplatform.net/";
 
     @Override
     @SuppressLint("SetJavaScriptEnabled")
     public void onCreate(Bundle state) {
         super.onCreate(state);
+        // Assets are served from the verified UI cache, with bundled APK assets as fallback.
+        uiUpdates = new UiUpdateManager(this, () -> {
+            if (webView != null) webView.reload();
+        });
         final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
             .setDomain("appassets.androidplatform.net")
-            .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
+            .addPathHandler("/", assetPath -> uiUpdates.serve(assetPath))
             .build();
         webView = new WebView(this);
         webView.getSettings().setJavaScriptEnabled(true);
@@ -42,9 +47,11 @@ public final class MainActivity extends Activity {
         webView.addJavascriptInterface(bridge, "DKTSNative");
         setContentView(webView);
         webView.loadUrl(APP_ORIGIN + "index.html");
+        uiUpdates.start();
     }
 
     @Override protected void onDestroy() {
+        if (uiUpdates != null) uiUpdates.stop();
         if (bridge != null) bridge.shutdown();
         if (webView != null) {
             webView.removeJavascriptInterface("DKTSNative");
