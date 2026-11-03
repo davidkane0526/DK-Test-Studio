@@ -29,6 +29,19 @@ Android 使用本机 WebView 工作台、独立原生 Java TCP 网络桥接（�
 
 CI 将通过独立 Android 构建任务生成 APK，并将其与 Windows Setup、Portable、DKDS `.dkplugin` 共同发布到同一次 GitHub 预览 Release。详情见 [Android 构建与网络说明](android/README.md)。
 
+## 界面热更新（快速开发模式）
+
+从支持热更新的 Windows / Android 原生壳开始，**普通界面更新不再重编译 EXE / APK**：
+
+1. 推送 `web/` 的 HTML、CSS、JavaScript 修改到 `main`。
+2. GitHub Actions 的 `Fast UI Hot Update` 先运行测试，再把 Windows / Android 两套对应的界面资源及校验信息写入约 80 KB 的 `DKTS-UI-bundle.json`，并发布到 `dkts-ui-<commit SHA>` 的 GitHub Release。DKDS 插件由同次流水线通过官方 SDK 验证和打包。
+3. 已安装的独立 Windows 与 Android 软件启动后自动查询更新，此后约每 3 分钟检查一次；新界面通过校验后从应用私有缓存加载并刷新。断网会继续使用缓存或壳内版本。
+4. 仅在原生宿主、Android Java 网卡适配、Node TCP/HTTP 后端或共享底层协议更新时，才启动 `Native Shell Windows Android and DKDS Release` 全量构建。
+
+**第一次必须安装一次具有热更新能力的新壳**：首次支持热更新的四文件原生版是 [dkts-preview-41591728008](https://github.com/davidkane0526/DK-Test-Studio/releases/tag/dkts-preview-41591728008)。旧版不具备自动拉取资源包能力。Android 当前是调试签名 APK，如签名不同可能需要卸载旧预览版。
+
+**更新边界**：自动更新的仅为 `index.html`、`app.js` 和 `styles.css`，不替换正在执行的仪器测量控制代码、原生驱动或权限。单独发布的 DKDS 插件包需要在 DK Data Studio 端安装或通过其插件更新流程应用，并不是由独立应用自动安装到 DKDS。
+
 ## 运行与测试
 
 环境：Node.js 20+。获取项目源码后，在仓库根目录执行：
