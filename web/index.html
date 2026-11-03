@@ -61,54 +61,56 @@
   </div>
 </dialog>
 <main class="workspace">
-  <section class="card types-card" aria-labelledby="test-types-title">
+  <section id="test-library" class="card types-card" aria-labelledby="test-types-title">
     <div class="card-heading">
       <div><p class="eyebrow">TEST LIBRARY</p><h2 id="test-types-title">选择测试方式</h2></div>
-      <p class="subtle">点击测试卡片展开或收起工作区</p>
+      <p class="subtle">选择测试方式，进入独立测试工作区</p>
     </div>
     <div class="test-type-grid" role="group" aria-label="选择测试方式">
-      <button class="test-type-card" type="button" data-test-kind="iv" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
+      <button class="test-type-card" type="button" data-test-kind="iv" aria-label="进入测试工作区">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">I–V</span><span class="test-type-state">可编辑</span></span>
         <strong>SMU I–V 扫描</strong><small>正向、反向及循环扫描</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="it" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
+      <button class="test-type-card" type="button" data-test-kind="it" aria-label="进入测试工作区">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">I–t</span><span class="test-type-state">可编辑</span></span>
         <strong>SMU I–t 恒压读出</strong><small>时间扫描与电流记录方案</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="transfer" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
+      <button class="test-type-card" type="button" data-test-kind="transfer" aria-label="进入测试工作区">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">FET</span><span class="test-type-state">开发中</span></span>
         <strong>转移特性</strong><small>栅压扫描与多端口测试</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="output" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
+      <button class="test-type-card" type="button" data-test-kind="output" aria-label="进入测试工作区">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">OUT</span><span class="test-type-state">开发中</span></span>
         <strong>输出特性</strong><small>漏压扫描与栅压步进</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="pund" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
+      <button class="test-type-card" type="button" data-test-kind="pund" aria-label="进入测试工作区">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">PUND</span><span class="test-type-state">开发中</span></span>
         <strong>PMU / PUND</strong><small>脉冲测量与极化测试</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="retention" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
+      <button class="test-type-card" type="button" data-test-kind="retention" aria-label="进入测试工作区">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">RET</span><span class="test-type-state">开发中</span></span>
         <strong>Retention</strong><small>状态保持与时间序列</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="endurance" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
+      <button class="test-type-card" type="button" data-test-kind="endurance" aria-label="进入测试工作区">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">CYC</span><span class="test-type-state">开发中</span></span>
         <strong>Endurance</strong><small>循环耐久性实验</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="arbitrary" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
+      <button class="test-type-card" type="button" data-test-kind="arbitrary" aria-label="进入测试工作区">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">ARB</span><span class="test-type-state">开发中</span></span>
         <strong>任意波形测量</strong><small>SMU / PMU 实际输出与采集</small>
       </button>
     </div>
-    <div id="test-detail" class="test-detail" aria-hidden="true" inert>
+  </section>
+  <section id="test-detail" class="card test-detail" aria-hidden="true" hidden inert aria-labelledby="test-detail-title">
       <div class="test-detail-inner">
         <div class="detail-heading">
-          <div>
-            <p class="eyebrow">TEST WORKSPACE</p>
-            <h3 id="test-detail-title">测试工作区</h3>
-            <p class="detail-subtitle" id="test-detail-subtitle">参数设置 · 实测数据 · 曲线</p>
+          <button type="button" id="close-test-detail" class="detail-back" aria-label="返回测试方式选择"><span aria-hidden="true">←</span> 返回测试选择</button>
+          <div class="detail-heading-title">
+            <p class="eyebrow">MEASUREMENT WORKSPACE</p>
+            <h2 id="test-detail-title" tabindex="-1">测试工作区</h2>
+            <p class="detail-subtitle" id="test-detail-subtitle">参数设置 · 数据读取 · 实时曲线</p>
           </div>
-          <button type="button" id="close-test-detail" class="detail-close" aria-label="收起测试工作区">收起 <span aria-hidden="true">⌃</span></button>
+          <span class="detail-runtime-badge">只读预览 · 未开放测量</span>
         </div>
         <div class="detail-columns">
           <section class="detail-panel parameters-panel" aria-labelledby="parameters-title">
@@ -191,7 +193,6 @@
           </section>
         </div>
       </div>
-    </div>
   </section>
   <footer>DK Test Studio · 只读 KXCI 身份及模块查询 · 界面自动更新</footer>
 </main>

@@ -7,35 +7,33 @@ const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
 const app=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
 const styles=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
-test('UI starts with only the test library and no redundant measurement banner',()=>{
+test('test library is a distinct first-level screen, hidden when workbench is active',()=>{
+  assert.match(html,/<section id="test-library" class="card types-card"/);
+  assert.match(html,/<section id="test-detail" class="card test-detail" aria-hidden="true" hidden inert/);
+  assert.match(html,/id="close-test-detail" class="detail-back" aria-label="返回测试方式选择"/);
   assert.doesNotMatch(html,/<section class="intro">/);
-  assert.doesNotMatch(html,/<section class="card waveform-card">/);
-  assert.doesNotMatch(html,/<div class="test-workspace">/);
-  assert.match(html,/<div id="test-detail" class="test-detail" aria-hidden="true" inert>/);
-  assert.match(styles,/grid-template-rows:0fr/);
-  assert.match(styles,/\.test-detail\.is-open\{grid-template-rows:1fr/);
-  assert.match(styles,/@media\(prefers-reduced-motion:reduce\)/);
+  assert.match(app,/\$\('test-library'\)\.hidden=active/);
+  assert.match(app,/detail\.hidden=!active/);
+  assert.match(app,/classList\.toggle\('workspace-active',active\)/);
+  assert.match(app,/function returnToTestLibrary\(\)/);
+  assert.match(styles,/#test-library\[hidden\],#test-detail\[hidden\]\{display:none!important\}/);
 });
-test('all eight test cards expand their single integrated parameter, acquisition, and plot area',()=>{
+test('each card navigates to a dedicated workspace instead of expanding below the library',()=>{
   assert.equal((html.match(/class="test-type-card"/g)||[]).length,8);
-  assert.equal((html.match(/aria-controls="test-detail"/g)||[]).length,8);
-  assert.doesNotMatch(html,/<button class="test-type-card"[^>]*disabled/);
+  assert.equal((html.match(/data-test-kind="/g)||[]).length,8);
+  assert.match(app,/expandedKind=kind;\s*renderTestSelection\(\)/);
+  assert.doesNotMatch(app,/expandedKind=expandedKind===kind\?null:kind/);
   assert.doesNotMatch(html,/<select[^>]*name="kind"/);
   assert.match(html,/id="plan-form"/);
   assert.match(html,/id="waveform-editor" hidden/);
   assert.match(html,/id="pending-parameters" class="pending-parameters" hidden/);
-  assert.match(html,/id="measurement-plot"/);
-  assert.match(html,/id="measurement-rows"/);
-  assert.match(html,/id="readout-current"/);
-  assert.match(app,/expandedKind=expandedKind===kind\?null:kind/);
-  assert.match(app,/detail\.classList\.toggle\('is-open',Boolean\(mode\)\)/);
-  assert.match(app,/card\.setAttribute\('aria-expanded',String\(selected\)\)/);
-  assert.match(app,/detail\.inert=!mode/);
-  assert.match(styles,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(styles,/\.detail-columns\{grid-template-columns:minmax\(292px,350px\) minmax\(0,1fr\)/);
+  assert.match(styles,/@media\(max-width:850px\)\{/);
   assert.match(styles,/grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
 });
-test('data chart has no invented measured samples or a working instrument output action',()=>{
-  assert.match(html,/尚无仪器采集数据/);
+test('workbench reserves real data surfaces without fabricated measurements',()=>{
+  for(const name of ['measurement-plot','measurement-rows','readout-current','readout-voltage'])
+    assert(html.includes('id="'+name+'"'));
   assert.match(html,/class="measure-button" disabled/);
   assert.match(html,/等待仪器返回原始数据/);
   assert.match(app,/The measured plot stays empty until the actual instrument acquisition layer/);

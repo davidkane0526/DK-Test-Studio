@@ -126,15 +126,12 @@ function renderTestSelection(){
   const mode=expandedKind?TEST_MODES[expandedKind]:null;
   const isEditable=Boolean(mode?.ready);
   const isWaveform=Boolean(mode?.planner);
-  detail.classList.toggle('is-open',Boolean(mode));
-  detail.inert=!mode;
-  detail.setAttribute('aria-hidden',String(!mode));
-  document.querySelectorAll('.test-type-card').forEach(card=>{
-    const selected=card.dataset.testKind===expandedKind;
-    card.classList.toggle('is-selected',selected);
-    card.setAttribute('aria-pressed',String(selected));
-    card.setAttribute('aria-expanded',String(selected));
-  });
+  const active=Boolean(mode);
+  $('test-library').hidden=active;
+  detail.hidden=!active;
+  detail.inert=!active;
+  detail.setAttribute('aria-hidden',String(!active));
+  document.querySelector('.workspace').classList.toggle('workspace-active',active);
   if(!mode)return;
   $('test-detail-title').textContent=mode.title+' · 测试工作区';
   $('test-detail-subtitle').textContent='参数设置 / 数据读取 / 实时曲线';
@@ -167,8 +164,17 @@ function renderTestSelection(){
 }
 function selectTestKind(kind){
   if(!Object.hasOwn(TEST_MODES,kind))return;
-  expandedKind=expandedKind===kind?null:kind;
+  expandedKind=kind;
   renderTestSelection();
+  window.scrollTo({top:0,behavior:'instant'});
+  $('test-detail-title').focus({preventScroll:true});
+}
+function returnToTestLibrary(){
+  expandedKind=null;
+  renderTestSelection();
+  window.scrollTo({top:0,behavior:'instant'});
+  $('test-types-title').setAttribute('tabindex','-1');
+  $('test-types-title').focus({preventScroll:true});
 }
 async function validatePlan(){
   if(!expandedKind||!TEST_MODES[expandedKind]?.ready)return;
@@ -197,10 +203,7 @@ $('validate-plan').addEventListener('click',validatePlan);
 document.querySelectorAll('.test-type-card').forEach(card=>{
   card.addEventListener('click',()=>selectTestKind(card.dataset.testKind));
 });
-$('close-test-detail').addEventListener('click',()=>{
-  expandedKind=null;
-  renderTestSelection();
-});
+$('close-test-detail').addEventListener('click',returnToTestLibrary);
 planForm.addEventListener('input',()=>{$('plan-status').textContent='方案参数已更改，请重新校验。';});
 form.addEventListener('input',()=>{$('connection-hint').textContent='连接设置已修改，点击“应用设置并重连”后生效。';});
 $('validate-waveform').addEventListener('click',validateWave);
