@@ -27,13 +27,16 @@ test('frameless desktop keeps draggable top titlebar and native window controls'
   assert.match(css,/\.app-titlebar\{position:fixed;top:0/);
   assert.match(css,/#window-actions\[hidden\]\{display:none!important\}/);
   assert.match(css,/\.app-statusbar\{position:fixed;bottom:0/);
-  assert.match(css,/:root\{--dkts-title-height:43px;--dkts-status-height:29px\}/);
+  assert.match(css,/--dkts-title-height:46px/);
+  assert.match(css,/--dkts-status-height:34px/);
   assert.match(html,/class="window-command window-close"/);
   assert.match(html,/class="maximize-glyph"/);
   assert.match(html,/class="restore-glyph"/);
   assert.match(client,/maximize\.dataset\.maximized=String\(isMaximized\)/);
   assert.doesNotMatch(client,/maximize\.textContent=/);
-  assert.match(css,/border-left:0!important/);
+  assert.match(css,/.app-statusbar::before\{/);
+  assert.match(css,/box-shadow:0 -3px 12px/);
+  assert.match(css,/:is\(\.statusbar-message,\.statusbar-connection\):hover\{/);
   assert.match(css,/app-region:drag/);
   assert.match(css,/app-region:no-drag/);
 });
@@ -56,6 +59,8 @@ test('separate bottom message/connectivity bar is shared across platforms',()=>{
   assert.equal((bottom.match(/id="connection-status"/g)||[]).length,1);
   assert.match(client,/showStatusMessage\(statusDetail,[^\n]+true,false\)/);
   assert.match(client,/function showStatusMessage\(message,level='info',record=true,display=true\)/);
+  assert.match(css,/\.statusbar-message\{\s*flex:0 1 auto/);
+  assert.match(css,/\.app-statusbar\{\s*position:fixed;bottom:0;left:0;right:0;width:100%/);
   assert.match(html,/id="status-log-dialog"/);
   assert.match(client,/function showStatusMessage\(/);
   assert.match(client,/if\(!host\)return; \/\/ Browser and Android/);

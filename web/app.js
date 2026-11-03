@@ -1,5 +1,8 @@
 'use strict';
 const $=id=>document.getElementById(id);
+// Android WebView has native system bars, not desktop caption/window controls.
+if(typeof window.DKTSNative?.request==='function')
+  document.body.classList.add('dkts-android-shell');
 function displayUiVersion(){
   const raw=document.querySelector('meta[name="dkts-ui-version"]')?.content||'bundled';
   const badge=$('ui-version-badge');

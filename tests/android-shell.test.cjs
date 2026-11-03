@@ -66,3 +66,23 @@ test('Android host exercises the exact shared identity controller via native TCP
   await assert.rejects(()=>client.post('/api/output',{voltageV:200}),/未授权/);
   assert.equal((await client.post('/api/disconnect')).phase,'disconnected');
 });
+
+test('Android frontend adapts to safe areas, native touch interaction and narrow portrait/landscape screens',()=>{
+  const index=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
+  const app=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
+  const css=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
+  assert.match(index,/viewport-fit=cover/);
+  assert.match(app,/typeof window\.DKTSNative\?\.request==='function'/);
+  assert.match(app,/classList\.add\('dkts-android-shell'\)/);
+  assert.match(css,/body\.dkts-android-shell\{/);
+  assert.match(css,/env\(safe-area-inset-top,0px\)/);
+  assert.match(css,/env\(safe-area-inset-bottom,0px\)/);
+  assert.match(css,/env\(safe-area-inset-left,0px\)/);
+  assert.match(css,/env\(safe-area-inset-right,0px\)/);
+  assert.match(css,/body\.dkts-android-shell :is\(\.statusbar-message,\.statusbar-connection\)\{/);
+  assert.match(css,/min-height:36px;height:36px/);
+  assert.match(css,/@media\(max-height:530px\) and \(orientation:landscape\)/);
+  const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
+  assert.match(gradle,/targetSdk 35/);
+  assert.match(css,/#window-actions\[hidden\]\{display:none!important\}/);
+});
