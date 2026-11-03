@@ -21,6 +21,13 @@
 
 详见 [互操作契约](docs/DKDS_INTEROP.md)。
 
+## 独立 Android APK（开发预览）
+
+`android/` 包含 **DK Test Studio 自己的 Android 原生应用**。它不依赖 DK Data Studio，也不需要安装 DKDS 插件。
+Android 使用本机 WebView 工作台、独立原生 Java TCP 网络桥接（可绑定 USB Ethernet / Wi-Fi Network）和与 Windows / DKDS 插件 **字节完全一致** 的 `src/shared/` 协议及测试规划核心。当前安全边界仍限制为只读 `*IDN?` / `*OPT?`。
+
+CI 将通过独立 Android 构建任务生成 APK，并将其与 Windows Setup、Portable、DKDS `.dkplugin` 共同发布到同一次 GitHub 预览 Release。详情见 [Android 构建与网络说明](android/README.md)。
+
 ## 运行与测试
 
 环境：Node.js 20+。获取项目源码后，在仓库根目录执行：

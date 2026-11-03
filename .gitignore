@@ -3,3 +3,9 @@ dist/
 compat/
 *.log
 .DS_Store
+
+# Build-generated Android WebView assets and Gradle output
+android/app/src/main/assets/
+android/.gradle/
+android/build/
+android/app/build/

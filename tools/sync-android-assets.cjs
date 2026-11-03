@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+'use strict';
+// Build-time packaging of identical shared source into a standalone Android application.
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const destination=path.join(root,'android/app/src/main/assets');
+fs.mkdirSync(path.join(destination,'android'),{recursive:true});
+fs.mkdirSync(path.join(destination,'shared'),{recursive:true});
+const scripts=[
+  'android/bootstrap.js',
+  'shared/kxci-protocol.js',
+  'shared/measurement-plan.js',
+  'shared/waveform.js',
+  'shared/identity-core.js',
+  'android/native-client.js'
+];
+const scriptTags=scripts.map(src=>'<script src="/'+src+'" defer></script>').join('\n');
+const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
+const marker='<script src="/app.js" defer></script>';
+if(!html.includes(marker))throw Error('Android packaging requires expected Web UI entry point');
+fs.writeFileSync(path.join(destination,'index.html'),html.replace(marker,scriptTags+'\n'+marker));
+for(const file of ['app.js','styles.css'])
+  fs.copyFileSync(path.join(root,'web',file),path.join(destination,file));
+for(const file of ['kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js']){
+  fs.copyFileSync(path.join(root,'src/shared',file),path.join(destination,'shared',file));
+}
+for(const file of ['bootstrap.js','native-client.js']){
+  fs.copyFileSync(path.join(root,'android/web',file),path.join(destination,'android',file));
+}
+console.log('Synced DK Test Studio Android assets: shared core copied byte-for-byte; native WebView bridge enabled.');

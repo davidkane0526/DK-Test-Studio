@@ -3,6 +3,7 @@ const $=id=>document.getElementById(id);
 const form=$('connection-form'),toggle=$('toggle'),planForm=$('plan-form');
 let state='disconnected',busy=false;
 async function post(route,data={}){
+  if(window.DKTSClient)return window.DKTSClient.post(route,data);
   const res=await fetch(route,{method:'POST',
     headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},
     body:JSON.stringify(data),cache:'no-store'});
@@ -36,6 +37,7 @@ function renderStatus(value){
 let latestStatus={phase:'disconnected',summary:'未连接'};
 async function refresh(){
   try{
+    if(window.DKTSClient){latestStatus=await window.DKTSClient.status();return latestStatus;}
     const response=await fetch('/api/status',{cache:'no-store'});
     latestStatus=await response.json();
   }catch{}
