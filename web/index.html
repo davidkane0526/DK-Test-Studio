@@ -53,14 +53,7 @@
   </div>
 </dialog>
 <main class="workspace">
-  <div class="workspace-actions" aria-label="工作区信息与连接">
-  <button class="top-status context-status" id="connection-status" type="button" aria-haspopup="dialog" aria-controls="connection-dialog" aria-label="查看仪器连接信息及设置">
-    <span class="status-dot" id="dot" aria-hidden="true"></span>
-    <span id="state-chip" role="status" aria-live="polite">正在连接…</span>
-    <span class="status-chevron" aria-hidden="true">⌄</span>
-  </button>
-    <span id="ui-version-badge" class="ui-version-badge" title="当前界面版本：内置">UI 内置版</span>
-  </div>
+
   <section id="test-library" class="card types-card" aria-labelledby="test-types-title">
     <div class="card-heading">
       <div><p class="eyebrow">DK TEST STUDIO · 4200A</p><h2 id="test-types-title">选择测试方式</h2></div>
@@ -197,5 +190,36 @@
   </section>
 
 </main>
+<footer id="app-statusbar" class="app-statusbar" aria-label="应用消息和窗口控制">
+  <div class="statusbar-title" title="按住可拖动 DK Test Studio 窗口">
+    <span class="statusbar-logo" aria-hidden="true">DK</span>
+    <strong>DK Test Studio</strong>
+  </div>
+  <button id="status-message" class="statusbar-message" type="button"
+    title="查看运行消息记录" aria-haspopup="dialog" aria-controls="status-log-dialog">
+    <span class="statusbar-message-dot" id="status-message-dot" aria-hidden="true"></span>
+    <span id="status-message-text" role="status" aria-live="polite">就绪 · 等待操作</span>
+  </button>
+  <div class="statusbar-right">
+  <button class="statusbar-connection" id="connection-status" type="button" aria-haspopup="dialog" aria-controls="connection-dialog" aria-label="查看仪器连接信息及设置">
+    <span class="status-dot" id="dot" aria-hidden="true"></span>
+    <span id="state-chip" role="status" aria-live="polite">正在连接…</span>
+    <span class="status-chevron" aria-hidden="true">⌄</span>
+  </button>
+    <span id="ui-version-badge" class="ui-version-badge" title="当前界面版本：内置">UI 内置版</span>
+    <div id="window-actions" class="window-actions" role="group" aria-label="窗口控制" hidden>
+      <button type="button" id="window-minimize" title="最小化" aria-label="最小化">−</button>
+      <button type="button" id="window-maximize" title="最大化" aria-label="最大化">□</button>
+      <button type="button" id="window-close" class="window-close" title="关闭窗口" aria-label="关闭窗口">×</button>
+    </div>
+  </div>
+</footer>
+<dialog id="status-log-dialog" class="status-log-dialog" aria-labelledby="status-log-title">
+  <div class="status-log-header">
+    <strong id="status-log-title">运行消息</strong>
+    <button type="button" id="status-log-close" aria-label="关闭运行消息">关闭</button>
+  </div>
+  <ol id="status-log-entries" class="status-log-entries"></ol>
+</dialog>
 </body>
 </html>

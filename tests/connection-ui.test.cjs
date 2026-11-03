@@ -6,8 +6,11 @@ const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
 const ui=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
 test('desktop and Android have no top status bar, but preserve a contextual connection action and modal',()=>{
   assert.doesNotMatch(html,/<header class="topbar">/);
-  assert.match(html,/class="workspace-actions"/);
-  assert.match(html,/<button class="top-status context-status" id="connection-status"/);
+  assert.doesNotMatch(html,/class="workspace-actions"/);
+  assert.match(html,/id="app-statusbar" class="app-statusbar"/);
+  assert.match(html,/id="status-message-text"/);
+  assert.match(html,/id="window-actions"/);
+  assert.match(html,/<button class="statusbar-connection" id="connection-status"/);
   assert.match(html,/aria-haspopup="dialog"/);
   assert.match(html,/<dialog id="connection-dialog"/);
   assert.match(html,/id="connection-form"/);

@@ -14,6 +14,45 @@ const form=$('connection-form'),planForm=$('plan-form');
 const dialog=$('connection-dialog'),statusButton=$('connection-status');
 const reconnect=$('reconnect-instrument'),disconnect=$('disconnect-instrument');
 let state='disconnected',busy=false;
+const messages=[];
+function showStatusMessage(message,level='info',record=true){
+  const value=String(message||'').slice(0,300);
+  $('status-message-text').textContent=value;
+  $('status-message').title=value+' · 点击查看历史消息';
+  $('status-message-dot').dataset.level=level;
+  if(record){
+    messages.unshift({time:new Date().toLocaleTimeString('zh-CN',{hour12:false}),message:value});
+    if(messages.length>30)messages.pop();
+    const list=$('status-log-entries');
+    list.replaceChildren();
+    for(const item of messages){
+      const entry=document.createElement('li');
+      const time=document.createElement('time');time.textContent=item.time;
+      const text=document.createElement('span');text.textContent=item.message;
+      entry.append(time,text);list.appendChild(entry);
+    }
+  }
+}
+function initWindowControls(){
+  const host=window.DKTSWindow;
+  if(!host)return; // Browser and Android retain the bottom status bar without window controls.
+  const actions=$('window-actions');
+  actions.hidden=false;
+  document.body.classList.add('dkts-desktop-shell');
+  $('window-minimize').addEventListener('click',()=>{void host.minimize();});
+  $('window-close').addEventListener('click',()=>{void host.close();});
+  const maximize=$('window-maximize');
+  const updateMax=(isMaximized)=>{
+    maximize.textContent=isMaximized?'❐':'□';
+    maximize.title=isMaximized?'还原窗口':'最大化';
+    maximize.setAttribute('aria-label',maximize.title);
+  };
+  maximize.addEventListener('click',async()=>{updateMax(Boolean(await host.toggleMaximize()));});
+  void host.isMaximized().then(updateMax).catch(()=>{});
+  host.onMaximizedChange?.(updateMax);
+}
+initWindowControls();
+showStatusMessage('就绪 · 选择测试方式');
 async function post(route,data={}){
   if(window.DKTSClient)return window.DKTSClient.post(route,data);
   const res=await fetch(route,{method:'POST',
@@ -52,6 +91,13 @@ function renderStatus(value){
   reconnect.disabled=busy;
   disconnect.disabled=busy||!connected;
   reconnect.textContent=busy?'正在连接…':connected?'应用设置并重连':'重新连接';
+  if(state!==renderStatus.lastPhase){
+    renderStatus.lastPhase=state;
+    const statusDetail=state==='connected'?'4200A 连接成功 · 只读模式':
+      state==='error'?'连接失败 · 点击底栏连接状态查看详情':
+      state==='connecting'?'正在连接 4200A…':'4200A 已断开连接';
+    showStatusMessage(statusDetail,state==='error'?'error':connected?'success':'info');
+  }
 }
 let latestStatus={phase:'disconnected',summary:'未连接'};
 async function refresh(){
@@ -118,7 +164,12 @@ async function validateWave(){
     if(!r.ok)throw Error(r.error||'波形参数不正确');
     info.textContent=r.count+' 点 · 总时长 '+r.durationS+' s · 最小时间间隔 '+r.minimumStepS+' s · 未验证硬件可执行性';
     drawWave(r.preview);
-  }catch(error){info.textContent='校验失败：'+String(error.message||error).slice(0,120);$('waveform-plot').replaceChildren();}
+    showStatusMessage('波形校验通过 · '+r.count+' 个规划点（无硬件输出）','success');
+  }catch(error){
+    info.textContent='校验失败：'+String(error.message||error).slice(0,120);
+    showStatusMessage('波形校验失败：'+String(error.message||error).slice(0,90),'error');
+    $('waveform-plot').replaceChildren();
+  }
 }
 const TEST_MODES=Object.freeze({
   iv:{title:'SMU I–V 扫描',x:'Voltage (V)',xColumn:'电压 (V)',ready:true},
@@ -178,6 +229,7 @@ function selectTestKind(kind){
   renderTestSelection();
   window.scrollTo({top:0,behavior:'instant'});
   $('test-detail-title').focus({preventScroll:true});
+  showStatusMessage('已打开 '+TEST_MODES[kind].title+' · 尚未开放实机测量');
 }
 function returnToTestLibrary(){
   expandedKind=null;
@@ -185,6 +237,7 @@ function returnToTestLibrary(){
   window.scrollTo({top:0,behavior:'instant'});
   $('test-types-title').setAttribute('tabindex','-1');
   $('test-types-title').focus({preventScroll:true});
+  showStatusMessage('已返回测试方式选择');
 }
 async function validatePlan(){
   if(!expandedKind||!TEST_MODES[expandedKind]?.ready)return;
@@ -198,10 +251,16 @@ async function validatePlan(){
     const p=r.plan;
     status.textContent=(p.kind==='iv'?'I–V 扫描':'I–t 恒压读出')+' · '+p.totalPoints+
       ' 个规划点 · '+p.loops+' 循环 · SMU '+p.sourceSmU+' · 不执行硬件输出';
+    showStatusMessage('方案校验通过 · '+p.totalPoints+' 个规划点 · 不执行硬件输出','success');
   }catch(e){
-    if(expectedKind===expandedKind)status.textContent='方案校验失败：'+String(e.message||e).slice(0,120);
+    if(expectedKind===expandedKind){
+      status.textContent='方案校验失败：'+String(e.message||e).slice(0,120);
+      showStatusMessage('方案校验失败：'+String(e.message||e).slice(0,90),'error');
+    }
   }
 }
+$('status-message').addEventListener('click',()=>{$('status-log-dialog').showModal();});
+$('status-log-close').addEventListener('click',()=>{$('status-log-dialog').close();});
 statusButton.addEventListener('click',openConnectionDialog);
 $('connection-close').addEventListener('click',closeConnectionDialog);
 reconnect.addEventListener('click',connectInstrument);
@@ -221,6 +280,7 @@ $('toggle-parameters').addEventListener('click',()=>{
   const control=$('toggle-parameters');
   control.textContent=hidden?'显示参数':'收起参数';
   control.setAttribute('aria-expanded',String(!hidden));
+  showStatusMessage(hidden?'参数已收起 · 绘图区域使用全部宽度':'参数栏已显示');
 });
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape'&&expandedKind&&!dialog.open){
@@ -228,8 +288,14 @@ document.addEventListener('keydown',event=>{
     returnToTestLibrary();
   }
 });
-planForm.addEventListener('input',()=>{$('plan-status').textContent='方案参数已更改，请重新校验。';});
-form.addEventListener('input',()=>{$('connection-hint').textContent='连接设置已修改，点击“应用设置并重连”后生效。';});
+planForm.addEventListener('input',()=>{
+  $('plan-status').textContent='方案参数已更改，请重新校验。';
+  showStatusMessage('参数已修改 · 尚未重新校验','info',false);
+});
+form.addEventListener('input',()=>{
+  $('connection-hint').textContent='连接设置已修改，点击“应用设置并重连”后生效。';
+  showStatusMessage('连接设置已修改 · 重新连接后生效','info',false);
+});
 $('validate-waveform').addEventListener('click',validateWave);
 (async()=>{renderTestSelection();renderStatus(await refresh());if(state!=='connected')await connectInstrument();})();
 
