@@ -86,3 +86,19 @@ test('Android frontend adapts to safe areas, native touch interaction and narrow
   assert.match(gradle,/targetSdk 35/);
   assert.match(css,/#window-actions\[hidden\]\{display:none!important\}/);
 });
+
+test('Android standalone recovers unregistered USB Ethernet and can use source binding without requiring root',()=>{
+  const bridge=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
+  const repair=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/EthernetRouteRecovery.java'),'utf8');
+  assert.match(bridge,/EthernetRouteRecovery\.sources\(mode,interfaceName,linkLocal\)/);
+  assert.match(bridge,/EthernetRouteRecovery\.prepare\(host,mode,interfaceName\)/);
+  assert.match(bridge,/candidate\.bind\(new InetSocketAddress\(source\.address,0\)\)/);
+  assert.match(bridge,/if\(pass==0&&linkLocal&&!mode\.equals\("wifi"\)\)/);
+  assert.match(bridge,/networkPreparation/);
+  assert.match(repair,/ProcessBuilder\("su","-c",command\)/);
+  assert.match(repair,/ip -4 addr add/);
+  assert.match(repair,/ip -4 rule add pref 9000 to/);
+  assert.match(repair,/ip -4 route replace/);
+  assert.match(repair,/if\(!safeIpv4\(target\)\|\|!target\.startsWith\("169\.254\."\)\|\|mode\.equals\("wifi"\)\)/);
+  assert.doesNotMatch(repair,/ip route (?:add|replace) default/);
+});

@@ -17,6 +17,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
@@ -141,42 +142,83 @@ public final class InstrumentBridge {
             if (mode.equals("auto") && !ethernet && !wifi) continue;
             networks.add(item);
         }
+        final boolean linkLocal=host.startsWith("169.254.");
         if (mode.equals("auto")) {
-            // First try Ethernet network binding, then Wi-Fi, then OS default.
-            networks.sort((a, b) -> Boolean.compare(
-                cm.getNetworkCapabilities(b) != null &&
-                    cm.getNetworkCapabilities(b).hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET),
-                cm.getNetworkCapabilities(a) != null &&
-                    cm.getNetworkCapabilities(a).hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)));
+            networks.sort((a,b)->{
+                boolean ethA=cm.getNetworkCapabilities(a)!=null &&
+                    cm.getNetworkCapabilities(a).hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
+                boolean ethB=cm.getNetworkCapabilities(b)!=null &&
+                    cm.getNetworkCapabilities(b).hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
+                if (linkLocal) return Boolean.compare(ethB,ethA);
+                return Boolean.compare(ethA,ethB);
+            });
         }
-        Exception last = null;
-        for (int i = 0; i < networks.size() + (mode.equals("auto") ? 1 : 0); i++) {
-            Network network = i < networks.size() ? networks.get(i) : null;
-            Socket candidate = null;
+        final List<String> errors=new ArrayList<>();
+        String preparation="not-needed";
+        // First try ordinary Android Network socket factories, then an IPv4
+        // source-bound socket. The latter also sees eth0 interfaces which Android
+        // ConnectivityManager does not expose because no DHCP was negotiated.
+        for (int pass=0;pass<(linkLocal&&!mode.equals("wifi")?2:1);pass++) {
+            for (Network network:networks) {
+                Socket candidate=null;
+                String iface=cm.getLinkProperties(network)==null?"unknown":
+                    String.valueOf(cm.getLinkProperties(network).getInterfaceName());
+                try {
+                    candidate=network.getSocketFactory().createSocket();
+                    if (!localIP.isEmpty())candidate.bind(new InetSocketAddress(localIP,0));
+                    candidate.connect(new InetSocketAddress(host,port),Math.min(timeout,1000));
+                    return takeSocket(candidate,host,port,iface,"android-network-bound",preparation);
+                }catch(Exception error){
+                    if(candidate!=null)try{candidate.close();}catch(Exception ignored){}
+                    if(errors.size()<10)errors.add(iface+": "+String.valueOf(error.getMessage()));
+                }
+            }
+            for(EthernetRouteRecovery.Source source:EthernetRouteRecovery.sources(mode,interfaceName,linkLocal)){
+                if(!localIP.isEmpty()&&!localIP.equals(source.address.getHostAddress()))continue;
+                Socket candidate=new Socket();
+                try {
+                    candidate.bind(new InetSocketAddress(source.address,0));
+                    candidate.connect(new InetSocketAddress(host,port),Math.min(timeout,1000));
+                    return takeSocket(candidate,host,port,source.interfaceName,
+                        "local-source-bind",preparation);
+                }catch(Exception error){
+                    try{candidate.close();}catch(Exception ignored){}
+                    if(errors.size()<10)errors.add(source.interfaceName+" ["+
+                        source.address.getHostAddress()+"]: "+String.valueOf(error.getMessage()));
+                }
+            }
+            if(pass==0&&linkLocal&&!mode.equals("wifi"))
+                preparation=EthernetRouteRecovery.prepare(host,mode,interfaceName);
+        }
+        if(mode.equals("auto")) {
+            Socket fallback=new Socket();
             try {
-                candidate = network == null ? new Socket() : network.getSocketFactory().createSocket();
-                if (!localIP.isEmpty()) candidate.bind(new InetSocketAddress(localIP, 0));
-                candidate.connect(new InetSocketAddress(host, port), timeout);
-                candidate.setTcpNoDelay(true);
-                socket = candidate;
-                sessionId = UUID.randomUUID().toString();
-                String iface = "system route";
-                if (network != null && cm.getLinkProperties(network) != null)
-                    iface = String.valueOf(cm.getLinkProperties(network).getInterfaceName());
-                return new JSONObject()
-                    .put("sessionId", sessionId)
-                    .put("remoteAddress", host)
-                    .put("remotePort", port)
-                    .put("localAddress", candidate.getLocalAddress().getHostAddress())
-                    .put("interfaceName", iface)
-                    .put("routeStrategy", network == null ? "system-routing" : "android-network-bound");
-            } catch (Exception ex) {
-                last = ex;
-                if (candidate != null) try { candidate.close(); } catch (Exception ignored) {}
+                if(!localIP.isEmpty())fallback.bind(new InetSocketAddress(localIP,0));
+                fallback.connect(new InetSocketAddress(host,port),Math.min(timeout,1200));
+                return takeSocket(fallback,host,port,"system route","system-routing",preparation);
+            }catch(Exception error) {
+                try{fallback.close();}catch(Exception ignored){}
+                if(errors.size()<10)errors.add("system route: "+String.valueOf(error.getMessage()));
             }
         }
-        throw new IllegalStateException("Unable to connect on available Android routes. " +
-            (last == null ? "Check USB Ethernet IP settings." : String.valueOf(last.getMessage())));
+        throw new IllegalStateException("Android cannot reach "+host+":"+port+
+            " via "+errors.size()+" attempted routes. "+preparation+". "+
+            String.join(" | ",errors));
+    }
+
+    private JSONObject takeSocket(Socket candidate,String host,int port,String iface,
+                                  String strategy,String preparation) throws Exception {
+        candidate.setTcpNoDelay(true);
+        socket=candidate;
+        sessionId=UUID.randomUUID().toString();
+        return new JSONObject()
+            .put("sessionId",sessionId)
+            .put("remoteAddress",host)
+            .put("remotePort",port)
+            .put("localAddress",candidate.getLocalAddress().getHostAddress())
+            .put("interfaceName",iface)
+            .put("routeStrategy",strategy)
+            .put("networkPreparation",preparation);
     }
 
     private JSONObject exchange(JSONObject args) throws Exception {
