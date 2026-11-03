@@ -40,9 +40,10 @@ test('workbench reserves real data surfaces without fabricated measurements',()=
   assert.doesNotMatch(app,/post\('\/api\/output'/);
 });
 
-test('space-first workspace removes full-width status bar and allows hiding parameters',()=>{
+test('space-first workbench keeps a bottom status strip and allows hiding parameters',()=>{
   assert.doesNotMatch(html,/<header class="topbar">/);
-  assert.match(html,/class="workspace-actions"/);
+  assert.doesNotMatch(html,/class="workspace-actions"/);
+  assert.match(html,/id="app-statusbar" class="app-statusbar"/);
   assert.match(html,/id="toggle-parameters"/);
   assert.match(html,/id="detail-columns"/);
   assert.match(app,/classList\.toggle\('parameters-collapsed'\)/);
