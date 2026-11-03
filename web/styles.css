@@ -722,6 +722,13 @@ body.dkts-android-shell .workspace-tab-close{
   --dkts-popover-hover:#edf4ff;
 }
 :where(html,body,*){scrollbar-color:var(--dkts-scroll-thumb) transparent;scrollbar-width:thin}
+/* Modern Chromium ignores ::-webkit-scrollbar when scrollbar-width/color are
+   explicitly set. Reset just these native properties where custom thumbs work,
+   otherwise the requested 5px geometry may never appear in Electron/WebView. */
+@supports selector(::-webkit-scrollbar){
+  :where(html,body,*){scrollbar-width:auto;scrollbar-color:auto}
+  .workspace-tabs{scrollbar-width:none}
+}
 :where(html,body,*)::-webkit-scrollbar{width:5px;height:5px;background:transparent}
 :where(html,body,*)::-webkit-scrollbar-track{background:transparent;border:0}
 :where(html,body,*)::-webkit-scrollbar-thumb{

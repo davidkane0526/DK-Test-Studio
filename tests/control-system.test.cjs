@@ -17,6 +17,8 @@ test('Chromium scrollbar uses thin rounded transparent style without arrow butto
   assert.match(css, /::-webkit-scrollbar-button\{display:none;width:0;height:0\}/);
   assert.match(css, /\.workspace-tabs::-webkit-scrollbar\{display:none\}/);
   assert.match(css, /--dkts-scroll-hover/);
+  assert.match(css, /@supports selector\(::-webkit-scrollbar\)/);
+  assert.match(css, /:where\(html,body,\*\)\{scrollbar-width:auto;scrollbar-color:auto\}/);
   assert.match(css, /--dkts-scroll-thumb:rgba\(115,140,174,\.30\)/);
   assert.match(css, /--dkts-scroll-hover:rgba\(115,140,174,\.58\)/);
 });
