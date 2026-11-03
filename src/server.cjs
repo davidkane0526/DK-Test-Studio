@@ -5,6 +5,7 @@ const path=require('node:path');
 const {parseWaveformText}=require('./controller/waveform.cjs');
 const {normalizePlan,previewPlan}=require('./controller/measurement-plan.cjs');
 const {createIdentityController,summarizeError}=require('./controller/identity.cjs');
+const {createUiUpdater}=require('./ui-update.cjs');
 
 const root=path.resolve(__dirname,'..');
 const assets=Object.freeze({
@@ -42,6 +43,7 @@ function readJson(req,maxBytes=8388608){
 }
 async function createAppServer(options={}){
   const controller=options.controller||createIdentityController();
+  const updater=options.uiCacheDir?createUiUpdater({cacheDir:options.uiCacheDir}):null;
   const server=http.createServer(async(req,res)=>{
     try{
       const host=req.headers.host;
@@ -52,9 +54,11 @@ async function createAppServer(options={}){
       const urlPath=new URL(req.url,'http://'+expected).pathname;
       if(req.method==='GET'&&urlPath==='/api/status')
         return json(res,200,{ok:true,...controller.status()});
+      if(req.method==='GET'&&urlPath==='/api/ui/version')
+        return json(res,200,updater?updater.state():{version:'bundled',status:'disabled'});
       if(req.method==='GET'&&Object.hasOwn(assets,urlPath)){
         const item=assets[urlPath];
-        const bytes=fs.readFileSync(path.join(root,item.file));
+        const bytes=updater?.getAsset(path.basename(item.file))||fs.readFileSync(path.join(root,item.file));
         res.writeHead(200,{'Content-Type':item.mime,'Cache-Control':'no-store',
           'Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';",
           'X-Content-Type-Options':'nosniff'});
@@ -97,7 +101,9 @@ async function createAppServer(options={}){
     server.listen(options.port??0,'127.0.0.1',resolve);
   });
   const address=server.address();
+  updater?.start();
   async function close(){
+    updater?.stop();
     await controller.dispose();
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }

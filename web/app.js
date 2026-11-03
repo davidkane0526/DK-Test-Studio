@@ -155,3 +155,22 @@ planForm.addEventListener('input',()=>{$('plan-status').textContent='方案参�
 form.addEventListener('input',()=>{$('connection-hint').textContent='连接设置已修改，点击“应用设置并重连”后生效。';});
 $('validate-waveform').addEventListener('click',validateWave);
 (async()=>{renderStatus(await refresh());if(state!=='connected')await connectInstrument();updatePlanMode();await validatePlan();await validateWave();})();
+
+/* Native shells update UI assets in the background, without replacing instrument drivers.
+ * The local UI version endpoint is cheap; GitHub is queried by the host, not this page. */
+if(!window.DKTSClient){
+  let loadedUiVersion=null;
+  async function inspectUiVersion(){
+    try{
+      const reply=await fetch('/api/ui/version',{cache:'no-store'});
+      if(!reply.ok)return;
+      const value=await reply.json();
+      if(loadedUiVersion===null){loadedUiVersion=value.version;return;}
+      if(value.version!==loadedUiVersion&&!busy&&!window.DKTSMeasurementRunning){
+        window.location.reload();
+      }
+    }catch{/* Offline UI continues normally. */}
+  }
+  void inspectUiVersion();
+  window.setInterval(inspectUiVersion,5000);
+}

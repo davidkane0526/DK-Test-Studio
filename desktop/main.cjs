@@ -1,9 +1,10 @@
 'use strict';
-const {app,BrowserWindow,shell}=require('electron');
+const {app,BrowserWindow}=require('electron');
 const {createAppServer}=require('../src/server.cjs');
 let serverInstance;
 async function start(){
-  serverInstance=await createAppServer();
+  // This is the one-time update-capable native shell. UI comes from a verified user-data cache.
+  serverInstance=await createAppServer({uiCacheDir:require('node:path').join(app.getPath('userData'),'ui-updates')});
   const win=new BrowserWindow({
     width:1200,height:790,minWidth:780,minHeight:560,
     title:'DK Test Studio',backgroundColor:'#f6f7fb',

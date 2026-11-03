@@ -16,6 +16,8 @@ function resource(filename,source){
   return {sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
     base64:bytes.toString('base64'),bytes:bytes.length};
 }
+// Android entry HTML includes native bootstrap tags; generate it deterministically first.
+require('./sync-android-assets.cjs');
 const files=['index.html','app.js','styles.css'];
 const windows=Object.fromEntries(files.map(f=>[f,resource(f,'web/'+f)]));
 const android=Object.fromEntries(files.map(f=>[f,resource(f,
