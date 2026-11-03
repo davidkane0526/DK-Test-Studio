@@ -2,19 +2,9 @@ name: Native Shell Windows Android and DKDS Release
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/windows-preview.yml'
-      - 'package.json'
-      - 'android/**'
-      - 'desktop/**'
-      - 'tools/generate-app-icons.cjs'
-      - 'src/**'
   workflow_dispatch:
 permissions:
   contents: write
-concurrency:
-  group: dkts-release-main
-  cancel-in-progress: true
 jobs:
   windows:
     name: Windows Setup, Portable, and validated DKDS plugin
@@ -119,9 +109,28 @@ jobs:
           path: dist/DK-Test-Studio-Android-Preview.apk
           if-no-files-found: error
 
+  ui-bundle:
+    name: Build lightweight update resources for this commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check complete frontend resources
+        run: npm test
+      - name: Build Windows and Android hot-update resource bundle
+        run: node tools/build-ui-bundle.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-UI-Bundle
+          path: dist/DKTS-UI-bundle.json
+          if-no-files-found: error
+
   release:
-    name: Publish all 4 files in one GitHub prerelease
-    needs: [windows, android]
+    name: Publish all supported platforms and UI bundle in one GitHub prerelease
+    needs: [windows, android, ui-bundle]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -138,7 +147,11 @@ jobs:
         with:
           name: DKTS-Android
           path: release/android
-      - name: Verify Windows, Android and plugin artifacts are present
+      - uses: actions/download-artifact@v4
+        with:
+          name: DKTS-UI-Bundle
+          path: release/ui
+      - name: Verify Windows, Android, DKDS plugin and UI update resources are present
         shell: bash
         run: |
           set -euo pipefail
@@ -146,6 +159,8 @@ jobs:
           test "$(find release/windows -name '*Portable*.exe' | wc -l)" -eq 1
           test "$(find release/plugin -name '*.dkplugin' | wc -l)" -eq 1
           test "$(find release/android -name '*.apk' | wc -l)" -eq 1
+          test "$(find release/ui -name 'DKTS-UI-bundle.json' | wc -l)" -eq 1
+          test "$(find release -type f | wc -l)" -eq 5
           find release -type f -print0 | xargs -0 -n1 sha256sum
       - name: Publish exact commit with Windows, independent Android and DKDS plugin
         env:
@@ -153,20 +168,32 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          head_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          test "$head_sha" = "$GITHUB_SHA" || { echo 'Stale commit; refusing publication'; exit 1; }
+          # Every pushed commit gets a complete Release, even if a later commit
+          # reaches main while this build is running. Never silently drop builds.
           tag="dkts-preview-$GITHUB_RUN_ID"
-          files=(release/windows/*.exe release/plugin/*.dkplugin release/android/*.apk)
-          test "${#files[@]}" -eq 4
-          gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
-            --title "DK Test Studio Preview ${GITHUB_SHA:0:10} (Windows + Android + DKDS)" \
-            --notes "Cross-platform development preview from $GITHUB_SHA. Windows installer, portable EXE, independent Android debug-signed APK and API 1.19 DKDS plugin. Shared KXCI protocol and SMU plan core. Device queries restricted to read-only IDN/OPT. No SMU/PMU output or validated laboratory measurements. Android debug APK signatures may vary across runs." \
-            --prerelease --latest=false
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | tee release-assets.txt
-          test "$(wc -l < release-assets.txt)" -eq 4 || { echo 'Incomplete Release'; exit 1; }
-          grep -q '\.apk$' release-assets.txt
-          grep -q '\.dkplugin$' release-assets.txt
-          grep -q 'Setup.*\.exe$' release-assets.txt
-          grep -q 'Portable.*\.exe$' release-assets.txt
-          echo "Verified https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
+          files=(release/windows/*.exe release/plugin/*.dkplugin release/android/*.apk release/ui/*.json)
+          test "${#files[@]}" -eq 5
+          url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "DK Test Studio Full Preview ${GITHUB_SHA:0:10} (Windows + Android + DKDS + UI)" \
+              --notes "Every main commit triggers a complete development build. Includes Windows installer, Windows portable EXE, independent Android debug-signed APK, API 1.19 DKDS plugin and fast UI resource bundle from exactly $GITHUB_SHA. Hot updates supplement full builds, not replace them. Device queries remain read-only IDN/OPT; no validated SMU/PMU hardware measurement. Android debug APK signing may differ between CI runs." \
+              --prerelease --latest=false
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort | tee release-assets.txt
+          test "$(wc -l < release-assets.txt)" -eq 5 || { echo 'Incomplete Release'; exit 1; }
+          grep -q '\.apk
+ release-assets.txt
+          grep -q '\.dkplugin
+ release-assets.txt
+          grep -q 'DKTS-UI-bundle\.json
+ release-assets.txt
+          grep -q 'Setup.*\.exe
+ release-assets.txt
+          grep -q 'Portable.*\.exe
+ release-assets.txt
+          printf 'Verified full-platform Release: %s\n' "$url"
+          printf '### Complete DK Test Studio Release\n\n%s\n\nCommit: `%s`\n\nWindows Setup, Windows Portable, Android APK, DKDS plugin, UI hot-update bundle: **5/5** verified.\n' "$url" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

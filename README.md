@@ -38,12 +38,13 @@ Windows 应用图标、任务栏、任务管理器、安装包 EXE，以及 Andr
 
 ## 界面热更新（快速开发模式）
 
-从支持热更新的 Windows / Android 原生壳开始，**普通界面更新不再重编译 EXE / APK**：
+**每次向 `main` 推送任何更改，都执行全平台完整构建。热更新只是额外的快速体验渠道，不替代原生安装包。**
 
-1. 推送 `web/` 的 HTML、CSS、JavaScript 修改到 `main`。
-2. GitHub Actions 的 `Fast UI Hot Update` 先运行测试，再把 Windows / Android 两套对应的界面资源及校验信息写入约 80 KB 的 `DKTS-UI-bundle.json`，并发布到 `dkts-ui-<commit SHA>` 的 GitHub Release。DKDS 插件由同次流水线通过官方 SDK 验证和打包。
-3. 已安装的独立 Windows 与 Android 软件启动后自动查询更新，此后约每 3 分钟检查一次；新界面通过校验后从应用私有缓存加载并刷新。断网会继续使用缓存或壳内版本。
-4. 仅在原生宿主、Android Java 网卡适配、Node TCP/HTTP 后端或共享底层协议更新时，才启动 `Native Shell Windows Android and DKDS Release` 全量构建。
+1. `Native Shell Windows Android and DKDS Release` 在**每一次 `main` 提交**时运行，不限制修改路径，也不取消排队中的旧提交。分别构建 Windows Setup、Windows Portable、独立 Android APK、DKDS 插件以及 UI 更新资源。
+2. 五项资产全部通过测试和构建后，发布到唯一的 `dkts-preview-<GitHub Actions run ID>` Release，并检查 **5/5** 资产完整性。即使后来有新提交，较早一次构建成功也仍应发布，不因 HEAD 已变化而拒绝。
+3. `Fast UI Hot Update` 同样在每次提交时运行，另行发布 `dkts-ui-<commit SHA>` 资源包；若该提交已不是最新 HEAD，则跳过*过时的热更新*，防止旧内容覆盖新版本，但对应的完整构建仍继续并发布。
+4. 已安装的独立 Windows 与 Android 软件启动时以及约每 3 分钟检查一次热更新，验证后从私有缓存刷新；离线继续运行已安装版本。
+5. Release 必须分别提供 Windows 安装版、Windows 便携版、独立 Android APK、DKDS 插件和轻量 UI 更新资源。汇报开发结果时同时附上实际发布并验证的 Release 链接；不可用 Actions 地址冒充已完成的 Release。
 
 **第一次必须安装一次具有热更新能力的新壳**：首次支持热更新的四文件原生版是 [dkts-preview-41591728008](https://github.com/davidkane0526/DK-Test-Studio/releases/tag/dkts-preview-41591728008)。旧版不具备自动拉取资源包能力。Android 当前是调试签名 APK，如签名不同可能需要卸载旧预览版。
 
@@ -70,7 +71,7 @@ npm start
 npm run dist:win
 ~~~
 
-GitHub Actions 在 `main` 提交时运行 Windows 与 Ubuntu 测试，并尝试打包 Windows 安装版和便携版。查看仓库的 Actions 与 Releases 页面核实每次构建是否成功；这不是实机验证。
+GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，并构建 Windows Setup/Portable、独立 Android APK、DKDS 插件与热更新资源，完成后统一发布到 GitHub Release。每次发布必须核对 5 个文件，未成功构建则不能声称 Release 已发布。测试通过不等于完成真实仪器验收。
 
 ## 安全与控制边界
 
