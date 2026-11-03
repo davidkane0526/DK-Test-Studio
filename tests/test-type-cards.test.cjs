@@ -28,7 +28,7 @@ test('test library is a distinct first-level screen, hidden when workbench is ac
 test('each card navigates to a dedicated workspace instead of expanding below the library',()=>{
   assert.equal((html.match(/class="test-type-card"/g)||[]).length,8);
   assert.equal((html.match(/data-test-kind="/g)||[]).length,8);
-  assert.match(app,/expandedKind=kind;\s*renderTestSelection\(\)/);
+  assert.match(app,/expandedKind=kind;\s*restoreTabDraft\(kind\);\s*renderTestSelection\(\)/);
   assert.doesNotMatch(app,/expandedKind=expandedKind===kind\?null:kind/);
   assert.doesNotMatch(html,/<select[^>]*name="kind"/);
   assert.match(html,/id="plan-form"/);
