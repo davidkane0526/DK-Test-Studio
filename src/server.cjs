@@ -17,7 +17,7 @@ function json(res,code,payload){
     'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
   res.end(out);
 }
-function readJson(req,maxBytes=1048576){
+function readJson(req,maxBytes=8388608){
   return new Promise((resolve,reject)=>{
     let size=0,body='',done=false;
     function fail(e){if(done)return;done=true;reject(e);}

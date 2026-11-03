@@ -28,17 +28,7 @@ function renderStatus(value){
   $('diagnostic').textContent=detail.slice(0,6000);
   $('diagnostic-wrap').open=false;
 }
-async function connect(){
-  if(busy)return;
-  busy=true;toggle.disabled=true;toggle.textContent='正在连接…';
-  try{
-    const result=await post('/api/connect',fields());
-    renderStatus(result);
-  }catch(error){renderStatus({phase:'error',summary:'无法访问本地控制服务',diagnostic:String(error)});}
-  finally{busy=false;renderStatus(awaitStatusFallback());}
-}
 let latestStatus={phase:'disconnected',summary:'未连接'};
-function awaitStatusFallback(){return latestStatus;}
 async function refresh(){
   try{
     const response=await fetch('/api/status',{cache:'no-store'});

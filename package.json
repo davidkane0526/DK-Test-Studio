@@ -46,8 +46,11 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "DK-Test-Studio-Setup-${version}-${arch}.${ext}"
     },
-    "artifactName": "DK-Test-Studio-${version}-${arch}.${ext}"
+    "portable": {
+      "artifactName": "DK-Test-Studio-Portable-${version}-${arch}.${ext}"
+    }
   }
 }

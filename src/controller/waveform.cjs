@@ -7,6 +7,8 @@ function validateWaveform(points){
   let previous=-Infinity;
   const normalized=points.map((point,index)=>{
     if(!point||typeof point!=='object')throw Error('第 '+(index+1)+' 个采样点格式错误');
+    if(point.timeS===undefined||point.voltageV===undefined||String(point.timeS).trim()===''||String(point.voltageV).trim()==='')
+      throw Error('第 '+(index+1)+' 个点缺少时间或电压数值');
     const t=Number(point.timeS),v=Number(point.voltageV);
     if(!Number.isFinite(t)||t<0||t>604800)throw Error('时间必须是 0 至 604800 秒内的有限数值');
     if(!Number.isFinite(v)||Math.abs(v)>200)throw Error('电压超出规划范围 ±200 V');
@@ -14,11 +16,16 @@ function validateWaveform(points){
     previous=t;
     return Object.freeze({timeS:t,voltageV:v});
   });
-  const deltas=normalized.slice(1).map((p,i)=>p.timeS-normalized[i].timeS);
+  let minimumStepS=Infinity,maximumStepS=0;
+  for(let i=1;i<normalized.length;i++){
+    const step=normalized[i].timeS-normalized[i-1].timeS;
+    minimumStepS=Math.min(minimumStepS,step);
+    maximumStepS=Math.max(maximumStepS,step);
+  }
   return Object.freeze({
     schema:'dk-test-studio.waveform.v1',
     points:normalized,durationS:normalized.at(-1).timeS-normalized[0].timeS,
-    minimumStepS:Math.min(...deltas),maximumStepS:Math.max(...deltas),
+    minimumStepS,maximumStepS,
     executable:false,hardwareVerified:false,provenance:'user-defined-plan'
   });
 }
