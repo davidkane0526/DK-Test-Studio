@@ -86,7 +86,9 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
   assert.equal(typeof futureCard?.invoke,'function','Future card opens its placeholder workspace');
   futureCard.invoke();
   assert.equal(capability.methods.validatePlan().kind,'iv','Future mode cannot mutate executable test plan');
-  futureCard.invoke();
+  const pendingBack=nodes.find(row=>row.textContent==='← 返回测试选择');
+  assert.equal(typeof pendingBack?.invoke,'function');
+  pendingBack.invoke();
   const allDescendants=(node)=>[node,...(node.children||[]).flatMap(allDescendants)];
   const surfaces=allDescendants(composed.primary.mainNode);
   const library=surfaces.find(x=>String(x.className||'').includes('dkts-library-stage'));
