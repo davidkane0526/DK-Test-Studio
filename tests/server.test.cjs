@@ -19,6 +19,8 @@ test('localhost API is read-only, origin guarded and waveform is not executable'
       body:JSON.stringify({text:'0 0\n0.00000002 1\n0.00000004 0'})});
     assert.equal(res.status,200);
     const plan=await res.json();assert.equal(plan.ok,true);assert.equal(plan.executable,false);
+    const planResponse=await fetch(base+'/api/plan/validate',{method:'POST',headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},body:JSON.stringify({kind:'iv',points:11,loops:2})});
+    const plan=await planResponse.json();assert.equal(plan.ok,true);assert.equal(plan.plan.executable,false);assert.equal(plan.plan.totalPoints,42);
     const unknown=await fetch(base+'/api/output',{method:'POST',headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},body:'{}'});
     assert.equal(unknown.status,404);
   }finally{await app.close();}

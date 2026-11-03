@@ -3,6 +3,7 @@ const http=require('node:http');
 const fs=require('node:fs');
 const path=require('node:path');
 const {parseWaveformText}=require('./controller/waveform.cjs');
+const {normalizePlan,previewPlan}=require('./controller/measurement-plan.cjs');
 const {createIdentityController,summarizeError}=require('./controller/identity.cjs');
 
 const root=path.resolve(__dirname,'..');
@@ -59,7 +60,7 @@ async function createAppServer(options={}){
           'X-Content-Type-Options':'nosniff'});
         return res.end(bytes);
       }
-      if(req.method!=='POST'||!['/api/connect','/api/disconnect','/api/waveform/validate'].includes(urlPath))
+      if(req.method!=='POST'||!['/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate'].includes(urlPath))
         return json(res,404,{error:'接口不存在'});
       // No arbitrary command endpoint exists; this only sends the hardcoded KXCI IDN query.
       if(req.headers['x-dkts-request']!=='1'||!String(req.headers['content-type']||'').startsWith('application/json'))
@@ -72,6 +73,10 @@ async function createAppServer(options={}){
       if(urlPath==='/api/connect'){
         try{return json(res,200,{ok:true,...await controller.connect(payload)});}
         catch(error){return json(res,200,{ok:false,...controller.status(),summary:summarizeError(error)});}
+      }
+      if(urlPath==='/api/plan/validate'){
+        const preview=previewPlan(payload,300);
+        return json(res,200,{ok:true,plan:preview.plan,firstPoints:preview.firstPoints,truncated:preview.truncated});
       }
       if(typeof payload.text!=='string')return json(res,400,{error:'波形应为文本'});
       const plan=parseWaveformText(payload.text);

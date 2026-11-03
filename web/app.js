@@ -1,6 +1,6 @@
 'use strict';
 const $=id=>document.getElementById(id);
-const form=$('connection-form'),toggle=$('toggle');
+const form=$('connection-form'),toggle=$('toggle'),planForm=$('plan-form');
 let state='disconnected',busy=false;
 async function post(route,data={}){
   const res=await fetch(route,{method:'POST',
@@ -75,7 +75,26 @@ async function validateWave(){
     drawWave(r.preview);
   }catch(error){info.textContent='校验失败：'+String(error.message||error).slice(0,120);$('waveform-plot').replaceChildren();}
 }
+function updatePlanMode(){
+  const it=$('test-kind').value==='it';
+  document.querySelectorAll('.iv-only').forEach(node=>node.hidden=it);
+  document.querySelectorAll('.it-only').forEach(node=>node.hidden=!it);
+}
+async function validatePlan(){
+  const status=$('plan-status');
+  try{
+    const payload=Object.fromEntries(new FormData(planForm).entries());
+    const r=await post('/api/plan/validate',payload);
+    if(!r.ok)throw Error(r.error||'参数校验失败');
+    const p=r.plan;
+    status.textContent=(p.kind==='iv'?'I–V 扫描':'I–t 恒压读出')+' · '+p.totalPoints+
+      ' 个规划数据点 · '+p.loops+' 循环 · SMU '+p.sourceSmU+' · 硬件执行未开放';
+  }catch(e){status.textContent='方案校验失败：'+String(e.message||e).slice(0,120);}
+}
 toggle.addEventListener('click',onToggle);
+$('validate-plan').addEventListener('click',validatePlan);
+$('test-kind').addEventListener('change',()=>{updatePlanMode();validatePlan();});
+planForm.addEventListener('input',()=>{$('plan-status').textContent='方案参数已更改，请重新校验。';});
 form.addEventListener('input',()=>{if(state==='connected')$('connection-summary').textContent='连接设置已修改，断开后重新连接生效';});
 $('validate-waveform').addEventListener('click',validateWave);
-(async()=>{renderStatus(await refresh());await onToggle();await validateWave();})();
+(async()=>{renderStatus(await refresh());await onToggle();updatePlanMode();await validatePlan();await validateWave();})();

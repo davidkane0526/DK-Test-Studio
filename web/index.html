@@ -52,12 +52,42 @@
         </form>
       </details>
     </section>
-    <section class="card">
-      <div class="card-heading"><div><p class="eyebrow">MEASUREMENT</p><h2>测试设置</h2></div></div>
-      <div class="info-row"><span>SMU I–V / I–t</span><span class="mute-pill">待接入</span></div>
-      <div class="info-row"><span>PMU / PUND / Endurance</span><span class="mute-pill">待接入</span></div>
-      <div class="info-row"><span>任意时间-电压波形</span><span class="ready-pill">方案校验可用</span></div>
-      <p class="hint">测试指令编译与仪器模块安全校验尚未完成，实机输出保持禁用。不能把方案预览当作实测曲线。</p>
+    <section class="card test-card">
+      <div class="card-heading"><div><p class="eyebrow">MEASUREMENT PLAN</p><h2>测试设置</h2></div>
+        <button id="validate-plan" type="button">预览方案</button>
+      </div>
+      <form id="plan-form" class="plan-form">
+        <label class="span-two">测试方式
+          <select name="kind" id="test-kind">
+            <option value="iv">SMU I–V 扫描</option>
+            <option value="it">SMU I–t 恒压读出</option>
+            <option value="transfer" disabled>转移/输出特性（开发中）</option>
+            <option value="pund" disabled>PMU/PUND（开发中）</option>
+          </select>
+        </label>
+        <label class="iv-only">起始电压 (V)<input type="number" step="any" name="startV" value="-1"></label>
+        <label class="iv-only">终止电压 (V)<input type="number" step="any" name="stopV" value="1"></label>
+        <label class="it-only" hidden>固定偏置 (V)<input type="number" step="any" name="fixedV" value="0.1"></label>
+        <label>每循环点数<input type="number" min="2" max="100000" name="points" value="101"></label>
+        <label>循环次数<input type="number" min="1" max="10000" name="loops" value="3"></label>
+        <label>规划电流限值 (A)<input type="number" step="any" name="complianceA" value="0.0001"></label>
+        <details class="span-two settings">
+          <summary>高级测试设置（通道与速度）</summary>
+          <div class="advanced-grid">
+            <label class="iv-only">扫描方向<select name="direction">
+              <option value="roundtrip">正反往返</option><option value="forward">正向</option><option value="reverse">反向</option>
+            </select></label>
+            <label class="iv-only">规划点间延迟 (ms)<input type="number" name="delayMs" value="20" step="any"></label>
+            <label class="it-only" hidden>规划采样间隔 (ms)<input type="number" name="intervalMs" value="100" step="any"></label>
+            <label>源 SMU<input type="number" name="sourceSmU" value="1" min="1" max="9"></label>
+            <label>测量 SMU<input type="number" name="measureSmU" value="1" min="1" max="9"></label>
+            <label>栅极 SMU（0 不用）<input type="number" name="gateSmU" value="0" min="0" max="9"></label>
+            <label>栅极偏置 (V)<input type="number" name="gateBiasV" value="0" step="any"></label>
+          </div>
+        </details>
+      </form>
+      <p class="hint" id="plan-status" role="status">测试方案尚未校验，实机输出不可用。</p>
+      <p class="hint">限流与电压仅为软件规划字段，尚未经 4200A 装机模块验证。执行按钮不会在本阶段开放。</p>
     </section>
   </div>
   <section class="card waveform-card">
