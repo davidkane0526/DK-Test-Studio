@@ -24,9 +24,9 @@ test('frameless desktop keeps draggable top titlebar and native window controls'
   assert.match(html,/id="app-titlebar" class="app-titlebar"/);
   assert.match(html,/class="titlebar-drag-region"/);
   assert.match(html,/id="window-actions" class="window-actions"[^>]* hidden/);
-  assert.match(css,/\.app-titlebar\{position:fixed;top:0/);
+  assert.match(css,/\.app-titlebar\{\s*position:fixed;top:0/);
   assert.match(css,/#window-actions\[hidden\]\{display:none!important\}/);
-  assert.match(css,/\.app-statusbar\{position:fixed;bottom:0/);
+  assert.match(css,/\.app-statusbar\{\s*position:fixed;bottom:0/);
   assert.match(css,/--dkts-title-height:46px/);
   assert.match(css,/--dkts-status-height:34px/);
   assert.match(html,/class="window-command window-close"/);
