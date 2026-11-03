@@ -99,8 +99,46 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - name: Compile and debug-sign independent Android APK
-        run: gradle -p android :app:assembleDebug --no-daemon --stacktrace
+      - name: Restore fixed Android signing key from repository Secrets
+        env:
+          DKTS_ANDROID_KEYSTORE_B64: ${{ secrets.DKTS_ANDROID_KEYSTORE_B64 }}
+          DKTS_ANDROID_SIGNING_PASSWORD: ${{ secrets.DKTS_ANDROID_SIGNING_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DKTS_ANDROID_KEYSTORE_B64:-}" ] || [ -z "${DKTS_ANDROID_SIGNING_PASSWORD:-}" ]; then
+            echo "::error::Missing DKTS Android signing Secrets. Use docs/ANDROID_SIGNING.md to configure the one-time signing identity."
+            exit 1
+          fi
+          keypath="$RUNNER_TEMP/dkts-signing.p12"
+          printf '%s' "$DKTS_ANDROID_KEYSTORE_B64" | base64 --decode > "$keypath"
+          chmod 600 "$keypath"
+          test -s "$keypath"
+          keytool -list -keystore "$keypath" -storetype PKCS12 \
+            -storepass "$DKTS_ANDROID_SIGNING_PASSWORD" -alias dkts > /dev/null
+          echo "DKTS_ANDROID_KEYSTORE_PATH=$keypath" >> "$GITHUB_ENV"
+      - name: Build independently signed Android release APK
+        env:
+          DKTS_ANDROID_SIGNING_PASSWORD: ${{ secrets.DKTS_ANDROID_SIGNING_PASSWORD }}
+        run: gradle -p android :app:assembleRelease --no-daemon --stacktrace
+      - name: Verify Android certificate matches pinned distribution identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$apk"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$apksigner"
+          "$apksigner" verify --verbose --print-certs "$apk" | tee "$RUNNER_TEMP/dkts-apk-signature.txt"
+          actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/dkts-apk-signature.txt" | head -n 1 | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
+          expected="$(tr -d ':[:space:]' < android/signing-certificate.sha256 | tr 'A-F' 'a-f')"
+          test "${#actual}" -eq 64 && test "${#expected}" -eq 64
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::APK certificate drift detected. Refusing to publish an update signed by a different key."
+            exit 1
+          fi
+          echo "Signing certificate verified: $actual"
+          printf 'Android signing certificate SHA-256: `%s`\n' "$actual" >> "$GITHUB_STEP_SUMMARY"
       - name: Enable Android emulator KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -116,10 +154,14 @@ jobs:
           disable-animations: true
           script: |
             set -eu
-            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r android/app/build/outputs/apk/release/app-release.apk
             adb logcat -c
             adb shell am start -W -n studio.dk.test/.MainActivity
             sleep 8
+            # Same-certificate in-place replacement must be accepted by Android.
+            adb install -r android/app/build/outputs/apk/release/app-release.apk
+            adb shell am start -W -n studio.dk.test/.MainActivity
+            sleep 3
             test -n "$(adb shell pidof studio.dk.test | tr -d '\r')"
             adb logcat -d -b crash > android-startup-crash.log
             if grep -q "Process: studio.dk.test" android-startup-crash.log; then cat android-startup-crash.log; exit 1; fi
@@ -136,9 +178,9 @@ jobs:
           if-no-files-found: warn
       - name: Prepare Android release asset
         run: |
-          test -s android/app/build/outputs/apk/debug/app-debug.apk
+          test -s android/app/build/outputs/apk/release/app-release.apk
           mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/DK-Test-Studio-Android-Preview.apk
+          cp android/app/build/outputs/apk/release/app-release.apk dist/DK-Test-Studio-Android-Preview.apk
           sha256sum dist/DK-Test-Studio-Android-Preview.apk
       - uses: actions/upload-artifact@v4
         with:
@@ -217,7 +259,7 @@ jobs:
             gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --title "DK Test Studio Full Preview ${GITHUB_SHA:0:10} (Windows + Android + DKDS + UI)" \
-              --notes "Every main commit triggers a complete development build. Includes Windows installer, Windows portable EXE, independent Android debug-signed APK, API 1.19 DKDS plugin and fast UI resource bundle from exactly $GITHUB_SHA. Hot updates supplement full builds, not replace them. Device queries remain read-only IDN/OPT; no validated SMU/PMU hardware measurement. Android debug APK signing may differ between CI runs." \
+              --notes "Every main commit triggers a complete development build. Includes Windows installer, Windows portable EXE, independent Android APK signed with the pinned DKTS distribution certificate, API 1.19 DKDS plugin and fast UI resource bundle from exactly $GITHUB_SHA. The Android certificate SHA-256 is recorded in android/signing-certificate.sha256 and the signing key is stored only in GitHub Actions Secrets. Hot updates supplement full builds, not replace them. Device queries remain read-only IDN/OPT; no validated SMU/PMU hardware measurement. Existing ephemeral-debug-signed APKs need a one-time uninstall before the fixed-signature APK can be installed." \
               --prerelease --latest=false
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort | tee release-assets.txt

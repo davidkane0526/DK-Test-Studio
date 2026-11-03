@@ -126,7 +126,7 @@ test('native Android shell version comes from its actual installed package',()=>
  assert.match(src,/case "version": return new JSONObject\(\)/);
  assert.match(src,/getPackageInfo\(context\.getPackageName\(\),0\)\.versionName/);
  assert.match(bridge,/nativeVersion:async\(\)=>String/);
- assert.match(gradle,/versionName '0\.2\.3'/);
+ assert.match(gradle,/versionName '0\.2\.4'/);
 });
 
 test('Android 16 immersive mode is coalesced and cannot repeatedly re-enter from focus changes',()=>{
@@ -144,4 +144,23 @@ test('Android 16 immersive mode is coalesced and cannot repeatedly re-enter from
   assert.doesNotMatch(src,/getWindow\(\)\.setStatusBarColor\(/);
   const modern=src.slice(src.indexOf('if (Build.VERSION.SDK_INT >= 30)'),src.indexOf('} else {',src.indexOf('if (Build.VERSION.SDK_INT >= 30)')));
   assert.doesNotMatch(modern,/setFlags\(/);
+});
+
+test('released Android artifacts use a fixed, pinned certificate and never use CI debug keystore',()=>{
+  const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
+  const workflow=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
+  const cert=fs.readFileSync(path.join(root,'android/signing-certificate.sha256'),'utf8').trim();
+  assert.match(cert,/^[a-f0-9]{64}$/);
+  assert.match(gradle,/signingConfigs\s*\{/);
+  assert.match(gradle,/stablePreview/);
+  assert.match(gradle,/System.getenv\('DKTS_ANDROID_KEYSTORE_PATH'\)/);
+  assert.match(gradle,/System.getenv\('DKTS_ANDROID_SIGNING_PASSWORD'\)/);
+  assert.match(workflow,/secrets.DKTS_ANDROID_KEYSTORE_B64/);
+  assert.match(workflow,/secrets.DKTS_ANDROID_SIGNING_PASSWORD/);
+  assert.match(workflow,/:app:assembleRelease/);
+  assert.doesNotMatch(workflow,/:app:assembleDebug/);
+  assert.match(workflow,/apksigner/);
+  assert.match(workflow,/signing-certificate.sha256/);
+  assert.match(workflow,/adb install -r android\/app\/build\/outputs\/apk\/release\/app-release.apk/);
+  assert.match(workflow,/certificate drift detected/);
 });

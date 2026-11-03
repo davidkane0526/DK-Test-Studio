@@ -14,3 +14,10 @@ android/app/build/
 build/icon.ico
 build/icon.png
 android/app/src/main/res/mipmap-*/
+
+# Do not ever commit Android distribution private signing keys
+*.keystore
+*.jks
+*.p12
+*.pfx
+android/signing-private/

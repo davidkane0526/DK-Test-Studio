@@ -111,3 +111,7 @@ GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，
 ### Android v0.2.3 启动闪退修正
 
 撤销 0.2.2 版本中 onWindowFocusChanged() 重复执行的系统状态栏操作。Android 11–16 通过一次性排队的 WindowInsetsController 请求隐藏顶部系统状态栏，旧版本保留兼容分支，厂商系统栏异常不再导致整个 Activity 退出。原生版本升级 v0.2.3；Android CI 新增 API 36 模拟器安装、启动、进程保活、crash 日志和截图验证，不能以仅编译成功替代启动验证。实机故障仍须结合 adb logcat 判断。
+
+## Android 固定签名与覆盖升级
+
+Android v0.2.4 开始采用固定签名的 `assembleRelease` APK。GitHub Actions 必须配置两个 repository Secrets，并核对公开固定的证书 SHA-256；缺少密钥时停止完整 Release，**不再生成与旧版不兼容的随机签名 APK**。配置步骤见 [Android 签名说明](docs/ANDROID_SIGNING.md)。之前随机 Debug 签名版本只需一次性卸载迁移（注意应用数据），后续可使用相同签名覆盖安装。
