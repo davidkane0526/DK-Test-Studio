@@ -10,16 +10,7 @@
 <script src="/app.js" defer></script>
 </head>
 <body>
-<header class="topbar">
-  <div class="brand"><div class="brand-mark">DK</div>
-    <div><div class="brand-title"><strong>DK Test Studio</strong><span id="ui-version-badge" class="ui-version-badge" title="当前界面版本：内置">UI 内置版</span></div><small>科研测试工作台 · Keithley 4200A-SCS</small></div>
-  </div>
-  <button class="top-status" id="connection-status" type="button" aria-haspopup="dialog" aria-controls="connection-dialog" aria-label="查看仪器连接信息及设置">
-    <span class="status-dot" id="dot" aria-hidden="true"></span>
-    <span id="state-chip" role="status" aria-live="polite">正在连接…</span>
-    <span class="status-chevron" aria-hidden="true">⌄</span>
-  </button>
-</header>
+
 <dialog id="connection-dialog" class="connection-dialog" aria-labelledby="connection-dialog-title">
   <div class="dialog-header">
     <div><p class="eyebrow">DEVICE CONNECTION</p><h2 id="connection-dialog-title">仪器连接</h2></div>
@@ -62,10 +53,18 @@
   </div>
 </dialog>
 <main class="workspace">
+  <div class="workspace-actions" aria-label="工作区信息与连接">
+  <button class="top-status context-status" id="connection-status" type="button" aria-haspopup="dialog" aria-controls="connection-dialog" aria-label="查看仪器连接信息及设置">
+    <span class="status-dot" id="dot" aria-hidden="true"></span>
+    <span id="state-chip" role="status" aria-live="polite">正在连接…</span>
+    <span class="status-chevron" aria-hidden="true">⌄</span>
+  </button>
+    <span id="ui-version-badge" class="ui-version-badge" title="当前界面版本：内置">UI 内置版</span>
+  </div>
   <section id="test-library" class="card types-card" aria-labelledby="test-types-title">
     <div class="card-heading">
-      <div><p class="eyebrow">TEST LIBRARY</p><h2 id="test-types-title">选择测试方式</h2></div>
-      <p class="subtle">选择测试方式，进入独立测试工作区</p>
+      <div><p class="eyebrow">DK TEST STUDIO · 4200A</p><h2 id="test-types-title">选择测试方式</h2></div>
+      <p class="subtle">点击卡片进入测试工作区</p>
     </div>
     <div class="test-type-grid" role="group" aria-label="选择测试方式">
       <button class="test-type-card" type="button" data-test-kind="iv" aria-label="进入测试工作区">
@@ -107,14 +106,13 @@
         <div class="detail-heading">
           <button type="button" id="close-test-detail" class="detail-back" aria-label="返回测试方式选择"><span aria-hidden="true">←</span> 返回测试选择</button>
           <div class="detail-heading-title">
-            <p class="eyebrow">MEASUREMENT WORKSPACE</p>
             <h2 id="test-detail-title" tabindex="-1">测试工作区</h2>
-            <p class="detail-subtitle" id="test-detail-subtitle">参数设置 · 数据读取 · 实时曲线</p>
+            <p class="detail-subtitle" id="test-detail-subtitle">参数 · 实时曲线 · 原始数据</p>
           </div>
-          <span class="detail-runtime-badge">只读预览 · 未开放测量</span>
+          <button type="button" id="toggle-parameters" class="compact-tool" aria-controls="parameters-panel" aria-expanded="true">收起参数</button>
         </div>
-        <div class="detail-columns">
-          <section class="detail-panel parameters-panel" aria-labelledby="parameters-title">
+        <div id="detail-columns" class="detail-columns">
+          <section id="parameters-panel" class="detail-panel parameters-panel" aria-labelledby="parameters-title">
             <div class="detail-section-heading">
               <div><p class="eyebrow">CONFIGURATION</p><h4 id="parameters-title">测试参数</h4></div>
               <button type="button" id="validate-plan" class="small-action">校验方案</button>
@@ -164,7 +162,10 @@
           <section class="detail-panel data-panel" aria-labelledby="data-title">
             <div class="detail-section-heading">
               <div><p class="eyebrow">ACQUISITION</p><h4 id="data-title">数据读取与绘图</h4></div>
-              <span class="acquisition-state" id="acquisition-state">等待实机采集</span>
+              <div class="data-header-actions">
+                <span class="acquisition-state" id="acquisition-state">等待实机采集</span>
+                <button type="button" class="measure-button" disabled title="仪器采集指令尚未实现">开始测量 · 待接入</button>
+              </div>
             </div>
             <div class="readout-grid">
               <div class="readout"><span>电压</span><strong id="readout-voltage">—</strong><small>V</small></div>
@@ -189,13 +190,12 @@
               <table class="data-table"><thead><tr><th>序号</th><th id="data-column-x">电压 (V)</th><th>电流 (A)</th><th>时间 (s)</th></tr></thead>
               <tbody id="measurement-rows"><tr><td colspan="4" class="empty-row">等待仪器返回原始数据</td></tr></tbody></table>
             </div>
-            <p class="acquisition-notice">实测通道尚未接入。这里不生成模拟数据，不把规划曲线当作测量结果。</p>
-            <button type="button" class="measure-button" disabled title="仪器采集指令尚未实现">开始测量 · 待接入</button>
+            <p class="acquisition-notice">仅显示仪器原始采样结果，不以规划值或模拟数据替代。</p>
           </section>
         </div>
       </div>
   </section>
-  <footer>DK Test Studio · 只读 KXCI 身份及模块查询 · 界面自动更新</footer>
+
 </main>
 </body>
 </html>

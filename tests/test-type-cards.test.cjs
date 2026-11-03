@@ -27,7 +27,7 @@ test('each card navigates to a dedicated workspace instead of expanding below th
   assert.match(html,/id="plan-form"/);
   assert.match(html,/id="waveform-editor" hidden/);
   assert.match(html,/id="pending-parameters" class="pending-parameters" hidden/);
-  assert.match(styles,/\.detail-columns\{grid-template-columns:minmax\(292px,350px\) minmax\(0,1fr\)/);
+  assert.match(styles,/\.detail-columns\{grid-template-columns:minmax\(250px,clamp\(270px,25vw,330px\)\) minmax\(0,1fr\)/);
   assert.match(styles,/@media\(max-width:850px\)\{/);
   assert.match(styles,/grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
 });
@@ -38,4 +38,16 @@ test('workbench reserves real data surfaces without fabricated measurements',()=
   assert.match(html,/等待仪器返回原始数据/);
   assert.match(app,/The measured plot stays empty until the actual instrument acquisition layer/);
   assert.doesNotMatch(app,/post\('\/api\/output'/);
+});
+
+test('space-first workspace removes full-width status bar and allows hiding parameters',()=>{
+  assert.doesNotMatch(html,/<header class="topbar">/);
+  assert.match(html,/class="workspace-actions"/);
+  assert.match(html,/id="toggle-parameters"/);
+  assert.match(html,/id="detail-columns"/);
+  assert.match(app,/classList\.toggle\('parameters-collapsed'\)/);
+  assert.match(app,/\$\('parameters-panel'\)\.hidden=hidden/);
+  assert.match(styles,/\.detail-columns\.parameters-collapsed\{grid-template-columns:minmax\(0,1fr\)\}/);
+  assert.match(styles,/\.workspace,.workspace\.workspace-active\{position:relative;width:100%;max-width:none/);
+  assert.match(styles,/\.data-panel\{display:flex;flex-direction:column/);
 });

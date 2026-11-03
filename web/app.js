@@ -214,6 +214,14 @@ document.querySelectorAll('.test-type-card').forEach(card=>{
   card.addEventListener('click',()=>selectTestKind(card.dataset.testKind));
 });
 $('close-test-detail').addEventListener('click',returnToTestLibrary);
+$('toggle-parameters').addEventListener('click',()=>{
+  const columns=$('detail-columns');
+  const hidden=columns.classList.toggle('parameters-collapsed');
+  $('parameters-panel').hidden=hidden;
+  const control=$('toggle-parameters');
+  control.textContent=hidden?'显示参数':'收起参数';
+  control.setAttribute('aria-expanded',String(!hidden));
+});
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape'&&expandedKind&&!dialog.open){
     event.preventDefault();

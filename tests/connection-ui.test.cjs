@@ -4,7 +4,9 @@ const fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
 const ui=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
-test('desktop and Android share a compact header connection status button and modal',()=>{
+test('desktop and Android have no top status bar, but preserve a contextual connection action and modal',()=>{
+  assert.doesNotMatch(html,/<header class="topbar">/);
+  assert.match(html,/class="workspace-actions"/);
   assert.match(html,/<button class="top-status" id="connection-status"/);
   assert.match(html,/aria-haspopup="dialog"/);
   assert.match(html,/<dialog id="connection-dialog"/);
