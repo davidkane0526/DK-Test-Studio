@@ -46,3 +46,30 @@ test('a GitHub hot-update release swaps the UI files and preserves a working bac
     assert.equal(reread.getAsset('../internal.js'),null);
   }finally{updater.stop();fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('update selects the newest published release, not the first API item',async()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-order-'));
+  const newest=prepare();
+  const older={tag_name:'dkts-ui-older',target_commitish:'older',
+    published_at:'2026-11-03T06:00:00Z',
+    assets:[{name:'DKTS-UI-bundle.json',browser_download_url:
+      'https://github.com/davidkane0526/DK-Test-Studio/releases/download/dkts-ui-older/DKTS-UI-bundle.json'}]};
+  const latest={tag_name:'dkts-ui-'+VERSION,target_commitish:VERSION,
+    published_at:'2026-11-03T07:07:23Z',
+    assets:[{name:'DKTS-UI-bundle.json',browser_download_url:
+      'https://github.com/davidkane0526/DK-Test-Studio/releases/download/dkts-ui-'+VERSION+'/DKTS-UI-bundle.json'}]};
+  const requests=[];
+  const updater=createUiUpdater({cacheDir:root,fetchImpl:async url=>{
+    requests.push(url);
+    if(url.includes('/releases?'))return {ok:true,json:async()=>[older,latest]};
+    if(url.includes(VERSION))return {ok:true,json:async()=>newest};
+    throw Error('Updater requested an obsolete release');
+  }});
+  try{
+    const result=await updater.updateOnce();
+    assert.equal(result.updated,true);
+    assert.equal(result.version,VERSION);
+    assert.equal(requests.length,2);
+    assert(requests[1].includes(VERSION));
+  }finally{updater.stop();fs.rmSync(root,{recursive:true,force:true});}
+});

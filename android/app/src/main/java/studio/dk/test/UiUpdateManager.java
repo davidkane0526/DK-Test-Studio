@@ -176,12 +176,25 @@ final class UiUpdateManager {
         if (closed) return;
         JSONArray releases = listReleases();
         JSONObject selected = null;
+        String newestPublished = "";
         for (int i = 0; i < releases.length(); i++) {
             JSONObject row = releases.getJSONObject(i);
-            if (!row.optBoolean("draft", false) &&
-                row.optString("tag_name").startsWith("dkts-ui-")) {
+            if (row.optBoolean("draft", false) ||
+                !row.optString("tag_name").startsWith("dkts-ui-")) continue;
+            boolean hasUiBundle = false;
+            JSONArray available = row.optJSONArray("assets");
+            if (available == null) continue;
+            for (int n = 0; n < available.length(); n++) {
+                if (ASSET.equals(available.getJSONObject(n).optString("name"))) {
+                    hasUiBundle = true;
+                    break;
+                }
+            }
+            if (!hasUiBundle) continue;
+            String published = row.optString("published_at", row.optString("created_at", ""));
+            if (selected == null || published.compareTo(newestPublished) > 0) {
                 selected = row;
-                break;
+                newestPublished = published;
             }
         }
         if (selected == null) return;

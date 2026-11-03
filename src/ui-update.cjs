@@ -81,8 +81,11 @@ function createUiUpdater(options={}){
         status='checking';
         const releases=await request(API);
         if(!Array.isArray(releases))throw Error('Invalid GitHub Releases response');
-        const release=releases.find(r=>!r.draft&&r.tag_name?.startsWith('dkts-ui-')&&
-          r.assets?.some(a=>a.name===ASSET));
+        // The GitHub Releases API is not always ordered by publication time.
+        const release=releases.filter(r=>!r.draft&&r.tag_name?.startsWith('dkts-ui-')&&
+          r.assets?.some(a=>a.name===ASSET))
+          .sort((a,b)=>String(b.published_at||b.created_at||'')
+            .localeCompare(String(a.published_at||a.created_at||'')))[0];
         if(!release){status='current';return {updated:false,version};}
         if(release.tag_name===tag){status='current';return {updated:false,version};}
         const asset=release.assets.find(a=>a.name===ASSET);
