@@ -16,6 +16,10 @@
     <strong>DK Test Studio</strong>
     <span id="ui-version-badge" class="ui-version-badge" title="当前界面版本：内置">UI 内置版</span>
   </div>
+  <span class="titlebar-version-divider" aria-hidden="true"></span>
+  <nav id="workspace-tabs" class="workspace-tabs" role="tablist" aria-label="工作区标签页">
+    <button type="button" id="tab-home" class="workspace-tab is-active" role="tab" aria-selected="true" aria-controls="test-library" title="选择测试">测试选择</button>
+  </nav>
   <div class="titlebar-drag-region" aria-hidden="true"></div>
   <div id="window-actions" class="window-actions" role="group" aria-label="窗口控制" hidden>
     <button type="button" id="window-minimize" class="window-command" title="最小化" aria-label="最小化">
@@ -85,8 +89,7 @@
 
   <section id="test-library" class="card types-card" aria-labelledby="test-types-title">
     <div class="card-heading">
-      <div><p class="eyebrow">DK TEST STUDIO · 4200A</p><h2 id="test-types-title">选择测试方式</h2></div>
-      <p class="subtle">点击卡片进入测试工作区</p>
+      <div><h2 id="test-types-title">选择测试方式</h2></div>
     </div>
     <div class="test-type-grid" role="group" aria-label="选择测试方式">
       <button class="test-type-card" type="button" data-test-kind="iv" aria-label="进入测试工作区">

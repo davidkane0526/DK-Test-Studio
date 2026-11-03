@@ -190,6 +190,70 @@ const TEST_MODES=Object.freeze({
 });
 let expandedKind=null;
 const detail=$('test-detail');
+const openedTabs=[];
+const tabDrafts=new Map();
+function rememberTabDraft(){
+  if(!expandedKind)return;
+  const formValues={};
+  for(const control of planForm.elements){
+    if(!control.name)continue;
+    formValues[control.name]=control.value;
+  }
+  tabDrafts.set(expandedKind,{formValues,waveform:$('waveform-text').value});
+}
+function restoreTabDraft(kind){
+  const draft=tabDrafts.get(kind);
+  if(!draft)return;
+  for(const control of planForm.elements){
+    if(control.name&&Object.hasOwn(draft.formValues,control.name))
+      control.value=draft.formValues[control.name];
+  }
+  $('waveform-text').value=draft.waveform;
+  $('test-kind').value=kind;
+}
+function renderWorkspaceTabs(){
+  const nav=$('workspace-tabs');
+  nav.querySelectorAll('.workspace-tab-item').forEach(node=>node.remove());
+  const home=$('tab-home');
+  const homeActive=expandedKind===null;
+  home.classList.toggle('is-active',homeActive);
+  home.setAttribute('aria-selected',String(homeActive));
+  for(const kind of openedTabs){
+    const tab=document.createElement('div');
+    tab.className='workspace-tab-item';
+    const select=document.createElement('button');
+    select.type='button';select.className='workspace-tab';
+    select.setAttribute('role','tab');
+    select.setAttribute('aria-selected',String(expandedKind===kind));
+    select.setAttribute('aria-controls','test-detail');
+    select.classList.toggle('is-active',expandedKind===kind);
+    select.textContent=TEST_MODES[kind].title;
+    select.title=TEST_MODES[kind].title;
+    select.addEventListener('click',()=>selectTestKind(kind));
+    const close=document.createElement('button');
+    close.type='button';close.className='workspace-tab-close';
+    close.setAttribute('aria-label','关闭'+TEST_MODES[kind].title+'标签');
+    close.title='关闭标签';close.textContent='×';
+    close.addEventListener('click',()=>closeWorkspaceTab(kind));
+    tab.append(select,close);
+    nav.appendChild(tab);
+  }
+}
+function closeWorkspaceTab(kind){
+  const i=openedTabs.indexOf(kind);
+  if(i<0)return;
+  if(expandedKind===kind)rememberTabDraft();
+  openedTabs.splice(i,1);
+  tabDrafts.delete(kind);
+  if(expandedKind===kind){
+    const next=openedTabs[Math.min(i,openedTabs.length-1)]||null;
+    expandedKind=null;
+    if(next)selectTestKind(next);
+    else returnToTestLibrary();
+  }else renderWorkspaceTabs();
+}
+$('tab-home').addEventListener('click',returnToTestLibrary);
+
 function renderTestSelection(){
   const mode=expandedKind?TEST_MODES[expandedKind]:null;
   const isEditable=Boolean(mode?.ready);
@@ -200,6 +264,7 @@ function renderTestSelection(){
   detail.inert=!active;
   detail.setAttribute('aria-hidden',String(!active));
   document.querySelector('.workspace').classList.toggle('workspace-active',active);
+  renderWorkspaceTabs();
   if(!mode)return;
   $('test-detail-title').textContent=mode.title+' · 测试工作区';
   $('test-detail-subtitle').textContent='参数设置 / 数据读取 / 实时曲线';
@@ -232,13 +297,17 @@ function renderTestSelection(){
 }
 function selectTestKind(kind){
   if(!Object.hasOwn(TEST_MODES,kind))return;
+  if(expandedKind!==kind)rememberTabDraft();
+  if(!openedTabs.includes(kind))openedTabs.push(kind);
   expandedKind=kind;
+  restoreTabDraft(kind);
   renderTestSelection();
   window.scrollTo({top:0,behavior:'instant'});
   $('test-detail-title').focus({preventScroll:true});
   showStatusMessage('已打开 '+TEST_MODES[kind].title+' · 尚未开放实机测量');
 }
 function returnToTestLibrary(){
+  rememberTabDraft();
   expandedKind=null;
   renderTestSelection();
   window.scrollTo({top:0,behavior:'instant'});

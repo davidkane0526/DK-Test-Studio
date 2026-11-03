@@ -590,3 +590,75 @@ body.dkts-android-shell .status-log-dialog{
   .detail-icon-action{color:#adbed8}
   .detail-icon-action:hover{color:#e5f0ff}
 }
+
+/* DKDS-style compact working tabs immediately after the UI revision. */
+.titlebar-version-divider{
+  display:block;flex:none;width:1px;height:22px;margin:0 9px 0 10px;
+  background:var(--dkts-chrome-border,#dfe6f0);pointer-events:none
+}
+.workspace-tabs{
+  display:flex;align-items:center;gap:3px;height:100%;max-width:min(54vw,780px);
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;
+  -webkit-app-region:no-drag;app-region:no-drag;min-width:0
+}
+.workspace-tabs::-webkit-scrollbar{display:none}
+.workspace-tab-item{display:flex;align-items:center;height:32px;flex:none;border-radius:8px;max-width:195px}
+.workspace-tab,.workspace-tab-close{
+  flex:none;height:30px;margin:0;border:0;background:transparent;
+  color:var(--dkts-chrome-text,#516681);cursor:pointer;
+  -webkit-app-region:no-drag;app-region:no-drag
+}
+.workspace-tab{
+  max-width:157px;padding:0 10px;border-radius:8px;font-size:11px;font-weight:550;
+  white-space:nowrap;text-overflow:ellipsis;overflow:hidden
+}
+.workspace-tab-item .workspace-tab{padding-right:3px}
+.workspace-tab-item:has(.workspace-tab.is-active){
+  background:var(--dkts-hover-bg,#e7eef9)
+}
+.workspace-tab.is-active{background:var(--dkts-hover-bg,#e7eef9);color:#2d568a;font-weight:700}
+.workspace-tab:hover,.workspace-tab-close:hover{background:#dbe6f5;color:#28598f}
+.workspace-tab-close{
+  width:24px;font-size:16px;line-height:1;border-radius:6px
+}
+.workspace-tab-item .workspace-tab.is-active{background:transparent}
+.workspace-tab:focus-visible,.workspace-tab-close:focus-visible{
+  outline:2px solid #477ac4;outline-offset:-2px
+}
+@media(max-width:760px){
+  .workspace-tabs{max-width:50vw}
+  .workspace-tab{max-width:113px;padding:0 7px}
+  .workspace-tab-item{max-width:145px}
+  .titlebar-version-divider{margin:0 6px}
+}
+@media(max-width:480px){
+  .titlebar-brand strong{display:none}
+  .titlebar-brand .ui-version-badge{margin-left:0}
+  .workspace-tabs{max-width:65vw}
+  .workspace-tab{max-width:100px;font-size:10px}
+  .workspace-tab-close{width:20px}
+}
+body.dkts-android-shell{
+  /* Status bar is hidden natively; no white inset strip remains above our title. */
+  --dkts-title-height:39px;
+  --dkts-safe-top:0px;
+}
+body.dkts-android-shell .app-titlebar{
+  height:var(--dkts-title-height);padding-top:0;
+}
+body.dkts-android-shell .workspace-tabs{max-width:65vw}
+body.dkts-android-shell .titlebar-drag-region{min-width:0}
+body.dkts-android-shell .titlebar-version-divider{margin-left:6px;margin-right:5px}
+body.dkts-android-shell .workspace-tab,
+body.dkts-android-shell .workspace-tab-close{height:33px}
+@media(max-width:480px){
+  body.dkts-android-shell .titlebar-brand{gap:5px}
+  body.dkts-android-shell .titlebar-brand .ui-version-badge{font-size:9px}
+  body.dkts-android-shell .workspace-tabs{max-width:65vw}
+}
+@media(prefers-color-scheme:dark){
+  .workspace-tab.is-active,.workspace-tab-item:has(.workspace-tab.is-active){
+    color:#e0ebfb;background:#344961
+  }
+  .workspace-tab:hover,.workspace-tab-close:hover{background:#3b5170;color:#fff}
+}

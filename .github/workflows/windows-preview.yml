@@ -33,6 +33,8 @@ jobs:
         run: node compat/dkds/sdk/tools/dkds-plugin.js validate dist/dkds-plugin
       - name: Package official DKDS plugin
         run: node compat/dkds/sdk/tools/dkds-plugin.js package dist/dkds-plugin dist/DK-Test-Studio-4200.dkplugin
+      - name: Stamp offline bundled UI version
+        run: node tools/stamp-native-ui.cjs
       - name: Build Windows Setup and Portable
         run: npx electron-builder --win nsis portable --x64 --publish never
       - name: Require custom embedded executable icon
@@ -81,6 +83,8 @@ jobs:
           node-version: '22'
       - name: Test shared Android/Windows/DKDS core
         run: npm test
+      - name: Stamp offline Android UI version
+        run: node tools/stamp-native-ui.cjs
       - name: Package Android WebView and shared JS assets
         run: node tools/sync-android-assets.cjs
       - name: Generate Android launcher icons from shared DKTS identity

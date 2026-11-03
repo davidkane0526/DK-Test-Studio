@@ -9,6 +9,13 @@ const app=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
 const styles=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
 test('test library is a distinct first-level screen, hidden when workbench is active',()=>{
   assert.match(html,/<section id="test-library" class="card types-card"/);
+  assert.doesNotMatch(html,/DK TEST STUDIO · 4200A/);
+  assert.doesNotMatch(html,/点击卡片进入测试工作区/);
+  assert.match(html,/id="workspace-tabs" class="workspace-tabs" role="tablist"/);
+  assert.match(html,/class="titlebar-version-divider"/);
+  assert.match(app,/function renderWorkspaceTabs\(\)/);
+  assert.match(app,/function closeWorkspaceTab\(kind\)/);
+  assert.match(app,/const tabDrafts=new Map\(\)/);
   assert.match(html,/<section id="test-detail" class="card test-detail" aria-hidden="true" hidden inert/);
   assert.match(html,/id="close-test-detail" class="detail-back detail-icon-action" aria-label="返回测试选择"/);
   assert.doesNotMatch(html,/<section class="intro">/);

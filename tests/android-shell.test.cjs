@@ -102,3 +102,18 @@ test('Android standalone recovers unregistered USB Ethernet and can use source b
   assert.match(repair,/if\(!safeIpv4\(target\)\|\|!target\.startsWith\("169\.254\."\)\|\|mode\.equals\("wifi"\)\)/);
   assert.doesNotMatch(repair,/ip route (?:add|replace) default/);
 });
+
+test('Android standalone hides system status bar while keeping navigation and embedded UI SHA',()=>{
+  const activity=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
+  const workflow=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
+  const source=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
+  assert.match(activity,/controller\.hide\(WindowInsets\.Type\.statusBars\(\)\)/);
+  assert.match(activity,/WindowManager\.LayoutParams\.FLAG_FULLSCREEN/);
+  assert.doesNotMatch(activity,/WindowInsets\.Type\.navigationBars\(\)/);
+  assert.match(activity,/getWindow\(\)\.setNavigationBarColor\(Color\.BLACK\)/);
+  assert.match(source,/body\.dkts-android-shell\{[\s\S]*?--dkts-title-height:39px/);
+  assert.match(workflow,/Stamp offline Android UI version/);
+  assert.match(workflow,/Stamp offline bundled UI version/);
+  const stamp=fs.readFileSync(path.join(root,'tools/stamp-native-ui.cjs'),'utf8');
+  assert.match(stamp,/dkts-ui-version/);
+});
