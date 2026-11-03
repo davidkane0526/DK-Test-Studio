@@ -109,8 +109,10 @@
           // KXCI *OPT? is unavailable in 4145 emulation. A parse failure
           // does not imply the previously verified device identity is wrong.
           if(/timeout|closed|econnreset|unavailable|not connected/i.test(inventoryError)){
+            const reason=inventoryError;
             await closeCurrent();
-            phase='error';diagnostic='模块查询失败，原连接可能已关闭：'+inventoryError;
+            phase='error';diagnostic='模块查询失败，原连接可能已关闭：'+reason;
+            inventoryError=reason;
           }
           return status();
         }

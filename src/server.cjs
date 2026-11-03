@@ -60,7 +60,7 @@ async function createAppServer(options={}){
           'X-Content-Type-Options':'nosniff'});
         return res.end(bytes);
       }
-      if(req.method!=='POST'||!['/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate'].includes(urlPath))
+      if(req.method!=='POST'||!['/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect'].includes(urlPath))
         return json(res,404,{error:'接口不存在'});
       // No arbitrary command endpoint exists; this only sends the hardcoded KXCI IDN query.
       if(req.headers['x-dkts-request']!=='1'||!String(req.headers['content-type']||'').startsWith('application/json'))
@@ -73,6 +73,10 @@ async function createAppServer(options={}){
       if(urlPath==='/api/connect'){
         try{return json(res,200,{ok:true,...await controller.connect(payload)});}
         catch(error){return json(res,200,{ok:false,...controller.status(),summary:summarizeError(error)});}
+      }
+      if(urlPath==='/api/modules/inspect'){
+        try{return json(res,200,{ok:true,...await controller.inspectModules()});}
+        catch(error){return json(res,400,{ok:false,error:summarizeError(error),...controller.status()});}
       }
       if(urlPath==='/api/plan/validate'){
         const preview=previewPlan(payload,300);

@@ -4,7 +4,7 @@
 DK Test Studio 是独立科研测试控制系统，不复制 DK Data Studio 的全部框架，也不主张卸载 4200A 的原厂驱动、KXCI 或其他必需组件。Clarius 和 KXCI 的运行互斥约束必须遵守。
 
 ## 已进入代码库（第一阶段）
-- KXCI 只读 KI4200A 身份识别，严格单指令允许列表（ASCII *IDN? + NUL）。
+- KXCI 只读 KI4200A 身份识别与装机模块查询，严格双指令允许列表（ASCII *IDN?/*OPT? + NUL）；*OPT? 仅适用于原生 4200A KXCI 模式。
 - Windows/Node 原生 TCP 连接，多网卡自动选择、手动网卡/本地 IP、超时与故障关闭。
 - Windows Electron 桌面壳；本地 127.0.0.1 Web UI；自动连接与单按钮断开。
 - 两个主要卡片、折叠诊断、不持久保存连接参数、无需手动触发 TCP 与身份识别两步。
@@ -22,7 +22,7 @@ DK Test Studio 是独立科研测试控制系统，不复制 DK Data Studio 的�
 8. 独立 Android 原生网络适配、可选无 Root USB Ethernet、平板 LAN 网关以及 Windows 经平板中继；多客户端必须有独占控制和认证机制。
 
 ## 安全边界
-本阶段**禁止**发送任何执行输出的真实仪器指令。允许查询仅为 *IDN? + NUL。波形设计的 ±200 V 边界仅是软件输入拒绝阈值，不是任一 SMU/PMU 的额定值、默认测试电压或使用许可。
+本阶段**禁止**发送任何执行输出的真实仪器指令。允许查询仅为 *IDN? 或 *OPT? + NUL。波形设计的 ±200 V 边界仅是软件输入拒绝阈值，不是任一 SMU/PMU 的额定值、默认测试电压或使用许可。
 
 ## 来源
 通信与解析迁移自 davidkane0526/DK-Data-Studio 的 4200 分支，迁移基线 6a2596dd1840cd8607c58d2c401ad66119bf975e。

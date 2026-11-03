@@ -23,7 +23,11 @@
       return snapshot;
     }
     async function connect(){
-      try{return notify(await controller.connect(endpoint()));}
+      try{
+        const connected=await controller.connect(endpoint());
+        if(connected.phase==='connected')await controller.inspectModules();
+        return notify(controller.status());
+      }
       catch(e){notify(controller.status());return {ok:false,error:domain.summarizeError(e)};}
     }
     async function disconnect(){return notify(await controller.disconnect());}
@@ -84,8 +88,9 @@
         status:()=>({connected:controller.status().phase==='connected',
           identified:controller.status().identity,
           sessionEndpoint:controller.status().route,
+          inventory:controller.status().inventory,
           runningSimulation:false}),
-        connect,identify:connect,disconnect,
+        connect,identify:connect,disconnect,inspectModules:()=>controller.inspectModules(),
         validatePlan:()=>plan(),previewPlan:()=>planner.previewPlan(plan()),
         validateWaveform:points=>waveform.validateWaveform(points),
         parseWaveformText:text=>waveform.parseWaveformText(text),

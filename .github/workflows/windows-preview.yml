@@ -87,7 +87,7 @@ jobs:
             (Get-ChildItem dist -Filter '*Portable*.exe' | Select-Object -First 1).FullName
             (Resolve-Path 'dist/DK-Test-Studio-4200.dkplugin').Path
           )
-          $notes = "Preview commit $env:GITHUB_SHA. Windows installer, portable EXE, and DK Data Studio API 1.19 plugin (shared core). This preview identifies 4200A by read-only KXCI only; it cannot perform SMU/PMU measurements."
+          $notes = "Preview commit $env:GITHUB_SHA. Windows installer, portable EXE, and DK Data Studio API 1.19 plugin (shared core). This preview identifies 4200A by read-only KXCI *IDN? and *OPT? only; it cannot perform SMU/PMU measurements."
           gh release create $tag $files --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "DK Test Studio Preview $($env:GITHUB_SHA.Substring(0,10))" --notes $notes --prerelease --latest=false
           if ($LASTEXITCODE -ne 0) { throw 'GitHub Release creation failed.' }
           $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json url,assets | ConvertFrom-Json

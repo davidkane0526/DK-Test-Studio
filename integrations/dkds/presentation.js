@@ -36,6 +36,7 @@
     buttons.set('toggle',buttonNode);
     const status=units.note.create(card1,{variant:'meta',text:'待连接'});
     const route=units.note.create(card1,{variant:'meta',text:'169.254.111.118:1225'});
+    const modulesNote=units.note.create(card1,{variant:'meta',text:'模块尚未读取'});
     const diagnostics=dom.create('details');
     diagnostics.hidden=true;
     const summary=dom.create('summary');summary.textContent='查看连接诊断';diagnostics.appendChild(summary);
@@ -103,6 +104,9 @@
       route.textContent=s.route
         ?[s.route.remoteAddress+':'+s.route.remotePort,s.route.interfaceName||'系统路由'].join(' · ')
         :get('host')+':'+get('port');
+      modulesNote.textContent=s.inventory
+        ?'装机模块：'+(s.inventory.knownModules.map(x=>x.raw).join(' · ')||'未识别')+'（电气量程未核验）'
+        :s.inventoryError?'模块读取失败：'+String(s.inventoryError).slice(0,100):'模块尚未读取';
       diagnostic.textContent=String(s.diagnostic||'').slice(0,6000);
       diagnostics.hidden=!s.diagnostic;diagnostics.open=false;
       buttonNode.textContent=s.phase==='connected'?'断开':'连接';

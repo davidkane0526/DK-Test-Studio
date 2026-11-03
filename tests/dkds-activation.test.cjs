@@ -38,8 +38,11 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
     open:async()=>({sessionId:'mock',remoteAddress:'169.254.111.118',remotePort:1225}),
     exchange:async payload=>{
       transmit++;
-      assert.equal(Buffer.from(payload.base64,'base64').toString('hex'),'2a49444e3f00');
-      return {base64:Buffer.from('KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0').toString('base64')};
+      const cmd=Buffer.from(payload.base64,'base64').toString('hex');
+      assert(['2a49444e3f00','2a4f50543f00'].includes(cmd));
+      return {base64:Buffer.from(cmd==='2a49444e3f00'
+        ?'KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0'
+        :'SMU1,HPSMUPA2,PMU3,CVU1\0').toString('base64')};
     },
     close:async()=>true
   };
@@ -75,9 +78,10 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
   const identified=await capability.methods.connect();
   assert.equal(identified.phase,'connected');
   assert.equal(capability.methods.status().identified.serial,'1498377');
-  assert.equal(transmit,1);
+  assert.equal(transmit,2);
+  assert.equal(capability.methods.status().inventory.knownModules.length,4);
   assert.equal((await capability.methods.connect()).phase,'connected');
-  assert.equal(transmit,1,'no duplicate identify');
+  assert.equal(transmit,2,'no duplicate identify or inventory');
   assert.equal((await capability.methods.disconnect()).phase,'disconnected');
   assert.equal(slice.serialize().plan.executable,false);
   registered.deactivate();

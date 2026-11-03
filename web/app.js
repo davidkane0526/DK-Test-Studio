@@ -23,6 +23,11 @@ function renderStatus(value){
   $('route-line').textContent=route
     ?[route.remoteAddress+':'+route.remotePort,route.interfaceName||'系统路由',route.localAddress].filter(Boolean).join(' · ')
     :String(fields().host||'169.254.111.118')+':'+String(fields().port||1225);
+  const inventory=value.inventory;
+  const modules=inventory?.knownModules||[];
+  $('module-summary').textContent=inventory
+    ?'装机模块：'+(modules.length?modules.map(x=>x.raw).join(' · '):'未识别到已知模块')+'（电气量程未核验）'
+    :value.inventoryError?'模块读取失败：'+String(value.inventoryError).slice(0,90):'模块尚未读取';
   const detail=String(value.diagnostic||'');
   $('diagnostic-wrap').hidden=!detail;
   $('diagnostic').textContent=detail.slice(0,6000);
@@ -40,7 +45,9 @@ async function onToggle(){
   if(busy)return;
   busy=true;toggle.disabled=true;
   try{
-    const result=state==='connected'?await post('/api/disconnect'):await post('/api/connect',fields());
+    const connecting=state!=='connected';
+    let result=connecting?await post('/api/connect',fields()):await post('/api/disconnect');
+    if(connecting&&result.phase==='connected')result=await post('/api/modules/inspect');
     latestStatus=result;renderStatus(result);
   }catch(error){latestStatus={phase:'error',summary:'本地控制服务异常',diagnostic:String(error)};renderStatus(latestStatus);}
   finally{busy=false;renderStatus(latestStatus);}
