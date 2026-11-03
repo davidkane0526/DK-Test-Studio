@@ -14,11 +14,11 @@ const scripts=[
   'android/native-client.js'
 ];
 function makeAndroidHtml(){
-  const scriptTags=scripts.map(src=>'<script src="/'+src+'" defer></script>').join('\\n');
+  const scriptTags=scripts.map(src=>'<script src="/'+src+'" defer></script>').join('\n');
   const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
   const marker='<script src="/app.js" defer></script>';
   if(!html.includes(marker))throw Error('Android packaging requires expected Web UI entry point');
-  return html.replace(marker,scriptTags+'\\n'+marker);
+  return html.replace(marker,scriptTags+'\n'+marker);
 }
 function syncAssets(){
   fs.mkdirSync(path.join(destination,'android'),{recursive:true});
