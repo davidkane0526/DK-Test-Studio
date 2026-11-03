@@ -7,6 +7,7 @@ on:
       - 'package.json'
       - 'android/**'
       - 'desktop/**'
+      - 'tools/generate-app-icons.cjs'
       - 'src/**'
   workflow_dispatch:
 permissions:
@@ -26,6 +27,8 @@ jobs:
           node-version: '22'
       - name: Install Windows dependencies
         run: npm install --no-audit --no-fund
+      - name: Generate dedicated Windows executable and window icons
+        run: npm run icons:build
       - name: Run tests
         run: npm test
       - name: Stage the exact shared-core DKDS plugin
@@ -42,6 +45,15 @@ jobs:
         run: node compat/dkds/sdk/tools/dkds-plugin.js package dist/dkds-plugin dist/DK-Test-Studio-4200.dkplugin
       - name: Build Windows Setup and Portable
         run: npx electron-builder --win nsis portable --x64 --publish never
+      - name: Require custom embedded executable icon
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'build/icon.ico')) { throw 'Missing DK Test Studio executable icon.' }
+          $icon = Get-Item 'build/icon.ico'
+          if ($icon.Length -lt 2048) { throw 'Invalid Windows icon output.' }
+          $exe = Get-ChildItem 'dist/win-unpacked' -Filter 'DK Test Studio.exe' -File | Select-Object -First 1
+          if (!$exe) { throw 'Custom-named DK Test Studio executable not found.' }
+          Write-Host "Windows EXE: $($exe.FullName)"
       - name: Require all Windows artifacts
         shell: pwsh
         run: |
@@ -81,6 +93,8 @@ jobs:
         run: npm test
       - name: Package Android WebView and shared JS assets
         run: node tools/sync-android-assets.cjs
+      - name: Generate Android launcher icons from shared DKTS identity
+        run: npm run icons:build
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

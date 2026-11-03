@@ -1,5 +1,8 @@
 'use strict';
 const {app,BrowserWindow}=require('electron');
+const path=require('node:path');
+// Windows groups the taskbar window and packaged EXE under the same AppUserModelID.
+if(process.platform==='win32')app.setAppUserModelId('studio.dk.test');
 const {createAppServer}=require('../src/server.cjs');
 let serverInstance;
 async function start(){
@@ -7,7 +10,7 @@ async function start(){
   serverInstance=await createAppServer({uiCacheDir:require('node:path').join(app.getPath('userData'),'ui-updates')});
   const win=new BrowserWindow({
     width:1200,height:790,minWidth:780,minHeight:560,
-    title:'DK Test Studio',backgroundColor:'#f6f7fb',
+    title:'DK Test Studio',icon:path.join(__dirname,'../build/icon.ico'),backgroundColor:'#f6f7fb',
     webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}
   });
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));

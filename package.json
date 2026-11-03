@@ -1,6 +1,6 @@
 {
   "name": "dk-test-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Standalone Keithley 4200A research test control workspace",
   "main": "desktop/main.cjs",
@@ -9,8 +9,9 @@
     "identify": "node cli/identify.cjs",
     "serve": "node src/server.cjs",
     "start": "electron .",
-    "dist:win": "electron-builder --win nsis portable",
-    "plugin:build": "node tools/build-dkds-plugin.cjs"
+    "dist:win": "node tools/generate-app-icons.cjs && electron-builder --win nsis portable",
+    "plugin:build": "node tools/build-dkds-plugin.cjs",
+    "icons:build": "node tools/generate-app-icons.cjs"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -27,7 +28,9 @@
       "src/**",
       "web/**",
       "package.json",
-      "README.md"
+      "README.md",
+      "build/icon.ico",
+      "build/icon.png"
     ],
     "win": {
       "target": [
@@ -43,15 +46,23 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "build/icon.ico",
+      "executableName": "DK Test Studio"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "DK-Test-Studio-Setup-${version}-${arch}.${ext}"
+      "artifactName": "DK-Test-Studio-Setup-${version}-${arch}.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
     },
     "portable": {
       "artifactName": "DK-Test-Studio-Portable-${version}-${arch}.${ext}"
+    },
+    "extraMetadata": {
+      "description": "DK Test Studio · Keithley 4200A scientific measurement"
     }
   }
 }

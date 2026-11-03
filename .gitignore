@@ -9,3 +9,8 @@ android/app/src/main/assets/
 android/.gradle/
 android/build/
 android/app/build/
+
+# Generated native application icons (recreated by npm run icons:build)
+build/icon.ico
+build/icon.png
+android/app/src/main/res/mipmap-*/
