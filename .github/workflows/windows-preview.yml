@@ -101,6 +101,42 @@ jobs:
           gradle-version: '8.10.2'
       - name: Compile and debug-sign independent Android APK
         run: gradle -p android :app:assembleDebug --no-daemon --stacktrace
+      - name: Enable Android emulator KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test APK launch on Android 16 (API 36)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          ram-size: 2048M
+          disable-animations: true
+          script: |
+            set -eu
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb logcat -c
+            adb shell am start -W -n studio.dk.test/.MainActivity
+            sleep 8
+            test -n "$(adb shell pidof studio.dk.test | tr -d '\r')"
+            adb logcat -d -b crash > android-startup-crash.log
+            if grep -q "Process: studio.dk.test" android-startup-crash.log; then
+              cat android-startup-crash.log
+              exit 1
+            fi
+            adb exec-out screencap -p > android-startup.png
+            test -s android-startup.png
+            echo "APK survived Android 16 startup"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: DKTS-Android-Startup-Diagnostics
+          path: |
+            android-startup.png
+            android-startup-crash.log
+          if-no-files-found: warn
       - name: Prepare Android release asset
         run: |
           test -s android/app/build/outputs/apk/debug/app-debug.apk

@@ -110,7 +110,8 @@ test('Android standalone hides system status bar while keeping navigation and em
   assert.match(activity,/controller\.hide\(WindowInsets\.Type\.statusBars\(\)\)/);
   assert.match(activity,/WindowManager\.LayoutParams\.FLAG_FULLSCREEN/);
   assert.doesNotMatch(activity,/WindowInsets\.Type\.navigationBars\(\)/);
-  assert.match(activity,/getWindow\(\)\.setNavigationBarColor\(Color\.BLACK\)/);
+  assert.match(activity,/controller\.setSystemBarsBehavior\(/);
+  assert.doesNotMatch(activity,/getWindow\(\)\.setStatusBarColor\(/);
   assert.match(source,/body\.dkts-android-shell\{[\s\S]*?--dkts-title-height:39px/);
   assert.match(workflow,/Stamp offline Android UI version/);
   assert.match(workflow,/Stamp offline bundled UI version/);
@@ -125,15 +126,20 @@ test('native Android shell version comes from its actual installed package',()=>
  assert.match(src,/case "version": return new JSONObject\(\)/);
  assert.match(src,/getPackageInfo\(context\.getPackageName\(\),0\)\.versionName/);
  assert.match(bridge,/nativeVersion:async\(\)=>String/);
- assert.match(gradle,/versionName '0\.2\.2'/);
+ assert.match(gradle,/versionName '0\.2\.3'/);
 });
 
-test('Android reapplies status-bar-only immersive mode after resume and focus recovery',()=>{
-  const source=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
-  assert.match(source,/webView\.post\(this::configureImmersiveTitleSpace\)/);
-  assert.match(source,/@Override protected void onResume\(\)/);
-  assert.match(source,/@Override public void onWindowFocusChanged\(boolean hasFocus\)/);
-  assert.match(source,/controller\.hide\(WindowInsets\.Type\.statusBars\(\)\)/);
-  assert.doesNotMatch(source,/controller\.hide\(WindowInsets\.Type\.navigationBars\(\)\)/);
-  assert.match(source,/getWindow\(\)\.setStatusBarColor\(Color\.TRANSPARENT\)/);
+test('Android 16 immersive mode is coalesced and cannot repeatedly re-enter from focus changes',()=>{
+  const src=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
+  assert.match(src,/setContentView\(webView\);\s*scheduleImmersive\(\)/);
+  assert.match(src,/webView\.removeCallbacks\(immersiveTask\)/);
+  assert.match(src,/webView\.post\(immersiveTask\)/);
+  assert.match(src,/@Override protected void onResume\(\)/);
+  assert.doesNotMatch(src,/onWindowFocusChanged\(/);
+  assert.match(src,/controller\.hide\(WindowInsets\.Type\.statusBars\(\)\)/);
+  assert.doesNotMatch(src,/controller\.hide\(WindowInsets\.Type\.navigationBars\(\)\)/);
+  assert.match(src,/catch \(RuntimeException error\)/);
+  assert.doesNotMatch(src,/getWindow\(\)\.setStatusBarColor\(/);
+  const modern=src.slice(src.indexOf('if (Build.VERSION.SDK_INT >= 30)'),src.indexOf('} else {',src.indexOf('if (Build.VERSION.SDK_INT >= 30)')));
+  assert.doesNotMatch(modern,/setFlags\(/);
 });

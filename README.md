@@ -107,3 +107,7 @@ GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，
 - 全局滚动条宽度从 8px 调整为 5px，滑块在普通状态下降低为约 30% 不透明度，悬停加深；深色模式使用独立的透明度。
 - Windows、Android 和 DKDS 共享的 `src/shared/measurement-plan.js` 提供 `createExecutionCoordinator()`，同一宿主内即使同时打开多个测试标签也只允许一个任务获得执行权，任务失败或完成后释放。**目前真实仪器执行接口仍未开放**，独立 Windows 和 DKDS 之间的跨进程仪器租约尚未实现，不能将单进程协调器误认为跨应用互斥。
 - 独立 Android 原生壳已隐藏**顶部系统状态栏**，不隐藏底部系统导航栏；进入应用、恢复前台和窗口重新获得焦点时重新应用，顶部时间、Wi-Fi、蓝牙、电量图标正常应消失。若从顶部下滑，Android 仍允许临时显示系统状态栏。此修改需要安装本次新 APK，**不能仅凭 UI 热更新完成**。
+
+### Android v0.2.3 启动闪退修正
+
+撤销 0.2.2 版本中 onWindowFocusChanged() 重复执行的系统状态栏操作。Android 11–16 通过一次性排队的 WindowInsetsController 请求隐藏顶部系统状态栏，旧版本保留兼容分支，厂商系统栏异常不再导致整个 Activity 退出。原生版本升级 v0.2.3；Android CI 新增 API 36 模拟器安装、启动、进程保活、crash 日志和截图验证，不能以仅编译成功替代启动验证。实机故障仍须结合 adb logcat 判断。
