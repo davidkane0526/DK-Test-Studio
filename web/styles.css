@@ -17,3 +17,44 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:17px}label{d
 
 .plan-form{margin-top:3px}.plan-form .span-two{grid-column:1/-1}.advanced-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:15px}[hidden]{display:none!important}.test-card .hint{margin-bottom:0}
 @media(max-width:500px){.advanced-grid{grid-template-columns:1fr}}
+
+/* Minimal always-visible connection status; settings appear in an accessible modal only. */
+.top-status{display:inline-flex;align-items:center;gap:9px;padding:8px 12px;border-radius:10px;border:1px solid #dce4f0;background:#f7f9fd;color:#44536d;font-size:12px;white-space:nowrap;min-height:35px}
+.top-status:hover{background:#eef3fa}
+.top-status:focus-visible,.icon-close:focus-visible{outline:2px solid #4579ce;outline-offset:2px}
+.status-chevron{font-size:15px;opacity:.65;line-height:1}
+.test-workspace{display:block;width:100%}
+.connection-dialog{width:min(580px,calc(100vw - 28px));max-height:min(88vh,820px);padding:0;background:#fff;color:#243247;border:1px solid #dce4f1;border-radius:16px;box-shadow:0 22px 70px rgba(15,29,58,.22);overflow:auto}
+.connection-dialog::backdrop{background:rgba(18,28,46,.48);backdrop-filter:blur(3px)}
+.dialog-header{padding:19px 23px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eef0f4}
+.dialog-header h2{margin:0;font-size:19px}
+.icon-close{border:0;background:transparent;border-radius:8px;font-size:24px;font-weight:400;line-height:1;padding:3px 9px;color:#627188}
+.dialog-body{padding:18px 23px 16px}
+.device-identity{font-size:15px;font-weight:700;margin:0 0 8px}
+.connection-detail{display:grid;gap:10px;padding:14px;background:#f6f8fc;border:1px solid #edf0f6;border-radius:10px;margin:14px 0}
+.connection-detail>div{display:grid;grid-template-columns:90px minmax(0,1fr);gap:12px;font-size:12px;align-items:start}
+.connection-detail span{color:#7c889b}
+.connection-detail strong{font-weight:600;color:#3e4f6a;overflow-wrap:anywhere}
+.dialog-body .settings{margin-top:14px}
+.dialog-body .settings form{margin-top:14px}
+#connection-hint{margin-top:13px;font-size:12px}
+.dialog-actions{padding:14px 23px 18px;border-top:1px solid #eef0f4;display:flex;justify-content:flex-end;gap:9px}
+#diagnostic{margin-top:9px}
+@media(max-width:500px){
+  .top-status{padding:7px 9px;font-size:11px;gap:6px}
+  .brand small{max-width:175px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dialog-header{padding:15px 16px}
+  .dialog-body{padding:14px 16px}
+  .dialog-actions{padding:12px 16px}
+  .connection-detail>div{grid-template-columns:75px minmax(0,1fr)}
+}
+@media(prefers-color-scheme:dark){
+  .top-status{background:#293344;border-color:#3e4a60;color:#dbe3f4}
+  .top-status:hover{background:#344258}
+  .connection-dialog{background:#222936;color:#e3e8f3;border-color:#46516a}
+  .dialog-header,.dialog-actions{border-color:#384257}
+  .connection-detail{background:#1c2431;border-color:#3b455a}
+  .connection-detail strong{color:#dce5f7}
+  .connection-detail span{color:#a0aec5}
+  .icon-close{color:#b4c1d6}
+}

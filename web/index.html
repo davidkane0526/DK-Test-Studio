@@ -13,46 +13,60 @@
   <div class="brand"><div class="brand-mark">DK</div>
     <div><strong>DK Test Studio</strong><small>科研测试工作台 · Keithley 4200A-SCS</small></div>
   </div>
-  <div class="top-status"><span class="status-dot" id="dot"></span><span id="state-chip">未连接</span></div>
+  <button class="top-status" id="connection-status" type="button" aria-haspopup="dialog" aria-controls="connection-dialog" aria-label="查看仪器连接信息及设置">
+    <span class="status-dot" id="dot" aria-hidden="true"></span>
+    <span id="state-chip" role="status" aria-live="polite">正在连接…</span>
+    <span class="status-chevron" aria-hidden="true">⌄</span>
+  </button>
 </header>
+<dialog id="connection-dialog" class="connection-dialog" aria-labelledby="connection-dialog-title">
+  <div class="dialog-header">
+    <div><p class="eyebrow">DEVICE CONNECTION</p><h2 id="connection-dialog-title">仪器连接</h2></div>
+    <button type="button" id="connection-close" class="icon-close" aria-label="关闭连接设置">×</button>
+  </div>
+  <div class="dialog-body">
+    <div class="device-identity">Keithley 4200A-SCS</div>
+    <p class="state-line" id="connection-summary" role="status" aria-live="polite">正在识别仪器</p>
+    <div class="connection-detail">
+      <div><span>连接路径</span><strong id="route-line">169.254.111.118:1225</strong></div>
+      <div><span>仪器信息</span><strong id="identity-line">尚未识别</strong></div>
+      <div><span>模块信息</span><strong id="module-summary">尚未查询</strong></div>
+    </div>
+    <details id="diagnostic-wrap" hidden>
+      <summary>详细错误信息</summary>
+      <pre id="diagnostic"></pre>
+    </details>
+    <details id="advanced" class="settings">
+      <summary>详细连接设置（仅本次会话）</summary>
+      <form id="connection-form" autocomplete="off">
+        <label>仪器 IP / 主机名<input name="host" value="169.254.111.118" autocomplete="off"></label>
+        <label>KXCI 端口<input type="number" name="port" value="1225" min="1" max="65535"></label>
+        <label>连接方式<select name="networkMode">
+          <option value="auto">自动选择（推荐）</option>
+          <option value="ethernet">网线</option>
+          <option value="wifi">Wi-Fi</option>
+          <option value="interface">指定网卡</option>
+        </select></label>
+        <label>预期序列号<input name="expectedSerial" value="1498377"></label>
+        <label>网卡名称（可选）<input name="interfaceName" placeholder="例如 Ethernet 或 eth0"></label>
+        <label>本地 IPv4（可选）<input name="localAddress" placeholder="留空自动选择"></label>
+        <label>连接超时（毫秒）<input type="number" name="timeoutMs" value="5000" min="250" max="30000"></label>
+      </form>
+    </details>
+    <p id="connection-hint" class="subtle">默认自动连接，无需手动操作。更改设置后点击重新连接。</p>
+  </div>
+  <div class="dialog-actions">
+    <button id="disconnect-instrument" type="button">断开连接</button>
+    <button id="reconnect-instrument" type="button" class="primary">重新连接</button>
+  </div>
+</dialog>
 <main class="workspace">
   <section class="intro">
-    <div><p class="eyebrow">仪器控制</p><h1>4200A 测试工作台</h1>
+    <div><p class="eyebrow">MEASUREMENT WORKSPACE</p><h1>4200A 测试工作台</h1>
     <p class="subtle">独立系统 · 目前实机只读识别 · 不会触发 SMU/PMU 输出</p></div>
     <span class="stage">PREVIEW 0.1</span>
   </section>
-  <div class="two-col">
-    <section class="card instrument-card">
-      <div class="card-heading">
-        <div><p class="eyebrow">DEVICE</p><h2>仪器连接</h2></div>
-        <button id="toggle" class="primary" type="button">连接</button>
-      </div>
-      <div class="instrument-identity">Keithley 4200A-SCS</div>
-      <p class="state-line" id="connection-summary" role="status" aria-live="polite">进入工作台后自动识别仪器</p>
-      <p class="subtle" id="route-line">169.254.111.118:1225</p>
-      <p class="subtle" id="module-summary" role="status">模块尚未读取</p>
-      <details id="diagnostic-wrap" hidden>
-        <summary>查看连接诊断</summary>
-        <pre id="diagnostic"></pre>
-      </details>
-      <details class="settings" id="advanced">
-        <summary>高级连接设置（仅本次会话有效）</summary>
-        <form id="connection-form">
-          <label>仪器 IP / 主机名<input name="host" value="169.254.111.118" autocomplete="off"></label>
-          <label>KXCI 端口<input type="number" name="port" value="1225" min="1" max="65535"></label>
-          <label>连接路径<select name="networkMode">
-            <option value="auto">自动查找（推荐）</option>
-            <option value="ethernet">网线</option>
-            <option value="wifi">Wi-Fi</option>
-            <option value="interface">指定网卡</option>
-          </select></label>
-          <label>预期仪器序列号<input name="expectedSerial" value="1498377" autocomplete="off"></label>
-          <label>网卡名称（可选）<input name="interfaceName" placeholder="例如 Ethernet 或 eth0"></label>
-          <label>本地 IPv4（可选）<input name="localAddress" placeholder="留空为自动选择"></label>
-          <label>连接超时（毫秒）<input type="number" name="timeoutMs" value="5000" min="250" max="30000"></label>
-        </form>
-      </details>
-    </section>
+  <div class="test-workspace">
     <section class="card test-card">
       <div class="card-heading"><div><p class="eyebrow">MEASUREMENT PLAN</p><h2>测试设置</h2></div>
         <button id="validate-plan" type="button">预览方案</button>

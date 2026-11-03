@@ -1,0 +1,23 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
+const ui=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
+test('desktop and Android share a compact header connection status button and modal',()=>{
+  assert.match(html,/<button class="top-status" id="connection-status"/);
+  assert.match(html,/aria-haspopup="dialog"/);
+  assert.match(html,/<dialog id="connection-dialog"/);
+  assert.match(html,/id="connection-form"/);
+  assert.match(html,/id="reconnect-instrument"/);
+  assert.match(html,/id="disconnect-instrument"/);
+  assert.doesNotMatch(html,/class="card instrument-card"/);
+  assert.doesNotMatch(html,/id="toggle"/);
+  assert.match(ui,/statusButton\.addEventListener\('click',openConnectionDialog\)/);
+  assert.match(ui,/if\(!dialog\.open\)dialog\.showModal\(\)/);
+  assert.match(ui,/if\(state!=='connected'\)await connectInstrument\(\)/);
+  assert.match(ui,/if\(result\.phase==='connected'\)result=await post\('\/api\/modules\/inspect'\)/);
+  assert.match(ui,/connected\?'连接成功'/);
+  assert.match(ui,/state==='error'\?'连接失败'/);
+  assert.doesNotMatch(ui,/statusButton\.addEventListener\('click',disconnectInstrument/);
+});

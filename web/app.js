@@ -1,6 +1,8 @@
 'use strict';
 const $=id=>document.getElementById(id);
-const form=$('connection-form'),toggle=$('toggle'),planForm=$('plan-form');
+const form=$('connection-form'),planForm=$('plan-form');
+const dialog=$('connection-dialog'),statusButton=$('connection-status');
+const reconnect=$('reconnect-instrument'),disconnect=$('disconnect-instrument');
 let state='disconnected',busy=false;
 async function post(route,data={}){
   if(window.DKTSClient)return window.DKTSClient.post(route,data);
@@ -15,24 +17,31 @@ function fields(){
 function renderStatus(value){
   state=value.phase||'disconnected';
   const connected=state==='connected';
-  $('connection-summary').textContent=value.summary||'未连接';
-  $('state-chip').textContent=connected?'已识别':state==='connecting'?'正在连接':state==='error'?'连接失败':'未连接';
+  const label=connected?'连接成功':state==='connecting'?'正在连接…':state==='error'?'连接失败':'未连接';
+  $('state-chip').textContent=label;
   $('dot').dataset.phase=state;
-  toggle.textContent=busy?'正在处理…':connected?'断开':'连接';
-  toggle.disabled=busy;
+  statusButton.setAttribute('aria-label',label+'，点击查看仪器连接详情');
+  $('connection-summary').textContent=value.summary||label;
   const route=value.route;
   $('route-line').textContent=route
     ?[route.remoteAddress+':'+route.remotePort,route.interfaceName||'系统路由',route.localAddress].filter(Boolean).join(' · ')
     :String(fields().host||'169.254.111.118')+':'+String(fields().port||1225);
+  const identity=value.identity;
+  $('identity-line').textContent=identity
+    ?[identity.model||'4200A',identity.serial?'序列号 '+identity.serial:'',identity.version||''].filter(Boolean).join(' · ')
+    :'尚未识别';
   const inventory=value.inventory;
   const modules=inventory?.knownModules||[];
   $('module-summary').textContent=inventory
-    ?'装机模块：'+(modules.length?modules.map(x=>x.raw).join(' · '):'未识别到已知模块')+'（电气量程未核验）'
-    :value.inventoryError?'模块读取失败：'+String(value.inventoryError).slice(0,90):'模块尚未读取';
+    ?(modules.length?modules.map(x=>x.raw).join(' · '):'未识别到已知模块')+'（额定参数未核验）'
+    :value.inventoryError?'查询失败：'+String(value.inventoryError).slice(0,90):'尚未查询';
   const detail=String(value.diagnostic||'');
   $('diagnostic-wrap').hidden=!detail;
   $('diagnostic').textContent=detail.slice(0,6000);
   $('diagnostic-wrap').open=false;
+  reconnect.disabled=busy;
+  disconnect.disabled=busy||!connected;
+  reconnect.textContent=busy?'正在连接…':connected?'应用设置并重连':'重新连接';
 }
 let latestStatus={phase:'disconnected',summary:'未连接'};
 async function refresh(){
@@ -43,16 +52,33 @@ async function refresh(){
   }catch{}
   return latestStatus;
 }
-async function onToggle(){
+async function connectInstrument(){
   if(busy)return;
-  busy=true;toggle.disabled=true;
+  busy=true;
+  renderStatus({phase:'connecting',summary:'正在自动识别仪器'});
   try{
-    const connecting=state!=='connected';
-    let result=connecting?await post('/api/connect',fields()):await post('/api/disconnect');
-    if(connecting&&result.phase==='connected')result=await post('/api/modules/inspect');
-    latestStatus=result;renderStatus(result);
-  }catch(error){latestStatus={phase:'error',summary:'本地控制服务异常',diagnostic:String(error)};renderStatus(latestStatus);}
+    let result=await post('/api/connect',fields());
+    if(result.phase==='connected')result=await post('/api/modules/inspect');
+    latestStatus=result;
+  }catch(error){
+    latestStatus={phase:'error',summary:'本地连接服务异常',diagnostic:String(error)};
+  }finally{
+    busy=false;
+    renderStatus(latestStatus);
+  }
+}
+async function disconnectInstrument(){
+  if(busy||state!=='connected')return;
+  busy=true;renderStatus(latestStatus);
+  try{latestStatus=await post('/api/disconnect');}
+  catch(error){latestStatus={phase:'error',summary:'断开连接失败',diagnostic:String(error)};}
   finally{busy=false;renderStatus(latestStatus);}
+}
+function openConnectionDialog(){
+  if(!dialog.open)dialog.showModal();
+}
+function closeConnectionDialog(){
+  if(dialog.open)dialog.close();
 }
 function drawWave(points){
   const svg=$('waveform-plot');svg.replaceChildren();
@@ -100,10 +126,16 @@ async function validatePlan(){
       ' 个规划数据点 · '+p.loops+' 循环 · SMU '+p.sourceSmU+' · 硬件执行未开放';
   }catch(e){status.textContent='方案校验失败：'+String(e.message||e).slice(0,120);}
 }
-toggle.addEventListener('click',onToggle);
+statusButton.addEventListener('click',openConnectionDialog);
+$('connection-close').addEventListener('click',closeConnectionDialog);
+reconnect.addEventListener('click',connectInstrument);
+disconnect.addEventListener('click',disconnectInstrument);
+dialog.addEventListener('click',event=>{
+  if(event.target===dialog)closeConnectionDialog();
+});
 $('validate-plan').addEventListener('click',validatePlan);
 $('test-kind').addEventListener('change',()=>{updatePlanMode();validatePlan();});
 planForm.addEventListener('input',()=>{$('plan-status').textContent='方案参数已更改，请重新校验。';});
-form.addEventListener('input',()=>{if(state==='connected')$('connection-summary').textContent='连接设置已修改，断开后重新连接生效';});
+form.addEventListener('input',()=>{$('connection-hint').textContent='连接设置已修改，点击“应用设置并重连”后生效。';});
 $('validate-waveform').addEventListener('click',validateWave);
-(async()=>{renderStatus(await refresh());if(state!=='connected')await onToggle();updatePlanMode();await validatePlan();await validateWave();})();
+(async()=>{renderStatus(await refresh());if(state!=='connected')await connectInstrument();updatePlanMode();await validatePlan();await validateWave();})();
