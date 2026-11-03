@@ -1,0 +1,26 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
+const app=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
+const styles=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
+test('independent Windows/Web/Android UI selects test modes using cards instead of a dropdown',()=>{
+  assert.match(html,/class="test-type-grid"/);
+  assert.match(html,/data-test-kind="iv" aria-pressed="true"/);
+  assert.match(html,/data-test-kind="it" aria-pressed="false"/);
+  assert.equal((html.match(/class="test-type-card(?: is-selected)?"/g)||[]).length,8);
+  assert.equal((html.match(/data-test-kind="[^"]+" disabled/g)||[]).length,6);
+  assert.doesNotMatch(html,/<select[^>]*name="kind"/);
+  assert.match(html,/<input type="hidden" name="kind" id="test-kind" value="iv">/);
+  assert.match(app,/function selectTestKind\(kind\)/);
+  assert.match(app,/if\(!card\|\|card\.disabled\)return/);
+  assert.match(app,/card\.addEventListener\('click',\(\)=>selectTestKind\(card\.dataset\.testKind\)\)/);
+  assert.match(app,/card\.setAttribute\('aria-pressed',String\(selected\)\)/);
+  assert.match(app,/document\.querySelectorAll\('\.iv-only'\)/);
+  assert.match(app,/document\.querySelectorAll\('\.it-only'\)/);
+  assert.match(styles,/\.test-type-grid\{display:grid;grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(styles,/@media\(max-width:500px\)\{[\s\S]*?\.test-type-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+});

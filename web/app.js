@@ -111,9 +111,23 @@ async function validateWave(){
   }catch(error){info.textContent='校验失败：'+String(error.message||error).slice(0,120);$('waveform-plot').replaceChildren();}
 }
 function updatePlanMode(){
-  const it=$('test-kind').value==='it';
+  const kind=$('test-kind').value;
+  const it=kind==='it';
   document.querySelectorAll('.iv-only').forEach(node=>node.hidden=it);
   document.querySelectorAll('.it-only').forEach(node=>node.hidden=!it);
+  $('test-params-title').textContent=(it?'SMU I–t 恒压读出':'SMU I–V 扫描')+' · 测试参数';
+  document.querySelectorAll('.test-type-card').forEach(card=>{
+    const selected=card.dataset.testKind===kind;
+    card.classList.toggle('is-selected',selected);
+    if(!card.disabled)card.setAttribute('aria-pressed',String(selected));
+  });
+}
+function selectTestKind(kind){
+  const card=document.querySelector('.test-type-card[data-test-kind="'+kind+'"]');
+  if(!card||card.disabled)return;
+  $('test-kind').value=kind;
+  updatePlanMode();
+  validatePlan();
 }
 async function validatePlan(){
   const status=$('plan-status');
@@ -134,7 +148,9 @@ dialog.addEventListener('click',event=>{
   if(event.target===dialog)closeConnectionDialog();
 });
 $('validate-plan').addEventListener('click',validatePlan);
-$('test-kind').addEventListener('change',()=>{updatePlanMode();validatePlan();});
+document.querySelectorAll('.test-type-card:not(:disabled)').forEach(card=>{
+  card.addEventListener('click',()=>selectTestKind(card.dataset.testKind));
+});
 planForm.addEventListener('input',()=>{$('plan-status').textContent='方案参数已更改，请重新校验。';});
 form.addEventListener('input',()=>{$('connection-hint').textContent='连接设置已修改，点击“应用设置并重连”后生效。';});
 $('validate-waveform').addEventListener('click',validateWave);

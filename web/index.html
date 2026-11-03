@@ -66,20 +66,54 @@
     <p class="subtle">独立系统 · 目前实机只读识别 · 不会触发 SMU/PMU 输出</p></div>
     <span class="stage">PREVIEW 0.1</span>
   </section>
+  <section class="card types-card" aria-labelledby="test-types-title">
+    <div class="card-heading">
+      <div><p class="eyebrow">TEST LIBRARY</p><h2 id="test-types-title">选择测试方式</h2></div>
+      <p class="subtle">点击卡片切换测试参数</p>
+    </div>
+    <div class="test-type-grid" role="group" aria-label="选择测试方式">
+      <button class="test-type-card is-selected" type="button" data-test-kind="iv" aria-pressed="true">
+        <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">I–V</span><span class="test-type-state">可编辑</span></span>
+        <strong>SMU I–V 扫描</strong><small>正向、反向及循环扫描</small>
+      </button>
+      <button class="test-type-card" type="button" data-test-kind="it" aria-pressed="false">
+        <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">I–t</span><span class="test-type-state">可编辑</span></span>
+        <strong>SMU I–t 恒压读出</strong><small>时间扫描与电流记录方案</small>
+      </button>
+      <button class="test-type-card" type="button" data-test-kind="transfer" disabled>
+        <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">FET</span><span class="test-type-state">开发中</span></span>
+        <strong>转移特性</strong><small>栅压扫描与多端口测试</small>
+      </button>
+      <button class="test-type-card" type="button" data-test-kind="output" disabled>
+        <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">OUT</span><span class="test-type-state">开发中</span></span>
+        <strong>输出特性</strong><small>漏压扫描与栅压步进</small>
+      </button>
+      <button class="test-type-card" type="button" data-test-kind="pund" disabled>
+        <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">PUND</span><span class="test-type-state">开发中</span></span>
+        <strong>PMU / PUND</strong><small>脉冲测量与极化测试</small>
+      </button>
+      <button class="test-type-card" type="button" data-test-kind="retention" disabled>
+        <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">RET</span><span class="test-type-state">开发中</span></span>
+        <strong>Retention</strong><small>状态保持与时间序列</small>
+      </button>
+      <button class="test-type-card" type="button" data-test-kind="endurance" disabled>
+        <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">CYC</span><span class="test-type-state">开发中</span></span>
+        <strong>Endurance</strong><small>循环耐久性实验</small>
+      </button>
+      <button class="test-type-card" type="button" data-test-kind="arbitrary" disabled>
+        <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">ARB</span><span class="test-type-state">开发中</span></span>
+        <strong>任意波形测量</strong><small>SMU / PMU 实际输出与采集</small>
+      </button>
+    </div>
+    <p class="types-note">目前仅支持 I–V、I–t 的测试方案编辑。下方任意波形编辑器仅用于规划，不会启动仪器输出。</p>
+  </section>
   <div class="test-workspace">
     <section class="card test-card">
-      <div class="card-heading"><div><p class="eyebrow">MEASUREMENT PLAN</p><h2>测试设置</h2></div>
+      <div class="card-heading"><div><p class="eyebrow">MEASUREMENT PARAMETERS</p><h2 id="test-params-title">SMU I–V 扫描 · 测试参数</h2></div>
         <button id="validate-plan" type="button">预览方案</button>
       </div>
       <form id="plan-form" class="plan-form">
-        <label class="span-two">测试方式
-          <select name="kind" id="test-kind">
-            <option value="iv">SMU I–V 扫描</option>
-            <option value="it">SMU I–t 恒压读出</option>
-            <option value="transfer" disabled>转移/输出特性（开发中）</option>
-            <option value="pund" disabled>PMU/PUND（开发中）</option>
-          </select>
-        </label>
+        <input type="hidden" name="kind" id="test-kind" value="iv">
         <label class="iv-only">起始电压 (V)<input type="number" step="any" name="startV" value="-1"></label>
         <label class="iv-only">终止电压 (V)<input type="number" step="any" name="stopV" value="1"></label>
         <label class="it-only" hidden>固定偏置 (V)<input type="number" step="any" name="fixedV" value="0.1"></label>
