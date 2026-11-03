@@ -416,3 +416,68 @@ body{padding-top:var(--dkts-title-height);padding-bottom:var(--dkts-status-heigh
   .app-statusbar .statusbar-connection{background:#2b384c;border-color:#40516a;color:#c5d1e8}
   .app-statusbar .statusbar-workmode{color:#95a9c9;border-color:#44516b}
 }
+
+/* DKDS-inspired chrome refinement: slightly taller titlebar, soft icon-only
+   window commands (without separators), and a single connectivity chip.
+   Keep this lightweight chrome shared by Windows/Web/Android. */
+:root{--dkts-title-height:43px;--dkts-status-height:29px}
+.app-titlebar{height:var(--dkts-title-height);padding:0 9px 0 12px;align-items:center;border-bottom:1px solid #e3eaf3;background:#f3f6fb}
+.titlebar-brand{gap:9px;padding:0 4px;height:100%;align-items:center}
+.titlebar-brand strong{font-size:12px;font-weight:700;letter-spacing:-.012em}
+.titlebar-logo{width:24px;height:24px;border-radius:6px}
+.titlebar-brand .ui-version-badge{margin-left:5px;color:#7185a5;background:transparent;border:1px solid transparent;font-size:10px;padding:4px 5px;font-weight:600}
+.titlebar-brand .ui-version-badge:hover{color:#425f8c;background:#e8eff9;border-color:#d9e5f6}
+.app-titlebar .window-actions{align-items:center;gap:3px;padding:0;height:100%;margin-left:10px;app-region:no-drag;-webkit-app-region:no-drag}
+.app-titlebar .window-actions button{
+  display:grid;place-items:center;width:34px;min-width:34px;height:32px;
+  margin:0;padding:0;border:0!important;border-left:0!important;
+  border-radius:8px;background:transparent;color:#546782;
+  box-shadow:none;cursor:pointer;outline-offset:1px;
+  app-region:no-drag;-webkit-app-region:no-drag;
+  transition:background-color .13s ease,color .13s ease
+}
+.app-titlebar .window-actions button svg{display:block;pointer-events:none;flex:none}
+.app-titlebar .window-actions button:hover{background:#e3ebf7;color:#203a60}
+.app-titlebar .window-actions button:active{background:#d6e2f1}
+.app-titlebar .window-actions .window-close:hover{background:#f8e6e8;color:#ad263e}
+.app-titlebar .window-actions .window-close:active{background:#efcfd5}
+.app-titlebar .window-actions button:focus-visible{outline:2px solid #4f7dbe;outline-offset:-2px}
+#window-maximize .restore-glyph{display:none}
+#window-maximize[data-maximized="true"] .restore-glyph{display:block}
+#window-maximize[data-maximized="true"] .maximize-glyph{display:none}
+.app-statusbar{background:#f6f8fc;border-top:1px solid #e1e8f2}
+.app-statusbar .statusbar-right{gap:5px}
+.app-statusbar .statusbar-connection{
+  height:23px;border:1px solid transparent;background:transparent;
+  padding:0 8px;border-radius:7px;color:#576d8c;font-size:10px
+}
+.app-statusbar .statusbar-connection:hover{background:#e6eef9;border-color:#d7e4f5;color:#2f527f}
+.app-statusbar .statusbar-connection:focus-visible{outline:2px solid #4f7dbe;outline-offset:-2px}
+.app-statusbar .statusbar-message{color:#60718b}
+.app-statusbar .statusbar-message:hover{background:#e8eff9}
+.statusbar-message-dot[data-level="info"]{background:#90a2bd}
+@media(max-width:620px){
+  :root{--dkts-title-height:41px;--dkts-status-height:30px}
+  .app-titlebar{padding-left:8px;padding-right:7px}
+  .app-titlebar .window-actions button{width:31px;min-width:31px;height:30px}
+  .titlebar-brand{gap:6px}
+}
+@media(max-width:420px){
+  .app-titlebar .window-actions button{width:29px;min-width:29px;height:29px}
+  .titlebar-brand .ui-version-badge{font-size:9px;padding:3px}
+}
+@media(prefers-reduced-motion:reduce){
+  .app-titlebar .window-actions button{transition:none}
+}
+@media(prefers-color-scheme:dark){
+  .app-titlebar{background:#253143;border-color:#37465a}
+  .titlebar-brand .ui-version-badge{color:#a2b4cc}
+  .titlebar-brand .ui-version-badge:hover{background:#33455e;border-color:#415c7e;color:#d8e8fb}
+  .app-titlebar .window-actions button{color:#acbbd1}
+  .app-titlebar .window-actions button:hover{background:#34455e;color:#e7f0fb}
+  .app-titlebar .window-actions .window-close:hover{background:#613746;color:#ffe2e7}
+  .app-statusbar{background:#222f41;border-color:#384b64}
+  .app-statusbar .statusbar-connection{background:transparent;border-color:transparent;color:#b8cae3}
+  .app-statusbar .statusbar-connection:hover{background:#34465f;border-color:#445c7b;color:#e7f1fd}
+  .app-statusbar .statusbar-message{color:#b2c0d5}
+}

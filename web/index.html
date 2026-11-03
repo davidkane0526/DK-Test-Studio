@@ -18,9 +18,25 @@
   </div>
   <div class="titlebar-drag-region" aria-hidden="true"></div>
   <div id="window-actions" class="window-actions" role="group" aria-label="窗口控制" hidden>
-    <button type="button" id="window-minimize" title="最小化" aria-label="最小化">−</button>
-    <button type="button" id="window-maximize" title="最大化" aria-label="最大化">□</button>
-    <button type="button" id="window-close" class="window-close" title="关闭窗口" aria-label="关闭窗口">×</button>
+    <button type="button" id="window-minimize" class="window-command" title="最小化" aria-label="最小化">
+      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" focusable="false">
+        <path d="M4.5 10h11" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <button type="button" id="window-maximize" class="window-command" title="最大化" aria-label="最大化" data-maximized="false">
+      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" focusable="false">
+        <rect class="maximize-glyph" x="4.7" y="4.7" width="10.6" height="10.6" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <g class="restore-glyph" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round">
+          <path d="M7 6V4.3h8.6v8.6h-1.8"/>
+          <rect x="4.3" y="7" width="8.7" height="8.7" rx=".75"/>
+        </g>
+      </svg>
+    </button>
+    <button type="button" id="window-close" class="window-command window-close" title="关闭窗口" aria-label="关闭窗口">
+      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" focusable="false">
+        <path d="M5.1 5.1l9.8 9.8m0-9.8l-9.8 9.8" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/>
+      </svg>
+    </button>
   </div>
 </header>
 
@@ -210,7 +226,6 @@
     <span id="status-message-text" role="status" aria-live="polite">就绪 · 等待操作</span>
   </button>
   <div class="statusbar-right">
-    <span class="statusbar-workmode" title="仪器输出尚未开放">只读预览</span>
   <button class="statusbar-connection" id="connection-status" type="button" aria-haspopup="dialog" aria-controls="connection-dialog" aria-label="查看仪器连接信息及设置">
     <span class="status-dot" id="dot" aria-hidden="true"></span>
     <span id="state-chip" role="status" aria-live="polite">正在连接…</span>

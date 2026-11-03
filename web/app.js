@@ -15,11 +15,15 @@ const dialog=$('connection-dialog'),statusButton=$('connection-status');
 const reconnect=$('reconnect-instrument'),disconnect=$('disconnect-instrument');
 let state='disconnected',busy=false;
 const messages=[];
-function showStatusMessage(message,level='info',record=true){
+function showStatusMessage(message,level='info',record=true,display=true){
   const value=String(message||'').slice(0,300);
-  $('status-message-text').textContent=value;
-  $('status-message').title=value+' · 点击查看历史消息';
-  $('status-message-dot').dataset.level=level;
+  // Instrument connection owns its one status button; connectivity events go
+  // into history without overwriting the unrelated operational message.
+  if(display){
+    $('status-message-text').textContent=value;
+    $('status-message').title=value+' · 点击查看历史消息';
+    $('status-message-dot').dataset.level=level;
+  }
   if(record){
     messages.unshift({time:new Date().toLocaleTimeString('zh-CN',{hour12:false}),message:value});
     if(messages.length>30)messages.pop();
@@ -43,7 +47,7 @@ function initWindowControls(){
   $('window-close').addEventListener('click',()=>{void host.close();});
   const maximize=$('window-maximize');
   const updateMax=(isMaximized)=>{
-    maximize.textContent=isMaximized?'❐':'□';
+    maximize.dataset.maximized=String(isMaximized);
     maximize.title=isMaximized?'还原窗口':'最大化';
     maximize.setAttribute('aria-label',maximize.title);
   };
@@ -96,7 +100,7 @@ function renderStatus(value){
     const statusDetail=state==='connected'?'4200A 连接成功 · 只读模式':
       state==='error'?'连接失败 · 点击底栏连接状态查看详情':
       state==='connecting'?'正在连接 4200A…':'4200A 已断开连接';
-    showStatusMessage(statusDetail,state==='error'?'error':connected?'success':'info');
+    showStatusMessage(statusDetail,state==='error'?'error':connected?'success':'info',true,false);
   }
 }
 let latestStatus={phase:'disconnected',summary:'未连接'};

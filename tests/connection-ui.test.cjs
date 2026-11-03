@@ -25,5 +25,6 @@ test('top titlebar and bottom connection status have separate roles',()=>{
   assert.match(ui,/if\(result\.phase==='connected'\)result=await post\('\/api\/modules\/inspect'\)/);
   assert.match(ui,/connected\?'连接成功'/);
   assert.match(ui,/state==='error'\?'连接失败'/);
+  assert.match(ui,/showStatusMessage\(statusDetail,[^\n]+true,false\)/);
   assert.doesNotMatch(ui,/statusButton\.addEventListener\('click',disconnectInstrument/);
 });
