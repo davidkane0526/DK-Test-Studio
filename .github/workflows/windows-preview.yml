@@ -1,10 +1,11 @@
-name: Windows and DKDS Plugin Release
+name: Cross-platform Windows Android and DKDS Release
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/windows-preview.yml'
       - 'package.json'
+      - 'android/**'
       - 'desktop/**'
       - 'src/**'
       - 'web/**'
@@ -16,11 +17,11 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: windows-dkds-release-main
+  group: dkts-release-main
   cancel-in-progress: true
 jobs:
-  build:
-    name: Windows EXEs + DKDS plugin -> GitHub Release
+  windows:
+    name: Windows Setup, Portable, and validated DKDS plugin
     runs-on: windows-latest
     timeout-minutes: 55
     steps:
@@ -28,74 +29,133 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install build dependencies
+      - name: Install Windows dependencies
         run: npm install --no-audit --no-fund
       - name: Run tests
         run: npm test
-      - name: Stage DKDS plugin from shared core
+      - name: Stage the exact shared-core DKDS plugin
         run: npm run plugin:build
-      - uses: actions/checkout@v4
+      - name: Checkout official DK Data Studio SDK
+        uses: actions/checkout@v4
         with:
           repository: davidkane0526/DK-Data-Studio
           ref: '4200'
           path: compat/dkds
-      - name: Validate DKDS SDK plugin
+      - name: Validate SDK Plugin API 1.19
         run: node compat/dkds/sdk/tools/dkds-plugin.js validate dist/dkds-plugin
       - name: Package official DKDS plugin
         run: node compat/dkds/sdk/tools/dkds-plugin.js package dist/dkds-plugin dist/DK-Test-Studio-4200.dkplugin
       - name: Build Windows Setup and Portable
         run: npx electron-builder --win nsis portable --x64 --publish never
-      - name: Validate exactly three publishable assets
+      - name: Require all Windows artifacts
         shell: pwsh
         run: |
           $setup = @(Get-ChildItem dist -File -Filter '*Setup*.exe')
           $portable = @(Get-ChildItem dist -File -Filter '*Portable*.exe')
           $plugin = 'dist/DK-Test-Studio-4200.dkplugin'
           if ($setup.Count -ne 1 -or $portable.Count -ne 1 -or !(Test-Path $plugin)) {
-            throw 'Missing Windows Setup, Portable, or DKDS plugin file.'
+            throw 'Missing or duplicate Windows or DKDS plugin release artifacts.'
           }
           foreach ($file in @($setup[0].FullName, $portable[0].FullName, $plugin)) {
-            if ((Get-Item $file).Length -lt 1024) { throw "Truncated artifact: $file" }
+            if ((Get-Item $file).Length -lt 1024) { throw "Truncated file: $file" }
             Write-Host "$file SHA256=$((Get-FileHash $file -Algorithm SHA256).Hash)"
           }
-      - name: Upload Windows builds
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: DK-Test-Studio-Windows-Preview
-          path: dist/*.exe
+          name: DKTS-Windows
+          path: |
+            dist/*Setup*.exe
+            dist/*Portable*.exe
           if-no-files-found: error
-      - name: Upload DKDS plugin
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: DK-Test-Studio-DKDS-Plugin
+          name: DKTS-DKDS-Plugin
           path: dist/DK-Test-Studio-4200.dkplugin
           if-no-files-found: error
-      - name: Publish Windows and plugin in one Release
-        if: github.ref == 'refs/heads/main'
-        shell: pwsh
+
+  android:
+    name: Independent Android APK (native Ethernet / Wi-Fi)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test shared Android/Windows/DKDS core
+        run: npm test
+      - name: Package Android WebView and shared JS assets
+        run: node tools/sync-android-assets.cjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Compile and debug-sign independent Android APK
+        run: gradle -p android :app:assembleDebug --no-daemon --stacktrace
+      - name: Prepare Android release asset
+        run: |
+          test -s android/app/build/outputs/apk/debug/app-debug.apk
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/DK-Test-Studio-Android-Preview.apk
+          sha256sum dist/DK-Test-Studio-Android-Preview.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-Android
+          path: dist/DK-Test-Studio-Android-Preview.apk
+          if-no-files-found: error
+
+  release:
+    name: Publish all 4 files in one GitHub prerelease
+    needs: [windows, android]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: DKTS-Windows
+          path: release/windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: DKTS-DKDS-Plugin
+          path: release/plugin
+      - uses: actions/download-artifact@v4
+        with:
+          name: DKTS-Android
+          path: release/android
+      - name: Verify Windows, Android and plugin artifacts are present
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find release/windows -name '*Setup*.exe' | wc -l)" -eq 1
+          test "$(find release/windows -name '*Portable*.exe' | wc -l)" -eq 1
+          test "$(find release/plugin -name '*.dkplugin' | wc -l)" -eq 1
+          test "$(find release/android -name '*.apk' | wc -l)" -eq 1
+          find release -type f -print0 | xargs -0 -n1 sha256sum
+      - name: Publish exact commit with Windows, independent Android and DKDS plugin
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          $ErrorActionPreference = 'Stop'
-          $head = (gh api "repos/$env:GITHUB_REPOSITORY/branches/main" --jq '.commit.sha').Trim()
-          if ($LASTEXITCODE -ne 0 -or $head -ne $env:GITHUB_SHA) {
-            throw 'A newer commit superseded this build.'
-          }
-          $tag = "dkts-preview-$env:GITHUB_RUN_ID"
-          $files = @(
-            (Get-ChildItem dist -Filter '*Setup*.exe' | Select-Object -First 1).FullName
-            (Get-ChildItem dist -Filter '*Portable*.exe' | Select-Object -First 1).FullName
-            (Resolve-Path 'dist/DK-Test-Studio-4200.dkplugin').Path
-          )
-          $notes = "Preview commit $env:GITHUB_SHA. Windows installer, portable EXE, and DK Data Studio API 1.19 plugin (shared core). This preview identifies 4200A by read-only KXCI *IDN? and *OPT? only; it cannot perform SMU/PMU measurements."
-          gh release create $tag $files --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "DK Test Studio Preview $($env:GITHUB_SHA.Substring(0,10))" --notes $notes --prerelease --latest=false
-          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release creation failed.' }
-          $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json url,assets | ConvertFrom-Json
-          $names = @($release.assets | ForEach-Object { $_.name })
-          if ($names.Count -ne 3 -or
-              !($names | Where-Object { $_ -like '*Setup*.exe' }) -or
-              !($names | Where-Object { $_ -like '*Portable*.exe' }) -or
-              !($names | Where-Object { $_ -like '*.dkplugin' })) {
-            throw 'Release does not contain all three required artifacts.'
-          }
-          Write-Host "Verified Release: $($release.url)"
+          set -euo pipefail
+          head_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$head_sha" = "$GITHUB_SHA" || { echo 'Stale commit; refusing publication'; exit 1; }
+          tag="dkts-preview-$GITHUB_RUN_ID"
+          files=(release/windows/*.exe release/plugin/*.dkplugin release/android/*.apk)
+          test "${#files[@]}" -eq 4
+          gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "DK Test Studio Preview ${GITHUB_SHA:0:10} (Windows + Android + DKDS)" \
+            --notes "Cross-platform development preview from $GITHUB_SHA. Windows installer, portable EXE, independent Android debug-signed APK and API 1.19 DKDS plugin. Shared KXCI protocol and SMU plan core. Device queries restricted to read-only IDN/OPT. No SMU/PMU output or validated laboratory measurements. Android debug APK signatures may vary across runs." \
+            --prerelease --latest=false
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | tee release-assets.txt
+          test "$(wc -l < release-assets.txt)" -eq 4 || { echo 'Incomplete Release'; exit 1; }
+          grep -q '\.apk$' release-assets.txt
+          grep -q '\.dkplugin$' release-assets.txt
+          grep -q 'Setup.*\.exe$' release-assets.txt
+          grep -q 'Portable.*\.exe$' release-assets.txt
+          echo "Verified https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
