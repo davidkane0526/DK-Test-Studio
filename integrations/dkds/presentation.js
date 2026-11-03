@@ -21,8 +21,8 @@
       variant:'standard',header:false,activity:'keithley-4200',primaryScroll:'safe'});
     const main=units.layout.create(null,{variant:'stack-comfortable',className:'dkts-workbench'});
     const cards=units.layout.create(main,{variant:'stack-comfortable',className:'dkts-cards'});
-    const makeCard=()=>units.surface.create(cards,{tagName:'section',variant:'elevated',
-      className:'dkts-card'});
+    const makeCard=className=>units.surface.create(cards,{tagName:'section',variant:'elevated',
+      className:className||'dkts-card'});
     const textNode=(host,tag,classname,value)=>{
       const item=dom.create(tag);item.className=classname;item.textContent=value;host.appendChild(item);return item;
     };
@@ -81,8 +81,8 @@
       id:'dkts-reconnect',label:'重新连接',variant:'primary',direct:true,
       onInvoke:()=>actions.onReconnect?.()
     });
-    const modeCard=makeCard();
-    textNode(modeCard,'div','dkts-heading','选择测试方式 · 点击卡片展开参数与数据区');
+    const modeCard=makeCard('dkts-card dkts-library-stage');
+    textNode(modeCard,'div','dkts-heading','选择测试方式 · 点击进入独立工作区');
     // Host-native UI primitives; never embed a second measurement implementation in the plugin.
     // Grid is explicitly two columns even in the narrow DKDS/mobile workspace.
     const modeGrid=units.layout.create(modeCard,{variant:'two-card-grid',className:'dkts-mode-grid'});
@@ -94,22 +94,25 @@
       .dkts-mode-item.is-disabled{opacity:.55}
       .dkts-mode-item .dkts-mode-subtitle{font-size:11px;opacity:.75;line-height:1.4}
       .dkts-mode-item button{width:100%;text-align:left}
-      .dkts-inline-detail{display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;transition:grid-template-rows .32s ease,opacity .24s ease,visibility 0s .32s}
-      .dkts-inline-detail.is-open{grid-template-rows:1fr;opacity:1;visibility:visible;transition:grid-template-rows .32s ease,opacity .24s ease}
-      .dkts-inline-inner{min-height:0;overflow:hidden;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+      .dkts-library-stage[hidden],.dkts-workspace-stage[hidden]{display:none!important}
+      .dkts-workspace-stage{min-height:calc(100dvh - 170px)}
+      .dkts-inline-detail{display:block;opacity:1;visibility:visible}
+      .dkts-inline-detail.is-open{animation:dkts-stage-enter .2s ease-out}
+      @keyframes dkts-stage-enter{from{opacity:.65;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+      .dkts-inline-inner{min-height:0;overflow:visible;display:grid;grid-template-columns:minmax(290px,340px) minmax(0,1fr);gap:12px}
       .dkts-parameters-panel,.dkts-acquisition-panel{min-width:0}
       .dkts-acquisition-panel{display:grid;gap:10px;align-content:start}
       .dkts-measure-readouts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
       .dkts-measure-readout{border:1px solid var(--border-color,rgba(125,140,160,.2));border-radius:8px;padding:10px}
-      .dkts-placeholder-chart{position:relative;height:220px;border:1px solid var(--border-color,rgba(125,140,160,.25));border-radius:10px;background:repeating-linear-gradient(0deg,transparent 0px,transparent 53px,rgba(128,145,166,.12) 54px,transparent 55px)}
+      .dkts-placeholder-chart{position:relative;height:clamp(300px,43dvh,560px);border:1px solid var(--border-color,rgba(125,140,160,.25));border-radius:10px;background:repeating-linear-gradient(0deg,transparent 0px,transparent 53px,rgba(128,145,166,.12) 54px,transparent 55px)}
       .dkts-placeholder-chart-label{position:absolute;left:18px;bottom:12px;font-size:11px;opacity:.65}
       .dkts-placeholder-chart-empty{position:absolute;left:15%;right:15%;top:42%;text-align:center;font-size:12px;opacity:.65}
       .dkts-pending-config{border:1px dashed var(--border-color,rgba(125,140,160,.24));border-radius:8px;padding:14px}
       .dkts-raw-rows{font-size:12px;opacity:.75}
       @media(max-width:950px){.dkts-inline-inner{grid-template-columns:minmax(0,1fr)}}
-      @media(prefers-reduced-motion:reduce){.dkts-inline-detail,.dkts-inline-detail.is-open{transition:none}}
+      @media(prefers-reduced-motion:reduce){.dkts-inline-detail.is-open{animation:none}}
     `;
-    modeCard.appendChild(modeStyles);
+    main.appendChild(modeStyles);
     let selectedKind='iv',openedKind=null;
     const modeTiles=new Map();
     const modes=[
@@ -123,13 +126,16 @@
       {kind:'arbitrary',title:'任意波形测量',subtitle:'真实输出与采集 · 开发中'}
     ];
     function selectMode(kind){
-      const tile=modeTiles.get(kind);
-      if(!tile)return;
-      openedKind=openedKind===kind?null:kind;
+      const tile=kind===null?null:modeTiles.get(kind);
+      if(kind!==null&&!tile)return;
+      openedKind=kind;
+      modeCard.hidden=Boolean(openedKind);
+      detailCard.hidden=!openedKind;
       const current=modes.find(mode=>mode.kind===openedKind);
       const ready=!!current?.enabled;
       if(ready)selectedKind=openedKind;
       detailFrame.className='dkts-inline-detail'+(openedKind?' is-open':'');
+      detailTitle.textContent=current?current.title+' · 测试工作区':'测试工作区';
       detailFrame.inert=!openedKind;
       detailFrame.setAttribute?.('aria-hidden',String(!openedKind));
       card2.hidden=!ready;
@@ -173,8 +179,17 @@
       textNode(host,'div','dkts-mode-subtitle',mode.subtitle);
       modeTiles.set(mode.kind,{host,button:action?.button||action?.element||null,enabled:!!mode.enabled});
     }
-    // One animated section inside the test-library card, never a separate persistent card.
-    const detailFrame=units.layout.create(modeCard,{variant:'stack-comfortable',className:'dkts-inline-detail'});
+    // Two distinct pages: the library disappears completely on selecting a mode.
+    const detailCard=makeCard('dkts-card dkts-workspace-stage');
+    detailCard.hidden=true;
+    const detailToolbar=units.layout.create(detailCard,{
+      variant:'row-between',className:'dkts-secondary-toolbar'});
+    units.action.create(detailToolbar,{
+      id:'dkts-back-to-tests',label:'← 返回测试选择',variant:'secondary',direct:true,
+      onInvoke:()=>selectMode(null)
+    });
+    const detailTitle=textNode(detailToolbar,'h3','dkts-secondary-title','测试工作区');
+    const detailFrame=units.layout.create(detailCard,{variant:'stack-comfortable',className:'dkts-inline-detail'});
     detailFrame.inert=true;
     detailFrame.setAttribute?.('aria-hidden','true');
     const detailInner=units.layout.create(detailFrame,{variant:'stack-comfortable',className:'dkts-inline-inner'});

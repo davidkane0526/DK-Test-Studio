@@ -18,7 +18,7 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
     pageHeader:{create:()=>({element:unit('header')})},
     layout:{create:(parent)=>{const n=unit('layout');parent?.appendChild?.(n);return n;}},
     workspace:{create:()=>({compose:spec=>{composed=spec;},dispose:()=>{}})},
-    surface:{create:(parent)=>{const n=unit('surface');parent?.appendChild?.(n);return n;}},
+    surface:{create:(parent,spec)=>{const n=unit('surface');n.className=spec?.className||'';parent?.appendChild?.(n);return n;}},
     field:{create:(parent,spec)=>{const n=unit('field'),control=unit('control');control.value=String(spec.value??'');
       n.appendChild(control);parent?.appendChild?.(n);return {element:n,control};}},
     action:{create:(parent,spec)=>{const button=unit('button');button.textContent=spec.label;button.invoke=spec.onInvoke;
@@ -87,10 +87,22 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
   futureCard.invoke();
   assert.equal(capability.methods.validatePlan().kind,'iv','Future mode cannot mutate executable test plan');
   futureCard.invoke();
+  const allDescendants=(node)=>[node,...(node.children||[]).flatMap(allDescendants)];
+  const surfaces=allDescendants(composed.primary.mainNode);
+  const library=surfaces.find(x=>String(x.className||'').includes('dkts-library-stage'));
+  const workspace=surfaces.find(x=>String(x.className||'').includes('dkts-workspace-stage'));
+  const back=nodes.find(row=>row.textContent==='← 返回测试选择');
+  assert(library&&workspace&&back);
+  assert.equal(library.hidden,false);
+  assert.equal(workspace.hidden,true);
   itCard.invoke();
   assert.equal(capability.methods.validatePlan().kind,'it');
-  itCard.invoke();
-  assert.equal(capability.methods.validatePlan().kind,'it','Clicking selected card collapses it without discarding plan');
+  assert.equal(library.hidden,true,'Mode grid must disappear after selecting a test');
+  assert.equal(workspace.hidden,false,'Workspace occupies the second-level page');
+  back.invoke();
+  assert.equal(library.hidden,false);
+  assert.equal(workspace.hidden,true);
+  assert.equal(capability.methods.validatePlan().kind,'it','Returning to library preserves parameters');
   ivCard.invoke();
   assert.equal(capability.methods.validatePlan().kind,'iv');
   const plan=capability.methods.exportPlan();
