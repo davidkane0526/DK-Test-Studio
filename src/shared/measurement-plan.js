@@ -62,7 +62,39 @@
     }
     return {plan:p,firstPoints:rows,truncated:p.totalPoints>max};
   }
-  const api=Object.freeze({normalizePlan,previewPlan});
+  // One measurement at a time in each host/process. Tabs may coexist, but
+  // overlapping execution attempts fail before touching hardware.
+  function createExecutionCoordinator(){
+    let current=null;
+    function status(){
+      return Object.freeze({running:current!==null,kind:current?.kind||null});
+    }
+    function begin(kind){
+      const name=String(kind||'').trim();
+      if(!name)throw Error('测试类型不能为空');
+      if(current)throw Error('测试 '+current.kind+' 正在运行，不允许同时执行两项测试');
+      const token=Symbol(name);
+      current={kind:name,token};
+      let finished=false;
+      return Object.freeze({
+        kind:name,
+        end(){
+          if(finished)return false;
+          finished=true;
+          if(current?.token!==token)return false;
+          current=null;
+          return true;
+        }
+      });
+    }
+    async function run(kind,task){
+      if(typeof task!=='function')throw Error('必须提供测试执行函数');
+      const lease=begin(kind);
+      try{return await task();}finally{lease.end();}
+    }
+    return Object.freeze({status,begin,run});
+  }
+  const api=Object.freeze({normalizePlan,previewPlan,createExecutionCoordinator});
     if(typeof window!=='undefined' && window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-plan',api);
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();

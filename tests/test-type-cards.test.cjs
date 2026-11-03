@@ -69,3 +69,12 @@ test('workbench reserves narrow top title and bottom status strips and can hide 
   assert.match(styles,/\.workspace,.workspace\.workspace-active\{position:relative;width:100%;max-width:none/);
   assert.match(styles,/\.data-panel\{display:flex;flex-direction:column/);
 });
+
+test('add-test button follows the scrollable test tabs instead of preceding them',()=>{
+  const index=html.indexOf('id="workspace-tabs"');
+  const plus=html.indexOf('id="tab-home"');
+  const drag=html.indexOf('class="titlebar-drag-region"');
+  assert(index>=0&&plus>index&&drag>plus);
+  assert.match(styles,/\.workspace-tabs\{\s*flex:0 1 auto;\s*width:max-content/);
+  assert.match(styles,/\.workspace-tab-add\{\s*order:0;\s*flex:0 0 30px/);
+});

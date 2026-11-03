@@ -127,3 +127,13 @@ test('native Android shell version comes from its actual installed package',()=>
  assert.match(bridge,/nativeVersion:async\(\)=>String/);
  assert.match(gradle,/versionName '0\.2\.2'/);
 });
+
+test('Android reapplies status-bar-only immersive mode after resume and focus recovery',()=>{
+  const source=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
+  assert.match(source,/webView\.post\(this::configureImmersiveTitleSpace\)/);
+  assert.match(source,/@Override protected void onResume\(\)/);
+  assert.match(source,/@Override public void onWindowFocusChanged\(boolean hasFocus\)/);
+  assert.match(source,/controller\.hide\(WindowInsets\.Type\.statusBars\(\)\)/);
+  assert.doesNotMatch(source,/controller\.hide\(WindowInsets\.Type\.navigationBars\(\)\)/);
+  assert.match(source,/getWindow\(\)\.setStatusBarColor\(Color\.TRANSPARENT\)/);
+});

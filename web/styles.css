@@ -715,21 +715,21 @@ body.dkts-android-shell .workspace-tab-close{
   --dkts-field-hover:#bdcfe6;
   --dkts-field-focus:#4079ca;
   --dkts-field-ring:rgba(64,121,202,.12);
-  --dkts-scroll-thumb:#bcc9db;
-  --dkts-scroll-hover:#8ea4c0;
+  --dkts-scroll-thumb:rgba(115,140,174,.30);
+  --dkts-scroll-hover:rgba(115,140,174,.58);
   --dkts-popover-bg:#fff;
   --dkts-popover-border:#d9e3f0;
   --dkts-popover-hover:#edf4ff;
 }
 :where(html,body,*){scrollbar-color:var(--dkts-scroll-thumb) transparent;scrollbar-width:thin}
-:where(html,body,*)::-webkit-scrollbar{width:8px;height:8px;background:transparent}
+:where(html,body,*)::-webkit-scrollbar{width:5px;height:5px;background:transparent}
 :where(html,body,*)::-webkit-scrollbar-track{background:transparent;border:0}
 :where(html,body,*)::-webkit-scrollbar-thumb{
-  background:var(--dkts-scroll-thumb);border:2px solid transparent;
+  background:var(--dkts-scroll-thumb);border:1px solid transparent;
   background-clip:padding-box;border-radius:999px;min-height:28px
 }
 :where(html,body,*)::-webkit-scrollbar-thumb:hover{
-  background:var(--dkts-scroll-hover);border:2px solid transparent;
+  background:var(--dkts-scroll-hover);border:1px solid transparent;
   background-clip:padding-box
 }
 :where(html,body,*)::-webkit-scrollbar-corner{background:transparent}
@@ -849,8 +849,8 @@ body.dkts-android-shell .workspace-tab-close{
     --dkts-field-hover:#627895;
     --dkts-field-focus:#84afe8;
     --dkts-field-ring:rgba(132,175,232,.17);
-    --dkts-scroll-thumb:#58687e;
-    --dkts-scroll-hover:#8296ad;
+    --dkts-scroll-thumb:rgba(144,166,197,.34);
+    --dkts-scroll-hover:rgba(144,166,197,.65);
     --dkts-popover-bg:#263549;
     --dkts-popover-border:#4b5c76;
     --dkts-popover-hover:#344b68
@@ -861,3 +861,21 @@ body.dkts-android-shell .workspace-tab-close{
   :where(.settings,#diagnostic-wrap) > summary{color:#b2c6df}
   :where(.settings,#diagnostic-wrap) > summary:hover{color:#e1eeff}
 }
+
+/* Place the "+" AFTER the open tabs.  As tabs accumulate it moves right;
+   once the tab strip fills the available space, only tabs scroll. */
+.workspace-tabs{
+  flex:0 1 auto;
+  width:max-content;
+  max-width:min(54vw,780px);
+  min-width:0;
+}
+.workspace-tab-add{
+  order:0;
+  flex:0 0 30px;
+  margin:0 4px 0 6px;
+}
+@media(max-width:480px){
+  .workspace-tab-add{flex-basis:29px}
+}
+body.dkts-android-shell .workspace-tab-add{flex-basis:36px}

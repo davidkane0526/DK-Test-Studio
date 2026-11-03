@@ -23,3 +23,25 @@ test('planning rejects invalid limits, missing values, and channel conflicts',()
   assert.throws(()=>normalizePlan({gateSmU:1,sourceSmU:1}),/不得/);
   assert.throws(()=>normalizePlan({complianceA:''}),/不能为空/);
 });
+
+test('exclusive execution coordinator forbids overlapping tests but releases on completion',async()=>{
+  const {createExecutionCoordinator}=require('../src/controller/measurement-plan.cjs');
+  const gate=createExecutionCoordinator();
+  assert.deepEqual(gate.status(),{running:false,kind:null});
+  const first=gate.begin('iv');
+  assert.deepEqual(gate.status(),{running:true,kind:'iv'});
+  assert.throws(()=>gate.begin('it'),/不允许同时执行两项测试/);
+  assert.equal(first.end(),true);
+  assert.equal(first.end(),false);
+  assert.deepEqual(gate.status(),{running:false,kind:null});
+  let unblock;
+  const signal=new Promise(resolve=>{unblock=resolve;});
+  const running=gate.run('pund',async()=>{await signal;return 'result';});
+  assert.equal(gate.status().kind,'pund');
+  await assert.rejects(()=>gate.run('retention',async()=>true),/不允许同时执行两项测试/);
+  unblock();
+  assert.equal(await running,'result');
+  assert.equal(gate.status().running,false);
+  await assert.rejects(()=>gate.run('iv',async()=>{throw Error('instrument fault');}),/instrument fault/);
+  assert.equal(gate.status().running,false,'fault must release execution lease');
+});

@@ -3,7 +3,7 @@ const http=require('node:http');
 const fs=require('node:fs');
 const path=require('node:path');
 const {parseWaveformText}=require('./controller/waveform.cjs');
-const {normalizePlan,previewPlan}=require('./controller/measurement-plan.cjs');
+const {normalizePlan,previewPlan,createExecutionCoordinator}=require('./controller/measurement-plan.cjs');
 const {createIdentityController,summarizeError}=require('./controller/identity.cjs');
 const {createUiUpdater}=require('./ui-update.cjs');
 
@@ -43,6 +43,9 @@ function readJson(req,maxBytes=8388608){
 }
 async function createAppServer(options={}){
   const controller=options.controller||createIdentityController();
+  // Reserved for the eventual real measurement runner: no output endpoint exists
+  // at present. All future task execution must acquire this single lease.
+  const execution=options.execution||createExecutionCoordinator();
   const updater=options.uiCacheDir?createUiUpdater({cacheDir:options.uiCacheDir}):null;
   const server=http.createServer(async(req,res)=>{
     try{
@@ -109,7 +112,7 @@ async function createAppServer(options={}){
     await controller.dispose();
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
-  return {server,port:address.port,url:'http://127.0.0.1:'+address.port+'/',close,controller};
+  return {server,port:address.port,url:'http://127.0.0.1:'+address.port+'/',close,controller,execution};
 }
 if(require.main===module){
   createAppServer({port:Number(process.env.DKTS_PORT||0)}).then(app=>{

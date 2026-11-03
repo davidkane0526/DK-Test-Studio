@@ -53,6 +53,8 @@ public final class MainActivity extends Activity {
         bridge = new InstrumentBridge(this, webView);
         webView.addJavascriptInterface(bridge, "DKTSNative");
         setContentView(webView);
+        // The decor/insets controller can be unavailable before attachment.
+        webView.post(this::configureImmersiveTitleSpace);
         webView.loadUrl(APP_ORIGIN + "index.html");
         uiUpdates.start();
     }
@@ -63,6 +65,8 @@ public final class MainActivity extends Activity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
             WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().setNavigationBarColor(Color.BLACK);
+        // Never hide the bottom system navigation gesture/bar.
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
         if (Build.VERSION.SDK_INT >= 30) {
             WindowInsetsController controller = getWindow().getInsetsController();
             if (controller != null) {
@@ -74,6 +78,18 @@ public final class MainActivity extends Activity {
             getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         }
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        // Restore immersive status-bar mode after leaving another Activity,
+        // e.g., Android permission dialogs, app switching, or screen unlocking.
+        getWindow().getDecorView().post(this::configureImmersiveTitleSpace);
+    }
+
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) getWindow().getDecorView().post(this::configureImmersiveTitleSpace);
     }
 
     @Override protected void onDestroy() {

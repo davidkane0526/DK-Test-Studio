@@ -6,6 +6,7 @@
     const protocol=modules.require('dkts-kxci');
     const domain=modules.require('dkts-identity-core');
     const planner=modules.require('dkts-plan');
+    const execution=planner.createExecutionCoordinator();
     const waveform=modules.require('dkts-waveform');
     const interop=modules.require('dkts-interop');
     const presentation=modules.require('presentation');
@@ -90,8 +91,10 @@
           identified:controller.status().identity,
           sessionEndpoint:controller.status().route,
           inventory:controller.status().inventory,
-          runningSimulation:false}),
+          runningSimulation:false,
+          execution:execution.status()}),
         connect,identify:connect,disconnect,inspectModules:()=>controller.inspectModules(),
+        executionStatus:()=>execution.status(),
         validatePlan:()=>plan(),previewPlan:()=>planner.previewPlan(plan()),
         validateWaveform:points=>waveform.validateWaveform(points),
         parseWaveformText:text=>waveform.parseWaveformText(text),

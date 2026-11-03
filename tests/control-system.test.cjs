@@ -11,12 +11,14 @@ const css=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
 
 test('Chromium scrollbar uses thin rounded transparent style without arrow buttons',()=>{
   assert.match(css,/scrollbar-width:thin/);
-  assert.match(css, /::-webkit-scrollbar\{width:8px;height:8px/);
+  assert.match(css, /::-webkit-scrollbar\{width:5px;height:5px/);
   assert.match(css, /::-webkit-scrollbar-thumb\{/);
   assert.match(css, /background-clip:padding-box/);
   assert.match(css, /::-webkit-scrollbar-button\{display:none;width:0;height:0\}/);
   assert.match(css, /\.workspace-tabs::-webkit-scrollbar\{display:none\}/);
   assert.match(css, /--dkts-scroll-hover/);
+  assert.match(css, /--dkts-scroll-thumb:rgba\(115,140,174,\.30\)/);
+  assert.match(css, /--dkts-scroll-hover:rgba\(115,140,174,\.58\)/);
 });
 test('two frequent selects are progressively enhanced without changing form inputs',()=>{
   assert.match(html,/<select name="networkMode">/);
