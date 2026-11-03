@@ -1,0 +1,71 @@
+name: Fast UI Hot Update
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'integrations/dkds/**'
+      - 'tools/build-ui-bundle.cjs'
+      - 'tools/sync-android-assets.cjs'
+      - '.github/workflows/ui-update.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: dkts-ui-release-main
+  cancel-in-progress: true
+jobs:
+  ui-update:
+    name: Test and release lightweight UI bundle and DKDS plugin
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run frontend and interoperability tests
+        run: npm test
+      - name: Build Windows and Android UI resources without native compilation
+        run: node tools/build-ui-bundle.cjs
+      - name: Prepare DKDS plugin from the shared-core sources
+        run: npm run plugin:build
+      - uses: actions/checkout@v4
+        with:
+          repository: davidkane0526/DK-Data-Studio
+          ref: '4200'
+          path: compat/dkds
+      - name: Validate DKDS Plugin API 1.19
+        run: node compat/dkds/sdk/tools/dkds-plugin.js validate dist/dkds-plugin
+      - name: Package DKDS plugin without rebuilding DK Data Studio
+        run: node compat/dkds/sdk/tools/dkds-plugin.js package dist/dkds-plugin dist/DK-Test-Studio-4200.dkplugin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-Fast-UI-Update
+          path: |
+            dist/DKTS-UI-bundle.json
+            dist/DK-Test-Studio-4200.dkplugin
+          if-no-files-found: error
+      - name: Publish update package straight to GitHub Releases
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          head_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$head_sha" != "$GITHUB_SHA" ]; then
+            echo "Newer main exists; this UI update will not be published."
+            exit 1
+          fi
+          tag="dkts-ui-$GITHUB_SHA"
+          gh release create "$tag" \
+            dist/DKTS-UI-bundle.json dist/DK-Test-Studio-4200.dkplugin \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "DK Test Studio UI Hot Update ${GITHUB_SHA:0:10}" \
+            --notes "UI-only Windows and independent Android update; no APK/EXE rebuild. The two application shells fetch this package automatically. DKDS plugin is separately packaged with the official SDK. No change to native instrument drivers or real SMU/PMU execution." \
+            --prerelease --latest=false
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > published.txt
+          printf '%s\n' DK-Test-Studio-4200.dkplugin DKTS-UI-bundle.json | sort > expected.txt
+          diff -u expected.txt published.txt
+          echo "UI update published: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"

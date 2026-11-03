@@ -1,4 +1,4 @@
-name: Cross-platform Windows Android and DKDS Release
+name: Native Shell Windows Android and DKDS Release
 on:
   push:
     branches: [main]
@@ -8,11 +8,6 @@ on:
       - 'android/**'
       - 'desktop/**'
       - 'src/**'
-      - 'web/**'
-      - 'integrations/**'
-      - 'tools/**'
-      - 'tests/**'
-      - 'README.md'
   workflow_dispatch:
 permissions:
   contents: write
