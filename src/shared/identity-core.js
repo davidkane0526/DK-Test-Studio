@@ -40,14 +40,15 @@
     if(!protocol||typeof protocol.parseIdentity!=='function'||protocol.IDN_REQUEST!=='*IDN?\0')
       throw Error('缺少已验证的 KXCI 身份协议');
     let connection=null,phase='disconnected',identity=null,diagnostic='',settings=null,pending=null;
-    function status(){return {phase,identity,route:connection?{
+    let inventory=null,inventoryError='',inventoryPending=null;
+    function status(){return {phase,identity,inventory,inventoryError,route:connection?{
       localAddress:connection.localAddress,remoteAddress:connection.remoteAddress,
       remotePort:connection.remotePort,interfaceName:connection.interfaceName,
       routeStrategy:connection.routeStrategy
     }:null,summary:phase==='connected'?'4200A 已识别':phase==='connecting'?'正在连接':phase==='error'?summarizeError(diagnostic):'未连接',diagnostic};}
     async function closeCurrent(){
       const id=connection?.sessionId;
-      connection=null;identity=null;
+      connection=null;identity=null;inventory=null;inventoryError='';
       if(id)await tcp.close({sessionId:id}).catch(()=>{});
     }
     async function connect(payload={}){
@@ -84,14 +85,48 @@
       pending=task;
       try{return await task;}finally{if(pending===task)pending=null;}
     }
+    async function inspectModules(){
+      if(pending)await pending;
+      if(!connection||!identity||phase!=='connected')throw Error('必须先验证 4200A 仪器身份');
+      if(inventory)return status();
+      if(inventoryPending)return inventoryPending;
+      if(protocol.OPTIONS_REQUEST!=='*OPT?\0'||typeof protocol.parseOptions!=='function')
+        throw Error('不支持模块查询的 KXCI 版本');
+      const targetId=connection.sessionId;
+      const request=(async()=>{
+        try{
+          // Read-only KXCI 4200A-mode slot inventory, never a source command.
+          const response=await tcp.exchange({
+            sessionId:targetId,base64:btoa(protocol.OPTIONS_REQUEST),
+            readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:120,maxBytes:4096
+          });
+          if(connection?.sessionId!==targetId)throw Error('连接已切换，模块查询已作废');
+          inventory=protocol.parseOptions(atob(response.base64));
+          inventoryError='';
+          return status();
+        }catch(error){
+          inventoryError=String(error?.message||error).slice(0,300);
+          // KXCI *OPT? is unavailable in 4145 emulation. A parse failure
+          // does not imply the previously verified device identity is wrong.
+          if(/timeout|closed|econnreset|unavailable|not connected/i.test(inventoryError)){
+            await closeCurrent();
+            phase='error';diagnostic='模块查询失败，原连接可能已关闭：'+inventoryError;
+          }
+          return status();
+        }
+      })();
+      inventoryPending=request;
+      try{return await request;}finally{if(inventoryPending===request)inventoryPending=null;}
+    }
     async function disconnect(){
+      if(inventoryPending)await inventoryPending.catch(()=>{});
       if(pending)await pending.catch(()=>{});
       await closeCurrent();
       phase='disconnected';diagnostic='';settings=null;
       return status();
     }
     async function dispose(){await disconnect();tcp.closeAll?.();}
-    return Object.freeze({connect,disconnect,status,dispose});
+    return Object.freeze({connect,inspectModules,disconnect,status,dispose});
   }
   const api=Object.freeze({createIdentityController,normalizeSettings,summarizeError});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
