@@ -12,6 +12,12 @@ test('test library is a distinct first-level screen, hidden when workbench is ac
   assert.doesNotMatch(html,/DK TEST STUDIO · 4200A/);
   assert.doesNotMatch(html,/点击卡片进入测试工作区/);
   assert.match(html,/id="workspace-tabs" class="workspace-tabs" role="tablist"/);
+  assert.match(html,/id="tab-home" class="workspace-tab-add" aria-label="添加测试"/);
+  assert.doesNotMatch(html,/>测试选择<\/button>/);
+  assert.doesNotMatch(html,/id="tab-home"[^>]+role="tab"/);
+  assert.match(app,/close\.innerHTML='<svg viewBox="0 0 20 20"/);
+  assert.match(styles,/\.workspace-tab-close svg\{display:block;width:14px;height:14px/);
+  assert.match(styles,/\.workspace-tab-close\{\s*display:inline-grid;place-items:center/);
   assert.match(html,/class="titlebar-version-divider"/);
   assert.match(app,/function renderWorkspaceTabs\(\)/);
   assert.match(app,/function closeWorkspaceTab\(kind\)/);

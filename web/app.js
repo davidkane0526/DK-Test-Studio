@@ -231,10 +231,7 @@ function restoreTabDraft(kind){
 function renderWorkspaceTabs(){
   const nav=$('workspace-tabs');
   nav.querySelectorAll('.workspace-tab-item').forEach(node=>node.remove());
-  const home=$('tab-home');
-  const homeActive=expandedKind===null;
-  home.classList.toggle('is-active',homeActive);
-  home.setAttribute('aria-selected',String(homeActive));
+  $('tab-home').classList.toggle('is-active',expandedKind===null);
   for(const kind of openedTabs){
     const tab=document.createElement('div');
     tab.className='workspace-tab-item';
@@ -250,7 +247,8 @@ function renderWorkspaceTabs(){
     const close=document.createElement('button');
     close.type='button';close.className='workspace-tab-close';
     close.setAttribute('aria-label','关闭'+TEST_MODES[kind].title+'标签');
-    close.title='关闭标签';close.textContent='×';
+    close.title='关闭标签';
+    close.innerHTML='<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M5.5 5.5l9 9m0-9-9 9"/></svg>';
     close.addEventListener('click',()=>closeWorkspaceTab(kind));
     tab.append(select,close);
     nav.appendChild(tab);

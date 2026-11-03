@@ -675,3 +675,32 @@ body.dkts-android-shell .workspace-tab-close{height:33px}
 @media(prefers-color-scheme:dark){
   .titlebar-brand .native-version-badge{color:#afc3da}
 }
+
+/* Icon-only add-test action; "test selection" is a destination, not an open tab. */
+.workspace-tab-add{
+  display:inline-grid;place-items:center;flex:none;width:30px;height:30px;
+  min-width:30px;padding:0;margin:0 3px 0 0;
+  border:1px solid transparent;border-radius:8px;background:transparent;
+  color:var(--dkts-chrome-text,#516681);cursor:pointer;
+  -webkit-app-region:no-drag;app-region:no-drag
+}
+.workspace-tab-add svg{display:block;pointer-events:none}
+.workspace-tab-add:hover,.workspace-tab-add.is-active{background:var(--dkts-hover-bg,#e7eef9);color:#2d568a}
+.workspace-tab-add:focus-visible{outline:2px solid #477ac4;outline-offset:0}
+.workspace-tab-close{
+  display:inline-grid;place-items:center;align-self:center;
+  padding:0!important;margin:0;min-width:24px;width:24px;height:28px;
+  border:0;border-radius:6px;line-height:1;
+}
+.workspace-tab-close svg{display:block;width:14px;height:14px;flex:none;pointer-events:none}
+.workspace-tab-item{align-items:center}
+@media(max-width:480px){
+  .workspace-tab-add{width:29px;min-width:29px;height:29px}
+  .workspace-tab-close{min-width:22px;width:22px;height:28px}
+}
+body.dkts-android-shell .workspace-tab-add{
+  min-width:36px;width:36px;height:36px
+}
+body.dkts-android-shell .workspace-tab-close{
+  min-width:32px;width:32px;height:34px
+}
