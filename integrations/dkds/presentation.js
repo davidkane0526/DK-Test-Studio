@@ -4,13 +4,23 @@
     const units=ctx.ui.unitTemplates,dom=ctx.ui.dom;
     const controls=new Map(),buttons=new Map();
     const body=units.page.create(page,{variant:'tool',className:'dkts-plugin-page'}).element;
-    units.pageHeader.create(body,{variant:'page-owned',activity:'keithley-4200',
+    const pageHeader=units.pageHeader.create(body,{variant:'page-owned',activity:'keithley-4200',
       title:'DK Test Studio',subtitle:'4200A 共用测试引擎 · 仪器只读连接'});
+    // The page header is owned by DKDS Core; only our status control is placed in it.
+    const statusHost=units.layout.create(pageHeader.element||body,{
+      variant:'row-between',className:'dkts-header-connection'});
+    let modal=null;
+    const statusAction=units.action.create(statusHost,{
+      id:'dkts-connection-status',label:'未连接',variant:'secondary',direct:true,
+      onInvoke:()=>{if(modal&&!modal.open)modal.showModal();}
+    });
+    const statusButton=statusAction.button||statusAction.element;
+    buttons.set('status',statusButton);
     const workspaceHost=units.layout.create(body,{variant:'identity',className:'dkts-workspace-host'});
     const workbench=units.workspace.create(workspaceHost,{
       variant:'standard',header:false,activity:'keithley-4200',primaryScroll:'safe'});
     const main=units.layout.create(null,{variant:'stack-comfortable',className:'dkts-workbench'});
-    const cards=units.layout.create(main,{variant:'two-card-grid',className:'dkts-cards'});
+    const cards=units.layout.create(main,{variant:'stack-comfortable',className:'dkts-cards'});
     const makeCard=()=>units.surface.create(cards,{tagName:'section',variant:'elevated',
       className:'dkts-card'});
     const textNode=(host,tag,classname,value)=>{
@@ -25,34 +35,52 @@
       });
       controls.set(id,item.control);return item.control;
     };
-    const card1=makeCard();
-    const head=units.layout.create(card1,{variant:'row-between',className:'dkts-device-head'});
-    const info=units.layout.create(head,{variant:'stack-compact'});
-    textNode(info,'div','dkts-heading','仪器连接');
-    textNode(info,'div','dkts-device','Keithley 4200A-SCS');
-    const button=units.action.create(head,{id:'dkts-toggle',label:'连接',
-      variant:'primary',direct:true,onInvoke:()=>actions.onToggle?.()});
-    const buttonNode=button.button||button.element;
-    buttons.set('toggle',buttonNode);
-    const status=units.note.create(card1,{variant:'meta',text:'待连接'});
-    const route=units.note.create(card1,{variant:'meta',text:'169.254.111.118:1225'});
-    const modulesNote=units.note.create(card1,{variant:'meta',text:'模块尚未读取'});
+    // Hidden by default: one status button opens the entire diagnostic/settings modal.
+    modal=dom.create('dialog');
+    modal.className='dkts-connection-dialog';
+    modal.setAttribute?.('aria-label','仪器连接设置');
+    body.appendChild(modal);
+    const modalHeader=units.layout.create(modal,{variant:'row-between',className:'dkts-modal-header'});
+    textNode(modalHeader,'h3','dkts-modal-title','仪器连接');
+    units.action.create(modalHeader,{
+      id:'dkts-close-connection',label:'关闭',direct:true,
+      onInvoke:()=>{if(modal.open)modal.close();}
+    });
+    textNode(modal,'div','dkts-device','Keithley 4200A-SCS');
+    const status=units.note.create(modal,{variant:'meta',text:'尚未连接'});
+    const route=units.note.create(modal,{variant:'meta',text:'169.254.111.118:1225'});
+    const identityNote=units.note.create(modal,{variant:'meta',text:'仪器尚未识别'});
+    const modulesNote=units.note.create(modal,{variant:'meta',text:'模块尚未读取'});
     const diagnostics=dom.create('details');
     diagnostics.hidden=true;
-    const summary=dom.create('summary');summary.textContent='查看连接诊断';diagnostics.appendChild(summary);
-    const diagnostic=textNode(diagnostics,'pre','dkts-diagnostics','');card1.appendChild(diagnostics);
+    const summary=dom.create('summary');summary.textContent='详细连接诊断';diagnostics.appendChild(summary);
+    const diagnostic=textNode(diagnostics,'pre','dkts-diagnostics','');
+    modal.appendChild(diagnostics);
     const advanced=dom.create('details');
-    const advancedTitle=dom.create('summary');advancedTitle.textContent='高级连接设置（不保存）';advanced.appendChild(advancedTitle);
+    const advancedTitle=dom.create('summary');
+    advancedTitle.textContent='详细连接设置（仅本次会话）';
+    advanced.appendChild(advancedTitle);
     const connectionFields=units.layout.create(advanced,{variant:'form-grid-2',className:'dkts-field-grid'});
     field(connectionFields,'host','仪器 IP / 主机名','169.254.111.118',{inputType:'text'});
     field(connectionFields,'port','端口',1225);
-    field(connectionFields,'expectedSerial','序列号（留空不校验）','1498377',{inputType:'text'});
-    field(connectionFields,'networkMode','连接路径','auto',{kind:'select',options:[
-      {value:'auto',label:'自动'},{value:'ethernet',label:'网线'},
+    field(connectionFields,'expectedSerial','预期序列号','1498377',{inputType:'text'});
+    field(connectionFields,'networkMode','连接方式','auto',{kind:'select',options:[
+      {value:'auto',label:'自动（推荐）'},{value:'ethernet',label:'网线'},
       {value:'wifi',label:'Wi-Fi'},{value:'interface',label:'指定网卡'}
     ]});
     field(connectionFields,'interfaceName','指定网卡名称','',{inputType:'text'});
-    card1.appendChild(advanced);
+    field(connectionFields,'localAddress','本地 IPv4 地址','',{inputType:'text'});
+    field(connectionFields,'timeoutMs','连接超时（毫秒）',5000);
+    modal.appendChild(advanced);
+    const modalActions=units.layout.create(modal,{variant:'row-between',className:'dkts-connection-actions'});
+    units.action.create(modalActions,{
+      id:'dkts-disconnect',label:'断开连接',direct:true,
+      onInvoke:()=>actions.onDisconnect?.()
+    });
+    units.action.create(modalActions,{
+      id:'dkts-reconnect',label:'重新连接',variant:'primary',direct:true,
+      onInvoke:()=>actions.onReconnect?.()
+    });
     const card2=makeCard();
     textNode(card2,'div','dkts-heading','SMU 测试方案（仅规划）');
     const planFields=units.layout.create(card2,{variant:'form-grid-2',className:'dkts-plan-grid'});
@@ -88,7 +116,8 @@
     const set=(id,value)=>{const c=controls.get(id);if(c)c.value=String(value??'');};
     function readConnection(){
       return {host:get('host'),port:get('port'),expectedSerial:get('expectedSerial'),
-        networkMode:get('networkMode'),interfaceName:get('interfaceName')};
+        networkMode:get('networkMode'),interfaceName:get('interfaceName'),
+        localAddress:get('localAddress'),timeoutMs:get('timeoutMs')};
     }
     function readPlan(){
       const names=['kind','loops','points','complianceA','startV','stopV','fixedV',
@@ -100,7 +129,13 @@
       for(const [key,v] of Object.entries(old))if(controls.has(key))set(key,v);
     }
     function renderConnection(s){
-      status.textContent=String(s.summary||'未连接');
+      const label=s.phase==='connected'?'连接成功':s.phase==='connecting'?'正在连接…':
+        s.phase==='error'?'连接失败':'未连接';
+      statusButton.textContent=label;
+      status.textContent=String(s.summary||label);
+      identityNote.textContent=s.identity
+        ?[s.identity.model,s.identity.serial?'序列号 '+s.identity.serial:'',
+          s.identity.version||''].filter(Boolean).join(' · '):'仪器尚未识别';
       route.textContent=s.route
         ?[s.route.remoteAddress+':'+s.route.remotePort,s.route.interfaceName||'系统路由'].join(' · ')
         :get('host')+':'+get('port');
@@ -109,7 +144,6 @@
         :s.inventoryError?'模块读取失败：'+String(s.inventoryError).slice(0,100):'模块尚未读取';
       diagnostic.textContent=String(s.diagnostic||'').slice(0,6000);
       diagnostics.hidden=!s.diagnostic;diagnostics.open=false;
-      buttonNode.textContent=s.phase==='connected'?'断开':'连接';
     }
     function renderPlan(value){
       const p=value.plan;

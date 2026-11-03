@@ -59,7 +59,8 @@
       activity:'keithley-4200',label:'4200A',title:'DK Test Studio - 4200A',
       toolbar:false,html:'',onOpen});
     ui=presentation.mount(ctx,page,{
-      onToggle:()=>void toggleConnection(),
+      onReconnect:()=>void connect(),
+      onDisconnect:()=>void disconnect(),
       onPreview:()=>{try{preview();}catch{}},
       onPlanChanged:()=>{try{preview();}catch{}}
     });

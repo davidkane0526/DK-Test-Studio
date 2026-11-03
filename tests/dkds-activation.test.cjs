@@ -6,6 +6,9 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
   const registry=new Map(),nodes=[],captured={};
   const unit=(kind)=>({
     kind,children:[],hidden:false,open:false,value:'',textContent:'',
+    setAttribute(){},
+    showModal(){this.open=true;},
+    close(){this.open=false;},
     appendChild(item){this.children.push(item);return item;},
     querySelector(){return null;}
   });
@@ -66,7 +69,13 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
   assert.equal(typeof activity.onActivate,'function');
   assert.equal(top.activity,'keithley-4200');
   assert(composed?.primary?.mainNode);
-  assert(nodes.some(row=>row.textContent==='连接'));
+  assert(nodes.some(row=>row.textContent==='未连接'));
+  assert(nodes.some(row=>row.textContent==='重新连接'));
+  assert(nodes.some(row=>row.textContent==='断开连接'));
+  const modalButton=nodes.find(row=>row.textContent==='未连接');
+  assert.equal(typeof modalButton.invoke,'function');
+  modalButton.invoke();
+  assert.equal(modalButton.textContent,'未连接','Opening details must not toggle connection');
   assert.equal(capability.methods.validatePlan().kind,'iv');
   const plan=capability.methods.exportPlan();
   assert.equal(plan.schema,'dkts.4200.interop.v1');
