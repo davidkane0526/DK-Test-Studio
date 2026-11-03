@@ -9,7 +9,7 @@ const preload=fs.readFileSync(path.join(root,'desktop/preload.cjs'),'utf8');
 const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
 const client=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
 const css=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
-test('frameless desktop window with bottom dragging and explicit controls',()=>{
+test('frameless desktop keeps draggable top titlebar and native window controls',()=>{
   assert.match(main,/frame:false,resizable:true/);
   assert.match(main,/preload:path\.join\(__dirname,'preload\.cjs'\)/);
   assert.match(main,/ipcMain\.handle\('dkts:window-control'/);
@@ -21,15 +21,30 @@ test('frameless desktop window with bottom dragging and explicit controls',()=>{
   assert.doesNotMatch(preload,/exposeInMainWorld\([^\n]*ipcRenderer\)/);
   for(const name of ['window-minimize','window-maximize','window-close'])
     assert(html.includes('id="'+name+'"'));
+  assert.match(html,/id="app-titlebar" class="app-titlebar"/);
+  assert.match(html,/class="titlebar-drag-region"/);
   assert.match(html,/id="window-actions" class="window-actions"[^>]* hidden/);
+  assert.match(css,/\.app-titlebar\{position:fixed;top:0/);
+  assert.match(css,/#window-actions\[hidden\]\{display:none!important\}/);
   assert.match(css,/\.app-statusbar\{position:fixed;bottom:0/);
   assert.match(css,/app-region:drag/);
   assert.match(css,/app-region:no-drag/);
 });
-test('message bar is shared by desktop, browser and Android with a session log',()=>{
+test('separate bottom message/connectivity bar is shared across platforms',()=>{
   assert.match(html,/id="status-message-text" role="status" aria-live="polite"/);
   assert.match(html,/id="ui-version-badge"/);
   assert.match(html,/id="connection-status"/);
+  const top=html.slice(html.indexOf('<header id="app-titlebar"'),html.indexOf('</header>')+9);
+  const bottom=html.slice(html.indexOf('<footer id="app-statusbar"'),html.indexOf('</footer>')+9);
+  assert.match(top,/id="window-minimize"/);
+  assert.match(top,/id="window-maximize"/);
+  assert.match(top,/id="window-close"/);
+  assert.match(top,/id="ui-version-badge"/);
+  assert.doesNotMatch(top,/id="connection-status"/);
+  assert.match(bottom,/id="connection-status"/);
+  assert.match(bottom,/id="status-message"/);
+  assert.doesNotMatch(bottom,/id="window-close"/);
+  assert.doesNotMatch(bottom,/id="ui-version-badge"/);
   assert.match(html,/id="status-log-dialog"/);
   assert.match(client,/function showStatusMessage\(/);
   assert.match(client,/if\(!host\)return; \/\/ Browser and Android/);

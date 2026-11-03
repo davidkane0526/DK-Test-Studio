@@ -35,7 +35,7 @@ function showStatusMessage(message,level='info',record=true){
 }
 function initWindowControls(){
   const host=window.DKTSWindow;
-  if(!host)return; // Browser and Android retain the bottom status bar without window controls.
+  if(!host)return; // Browser and Android show the custom title bar without native window controls.
   const actions=$('window-actions');
   actions.hidden=false;
   document.body.classList.add('dkts-desktop-shell');

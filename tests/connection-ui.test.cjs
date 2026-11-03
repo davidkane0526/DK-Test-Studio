@@ -4,9 +4,10 @@ const fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
 const ui=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
-test('desktop and Android have no top status bar, but preserve a contextual connection action and modal',()=>{
+test('top titlebar and bottom connection status have separate roles',()=>{
   assert.doesNotMatch(html,/<header class="topbar">/);
   assert.doesNotMatch(html,/class="workspace-actions"/);
+  assert.match(html,/id="app-titlebar" class="app-titlebar"/);
   assert.match(html,/id="app-statusbar" class="app-statusbar"/);
   assert.match(html,/id="status-message-text"/);
   assert.match(html,/id="window-actions"/);

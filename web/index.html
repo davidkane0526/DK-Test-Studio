@@ -10,6 +10,19 @@
 <script src="/app.js" defer></script>
 </head>
 <body>
+<header id="app-titlebar" class="app-titlebar" aria-label="DK Test Studio 标题栏">
+  <div class="titlebar-brand" title="按住此处可拖动窗口">
+    <span class="titlebar-logo" aria-hidden="true">DK</span>
+    <strong>DK Test Studio</strong>
+    <span id="ui-version-badge" class="ui-version-badge" title="当前界面版本：内置">UI 内置版</span>
+  </div>
+  <div class="titlebar-drag-region" aria-hidden="true"></div>
+  <div id="window-actions" class="window-actions" role="group" aria-label="窗口控制" hidden>
+    <button type="button" id="window-minimize" title="最小化" aria-label="最小化">−</button>
+    <button type="button" id="window-maximize" title="最大化" aria-label="最大化">□</button>
+    <button type="button" id="window-close" class="window-close" title="关闭窗口" aria-label="关闭窗口">×</button>
+  </div>
+</header>
 
 <dialog id="connection-dialog" class="connection-dialog" aria-labelledby="connection-dialog-title">
   <div class="dialog-header">
@@ -190,28 +203,19 @@
   </section>
 
 </main>
-<footer id="app-statusbar" class="app-statusbar" aria-label="应用消息和窗口控制">
-  <div class="statusbar-title" title="按住可拖动 DK Test Studio 窗口">
-    <span class="statusbar-logo" aria-hidden="true">DK</span>
-    <strong>DK Test Studio</strong>
-  </div>
+<footer id="app-statusbar" class="app-statusbar" aria-label="底部运行状态栏">
   <button id="status-message" class="statusbar-message" type="button"
     title="查看运行消息记录" aria-haspopup="dialog" aria-controls="status-log-dialog">
     <span class="statusbar-message-dot" id="status-message-dot" aria-hidden="true"></span>
     <span id="status-message-text" role="status" aria-live="polite">就绪 · 等待操作</span>
   </button>
   <div class="statusbar-right">
+    <span class="statusbar-workmode" title="仪器输出尚未开放">只读预览</span>
   <button class="statusbar-connection" id="connection-status" type="button" aria-haspopup="dialog" aria-controls="connection-dialog" aria-label="查看仪器连接信息及设置">
     <span class="status-dot" id="dot" aria-hidden="true"></span>
     <span id="state-chip" role="status" aria-live="polite">正在连接…</span>
     <span class="status-chevron" aria-hidden="true">⌄</span>
   </button>
-    <span id="ui-version-badge" class="ui-version-badge" title="当前界面版本：内置">UI 内置版</span>
-    <div id="window-actions" class="window-actions" role="group" aria-label="窗口控制" hidden>
-      <button type="button" id="window-minimize" title="最小化" aria-label="最小化">−</button>
-      <button type="button" id="window-maximize" title="最大化" aria-label="最大化">□</button>
-      <button type="button" id="window-close" class="window-close" title="关闭窗口" aria-label="关闭窗口">×</button>
-    </div>
   </div>
 </footer>
 <dialog id="status-log-dialog" class="status-log-dialog" aria-labelledby="status-log-title">
