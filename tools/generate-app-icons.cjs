@@ -149,8 +149,11 @@ function build(){
   fs.mkdirSync(buildDir,{recursive:true});
   const sizes=[16,24,32,48,64,128,256];
   const frames=sizes.map(size=>({size,bytes:png(size)}));
-  fs.writeFileSync(path.join(buildDir,'icon.ico'),icon(frames));
+  const nativeIcon=path.join(buildDir,'icon.ico');
+  fs.writeFileSync(nativeIcon,icon(frames));
   fs.writeFileSync(path.join(buildDir,'icon.png'),frames[frames.length-1].bytes);
+  // Prevent releasing a shell when the embedded Windows icon was not generated.
+  if(fs.statSync(nativeIcon).size<2048)throw Error('Generated Windows icon is unexpectedly small');
   const density=[['mdpi',48],['hdpi',72],['xhdpi',96],['xxhdpi',144],['xxxhdpi',192]];
   for(const [name,size] of density){
     const dest=path.join(root,'android','app','src','main','res','mipmap-'+name);
