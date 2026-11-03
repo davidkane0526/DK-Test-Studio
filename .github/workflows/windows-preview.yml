@@ -130,7 +130,7 @@ jobs:
           apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -x "$apksigner"
           "$apksigner" verify --verbose --print-certs "$apk" | tee "$RUNNER_TEMP/dkts-apk-signature.txt"
-          actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/dkts-apk-signature.txt" | head -n 1 | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
+          actual="$(awk '/^(Signer #[0-9]+|V[0-9]+ Signer):? certificate SHA-256 digest:/ { print $NF; exit }' "$RUNNER_TEMP/dkts-apk-signature.txt" | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
           expected="$(tr -d ':[:space:]' < android/signing-certificate.sha256 | tr 'A-F' 'a-f')"
           test "${#actual}" -eq 64 && test "${#expected}" -eq 64
           if [ "$actual" != "$expected" ]; then
