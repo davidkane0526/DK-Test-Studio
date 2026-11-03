@@ -97,4 +97,4 @@ $('test-kind').addEventListener('change',()=>{updatePlanMode();validatePlan();})
 planForm.addEventListener('input',()=>{$('plan-status').textContent='方案参数已更改，请重新校验。';});
 form.addEventListener('input',()=>{if(state==='connected')$('connection-summary').textContent='连接设置已修改，断开后重新连接生效';});
 $('validate-waveform').addEventListener('click',validateWave);
-(async()=>{renderStatus(await refresh());await onToggle();updatePlanMode();await validatePlan();await validateWave();})();
+(async()=>{renderStatus(await refresh());if(state!=='connected')await onToggle();updatePlanMode();await validatePlan();await validateWave();})();
