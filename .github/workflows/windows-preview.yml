@@ -1,0 +1,46 @@
+name: Windows Preview
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'desktop/**'
+      - 'src/**'
+      - 'web/**'
+      - 'tests/**'
+      - '.github/workflows/windows-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: windows-preview-main
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Windows build dependencies
+        run: npm install --no-audit --no-fund
+      - name: Unit tests
+        run: npm test
+      - name: Build Windows Setup and Portable EXE
+        run: npx electron-builder --win nsis portable --x64 --publish never
+      - name: Upload unsigned preview applications
+        uses: actions/upload-artifact@v4
+        with:
+          name: DK-Test-Studio-Windows-preview
+          path: dist/*.exe
+          if-no-files-found: error
+      - name: Publish preview release
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "dkts-preview-${{ github.run_id }}"
+          gh release create $tag (Get-ChildItem dist -Filter *.exe | ForEach-Object { $_.FullName }) --title "DK Test Studio Windows Preview" --prerelease --target $env:GITHUB_SHA --notes "Read-only Keithley 4200A identification. Arbitrary-waveform input is planning-only. Not validated on real hardware. No SMU/PMU output."

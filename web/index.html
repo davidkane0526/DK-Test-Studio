@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>DK Test Studio | Keithley 4200A</title>
+<link rel="stylesheet" href="/styles.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><div class="brand-mark">DK</div>
+    <div><strong>DK Test Studio</strong><small>科研测试工作台 · Keithley 4200A-SCS</small></div>
+  </div>
+  <div class="top-status"><span class="status-dot" id="dot"></span><span id="state-chip">未连接</span></div>
+</header>
+<main class="workspace">
+  <section class="intro">
+    <div><p class="eyebrow">仪器控制</p><h1>4200A 测试工作台</h1>
+    <p class="subtle">独立系统 · 目前实机只读识别 · 不会触发 SMU/PMU 输出</p></div>
+    <span class="stage">PREVIEW 0.1</span>
+  </section>
+  <div class="two-col">
+    <section class="card instrument-card">
+      <div class="card-heading">
+        <div><p class="eyebrow">DEVICE</p><h2>仪器连接</h2></div>
+        <button id="toggle" class="primary" type="button">连接</button>
+      </div>
+      <div class="instrument-identity">Keithley 4200A-SCS</div>
+      <p class="state-line" id="connection-summary" role="status" aria-live="polite">进入工作台后自动识别仪器</p>
+      <p class="subtle" id="route-line">169.254.111.118:1225</p>
+      <details id="diagnostic-wrap" hidden>
+        <summary>查看连接诊断</summary>
+        <pre id="diagnostic"></pre>
+      </details>
+      <details class="settings" id="advanced">
+        <summary>高级连接设置（仅本次会话有效）</summary>
+        <form id="connection-form">
+          <label>仪器 IP / 主机名<input name="host" value="169.254.111.118" autocomplete="off"></label>
+          <label>KXCI 端口<input type="number" name="port" value="1225" min="1" max="65535"></label>
+          <label>连接路径<select name="networkMode">
+            <option value="auto">自动查找（推荐）</option>
+            <option value="ethernet">网线</option>
+            <option value="wifi">Wi-Fi</option>
+            <option value="interface">指定网卡</option>
+          </select></label>
+          <label>预期仪器序列号<input name="expectedSerial" value="1498377" autocomplete="off"></label>
+          <label>网卡名称（可选）<input name="interfaceName" placeholder="例如 Ethernet 或 eth0"></label>
+          <label>本地 IPv4（可选）<input name="localAddress" placeholder="留空为自动选择"></label>
+          <label>连接超时（毫秒）<input type="number" name="timeoutMs" value="5000" min="250" max="30000"></label>
+        </form>
+      </details>
+    </section>
+    <section class="card">
+      <div class="card-heading"><div><p class="eyebrow">MEASUREMENT</p><h2>测试设置</h2></div></div>
+      <div class="info-row"><span>SMU I–V / I–t</span><span class="mute-pill">待接入</span></div>
+      <div class="info-row"><span>PMU / PUND / Endurance</span><span class="mute-pill">待接入</span></div>
+      <div class="info-row"><span>任意时间-电压波形</span><span class="ready-pill">方案校验可用</span></div>
+      <p class="hint">测试指令编译与仪器模块安全校验尚未完成，实机输出保持禁用。不能把方案预览当作实测曲线。</p>
+    </section>
+  </div>
+  <section class="card waveform-card">
+    <div class="card-heading"><div><p class="eyebrow">WAVEFORM PLANNER</p><h2>任意波形方案</h2>
+      <p class="subtle">每行两列：时间 (s)、电压 (V)。仅校验输入，不连接到实际输出。</p></div>
+      <button id="validate-waveform" type="button">校验并预览</button>
+    </div>
+    <div class="wave-grid">
+      <div><label for="waveform-text" class="input-title">时间与电压数据点</label>
+      <textarea id="waveform-text" spellcheck="false">0, 0
+0.001, 1
+0.002, -1
+0.003, 0</textarea>
+      <p id="waveform-info" class="subtle" role="status">等待校验</p></div>
+      <div class="chart-box">
+        <svg id="waveform-plot" viewBox="0 0 640 260" role="img" aria-label="输入波形预览"></svg>
+        <p class="chart-footer">用户定义波形的示意预览，不是仪器测量图，也不是仪器原始图像。</p>
+      </div>
+    </div>
+  </section>
+  <footer>DK Test Studio · 本地网页仅绑定 127.0.0.1 · 当前仅支持安全的身份识别</footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,104 @@
+'use strict';
+const http=require('node:http');
+const fs=require('node:fs');
+const path=require('node:path');
+const {parseWaveformText}=require('./controller/waveform.cjs');
+const {createIdentityController,summarizeError}=require('./controller/identity.cjs');
+
+const root=path.resolve(__dirname,'..');
+const assets=Object.freeze({
+  '/':{file:'web/index.html',mime:'text/html; charset=utf-8'},
+  '/app.js':{file:'web/app.js',mime:'application/javascript; charset=utf-8'},
+  '/styles.css':{file:'web/styles.css',mime:'text/css; charset=utf-8'}
+});
+function json(res,code,payload){
+  const out=JSON.stringify(payload);
+  res.writeHead(code,{'Content-Type':'application/json; charset=utf-8',
+    'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
+  res.end(out);
+}
+function readJson(req,maxBytes=1048576){
+  return new Promise((resolve,reject)=>{
+    let size=0,body='',done=false;
+    function fail(e){if(done)return;done=true;reject(e);}
+    req.on('data',chunk=>{
+      if(done)return;
+      size+=chunk.length;
+      if(size>maxBytes)return fail(Error('请求内容超过大小限制'));
+      body+=chunk.toString('utf8');
+    });
+    req.on('end',()=>{
+      if(done)return;
+      done=true;
+      try{
+        const value=JSON.parse(body||'{}');
+        if(!value||typeof value!=='object'||Array.isArray(value))throw Error('请求应为 JSON 对象');
+        resolve(value);
+      }catch(e){reject(e);}
+    });
+    req.on('error',fail);
+  });
+}
+async function createAppServer(options={}){
+  const controller=options.controller||createIdentityController();
+  const server=http.createServer(async(req,res)=>{
+    try{
+      const host=req.headers.host;
+      const address=server.address();
+      const expected='127.0.0.1:'+address.port;
+      // Host validation avoids DNS rebinding of the localhost-only instrument gateway.
+      if(host!==expected)return json(res,403,{error:'拒绝非本机请求'});
+      const urlPath=new URL(req.url,'http://'+expected).pathname;
+      if(req.method==='GET'&&urlPath==='/api/status')
+        return json(res,200,{ok:true,...controller.status()});
+      if(req.method==='GET'&&Object.hasOwn(assets,urlPath)){
+        const item=assets[urlPath];
+        const bytes=fs.readFileSync(path.join(root,item.file));
+        res.writeHead(200,{'Content-Type':item.mime,'Cache-Control':'no-store',
+          'Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';",
+          'X-Content-Type-Options':'nosniff'});
+        return res.end(bytes);
+      }
+      if(req.method!=='POST'||!['/api/connect','/api/disconnect','/api/waveform/validate'].includes(urlPath))
+        return json(res,404,{error:'接口不存在'});
+      // No arbitrary command endpoint exists; this only sends the hardcoded KXCI IDN query.
+      if(req.headers['x-dkts-request']!=='1'||!String(req.headers['content-type']||'').startsWith('application/json'))
+        return json(res,403,{error:'请求来源验证失败'});
+      const origin=req.headers.origin;
+      if(origin&&origin!=='http://'+expected)return json(res,403,{error:'跨站请求被拒绝'});
+      const payload=await readJson(req);
+      if(urlPath==='/api/disconnect')
+        return json(res,200,{ok:true,...await controller.disconnect()});
+      if(urlPath==='/api/connect'){
+        try{return json(res,200,{ok:true,...await controller.connect(payload)});}
+        catch(error){return json(res,200,{ok:false,...controller.status(),summary:summarizeError(error)});}
+      }
+      if(typeof payload.text!=='string')return json(res,400,{error:'波形应为文本'});
+      const plan=parseWaveformText(payload.text);
+      return json(res,200,{ok:true,count:plan.points.length,durationS:plan.durationS,
+        minimumStepS:plan.minimumStepS,maximumStepS:plan.maximumStepS,
+        executable:false,hardwareVerified:false,
+        preview:plan.points.length<=300?plan.points:plan.points.filter((_,i)=>i%Math.ceil(plan.points.length/300)===0)});
+    }catch(error){
+      return json(res,400,{ok:false,error:String(error.message||error).slice(0,180)});
+    }
+  });
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(options.port??0,'127.0.0.1',resolve);
+  });
+  const address=server.address();
+  async function close(){
+    await controller.dispose();
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+  return {server,port:address.port,url:'http://127.0.0.1:'+address.port+'/',close,controller};
+}
+if(require.main===module){
+  createAppServer({port:Number(process.env.DKTS_PORT||0)}).then(app=>{
+    console.log('DK Test Studio local-only GUI: '+app.url);
+    const stop=()=>app.close().then(()=>process.exit(0)).catch(()=>process.exit(1));
+    process.once('SIGINT',stop);process.once('SIGTERM',stop);
+  }).catch(error=>{console.error(error);process.exitCode=1;});
+}
+module.exports={createAppServer};
