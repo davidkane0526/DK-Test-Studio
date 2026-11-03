@@ -60,5 +60,8 @@
     }
     throw Error('未授权的本机接口：'+route);
   }
-  window.DKTSClient=Object.freeze({post,status:()=>Promise.resolve(controller.status())});
+  window.DKTSClient=Object.freeze({
+    post,status:()=>Promise.resolve(controller.status()),
+    nativeVersion:async()=>String((await native('version')).version||'')
+  });
 })();

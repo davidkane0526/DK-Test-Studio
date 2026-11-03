@@ -12,3 +12,15 @@ test('UI version endpoint is local only and cache is optional',async()=>{
   assert.equal(value.status,'disabled');
  }finally{await app.close();}
 });
+
+test('desktop and Android expose their actual native version separately from the hot-update SHA',async()=>{
+ const app=await createAppServer();
+ try{
+  const res=await fetch(app.url+'api/app/version');
+  assert.equal(res.status,200);
+  assert.equal((await res.json()).version,require('../package.json').version);
+  const html=require('node:fs').readFileSync(require('node:path').join(__dirname,'../web/index.html'),'utf8');
+  assert.match(html,/id="native-version-badge"/);
+  assert.match(html,/id="ui-version-badge"/);
+ }finally{await app.close();}
+});

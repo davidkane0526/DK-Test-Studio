@@ -86,6 +86,8 @@ public final class InstrumentBridge {
 
     private JSONObject dispatch(String op, JSONObject args) throws Exception {
         switch (op) {
+            case "version": return new JSONObject().put("version",
+                context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionName);
             case "open": return open(args);
             case "exchange": return exchange(args);
             case "close": {

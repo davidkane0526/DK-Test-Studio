@@ -56,6 +56,8 @@ async function createAppServer(options={}){
         return json(res,200,{ok:true,...controller.status()});
       if(req.method==='GET'&&urlPath==='/api/ui/version')
         return json(res,200,updater?updater.state():{version:'bundled',status:'disabled'});
+      if(req.method==='GET'&&urlPath==='/api/app/version')
+        return json(res,200,{version:require('../package.json').version});
       if(req.method==='GET'&&Object.hasOwn(assets,urlPath)){
         const item=assets[urlPath];
         const bytes=updater?.getAsset(path.basename(item.file))||fs.readFileSync(path.join(root,item.file));

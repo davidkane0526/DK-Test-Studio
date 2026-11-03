@@ -662,3 +662,16 @@ body.dkts-android-shell .workspace-tab-close{height:33px}
   }
   .workspace-tab:hover,.workspace-tab-close:hover{background:#3b5170;color:#fff}
 }
+
+/* Native package version and independent UI SHA remain visible on every platform. */
+.titlebar-brand .native-version-badge{
+  font-size:10px;color:#657991;font-variant-numeric:tabular-nums;
+  white-space:nowrap;cursor:help;margin-left:3px;font-weight:600
+}
+.titlebar-brand .ui-version-badge{margin-left:0}
+@media(max-width:500px){
+  .titlebar-brand .native-version-badge{font-size:9px;margin-left:0}
+}
+@media(prefers-color-scheme:dark){
+  .titlebar-brand .native-version-badge{color:#afc3da}
+}

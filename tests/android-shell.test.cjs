@@ -117,3 +117,13 @@ test('Android standalone hides system status bar while keeping navigation and em
   const stamp=fs.readFileSync(path.join(root,'tools/stamp-native-ui.cjs'),'utf8');
   assert.match(stamp,/dkts-ui-version/);
 });
+
+test('native Android shell version comes from its actual installed package',()=>{
+ const src=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
+ const bridge=fs.readFileSync(path.join(root,'android/web/native-client.js'),'utf8');
+ const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
+ assert.match(src,/case "version": return new JSONObject\(\)/);
+ assert.match(src,/getPackageInfo\(context\.getPackageName\(\),0\)\.versionName/);
+ assert.match(bridge,/nativeVersion:async\(\)=>String/);
+ assert.match(gradle,/versionName '0\.2\.2'/);
+});

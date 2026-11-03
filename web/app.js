@@ -13,6 +13,23 @@ function displayUiVersion(){
   badge.setAttribute('aria-label',badge.title);
 }
 displayUiVersion();
+async function displayNativeVersion(){
+  const badge=$('native-version-badge');
+  if(!badge)return;
+  try{
+    let version='';
+    if(window.DKTSClient?.nativeVersion)version=await window.DKTSClient.nativeVersion();
+    else {
+      const response=await fetch('/api/app/version',{cache:'no-store'});
+      if(response.ok)version=String((await response.json()).version||'');
+    }
+    if(/^\d+\.\d+\.\d+$/.test(version)){
+      badge.textContent='v'+version;
+      badge.title='当前原生安装版本：'+version;
+    }
+  }catch{/* Native version falls back to bundled package label when offline. */}
+}
+void displayNativeVersion();
 const form=$('connection-form'),planForm=$('plan-form');
 const dialog=$('connection-dialog'),statusButton=$('connection-status');
 const reconnect=$('reconnect-instrument'),disconnect=$('disconnect-instrument');
