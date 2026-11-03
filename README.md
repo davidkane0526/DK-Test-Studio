@@ -12,6 +12,14 @@
 - 可粘贴两列时间(s)、电压(V)，做严格递增检查、纯软件方案验证和本机波形预览。**预览不是仪器测量，也不证明硬件能执行该时间尺度**。
 - 自动化测试含伪 4200A TCP 服务、身份校验、HTTP 安全边界、任意波形规划。
 
+## DK Data Studio 插件兼容
+
+**核心逻辑始终共用一份源码。** 独立 Windows 版和 DKDS 插件版通过各自宿主的 TCP/UI 接口，调用 `src/shared/` 中相同的 KXCI 身份协议、连接状态机、I–V/I–t 方案和任意波形规划。外部插件沿用原有 `com.dkds.keithley-4200` ID，以 `0.4.0` 版本覆盖内置基线 `0.3.0`，目标 API `1.19.0`。
+
+执行 `npm run plugin:build` 可生成 `.dkplugin` 候选；GitHub Actions 另用 DK Data Studio 现有 SDK 验证并生成正式插件 Artifact。插件支持原有 `keithley-4200` 工作区入口和项目切片，但**尚未在真实 DKDS 客户端及 4200A 仪器上验证安装与运行**。在开发完成仪器独占 Broker 前，不允许独立版和插件版同时控制同一台仪器。
+
+详见 [互操作契约](docs/DKDS_INTEROP.md)。
+
 ## 运行与测试
 
 环境：Node.js 20+。获取项目源码后，在仓库根目录执行：
