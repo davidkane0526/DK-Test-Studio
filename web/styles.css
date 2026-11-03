@@ -554,7 +554,8 @@ body.dkts-android-shell .status-log-dialog{
   body.dkts-android-shell .statusbar-message{max-width:calc(100vw - 122px)}
 }
 @media(max-height:530px) and (orientation:landscape){
-  body.dkts-android-shell .app-titlebar{--dkts-title-height:39px}
+  body.dkts-android-shell{--dkts-title-height:39px;--dkts-status-height:38px}
+  body.dkts-android-shell :is(.statusbar-message,.statusbar-connection){height:34px;min-height:34px}
   body.dkts-android-shell .measured-plot,
   body.dkts-android-shell .measured-plot svg{min-height:210px;height:210px}
 }
