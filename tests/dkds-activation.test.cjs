@@ -77,6 +77,16 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
   modalButton.invoke();
   assert.equal(modalButton.textContent,'未连接','Opening details must not toggle connection');
   assert.equal(capability.methods.validatePlan().kind,'iv');
+  const ivCard=nodes.find(row=>row.textContent==='SMU I–V 扫描');
+  const itCard=nodes.find(row=>row.textContent==='SMU I–t 恒压读出');
+  assert.equal(typeof ivCard?.invoke,'function');
+  assert.equal(typeof itCard?.invoke,'function');
+  assert.equal(nodes.some(row=>row.textContent==='测试方式'),false,'No legacy DKDS test dropdown');
+  assert.equal(nodes.filter(row=>row.textContent==='转移特性').length,0,'Unavailable mode must not have an action');
+  itCard.invoke();
+  assert.equal(capability.methods.validatePlan().kind,'it');
+  ivCard.invoke();
+  assert.equal(capability.methods.validatePlan().kind,'iv');
   const plan=capability.methods.exportPlan();
   assert.equal(plan.schema,'dkts.4200.interop.v1');
   assert.equal(plan.plan.executable,false);

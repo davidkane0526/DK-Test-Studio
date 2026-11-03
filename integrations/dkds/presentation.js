@@ -81,12 +81,58 @@
       id:'dkts-reconnect',label:'重新连接',variant:'primary',direct:true,
       onInvoke:()=>actions.onReconnect?.()
     });
+    const modeCard=makeCard();
+    textNode(modeCard,'div','dkts-heading','选择测试方式');
+    // Host-native UI primitives; never embed a second measurement implementation in the plugin.
+    // Grid is explicitly two columns even in the narrow DKDS/mobile workspace.
+    const modeGrid=units.layout.create(modeCard,{variant:'two-card-grid',className:'dkts-mode-grid'});
+    const modeStyles=dom.create('style');
+    modeStyles.textContent=`
+      .dkts-mode-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}
+      .dkts-mode-item{min-width:0;border:1px solid var(--border-color,rgba(125,140,160,.26));border-radius:10px;padding:10px;background:var(--surface-color,transparent)}
+      .dkts-mode-item.is-selected{border:2px solid var(--accent-color,#4776cf);padding:9px;background:var(--surface-secondary,rgba(72,117,196,.07))}
+      .dkts-mode-item.is-disabled{opacity:.55}
+      .dkts-mode-item .dkts-mode-subtitle{font-size:11px;opacity:.75;line-height:1.4}
+      .dkts-mode-item button{width:100%;text-align:left}
+    `;
+    modeCard.appendChild(modeStyles);
+    let selectedKind='iv';
+    const modeTiles=new Map();
+    const modes=[
+      {kind:'iv',title:'SMU I–V 扫描',subtitle:'正反向与循环扫描',enabled:true},
+      {kind:'it',title:'SMU I–t 恒压读出',subtitle:'恒压时间扫描',enabled:true},
+      {kind:'transfer',title:'转移特性',subtitle:'栅压扫描 · 开发中'},
+      {kind:'output',title:'输出特性',subtitle:'漏压扫描 · 开发中'},
+      {kind:'pund',title:'PMU / PUND',subtitle:'脉冲测试 · 开发中'},
+      {kind:'retention',title:'Retention',subtitle:'状态保持 · 开发中'},
+      {kind:'endurance',title:'Endurance',subtitle:'循环耐久 · 开发中'},
+      {kind:'arbitrary',title:'任意波形测量',subtitle:'真实输出与采集 · 开发中'}
+    ];
+    function selectMode(kind){
+      const tile=modeTiles.get(kind);
+      if(!tile||!tile.enabled)return;
+      selectedKind=kind;
+      planHeading.textContent=(kind==='it'?'SMU I–t 恒压读出':'SMU I–V 扫描')+' · 测试参数（仅规划）';
+      for(const [key,item] of modeTiles){
+        item.host.className='dkts-mode-item'+(key===kind?' is-selected':(!item.enabled?' is-disabled':''));
+        if(item.button)item.button.setAttribute?.('aria-pressed',String(key===kind));
+      }
+      actions.onPlanChanged?.();
+    }
+    for(const mode of modes){
+      const host=units.surface.create(modeGrid,{tagName:'section',variant:'elevated',
+        className:'dkts-mode-item'+(mode.kind===selectedKind?' is-selected':(!mode.enabled?' is-disabled':''))});
+      const action=mode.enabled?units.action.create(host,{
+        id:'dkts-mode-'+mode.kind,label:mode.title,variant:'secondary',direct:true,
+        onInvoke:()=>selectMode(mode.kind)
+      }):null;
+      if(!mode.enabled)textNode(host,'strong','dkts-mode-title',mode.title);
+      textNode(host,'div','dkts-mode-subtitle',mode.subtitle);
+      modeTiles.set(mode.kind,{host,button:action?.button||action?.element||null,enabled:!!mode.enabled});
+    }
     const card2=makeCard();
-    textNode(card2,'div','dkts-heading','SMU 测试方案（仅规划）');
+    const planHeading=textNode(card2,'div','dkts-heading','SMU I–V 扫描 · 测试参数（仅规划）');
     const planFields=units.layout.create(card2,{variant:'form-grid-2',className:'dkts-plan-grid'});
-    field(planFields,'kind','测试方式','iv',{kind:'select',options:[
-      {value:'iv',label:'I–V'},{value:'it',label:'I–t'}
-    ]});
     field(planFields,'loops','循环次数',1);
     field(planFields,'points','单程点数',101);
     field(planFields,'complianceA','规划电流限值 (A)',0.0001);
@@ -112,8 +158,11 @@
     workbench.compose({primary:{id:'main',label:'4200A',
       presentationRole:'utility-primary',scroll:'safe',titlePolicy:'host-only',mainNode:main},
       primes:[],subs:[]});
-    const get=id=>controls.get(id)?.value;
-    const set=(id,value)=>{const c=controls.get(id);if(c)c.value=String(value??'');};
+    const get=id=>id==='kind'?selectedKind:controls.get(id)?.value;
+    const set=(id,value)=>{
+      if(id==='kind'){selectMode(String(value));return;}
+      const c=controls.get(id);if(c)c.value=String(value??'');
+    };
     function readConnection(){
       return {host:get('host'),port:get('port'),expectedSerial:get('expectedSerial'),
         networkMode:get('networkMode'),interfaceName:get('interfaceName'),
@@ -126,7 +175,9 @@
     }
     function restorePlan(value){
       const old={...value,kind:value.kind||(value.mode==='timed'?'it':value.mode||'iv')};
-      for(const [key,v] of Object.entries(old))if(controls.has(key))set(key,v);
+      for(const [key,v] of Object.entries(old)){
+        if(key==='kind'||controls.has(key))set(key,v);
+      }
     }
     function renderConnection(s){
       const label=s.phase==='connected'?'连接成功':s.phase==='connecting'?'正在连接…':
