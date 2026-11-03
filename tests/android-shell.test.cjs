@@ -131,7 +131,9 @@ test('native Android shell version comes from its actual installed package',()=>
 
 test('Android 16 immersive mode is coalesced and cannot repeatedly re-enter from focus changes',()=>{
   const src=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
-  assert.match(src,/setContentView\(webView\);\s*scheduleImmersive\(\)/);
+  assert.match(src,/setContentView\\(webView\\)/);
+  assert.match(src,/scheduleImmersive\\(\\)/);
+  assert(src.indexOf('setContentView(webView)')<src.indexOf('scheduleImmersive();'),'setContentView must precede immersive setup');
   assert.match(src,/webView\.removeCallbacks\(immersiveTask\)/);
   assert.match(src,/webView\.post\(immersiveTask\)/);
   assert.match(src,/@Override protected void onResume\(\)/);
