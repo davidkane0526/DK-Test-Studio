@@ -185,15 +185,10 @@ jobs:
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort | tee release-assets.txt
           test "$(wc -l < release-assets.txt)" -eq 5 || { echo 'Incomplete Release'; exit 1; }
-          grep -q '\.apk
- release-assets.txt
-          grep -q '\.dkplugin
- release-assets.txt
-          grep -q 'DKTS-UI-bundle\.json
- release-assets.txt
-          grep -q 'Setup.*\.exe
- release-assets.txt
-          grep -q 'Portable.*\.exe
- release-assets.txt
+          grep -qE '[.]apk$' release-assets.txt
+          grep -qE '[.]dkplugin$' release-assets.txt
+          grep -qE '^DKTS-UI-bundle[.]json$' release-assets.txt
+          grep -qE 'Setup.*[.]exe$' release-assets.txt
+          grep -qE 'Portable.*[.]exe$' release-assets.txt
           printf 'Verified full-platform Release: %s\n' "$url"
           printf '### Complete DK Test Studio Release\n\n%s\n\nCommit: `%s`\n\nWindows Setup, Windows Portable, Android APK, DKDS plugin, UI hot-update bundle: **5/5** verified.\n' "$url" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
