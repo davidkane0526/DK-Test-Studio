@@ -1,0 +1,53 @@
+{
+  "name": "dk-test-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone Keithley 4200A research test control workspace",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "identify": "node cli/identify.cjs",
+    "serve": "node src/server.cjs",
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis portable"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "studio.dk.test",
+    "productName": "DK Test Studio",
+    "files": [
+      "desktop/**",
+      "src/**",
+      "web/**",
+      "package.json",
+      "README.md"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "artifactName": "DK-Test-Studio-${version}-${arch}.${ext}"
+  }
+}
