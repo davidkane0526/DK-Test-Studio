@@ -13,8 +13,14 @@ test('one branded native icon is generated for taskbar, task manager, installer 
   assert(ico.readUInt16LE(4)>=7,'icon must have at least 7 resolutions');
   const iconSize=ico.readUInt32LE(6+8);
   const iconOffset=ico.readUInt32LE(6+12);
-  assert(iconSize>1000);
+  assert(iconSize>100,'Small 16px PNG may compress very efficiently');
   assert.equal(ico.subarray(iconOffset,iconOffset+8).toString('hex'),'89504e470d0a1a0a');
+  const lastEntry=6+16*(ico.readUInt16LE(4)-1);
+  assert.equal(ico[lastEntry],0,'256px ICO directory entry must encode width 0');
+  const mainSize=ico.readUInt32LE(lastEntry+8);
+  const mainOffset=ico.readUInt32LE(lastEntry+12);
+  assert(mainSize>1000,'256px branded app icon should contain full artwork');
+  assert.equal(ico.subarray(mainOffset,mainOffset+8).toString('hex'),'89504e470d0a1a0a');
   for(const [density,size] of [['mdpi',48],['hdpi',72],['xhdpi',96],['xxhdpi',144],['xxxhdpi',192]]){
     const f=path.join(root,'android/app/src/main/res/mipmap-'+density+'/ic_launcher.png');
     const image=fs.readFileSync(f);
