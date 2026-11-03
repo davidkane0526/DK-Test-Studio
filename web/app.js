@@ -1,5 +1,15 @@
 'use strict';
 const $=id=>document.getElementById(id);
+function displayUiVersion(){
+  const raw=document.querySelector('meta[name="dkts-ui-version"]')?.content||'bundled';
+  const badge=$('ui-version-badge');
+  if(!badge)return;
+  const isCommit=/^[a-f0-9]{40}$/i.test(raw);
+  badge.textContent=isCommit?'UI '+raw.slice(0,8):'UI 内置版';
+  badge.title=isCommit?'当前界面版本：'+raw:'当前界面版本：内置资源';
+  badge.setAttribute('aria-label',badge.title);
+}
+displayUiVersion();
 const form=$('connection-form'),planForm=$('plan-form');
 const dialog=$('connection-dialog'),statusButton=$('connection-status');
 const reconnect=$('reconnect-instrument'),disconnect=$('disconnect-instrument');

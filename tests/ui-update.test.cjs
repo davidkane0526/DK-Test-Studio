@@ -73,3 +73,15 @@ test('update selects the newest published release, not the first API item',async
     assert(requests[1].includes(VERSION));
   }finally{updater.stop();fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('both update platforms display the exact hot-updated commit in the UI metadata',()=>{
+  for(const platform of ['windows','android']){
+    const page=Buffer.from(bundle.platforms[platform]['index.html'].base64,'base64').toString('utf8');
+    assert.match(page,new RegExp('<meta name="dkts-ui-version" content="'+bundle.version+'">'));
+    assert.match(page,/id="ui-version-badge"/);
+    assert(!page.includes('name="dkts-ui-version" content="bundled"') || bundle.version==='bundled');
+  }
+  const frontend=fs.readFileSync(path.join(__dirname,'../web/app.js'),'utf8');
+  assert.match(frontend,/function displayUiVersion\(\)/);
+  assert.match(frontend,/raw\.slice\(0,8\)/);
+});

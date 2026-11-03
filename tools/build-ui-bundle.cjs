@@ -11,10 +11,19 @@ const root=path.resolve(__dirname,'..');
 const releaseDir=path.join(root,'dist');
 const version=process.env.GITHUB_SHA||process.env.DKTS_UI_VERSION||'local-dev';
 if(!/^[a-zA-Z0-9._-]{5,80}$/.test(version))throw Error('Invalid update version');
-function resource(filename,source){
-  const bytes=fs.readFileSync(path.join(root,source));
+function packed(bytes){
   return {sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
     base64:bytes.toString('base64'),bytes:bytes.length};
+}
+function versionedHtml(content){
+  const token='<meta name="dkts-ui-version" content="bundled">';
+  if(!content.includes(token))throw Error('Missing frontend version marker');
+  return Buffer.from(content.replace(token,
+    '<meta name="dkts-ui-version" content="'+version+'">'),'utf8');
+}
+function resource(filename,source){
+  const bytes=fs.readFileSync(path.join(root,source));
+  return packed(filename==='index.html'?versionedHtml(bytes.toString('utf8')):bytes);
 }
 // Produce Android HTML in memory, avoiding parallel-test and generated-file races.
 const {makeAndroidHtml}=require('./sync-android-assets.cjs');
@@ -22,9 +31,8 @@ const files=['index.html','app.js','styles.css'];
 const windows=Object.fromEntries(files.map(f=>[f,resource(f,'web/'+f)]));
 const android=Object.fromEntries(files.map(f=>{
   if(f!=='index.html')return [f,resource(f,'web/'+f)];
-  const bytes=Buffer.from(makeAndroidHtml(),'utf8');
-  return [f,{sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
-    base64:bytes.toString('base64'),bytes:bytes.length}];
+  const bytes=versionedHtml(makeAndroidHtml());
+  return [f,packed(bytes)];
 }));
 const bundle={
   schema:'dkts-ui-v1',version,minShell:1,

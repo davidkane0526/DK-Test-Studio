@@ -29,6 +29,12 @@ Android 使用本机 WebView 工作台、独立原生 Java TCP 网络桥接（�
 
 CI 将通过独立 Android 构建任务生成 APK，并将其与 Windows Setup、Portable、DKDS `.dkplugin` 共同发布到同一次 GitHub 预览 Release。详情见 [Android 构建与网络说明](android/README.md)。
 
+## 版本标识与原生图标
+
+软件标题右侧会显示独立的 **UI 资源版本**（`UI <Git commit 前8位>`），鼠标悬停可查看完整 40 位提交号。每次 GitHub 热更新包生成时，在 Windows 和 Android 的 HTML 中嵌入相同的 Git SHA；刷新页面后同步显示新版本。离线内置界面标为“UI 内置版”。`UI` 版本与原生安装包版本是两条独立版本线，不应混为一谈。
+
+Windows 应用图标、任务栏、任务管理器、安装包 EXE，以及 Android 启动图标来自同一套 **DK Test Studio 原生图标源**。这些属于原生资源，必须在首次切换时重新构建安装包；之后普通 UI 修改不影响图标，也无需重新构建。
+
 ## 界面热更新（快速开发模式）
 
 从支持热更新的 Windows / Android 原生壳开始，**普通界面更新不再重编译 EXE / APK**：

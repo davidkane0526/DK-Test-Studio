@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
+<meta name="dkts-ui-version" content="bundled">
 <title>DK Test Studio | Keithley 4200A</title>
 <link rel="stylesheet" href="/styles.css">
 <script src="/app.js" defer></script>
@@ -11,7 +12,7 @@
 <body>
 <header class="topbar">
   <div class="brand"><div class="brand-mark">DK</div>
-    <div><strong>DK Test Studio</strong><small>科研测试工作台 · Keithley 4200A-SCS</small></div>
+    <div><div class="brand-title"><strong>DK Test Studio</strong><span id="ui-version-badge" class="ui-version-badge" title="当前界面版本：内置">UI 内置版</span></div><small>科研测试工作台 · Keithley 4200A-SCS</small></div>
   </div>
   <button class="top-status" id="connection-status" type="button" aria-haspopup="dialog" aria-controls="connection-dialog" aria-label="查看仪器连接信息及设置">
     <span class="status-dot" id="dot" aria-hidden="true"></span>
