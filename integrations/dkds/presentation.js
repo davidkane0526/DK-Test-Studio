@@ -2,7 +2,7 @@
   'use strict';
   function mount(ctx,page,actions={}){
     const units=ctx.ui.unitTemplates,dom=ctx.ui.dom;
-    const controls=new Map(),buttons=new Map();
+    const controls=new Map(),buttons=new Map(),fieldRows=new Map();
     const body=units.page.create(page,{variant:'tool',className:'dkts-plugin-page'}).element;
     const pageHeader=units.pageHeader.create(body,{variant:'page-owned',activity:'keithley-4200',
       title:'DK Test Studio',subtitle:'4200A 共用测试引擎 · 仪器只读连接'});
@@ -33,7 +33,7 @@
         inputType:opts.inputType||'number',options:opts.options||[],
         step:opts.step||'any',onChange:()=>actions.onPlanChanged?.()
       });
-      controls.set(id,item.control);return item.control;
+      controls.set(id,item.control);fieldRows.set(id,item.element||item.control?.parentElement);return item.control;
     };
     // Hidden by default: one status button opens the entire diagnostic/settings modal.
     modal=dom.create('dialog');
@@ -82,7 +82,7 @@
       onInvoke:()=>actions.onReconnect?.()
     });
     const modeCard=makeCard();
-    textNode(modeCard,'div','dkts-heading','选择测试方式');
+    textNode(modeCard,'div','dkts-heading','选择测试方式 · 点击卡片展开参数与数据区');
     // Host-native UI primitives; never embed a second measurement implementation in the plugin.
     // Grid is explicitly two columns even in the narrow DKDS/mobile workspace.
     const modeGrid=units.layout.create(modeCard,{variant:'two-card-grid',className:'dkts-mode-grid'});
@@ -94,9 +94,23 @@
       .dkts-mode-item.is-disabled{opacity:.55}
       .dkts-mode-item .dkts-mode-subtitle{font-size:11px;opacity:.75;line-height:1.4}
       .dkts-mode-item button{width:100%;text-align:left}
+      .dkts-inline-detail{display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;transition:grid-template-rows .32s ease,opacity .24s ease,visibility 0s .32s}
+      .dkts-inline-detail.is-open{grid-template-rows:1fr;opacity:1;visibility:visible;transition:grid-template-rows .32s ease,opacity .24s ease}
+      .dkts-inline-inner{min-height:0;overflow:hidden;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+      .dkts-parameters-panel,.dkts-acquisition-panel{min-width:0}
+      .dkts-acquisition-panel{display:grid;gap:10px;align-content:start}
+      .dkts-measure-readouts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+      .dkts-measure-readout{border:1px solid var(--border-color,rgba(125,140,160,.2));border-radius:8px;padding:10px}
+      .dkts-placeholder-chart{position:relative;height:220px;border:1px solid var(--border-color,rgba(125,140,160,.25));border-radius:10px;background:repeating-linear-gradient(0deg,transparent 0px,transparent 53px,rgba(128,145,166,.12) 54px,transparent 55px)}
+      .dkts-placeholder-chart-label{position:absolute;left:18px;bottom:12px;font-size:11px;opacity:.65}
+      .dkts-placeholder-chart-empty{position:absolute;left:15%;right:15%;top:42%;text-align:center;font-size:12px;opacity:.65}
+      .dkts-pending-config{border:1px dashed var(--border-color,rgba(125,140,160,.24));border-radius:8px;padding:14px}
+      .dkts-raw-rows{font-size:12px;opacity:.75}
+      @media(max-width:950px){.dkts-inline-inner{grid-template-columns:minmax(0,1fr)}}
+      @media(prefers-reduced-motion:reduce){.dkts-inline-detail,.dkts-inline-detail.is-open{transition:none}}
     `;
     modeCard.appendChild(modeStyles);
-    let selectedKind='iv';
+    let selectedKind='iv',openedKind=null;
     const modeTiles=new Map();
     const modes=[
       {kind:'iv',title:'SMU I–V 扫描',subtitle:'正反向与循环扫描',enabled:true},
@@ -110,27 +124,63 @@
     ];
     function selectMode(kind){
       const tile=modeTiles.get(kind);
-      if(!tile||!tile.enabled)return;
-      selectedKind=kind;
-      planHeading.textContent=(kind==='it'?'SMU I–t 恒压读出':'SMU I–V 扫描')+' · 测试参数（仅规划）';
-      for(const [key,item] of modeTiles){
-        item.host.className='dkts-mode-item'+(key===kind?' is-selected':(!item.enabled?' is-disabled':''));
-        if(item.button)item.button.setAttribute?.('aria-pressed',String(key===kind));
+      if(!tile)return;
+      openedKind=openedKind===kind?null:kind;
+      const current=modes.find(mode=>mode.kind===openedKind);
+      const ready=!!current?.enabled;
+      if(ready)selectedKind=openedKind;
+      detailFrame.className='dkts-inline-detail'+(openedKind?' is-open':'');
+      detailFrame.inert=!openedKind;
+      detailFrame.setAttribute?.('aria-hidden',String(!openedKind));
+      card2.hidden=!ready;
+      pendingPanel.hidden=!openedKind||ready;
+      arbitraryEditor.hidden=openedKind!=='arbitrary';
+      plotLabel.textContent=current?.kind==='iv'?'Voltage (V)':current?.kind==='endurance'?'Cycle':'Time (s)';
+      plotEmpty.textContent=openedKind
+        ?'尚无 '+current.title+' 的仪器实测数据':'尚未选择测试';
+      if(ready){
+        planHeading.textContent=current.title+' · 测试参数（仅规划）';
+        const it=openedKind==='it';
+        for(const key of ['startV','stopV','direction','delayMs']){
+          const row=fieldRows.get(key);if(row)row.hidden=it;
+        }
+        for(const key of ['fixedV','intervalMs']){
+          const row=fieldRows.get(key);if(row)row.hidden=!it;
+        }
+      }else if(current){
+        pendingTitle.textContent=current.title+' · 开发中';
+        pendingNote.textContent=current.kind==='arbitrary'
+          ?'可在下方编辑时间—电压点并校验方案，尚不支持向仪器输出。'
+          :'该测试的仪器命令和参数配置尚未接入；实际数据区保持空白。';
       }
-      actions.onPlanChanged?.();
+      for(const [key,item] of modeTiles){
+        const isOpen=key===openedKind;
+        item.host.className='dkts-mode-item'+(isOpen?' is-selected':(!item.enabled?' is-disabled':''));
+        if(item.button){
+          item.button.setAttribute?.('aria-pressed',String(isOpen));
+          item.button.setAttribute?.('aria-expanded',String(isOpen));
+        }
+      }
+      if(ready)actions.onPlanChanged?.();
     }
     for(const mode of modes){
       const host=units.surface.create(modeGrid,{tagName:'section',variant:'elevated',
-        className:'dkts-mode-item'+(mode.kind===selectedKind?' is-selected':(!mode.enabled?' is-disabled':''))});
-      const action=mode.enabled?units.action.create(host,{
+        className:'dkts-mode-item'+(!mode.enabled?' is-disabled':'')});
+      const action=units.action.create(host,{
         id:'dkts-mode-'+mode.kind,label:mode.title,variant:'secondary',direct:true,
         onInvoke:()=>selectMode(mode.kind)
-      }):null;
-      if(!mode.enabled)textNode(host,'strong','dkts-mode-title',mode.title);
+      });
       textNode(host,'div','dkts-mode-subtitle',mode.subtitle);
       modeTiles.set(mode.kind,{host,button:action?.button||action?.element||null,enabled:!!mode.enabled});
     }
-    const card2=makeCard();
+    // One animated section inside the test-library card, never a separate persistent card.
+    const detailFrame=units.layout.create(modeCard,{variant:'stack-comfortable',className:'dkts-inline-detail'});
+    detailFrame.inert=true;
+    detailFrame.setAttribute?.('aria-hidden','true');
+    const detailInner=units.layout.create(detailFrame,{variant:'stack-comfortable',className:'dkts-inline-inner'});
+    const card2=units.surface.create(detailInner,{tagName:'section',variant:'elevated',
+      className:'dkts-parameters-panel'});
+    card2.hidden=true;
     const planHeading=textNode(card2,'div','dkts-heading','SMU I–V 扫描 · 测试参数（仅规划）');
     const planFields=units.layout.create(card2,{variant:'form-grid-2',className:'dkts-plan-grid'});
     field(planFields,'loops','循环次数',1);
@@ -155,6 +205,46 @@
     card2.appendChild(planAdvanced);
     const planNote=units.note.create(card2,{variant:'meta',
       text:'仅生成测试方案，不会输出电压或电流'});
+    const pendingPanel=units.surface.create(detailInner,{tagName:'section',variant:'elevated',
+      className:'dkts-pending-config'});
+    pendingPanel.hidden=true;
+    const pendingTitle=textNode(pendingPanel,'strong','dkts-pending-title','功能开发中');
+    const pendingNote=textNode(pendingPanel,'p','dkts-pending-note','尚未接入实机测试协议');
+    const arbitraryEditor=dom.create('div');
+    pendingPanel.appendChild(arbitraryEditor);
+    arbitraryEditor.hidden=true;
+    textNode(arbitraryEditor,'p','dkts-waveform-label','时间 (s)、电压 (V)，每行一组');
+    const arbitraryText=dom.create('textarea');
+    arbitraryText.value='0,0\n0.001,1\n0.002,-1\n0.003,0';
+    arbitraryEditor.appendChild(arbitraryText);
+    const waveStatus=textNode(arbitraryEditor,'p','dkts-waveform-status',
+      '仅作波形输入规划；不会触发仪器输出');
+    const waveformApi=ctx.modules.require('dkts-waveform');
+    const checkWave=()=>{
+      try{
+        const wave=waveformApi.parseWaveformText(arbitraryText.value);
+        waveStatus.textContent=wave.points.length+' 个规划点 · '+wave.durationS+' 秒 · 不执行硬件输出';
+      }catch(e){waveStatus.textContent='校验失败：'+String(e.message||e).slice(0,100);}
+    };
+    arbitraryText.addEventListener?.('input',checkWave);
+    const dataPanel=units.surface.create(detailInner,{tagName:'section',variant:'elevated',
+      className:'dkts-acquisition-panel'});
+    textNode(dataPanel,'h3','dkts-acquisition-title','数据读取与绘图');
+    const readouts=units.layout.create(dataPanel,{variant:'two-card-grid',className:'dkts-measure-readouts'});
+    for(const item of ['电压：— V','电流：— A','采样点：—','采集时间：— s']){
+      const readout=units.layout.create(readouts,{variant:'stack-compact',className:'dkts-measure-readout'});
+      textNode(readout,'span','dkts-readout-value',item);
+    }
+    const chart=dom.create('div');
+    chart.className='dkts-placeholder-chart';
+    dataPanel.appendChild(chart);
+    const plotEmpty=textNode(chart,'div','dkts-placeholder-chart-empty','尚无仪器采集数据');
+    const plotLabel=textNode(chart,'div','dkts-placeholder-chart-label','Voltage (V) / Current (A)');
+    textNode(dataPanel,'strong','dkts-raw-heading','原始数据 · 0 点');
+    textNode(dataPanel,'div','dkts-raw-rows','等待仪器返回原始数据');
+    textNode(dataPanel,'p','dkts-acquisition-note',
+      '当前不执行测量；这里不会绘制模拟电流曲线。');
+
     workbench.compose({primary:{id:'main',label:'4200A',
       presentationRole:'utility-primary',scroll:'safe',titlePolicy:'host-only',mainNode:main},
       primes:[],subs:[]});

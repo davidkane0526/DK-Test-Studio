@@ -82,9 +82,15 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
   assert.equal(typeof ivCard?.invoke,'function');
   assert.equal(typeof itCard?.invoke,'function');
   assert.equal(nodes.some(row=>row.textContent==='测试方式'),false,'No legacy DKDS test dropdown');
-  assert.equal(nodes.filter(row=>row.textContent==='转移特性').length,0,'Unavailable mode must not have an action');
+  const futureCard=nodes.find(row=>row.textContent==='转移特性');
+  assert.equal(typeof futureCard?.invoke,'function','Future card opens its placeholder workspace');
+  futureCard.invoke();
+  assert.equal(capability.methods.validatePlan().kind,'iv','Future mode cannot mutate executable test plan');
+  futureCard.invoke();
   itCard.invoke();
   assert.equal(capability.methods.validatePlan().kind,'it');
+  itCard.invoke();
+  assert.equal(capability.methods.validatePlan().kind,'it','Clicking selected card collapses it without discarding plan');
   ivCard.invoke();
   assert.equal(capability.methods.validatePlan().kind,'iv');
   const plan=capability.methods.exportPlan();

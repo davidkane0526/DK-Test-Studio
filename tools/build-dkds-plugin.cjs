@@ -16,7 +16,7 @@ const copy={
   'plugin.js':'integrations/dkds/plugin.js'
 };
 const requireFiles=new Set(manifest.scripts);
-if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkds.keithley-4200'||manifest.version!=='0.4.1')
+if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkds.keithley-4200'||manifest.version!=='0.4.2')
   throw Error('Unexpected DKDS plugin identity / API / override version');
 if(requireFiles.size!==Object.keys(copy).length||Object.keys(copy).some(x=>!requireFiles.has(x)))
   throw Error('Plugin manifest scripts must exactly match staging files');

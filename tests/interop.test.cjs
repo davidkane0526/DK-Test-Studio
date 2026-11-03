@@ -32,7 +32,7 @@ test('DKDS package contains byte-for-byte copies of the shared core',()=>{
   const pkg=JSON.parse(fs.readFileSync(require('../tools/build-dkds-plugin.cjs').artifact,'utf8'));
   assert.equal(pkg.schema,1);
   assert.equal(pkg.manifest.id,'com.dkds.keithley-4200');
-  assert.equal(pkg.manifest.version,'0.4.1');
+  assert.equal(pkg.manifest.version,'0.4.2');
   assert.equal(pkg.manifest.apiVersion,'1.19.0');
   for(const file of ['kxci-protocol.js','waveform.js','measurement-plan.js','identity-core.js','interop.js'])
     assert.equal(pkg.files[file],fs.readFileSync(path.join(root,'src/shared',file),'utf8'));
