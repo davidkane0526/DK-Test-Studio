@@ -1,0 +1,53 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+const root=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
+const app=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
+const css=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
+
+test('Chromium scrollbar uses thin rounded transparent style without arrow buttons',()=>{
+  assert.match(css,/scrollbar-width:thin/);
+  assert.match(css, /::-webkit-scrollbar\{width:8px;height:8px/);
+  assert.match(css, /::-webkit-scrollbar-thumb\{/);
+  assert.match(css, /background-clip:padding-box/);
+  assert.match(css, /::-webkit-scrollbar-button\{display:none;width:0;height:0\}/);
+  assert.match(css, /\.workspace-tabs::-webkit-scrollbar\{display:none\}/);
+  assert.match(css, /--dkts-scroll-hover/);
+});
+test('two frequent selects are progressively enhanced without changing form inputs',()=>{
+  assert.match(html,/<select name="networkMode">/);
+  assert.match(html,/<select name="direction">/);
+  assert.equal((html.match(/<select /g)||[]).length,2);
+  assert.match(app, /function enhanceWorkspaceSelects\(\)/);
+  assert.match(app,/document\.querySelectorAll\('select:not\(\[multiple\]\)'\)/);
+  assert.match(app,/source\.hidden=true/);
+  assert.match(app,/source\.dispatchEvent\(new Event\('input',\{bubbles:true\}\)\)/);
+  assert.match(app,/source\.dispatchEvent\(new Event\('change',\{bubbles:true\}\)\)/);
+  assert.match(app,/trigger\.setAttribute\('aria-haspopup','listbox'\)/);
+  assert.match(app,/item\.setAttribute\('role','option'\)/);
+  assert.match(app,/event\.key==='Escape'/);
+  assert.match(app,/event\.key==='ArrowDown'/);
+  assert.match(app,/event\.key==='ArrowUp'/);
+  assert.match(app,/event\.key==='Home'/);
+  assert.match(app,/event\.key==='End'/);
+  assert.match(app,/root=source\.closest\('dialog'\)\?\.open/);
+  assert.match(css,/\.dkts-select-popover\{/);
+  assert.match(css,/\.dkts-select-wrapper/);
+  assert.match(css,/\.dkts-select-option\[aria-selected="true"\]/);
+  new vm.Script(app,{filename:'app.js'});
+});
+test('inputs and collapsible summaries share consistent compact states and Android touch targets',()=>{
+  assert.match(css,/--dkts-field-border/);
+  assert.match(css,/--dkts-field-focus/);
+  assert.match(css,/--dkts-field-ring/);
+  assert.match(css,/\.dkts-select-wrapper \.dkts-select-trigger/);
+  assert.match(css,/body\.dkts-android-shell \.dkts-select-wrapper \.dkts-select-trigger\{/);
+  assert.match(css,/min-height:42px/);
+  assert.match(css,/body\.dkts-android-shell \.dkts-select-option/);
+  assert.match(css,/:where\(\.settings,#diagnostic-wrap\) > summary::before/);
+  assert.match(css,/@media\(prefers-reduced-motion:reduce\)/);
+});

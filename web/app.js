@@ -393,6 +393,173 @@ form.addEventListener('input',()=>{
   showStatusMessage('连接设置已修改 · 重新连接后生效','info',false);
 });
 $('validate-waveform').addEventListener('click',validateWave);
+
+/* Compact cross-platform select menu. Keep the underlying native <select>
+ * in the form so connect/plan payloads and DKDS interoperability are unchanged.
+ * Without JS the original accessible native selector remains usable. */
+function enhanceWorkspaceSelects(){
+  let active=null;
+  const close=(returnFocus=false)=>{
+    if(!active)return;
+    const current=active;
+    active=null;
+    current.trigger.setAttribute('aria-expanded','false');
+    current.trigger.removeAttribute('aria-controls');
+    current.popover.remove();
+    if(returnFocus)current.trigger.focus({preventScroll:true});
+  };
+  const selections=[...document.querySelectorAll('select:not([multiple])')];
+  selections.forEach((source,index)=>{
+    if(source.dataset.dktsEnhanced==='true')return;
+    const fieldName=source.closest('label')?.firstChild?.textContent?.trim()||source.name||'选择项目';
+    const wrapper=document.createElement('span');
+    wrapper.className='dkts-select-wrapper';
+    const trigger=document.createElement('button');
+    trigger.type='button';
+    trigger.className='dkts-select-trigger';
+    trigger.setAttribute('aria-haspopup','listbox');
+    trigger.setAttribute('aria-expanded','false');
+    trigger.setAttribute('aria-label',fieldName);
+    const selection=document.createElement('span');
+    selection.className='dkts-select-value';
+    const arrow=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    arrow.setAttribute('viewBox','0 0 20 20');
+    arrow.setAttribute('width','16');
+    arrow.setAttribute('height','16');
+    arrow.setAttribute('aria-hidden','true');
+    const chevron=document.createElementNS('http://www.w3.org/2000/svg','path');
+    chevron.setAttribute('d','m5 7.5 5 5 5-5');
+    chevron.setAttribute('fill','none');
+    chevron.setAttribute('stroke','currentColor');
+    chevron.setAttribute('stroke-width','1.7');
+    chevron.setAttribute('stroke-linecap','round');
+    chevron.setAttribute('stroke-linejoin','round');
+    arrow.appendChild(chevron);
+    trigger.append(selection,arrow);
+    source.insertAdjacentElement('afterend',wrapper);
+    wrapper.append(source,trigger);
+    const sync=()=>{
+      const option=source.selectedOptions[0];
+      selection.textContent=option?.textContent||'请选择';
+      trigger.disabled=source.disabled;
+    };
+    source.addEventListener('change',sync);
+    source.dataset.dktsEnhanced='true';
+    source.hidden=true;
+    sync();
+    function open(){
+      close();
+      const list=document.createElement('div');
+      list.className='dkts-select-popover';
+      list.setAttribute('role','listbox');
+      list.setAttribute('aria-label',fieldName);
+      list.id='dkts-select-list-'+index;
+      const entries=[];
+      let selected=source.selectedIndex;
+      const choose=(i)=>{
+        if(i<0||source.options[i]?.disabled)return;
+        const next=source.options[i].value;
+        if(source.value!==next){
+          source.value=next;
+          source.dispatchEvent(new Event('input',{bubbles:true}));
+          source.dispatchEvent(new Event('change',{bubbles:true}));
+        }
+        sync();
+        close(true);
+      };
+      const focusEntry=(i)=>{
+        if(!entries.length)return;
+        const safe=Math.max(0,Math.min(entries.length-1,i));
+        const target=entries[safe];
+        if(target.disabled)return;
+        selected=safe;
+        target.focus({preventScroll:true});
+        target.scrollIntoView({block:'nearest'});
+      };
+      const available=Array.from(source.options);
+      available.forEach((option,i)=>{
+        const item=document.createElement('button');
+        item.type='button';
+        item.className='dkts-select-option';
+        item.setAttribute('role','option');
+        item.setAttribute('aria-selected',String(source.selectedIndex===i));
+        item.textContent=option.textContent;
+        item.disabled=option.disabled;
+        item.tabIndex=-1;
+        item.addEventListener('click',()=>choose(i));
+        list.appendChild(item);
+        entries.push(item);
+      });
+      const root=source.closest('dialog')?.open?source.closest('dialog'):document.body;
+      root.appendChild(list);
+      trigger.setAttribute('aria-expanded','true');
+      trigger.setAttribute('aria-controls',list.id);
+      active={trigger,popover:list};
+      const rect=trigger.getBoundingClientRect();
+      const width=Math.min(Math.max(165,rect.width),window.innerWidth-12);
+      const left=Math.min(Math.max(6,rect.left),Math.max(6,window.innerWidth-width-6));
+      const below=window.innerHeight-rect.bottom-8;
+      const above=rect.top-8;
+      const placeAbove=below<170&&above>below;
+      const height=Math.max(90,Math.min(280,(placeAbove?above:below)-5));
+      list.style.width=width+'px';
+      list.style.maxHeight=height+'px';
+      list.style.left=left+'px';
+      const actual=Math.min(height,list.scrollHeight);
+      list.style.top=Math.max(6,placeAbove?rect.top-actual-5:rect.bottom+5)+'px';
+      list.addEventListener('keydown',event=>{
+        if(event.key==='Escape'){
+          event.preventDefault();event.stopPropagation();close(true);return;
+        }
+        if(event.key==='Tab'){close();return;}
+        let step=0;
+        if(event.key==='ArrowDown')step=1;
+        if(event.key==='ArrowUp')step=-1;
+        let next=selected;
+        if(event.key==='Home')next=0;
+        else if(event.key==='End')next=entries.length-1;
+        else if(step){
+          next=(selected+step+entries.length)%entries.length;
+          for(let i=0;i<entries.length&&entries[next]?.disabled;i++)
+            next=(next+step+entries.length)%entries.length;
+        }else if(event.key==='Enter'||event.key===' '){
+          event.preventDefault();choose(selected);return;
+        }else return;
+        event.preventDefault();
+        if(entries[next]&&!entries[next].disabled)focusEntry(next);
+      });
+      const first=entries[selected]&&!entries[selected].disabled?selected:
+        entries.findIndex(entry=>!entry.disabled);
+      if(first>=0)focusEntry(first);
+    }
+    trigger.addEventListener('click',()=>active?.trigger===trigger?close():open());
+    trigger.addEventListener('keydown',event=>{
+      if(event.key==='ArrowDown'||event.key==='ArrowUp'){
+        event.preventDefault();
+        if(active?.trigger!==trigger)open();
+      }else if(event.key==='Escape'&&active?.trigger===trigger){
+        event.preventDefault();event.stopPropagation();close();
+      }
+    });
+  });
+  document.addEventListener('pointerdown',event=>{
+    if(active&&!active.trigger.contains(event.target)&&
+      !active.popover.contains(event.target))close();
+  },true);
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&active){
+      event.preventDefault();event.stopImmediatePropagation();close(true);
+    }
+  },true);
+  window.addEventListener('resize',()=>close());
+  document.addEventListener('scroll',event=>{
+    if(active&&!active.popover.contains(event.target))close();
+  },true);
+  document.querySelectorAll('dialog').forEach(dialog=>
+    dialog.addEventListener('close',()=>close()));
+}
+enhanceWorkspaceSelects();
+
 (async()=>{renderTestSelection();renderStatus(await refresh());if(state!=='connected')await connectInstrument();})();
 
 /* Native shells update UI assets in the background, without replacing instrument drivers.
