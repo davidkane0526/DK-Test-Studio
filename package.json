@@ -9,7 +9,8 @@
     "identify": "node cli/identify.cjs",
     "serve": "node src/server.cjs",
     "start": "electron .",
-    "dist:win": "electron-builder --win nsis portable"
+    "dist:win": "electron-builder --win nsis portable",
+    "plugin:build": "node tools/build-dkds-plugin.cjs"
   },
   "engines": {
     "node": ">=20.0.0"
