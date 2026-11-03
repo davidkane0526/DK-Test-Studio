@@ -280,15 +280,20 @@ document.querySelectorAll('.test-type-card').forEach(card=>{
   card.addEventListener('click',()=>selectTestKind(card.dataset.testKind));
 });
 $('close-test-detail').addEventListener('click',returnToTestLibrary);
-$('toggle-parameters').addEventListener('click',()=>{
+function setParametersCollapsed(collapsed){
   const columns=$('detail-columns');
-  const hidden=columns.classList.toggle('parameters-collapsed');
-  $('parameters-panel').hidden=hidden;
-  const control=$('toggle-parameters');
-  control.textContent=hidden?'显示参数':'收起参数';
-  control.setAttribute('aria-expanded',String(!hidden));
-  showStatusMessage(hidden?'参数已收起 · 绘图区域使用全部宽度':'参数栏已显示');
-});
+  columns.classList.toggle('parameters-collapsed',collapsed);
+  $('parameters-panel').hidden=collapsed;
+  const collapse=$('toggle-parameters'),restore=$('restore-parameters');
+  collapse.setAttribute('aria-expanded',String(!collapsed));
+  restore.setAttribute('aria-expanded',String(!collapsed));
+  restore.hidden=!collapsed;
+  if(collapsed)restore.focus({preventScroll:true});
+  else collapse.focus({preventScroll:true});
+  showStatusMessage(collapsed?'参数已收起 · 绘图区域使用全部宽度':'参数栏已显示');
+}
+$('toggle-parameters').addEventListener('click',()=>setParametersCollapsed(true));
+$('restore-parameters').addEventListener('click',()=>setParametersCollapsed(false));
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape'&&expandedKind&&!dialog.open){
     event.preventDefault();

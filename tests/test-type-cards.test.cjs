@@ -10,7 +10,7 @@ const styles=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
 test('test library is a distinct first-level screen, hidden when workbench is active',()=>{
   assert.match(html,/<section id="test-library" class="card types-card"/);
   assert.match(html,/<section id="test-detail" class="card test-detail" aria-hidden="true" hidden inert/);
-  assert.match(html,/id="close-test-detail" class="detail-back" aria-label="返回测试方式选择"/);
+  assert.match(html,/id="close-test-detail" class="detail-back detail-icon-action" aria-label="返回测试选择"/);
   assert.doesNotMatch(html,/<section class="intro">/);
   assert.match(app,/\$\('test-library'\)\.hidden=active/);
   assert.match(app,/detail\.hidden=!active/);
@@ -47,8 +47,11 @@ test('workbench reserves narrow top title and bottom status strips and can hide 
   assert.match(html,/id="app-statusbar" class="app-statusbar"/);
   assert.match(html,/id="toggle-parameters"/);
   assert.match(html,/id="detail-columns"/);
-  assert.match(app,/classList\.toggle\('parameters-collapsed'\)/);
-  assert.match(app,/\$\('parameters-panel'\)\.hidden=hidden/);
+  assert.match(app,/classList\.toggle\('parameters-collapsed',collapsed\)/);
+  assert.match(app,/\$\('parameters-panel'\)\.hidden=collapsed/);
+  assert.match(html,/id="toggle-parameters" class="detail-icon-action parameter-icon-action"/);
+  assert.match(html,/id="restore-parameters" class="detail-icon-action parameter-icon-action"/);
+  assert.match(app,/\$\('restore-parameters'\)\.addEventListener\('click',\(\)=>setParametersCollapsed\(false\)\)/);
   assert.match(styles,/\.detail-columns\.parameters-collapsed\{grid-template-columns:minmax\(0,1fr\)\}/);
   assert.match(styles,/\.workspace,.workspace\.workspace-active\{position:relative;width:100%;max-width:none/);
   assert.match(styles,/\.data-panel\{display:flex;flex-direction:column/);

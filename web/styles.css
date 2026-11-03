@@ -559,3 +559,34 @@ body.dkts-android-shell .status-log-dialog{
   body.dkts-android-shell .measured-plot,
   body.dkts-android-shell .measured-plot svg{min-height:210px;height:210px}
 }
+
+/* Icon-only navigation and panel controls, shared by Windows and Android. */
+.detail-icon-action{
+  display:inline-grid;place-items:center;flex:none;
+  width:30px;min-width:30px;height:30px;margin:0;padding:0;
+  border:1px solid transparent;border-radius:8px;
+  background:transparent;color:#607697;cursor:pointer;
+  transition:background-color .13s,color .13s,border-color .13s
+}
+.detail-icon-action svg{display:block;pointer-events:none}
+.detail-icon-action:hover{background:var(--dkts-hover-bg,#e7eef9);border-color:var(--dkts-hover-border,#d4e2f3);color:#2e507a}
+.detail-icon-action:active{background:#dbe7f6}
+.detail-icon-action:focus-visible{outline:2px solid #477ac4;outline-offset:1px}
+.detail-heading .detail-back{
+  display:inline-grid;place-items:center;width:34px;min-width:34px;height:34px;
+  border:1px solid transparent;padding:0;border-radius:9px;white-space:normal
+}
+.parameter-heading-actions{display:flex;gap:6px;align-items:center;margin-left:auto;min-width:0}
+.parameter-heading-actions .small-action{padding:7px 9px;font-size:11px}
+.data-heading-title{display:flex;align-items:center;min-width:0;gap:7px}
+.data-heading-title > div{min-width:0}
+#restore-parameters:not([hidden]){display:inline-grid}
+@media(max-width:500px){
+  .detail-heading .detail-back{height:32px;width:32px;min-width:32px}
+  .detail-icon-action{height:32px;width:32px;min-width:32px}
+  .parameter-heading-actions{gap:3px}
+}
+@media(prefers-color-scheme:dark){
+  .detail-icon-action{color:#adbed8}
+  .detail-icon-action:hover{color:#e5f0ff}
+}
