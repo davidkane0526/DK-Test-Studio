@@ -204,6 +204,12 @@ document.querySelectorAll('.test-type-card').forEach(card=>{
   card.addEventListener('click',()=>selectTestKind(card.dataset.testKind));
 });
 $('close-test-detail').addEventListener('click',returnToTestLibrary);
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&expandedKind&&!dialog.open){
+    event.preventDefault();
+    returnToTestLibrary();
+  }
+});
 planForm.addEventListener('input',()=>{$('plan-status').textContent='方案参数已更改，请重新校验。';});
 form.addEventListener('input',()=>{$('connection-hint').textContent='连接设置已修改，点击“应用设置并重连”后生效。';});
 $('validate-waveform').addEventListener('click',validateWave);
