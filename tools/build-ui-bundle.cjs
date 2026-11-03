@@ -16,12 +16,16 @@ function resource(filename,source){
   return {sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
     base64:bytes.toString('base64'),bytes:bytes.length};
 }
-// Android entry HTML includes native bootstrap tags; generate it deterministically first.
-require('./sync-android-assets.cjs');
+// Produce Android HTML in memory, avoiding parallel-test and generated-file races.
+const {makeAndroidHtml}=require('./sync-android-assets.cjs');
 const files=['index.html','app.js','styles.css'];
 const windows=Object.fromEntries(files.map(f=>[f,resource(f,'web/'+f)]));
-const android=Object.fromEntries(files.map(f=>[f,resource(f,
-  f==='index.html'?'android/app/src/main/assets/index.html':'web/'+f)]));
+const android=Object.fromEntries(files.map(f=>{
+  if(f!=='index.html')return [f,resource(f,'web/'+f)];
+  const bytes=Buffer.from(makeAndroidHtml(),'utf8');
+  return [f,{sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
+    base64:bytes.toString('base64'),bytes:bytes.length}];
+}));
 const bundle={
   schema:'dkts-ui-v1',version,minShell:1,
   repository:'davidkane0526/DK-Test-Studio',

@@ -205,7 +205,8 @@ final class UiUpdateManager {
         }
         JSONObject data = bundle.getJSONObject("platforms").getJSONObject("android");
         JSONObject hashes = new JSONObject();
-        if (!stage.mkdirs() && !stage.isDirectory()) throw new IllegalStateException("Cannot create staging dir");
+        deleteTree(stage);
+        if (!stage.mkdirs()) throw new IllegalStateException("Cannot create staging dir");
         try {
             for (String name : FILES) {
                 JSONObject entry = data.getJSONObject(name);
