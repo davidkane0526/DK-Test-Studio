@@ -61,57 +61,62 @@
   </div>
 </dialog>
 <main class="workspace">
-  <section class="intro">
-    <div><p class="eyebrow">MEASUREMENT WORKSPACE</p><h1>4200A 测试工作台</h1>
-    <p class="subtle">独立系统 · 目前实机只读识别 · 不会触发 SMU/PMU 输出</p></div>
-    <span class="stage">PREVIEW 0.1</span>
-  </section>
   <section class="card types-card" aria-labelledby="test-types-title">
     <div class="card-heading">
       <div><p class="eyebrow">TEST LIBRARY</p><h2 id="test-types-title">选择测试方式</h2></div>
-      <p class="subtle">点击卡片切换测试参数</p>
+      <p class="subtle">点击测试卡片展开或收起工作区</p>
     </div>
     <div class="test-type-grid" role="group" aria-label="选择测试方式">
-      <button class="test-type-card is-selected" type="button" data-test-kind="iv" aria-pressed="true">
+      <button class="test-type-card" type="button" data-test-kind="iv" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">I–V</span><span class="test-type-state">可编辑</span></span>
         <strong>SMU I–V 扫描</strong><small>正向、反向及循环扫描</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="it" aria-pressed="false">
+      <button class="test-type-card" type="button" data-test-kind="it" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">I–t</span><span class="test-type-state">可编辑</span></span>
         <strong>SMU I–t 恒压读出</strong><small>时间扫描与电流记录方案</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="transfer" disabled>
+      <button class="test-type-card" type="button" data-test-kind="transfer" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">FET</span><span class="test-type-state">开发中</span></span>
         <strong>转移特性</strong><small>栅压扫描与多端口测试</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="output" disabled>
+      <button class="test-type-card" type="button" data-test-kind="output" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">OUT</span><span class="test-type-state">开发中</span></span>
         <strong>输出特性</strong><small>漏压扫描与栅压步进</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="pund" disabled>
+      <button class="test-type-card" type="button" data-test-kind="pund" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">PUND</span><span class="test-type-state">开发中</span></span>
         <strong>PMU / PUND</strong><small>脉冲测量与极化测试</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="retention" disabled>
+      <button class="test-type-card" type="button" data-test-kind="retention" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">RET</span><span class="test-type-state">开发中</span></span>
         <strong>Retention</strong><small>状态保持与时间序列</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="endurance" disabled>
+      <button class="test-type-card" type="button" data-test-kind="endurance" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">CYC</span><span class="test-type-state">开发中</span></span>
         <strong>Endurance</strong><small>循环耐久性实验</small>
       </button>
-      <button class="test-type-card" type="button" data-test-kind="arbitrary" disabled>
+      <button class="test-type-card" type="button" data-test-kind="arbitrary" aria-pressed="false" aria-expanded="false" aria-controls="test-detail">
         <span class="test-type-top"><span class="test-type-icon" aria-hidden="true">ARB</span><span class="test-type-state">开发中</span></span>
         <strong>任意波形测量</strong><small>SMU / PMU 实际输出与采集</small>
       </button>
     </div>
-    <p class="types-note">目前仅支持 I–V、I–t 的测试方案编辑。下方任意波形编辑器仅用于规划，不会启动仪器输出。</p>
-  </section>
-  <div class="test-workspace">
-    <section class="card test-card">
-      <div class="card-heading"><div><p class="eyebrow">MEASUREMENT PARAMETERS</p><h2 id="test-params-title">SMU I–V 扫描 · 测试参数</h2></div>
-        <button id="validate-plan" type="button">预览方案</button>
-      </div>
+    <div id="test-detail" class="test-detail" aria-hidden="true" inert>
+      <div class="test-detail-inner">
+        <div class="detail-heading">
+          <div>
+            <p class="eyebrow">TEST WORKSPACE</p>
+            <h3 id="test-detail-title">测试工作区</h3>
+            <p class="detail-subtitle" id="test-detail-subtitle">参数设置 · 实测数据 · 曲线</p>
+          </div>
+          <button type="button" id="close-test-detail" class="detail-close" aria-label="收起测试工作区">收起 <span aria-hidden="true">⌃</span></button>
+        </div>
+        <div class="detail-columns">
+          <section class="detail-panel parameters-panel" aria-labelledby="parameters-title">
+            <div class="detail-section-heading">
+              <div><p class="eyebrow">CONFIGURATION</p><h4 id="parameters-title">测试参数</h4></div>
+              <button type="button" id="validate-plan" class="small-action">校验方案</button>
+              <button type="button" id="validate-waveform" class="small-action" hidden>校验波形</button>
+            </div>
       <form id="plan-form" class="plan-form">
         <input type="hidden" name="kind" id="test-kind" value="iv">
         <label class="iv-only">起始电压 (V)<input type="number" step="any" name="startV" value="-1"></label>
@@ -135,25 +140,56 @@
           </div>
         </details>
       </form>
-      <p class="hint" id="plan-status" role="status">测试方案尚未校验，实机输出不可用。</p>
-      <p class="hint">限流与电压仅为软件规划字段，尚未经 4200A 装机模块验证。执行按钮不会在本阶段开放。</p>
-    </section>
-  </div>
-  <section class="card waveform-card">
-    <div class="card-heading"><div><p class="eyebrow">WAVEFORM PLANNER</p><h2>任意波形方案</h2>
-      <p class="subtle">每行两列：时间 (s)、电压 (V)。仅校验输入，不连接到实际输出。</p></div>
-      <button id="validate-waveform" type="button">校验并预览</button>
-    </div>
-    <div class="wave-grid">
-      <div><label for="waveform-text" class="input-title">时间与电压数据点</label>
-      <textarea id="waveform-text" spellcheck="false">0, 0
+            <p class="hint" id="plan-status" role="status">仅校验方案，尚未开放实机执行。</p>
+            <div id="pending-parameters" class="pending-parameters" hidden>
+              <strong id="pending-title">功能建设中</strong>
+              <p id="pending-description">参数配置及仪器指令尚未接入。</p>
+            </div>
+            <div id="waveform-editor" hidden>
+              <label for="waveform-text" class="input-title">时间 (s)、电压 (V)，每行一组</label>
+              <textarea id="waveform-text" spellcheck="false">0, 0
 0.001, 1
 0.002, -1
 0.003, 0</textarea>
-      <p id="waveform-info" class="subtle" role="status">等待校验</p></div>
-      <div class="chart-box">
-        <svg id="waveform-plot" viewBox="0 0 640 260" role="img" aria-label="输入波形预览"></svg>
-        <p class="chart-footer">用户定义波形的示意预览，不是仪器测量图，也不是仪器原始图像。</p>
+              <p id="waveform-info" class="subtle" role="status">输入波形仅作规划，不会输出到仪器</p>
+              <div class="waveform-preview">
+                <svg id="waveform-plot" viewBox="0 0 640 260" role="img" aria-label="用户输入的电压波形规划预览"></svg>
+                <p class="chart-footer">用户输入的规划波形，不是实测曲线。</p>
+              </div>
+            </div>
+          </section>
+          <section class="detail-panel data-panel" aria-labelledby="data-title">
+            <div class="detail-section-heading">
+              <div><p class="eyebrow">ACQUISITION</p><h4 id="data-title">数据读取与绘图</h4></div>
+              <span class="acquisition-state" id="acquisition-state">等待实机采集</span>
+            </div>
+            <div class="readout-grid">
+              <div class="readout"><span>电压</span><strong id="readout-voltage">—</strong><small>V</small></div>
+              <div class="readout"><span>电流</span><strong id="readout-current">—</strong><small>A</small></div>
+              <div class="readout"><span>采样点</span><strong id="readout-samples">—</strong><small>points</small></div>
+              <div class="readout"><span>采集时间</span><strong id="readout-duration">—</strong><small>s</small></div>
+            </div>
+            <div class="measured-plot" role="img" aria-label="空白的仪器实测曲线区域，尚未采集数据">
+              <svg id="measurement-plot" viewBox="0 0 640 290" aria-hidden="true">
+                <line x1="54" y1="16" x2="54" y2="248" class="plot-axis"/>
+                <line x1="54" y1="248" x2="620" y2="248" class="plot-axis"/>
+                <line x1="54" y1="76" x2="620" y2="76" class="plot-guide"/>
+                <line x1="54" y1="136" x2="620" y2="136" class="plot-guide"/>
+                <line x1="54" y1="196" x2="620" y2="196" class="plot-guide"/>
+                <text id="measurement-x-label" x="338" y="280" class="plot-label" text-anchor="middle">Voltage (V)</text>
+                <text id="measurement-y-label" transform="translate(15 133) rotate(-90)" class="plot-label" text-anchor="middle">Current (A)</text>
+              </svg>
+              <p class="empty-chart-message" id="measurement-empty">尚无仪器采集数据</p>
+            </div>
+            <div class="data-list-heading"><strong>原始采样数据</strong><span id="data-count">0 点</span></div>
+            <div class="data-table-scroll">
+              <table class="data-table"><thead><tr><th>序号</th><th id="data-column-x">电压 (V)</th><th>电流 (A)</th><th>时间 (s)</th></tr></thead>
+              <tbody id="measurement-rows"><tr><td colspan="4" class="empty-row">等待仪器返回原始数据</td></tr></tbody></table>
+            </div>
+            <p class="acquisition-notice">实测通道尚未接入。这里不生成模拟数据，不把规划曲线当作测量结果。</p>
+            <button type="button" class="measure-button" disabled title="仪器采集指令尚未实现">开始测量 · 待接入</button>
+          </section>
+        </div>
       </div>
     </div>
   </section>

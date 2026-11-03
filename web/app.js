@@ -110,35 +110,81 @@ async function validateWave(){
     drawWave(r.preview);
   }catch(error){info.textContent='校验失败：'+String(error.message||error).slice(0,120);$('waveform-plot').replaceChildren();}
 }
-function updatePlanMode(){
-  const kind=$('test-kind').value;
-  const it=kind==='it';
-  document.querySelectorAll('.iv-only').forEach(node=>node.hidden=it);
-  document.querySelectorAll('.it-only').forEach(node=>node.hidden=!it);
-  $('test-params-title').textContent=(it?'SMU I–t 恒压读出':'SMU I–V 扫描')+' · 测试参数';
+const TEST_MODES=Object.freeze({
+  iv:{title:'SMU I–V 扫描',x:'Voltage (V)',xColumn:'电压 (V)',ready:true},
+  it:{title:'SMU I–t 恒压读出',x:'Time (s)',xColumn:'时间 (s)',ready:true},
+  transfer:{title:'转移特性',x:'Gate voltage (V)',xColumn:'栅极电压 (V)'},
+  output:{title:'输出特性',x:'Drain voltage (V)',xColumn:'漏极电压 (V)'},
+  pund:{title:'PMU / PUND',x:'Time (s)',xColumn:'时间 (s)'},
+  retention:{title:'Retention',x:'Time (s)',xColumn:'时间 (s)'},
+  endurance:{title:'Endurance',x:'Cycle',xColumn:'循环次数'},
+  arbitrary:{title:'任意波形测量',x:'Time (s)',xColumn:'时间 (s)',planner:true}
+});
+let expandedKind=null;
+const detail=$('test-detail');
+function renderTestSelection(){
+  const mode=expandedKind?TEST_MODES[expandedKind]:null;
+  const isEditable=Boolean(mode?.ready);
+  const isWaveform=Boolean(mode?.planner);
+  detail.classList.toggle('is-open',Boolean(mode));
+  detail.inert=!mode;
+  detail.setAttribute('aria-hidden',String(!mode));
   document.querySelectorAll('.test-type-card').forEach(card=>{
-    const selected=card.dataset.testKind===kind;
+    const selected=card.dataset.testKind===expandedKind;
     card.classList.toggle('is-selected',selected);
-    if(!card.disabled)card.setAttribute('aria-pressed',String(selected));
+    card.setAttribute('aria-pressed',String(selected));
+    card.setAttribute('aria-expanded',String(selected));
   });
+  if(!mode)return;
+  $('test-detail-title').textContent=mode.title+' · 测试工作区';
+  $('test-detail-subtitle').textContent='参数设置 / 数据读取 / 实时曲线';
+  $('measurement-x-label').textContent=mode.x;
+  $('data-column-x').textContent=mode.xColumn;
+  $('measurement-empty').textContent='尚无'+mode.title+'的仪器实测数据';
+  $('plan-form').hidden=!isEditable;
+  $('plan-status').hidden=!isEditable;
+  $('validate-plan').hidden=!isEditable;
+  $('waveform-editor').hidden=!isWaveform;
+  $('validate-waveform').hidden=!isWaveform;
+  $('pending-parameters').hidden=isEditable||isWaveform;
+  if(isEditable){
+    $('test-kind').value=expandedKind;
+    const it=expandedKind==='it';
+    document.querySelectorAll('.iv-only').forEach(node=>node.hidden=it);
+    document.querySelectorAll('.it-only').forEach(node=>node.hidden=!it);
+    $('parameters-title').textContent='SMU 测试参数';
+    void validatePlan();
+  }else if(isWaveform){
+    $('parameters-title').textContent='任意波形方案';
+    void validateWave();
+  }else{
+    $('parameters-title').textContent='测试参数';
+    $('pending-title').textContent=mode.title+' · 开发中';
+    $('pending-description').textContent='此测试方式的参数配置与仪器采集尚未实现。界面仅保留工作区，不会执行任何输出。';
+  }
+  // The measured plot stays empty until the actual instrument acquisition layer is implemented.
+  $('acquisition-state').textContent='等待实机采集';
 }
 function selectTestKind(kind){
-  const card=document.querySelector('.test-type-card[data-test-kind="'+kind+'"]');
-  if(!card||card.disabled)return;
-  $('test-kind').value=kind;
-  updatePlanMode();
-  validatePlan();
+  if(!Object.hasOwn(TEST_MODES,kind))return;
+  expandedKind=expandedKind===kind?null:kind;
+  renderTestSelection();
 }
 async function validatePlan(){
+  if(!expandedKind||!TEST_MODES[expandedKind]?.ready)return;
   const status=$('plan-status');
+  const expectedKind=expandedKind;
   try{
     const payload=Object.fromEntries(new FormData(planForm).entries());
     const r=await post('/api/plan/validate',payload);
+    if(expectedKind!==expandedKind)return;
     if(!r.ok)throw Error(r.error||'参数校验失败');
     const p=r.plan;
     status.textContent=(p.kind==='iv'?'I–V 扫描':'I–t 恒压读出')+' · '+p.totalPoints+
-      ' 个规划数据点 · '+p.loops+' 循环 · SMU '+p.sourceSmU+' · 硬件执行未开放';
-  }catch(e){status.textContent='方案校验失败：'+String(e.message||e).slice(0,120);}
+      ' 个规划点 · '+p.loops+' 循环 · SMU '+p.sourceSmU+' · 不执行硬件输出';
+  }catch(e){
+    if(expectedKind===expandedKind)status.textContent='方案校验失败：'+String(e.message||e).slice(0,120);
+  }
 }
 statusButton.addEventListener('click',openConnectionDialog);
 $('connection-close').addEventListener('click',closeConnectionDialog);
@@ -148,13 +194,17 @@ dialog.addEventListener('click',event=>{
   if(event.target===dialog)closeConnectionDialog();
 });
 $('validate-plan').addEventListener('click',validatePlan);
-document.querySelectorAll('.test-type-card:not(:disabled)').forEach(card=>{
+document.querySelectorAll('.test-type-card').forEach(card=>{
   card.addEventListener('click',()=>selectTestKind(card.dataset.testKind));
+});
+$('close-test-detail').addEventListener('click',()=>{
+  expandedKind=null;
+  renderTestSelection();
 });
 planForm.addEventListener('input',()=>{$('plan-status').textContent='方案参数已更改，请重新校验。';});
 form.addEventListener('input',()=>{$('connection-hint').textContent='连接设置已修改，点击“应用设置并重连”后生效。';});
 $('validate-waveform').addEventListener('click',validateWave);
-(async()=>{renderStatus(await refresh());if(state!=='connected')await connectInstrument();updatePlanMode();await validatePlan();await validateWave();})();
+(async()=>{renderTestSelection();renderStatus(await refresh());if(state!=='connected')await connectInstrument();})();
 
 /* Native shells update UI assets in the background, without replacing instrument drivers.
  * The local UI version endpoint is cheap; GitHub is queried by the host, not this page. */
