@@ -25,7 +25,7 @@
   <div class="titlebar-brand">
     <span class="titlebar-logo" aria-hidden="true">DK</span>
     <strong>DK Test Studio</strong>
-    <button type="button" id="native-version-badge" class="native-version-badge" aria-expanded="false" aria-controls="ui-version-badge" aria-label="显示 UI 版本并检查更新">v0.2.9</button>
+    <button type="button" id="native-version-badge" class="native-version-badge" aria-expanded="false" aria-controls="ui-version-badge" aria-label="显示 UI 版本并检查更新">v0.3.0</button>
     <div id="ui-version-badge" class="ui-version-badge" role="status" aria-live="polite" hidden>
       <strong id="ui-version-text">UI 内置</strong>
       <span id="ui-update-state">正在检查界面更新…</span>
@@ -36,8 +36,8 @@
     </div>
   </div>
   <span class="titlebar-version-divider" aria-hidden="true"></span>
-  <nav id="workspace-tabs" class="workspace-tabs" role="tablist" aria-label="已打开的测试工作区"></nav>
-  <button type="button" id="tab-home" class="workspace-tab-add" aria-label="添加测试" title="添加测试 · 打开测试类型列表" aria-controls="test-library">
+  <nav id="workspace-tabs" class="workspace-tabs" role="tablist" aria-label="已打开的工作区"></nav>
+  <button type="button" id="tab-home" class="workspace-tab-add" aria-label="新建工作区" title="新建工作区 · 选择测试方式" aria-controls="test-library">
     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11"/></svg>
   </button>
   <div class="titlebar-drag-region" aria-hidden="true"></div>
@@ -109,7 +109,7 @@
 
   <section id="test-library" class="card types-card" aria-labelledby="test-types-title">
     <div class="card-heading">
-      <div><h2 id="test-types-title">选择测试方式</h2></div>
+      <div><h2 id="test-types-title">选择测试方式</h2><p id="workspace-context-label" class="workspace-context-label" hidden></p></div>
     </div>
     <div class="test-type-grid" role="group" aria-label="选择测试方式">
       <button class="test-type-card" type="button" data-test-kind="iv" aria-label="进入测试工作区">
@@ -149,11 +149,11 @@
   <section id="test-detail" class="card test-detail" aria-hidden="true" hidden inert aria-labelledby="test-detail-title">
       <div class="test-detail-inner">
         <div class="detail-heading">
-          <button type="button" id="close-test-detail" class="detail-back detail-icon-action" aria-label="返回测试选择" title="返回测试选择">
+          <button type="button" id="close-test-detail" class="detail-back detail-icon-action" aria-label="切换测试方式" title="切换测试方式">
             <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 10h-11m5.25-5.25L4.5 10l5.25 5.25"/></svg>
           </button>
           <div class="detail-heading-title">
-            <h2 id="test-detail-title" tabindex="-1">测试工作区</h2>
+            <h2 id="test-detail-title" tabindex="-1">测试工作区</h2><p id="test-detail-subtitle" class="detail-subtitle"></p>
           </div>
           <div class="data-header-actions detail-run-actions" role="group" aria-label="测试运行控制">
             <button type="button" id="start-measurement" class="measure-button" disabled title="实机采集尚未接入">开始测试</button>
@@ -230,6 +230,10 @@
               <div id="measurement-plot" class="dkds-scientific-chart-host dkts-scientific-plot" role="group" tabindex="0"
                 aria-label="DKDS 科学绘图；双击坐标轴切换线性和对数，工具条可拖动"></div>
               <p class="empty-chart-message" id="measurement-empty">尚无仪器采集数据</p>
+            </div>
+            <div class="test-history" aria-label="当前测试方式的历史记录">
+              <div class="data-list-heading"><strong>测试历史</strong><span id="test-history-count">0 次</span></div>
+              <div id="test-history-list" class="test-history-list" role="list" aria-label="历史测试记录"><span class="history-empty">暂无测试历史</span></div>
             </div>
             <div class="data-list-heading"><strong>原始采样数据</strong><span id="data-count">0 点</span></div>
             <div class="data-table-scroll">

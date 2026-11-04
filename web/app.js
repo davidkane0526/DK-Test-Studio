@@ -308,9 +308,28 @@ const measurementPlot=(()=>{
       if(button){button.innerHTML=navIcon[icon];button.removeAttribute('title');}
     }
   }
+  function xValue(row){
+    if(kind==='iv')return row.voltageV;
+    if(kind==='transfer')return row.gateVoltageV??row.voltageV;
+    if(kind==='output')return row.drainVoltageV??row.voltageV;
+    if(kind==='endurance')return row.cycle??row.cycleIndex??row.timeS;
+    return row.timeS;
+  }
+  function xTitle(){
+    if(kind==='iv')return 'Voltage (V)';
+    if(kind==='transfer')return 'Gate voltage (V)';
+    if(kind==='output')return 'Drain voltage (V)';
+    if(kind==='endurance')return 'Cycle';
+    return 'Time (s)';
+  }
+  function normalizeRows(raw){
+    if(!Array.isArray(raw))throw TypeError('Expected instrument raw rows');
+    return raw.filter(row=>row&&Number.isFinite(row.currentA)&&Number.isFinite(xValue(row)))
+      .map(row=>({...row}));
+  }
   const trace=()=>rows.length?[{
     type:'scatter',mode:'lines+markers',name:'4200A 实测',
-    x:rows.map(row=>kind==='iv'?row.voltageV:row.timeS),
+    x:rows.map(row=>xValue(row)),
     y:rows.map(row=>row.currentA),
     line:{width:1.6,color:'#3d77b6'},marker:{size:4,color:'#3d77b6'},
     meta:{source:'instrument-raw',measurement:true}
@@ -319,7 +338,7 @@ const measurementPlot=(()=>{
     autosize:true,showlegend:false,
     margin:{l:65,r:16,t:20,b:48},
     paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',
-    xaxis:{title:kind==='iv'?'Voltage (V)':'Time (s)',type:xMode,automargin:true,showgrid:true,zeroline:false},
+    xaxis:{title:xTitle(),type:xMode,automargin:true,showgrid:true,zeroline:false},
     yaxis:{title:'Current (A)',type:'linear',automargin:true,showgrid:true,zeroline:false}
   });
   const config={responsive:true,displaylogo:false,scrollZoom:true,
@@ -337,17 +356,16 @@ const measurementPlot=(()=>{
       empty.hidden=false;empty.textContent='绘图内核异常：'+String(e.message||e).slice(0,100);
     }
   }
-  function selectTest(testKind){
-    if(kind!==testKind){kind=testKind;rows=[];xMode='linear';}
+  function selectTest(testKind,rawRows=[]){
+    kind=testKind;
+    rows=normalizeRows(rawRows);
+    xMode='linear';
     void render();
   }
   function setMeasurements(raw){
-    if(!Array.isArray(raw))throw TypeError('Expected instrument raw rows');
-    rows=raw.filter(row=>row&&Number.isFinite(row.currentA)&&
-      Number.isFinite(kind==='iv'?row.voltageV:row.timeS)).map(row=>({
-      voltageV:row.voltageV,timeS:row.timeS,currentA:row.currentA
-    }));
+    rows=normalizeRows(raw);
     void render();
+    return rows.map(row=>({...row}));
   }
   function dblclick(e){
     const target=e.target;
@@ -405,7 +423,7 @@ const measurementPlot=(()=>{
   return Object.freeze({selectTest,setMeasurements,reset:()=>void render(),
     get renderer(){return library.runtimeState().renderer;}});
 })();
-window.DKTSMeasurementPlot=measurementPlot;
+// The public acquisition API is bound after workspace-scoped history is initialized.
 
 function drawWave(points){
   const svg=$('waveform-plot');svg.replaceChildren();
@@ -429,14 +447,17 @@ function drawWave(points){
   ly.textContent='Voltage (V)';
 }
 async function validateWave(){
+  const expectedTabId=getActiveWorkspace()?.id,expectedMode=activeMode;
   const info=$('waveform-info');
   try{
     const r=await post('/api/waveform/validate',{text:$('waveform-text').value});
+    if(expectedTabId!==getActiveWorkspace()?.id||expectedMode!==activeMode)return;
     if(!r.ok)throw Error(r.error||'波形参数不正确');
     info.textContent=r.count+' 点 · 总时长 '+r.durationS+' s · 最小时间间隔 '+r.minimumStepS+' s · 未验证硬件可执行性';
     drawWave(r.preview);
     showStatusMessage('波形校验通过 · '+r.count+' 个规划点（无硬件输出）','success');
   }catch(error){
+    if(expectedTabId!==getActiveWorkspace()?.id||expectedMode!==activeMode)return;
     info.textContent='校验失败：'+String(error.message||error).slice(0,120);
     showStatusMessage('波形校验失败：'+String(error.message||error).slice(0,90),'error');
     $('waveform-plot').replaceChildren();
@@ -452,84 +473,460 @@ const TEST_MODES=Object.freeze({
   endurance:{title:'Endurance',x:'Cycle',xColumn:'循环次数'},
   arbitrary:{title:'任意波形测量',x:'Time (s)',xColumn:'时间 (s)',planner:true}
 });
-let expandedKind=null;
+function createWorkspaceStore(options = {}) {
+  const tabs=[];
+  let activeTabId=null;
+  let tabSerial=0,idSerial=0;
+  const idFactory=typeof options.idFactory==='function'?options.idFactory:null;
+  function clone(value){
+    if(value===undefined)return undefined;
+    return JSON.parse(JSON.stringify(value));
+  }
+  function cloneRows(rows){
+    if(!Array.isArray(rows))throw new TypeError('Measurement rows must be an array');
+    return rows.map(row=>clone(row));
+  }
+  function requiredText(value,label){
+    const next=String(value??'').trim();
+    if(!next)throw new TypeError(label+' must not be empty');
+    return next;
+  }
+  function makeId(kind){
+    if(idFactory)return requiredText(idFactory(kind),kind+' id');
+    return kind+'-'+Date.now().toString(36)+'-'+(++idSerial).toString(36);
+  }
+  function findTab(id){return tabs.find(tab=>tab.id===id)||null;}
+  function createTab({name='',mode=null}={}){
+    const index=++tabSerial;
+    const tab={
+      id:makeId('workspace'),
+      name:String(name||'').trim()||'工作区 '+index,
+      activeMode:mode==null?null:requiredText(mode,'test mode'),
+      modeDrafts:Object.create(null),
+      historyByMode:Object.create(null),
+      dataByMode:Object.create(null),
+      activeRunByMode:Object.create(null)
+    };
+    tabs.push(tab);activeTabId=tab.id;return tab;
+  }
+  function listTabs(){return tabs.slice();}
+  function getTab(id){return findTab(id);}
+  function getActiveTab(){return findTab(activeTabId);}
+  function activateTab(id){
+    const tab=findTab(id);if(!tab)return null;
+    activeTabId=tab.id;return tab;
+  }
+  function closeTab(id){
+    const index=tabs.findIndex(tab=>tab.id===id);
+    if(index<0)return getActiveTab();
+    const wasActive=activeTabId===id;
+    tabs.splice(index,1);
+    if(wasActive)activeTabId=tabs[Math.min(index,tabs.length-1)]?.id||null;
+    return getActiveTab();
+  }
+  function renameTab(id,name){
+    const tab=findTab(id),next=String(name??'').trim();
+    if(!tab||!next)return false;
+    tab.name=next.slice(0,48);return true;
+  }
+  function setMode(id,mode){
+    const tab=findTab(id);if(!tab)return false;
+    tab.activeMode=mode==null?null:requiredText(mode,'test mode');return true;
+  }
+  function saveDraft(id,mode,draft){
+    const tab=findTab(id),key=requiredText(mode,'test mode');
+    if(!tab)return false;
+    tab.modeDrafts[key]=clone(draft||{});return true;
+  }
+  function getDraft(id,mode){
+    const tab=findTab(id),key=requiredText(mode,'test mode');
+    return tab&&Object.hasOwn(tab.modeDrafts,key)?clone(tab.modeDrafts[key]):null;
+  }
+  function getHistory(id,mode){
+    const tab=findTab(id),key=requiredText(mode,'test mode');
+    return tab?clone(tab.historyByMode[key]||[]):[];
+  }
+  function getData(id,mode){
+    const tab=findTab(id),key=requiredText(mode,'test mode');
+    return tab&&Object.hasOwn(tab.dataByMode,key)?clone(tab.dataByMode[key]):[];
+  }
+  function recordRun(id,mode,rawRows,metadata={}){
+    const tab=findTab(id);if(!tab)throw new Error('Workspace tab not found');
+    const key=requiredText(mode,'test mode'),rows=cloneRows(rawRows);
+    const run={
+      id:metadata.id?requiredText(metadata.id,'run id'):makeId('run'),
+      mode:key,
+      createdAt:metadata.createdAt||new Date().toISOString(),
+      status:metadata.status||'completed',
+      parameters:clone(metadata.parameters||{}),
+      summary:String(metadata.summary||''),
+      rawRows:rows
+    };
+    if(!tab.historyByMode[key])tab.historyByMode[key]=[];
+    tab.historyByMode[key].push(run);
+    tab.dataByMode[key]=cloneRows(rows);
+    tab.activeRunByMode[key]=run.id;
+    return clone(run);
+  }
+  function updateRun(id,mode,runId,rawRows,metadata={}){
+    const tab=findTab(id),key=requiredText(mode,'test mode');
+    if(!tab)return null;
+    const run=(tab.historyByMode[key]||[]).find(item=>item.id===runId);
+    if(!run)return null;
+    run.rawRows=cloneRows(rawRows);
+    if(metadata.status)run.status=metadata.status;
+    if(metadata.summary!==undefined)run.summary=String(metadata.summary||'');
+    if(metadata.parameters!==undefined)run.parameters=clone(metadata.parameters||{});
+    tab.dataByMode[key]=cloneRows(run.rawRows);
+    tab.activeRunByMode[key]=run.id;
+    return clone(run);
+  }
+  function appendRunRows(id,mode,runId,rows){
+    const tab=findTab(id),key=requiredText(mode,'test mode');
+    if(!tab)return null;
+    const run=(tab.historyByMode[key]||[]).find(item=>item.id===runId);
+    if(!run)return null;
+    run.rawRows.push(...cloneRows(rows));
+    tab.dataByMode[key]=cloneRows(run.rawRows);
+    tab.activeRunByMode[key]=run.id;
+    return clone(run);
+  }
+  function selectRun(id,mode,runId){
+    const tab=findTab(id),key=requiredText(mode,'test mode');
+    if(!tab)return null;
+    const run=(tab.historyByMode[key]||[]).find(item=>item.id===runId);
+    if(!run)return null;
+    tab.dataByMode[key]=cloneRows(run.rawRows);
+    tab.activeRunByMode[key]=run.id;
+    return clone(run);
+  }
+  function getActiveRunId(id,mode){
+    const tab=findTab(id),key=requiredText(mode,'test mode');
+    return tab?.activeRunByMode[key]||null;
+  }
+  return Object.freeze({
+    createTab,listTabs,getTab,getActiveTab,activateTab,closeTab,renameTab,
+    setMode,saveDraft,getDraft,getHistory,getData,recordRun,updateRun,
+    appendRunRows,selectRun,getActiveRunId
+  });
+}
+const workspaceStore=createWorkspaceStore();
+let activeMode=null;
 const detail=$('test-detail');
-const openedTabs=[];
-const tabDrafts=new Map();
+const getActiveWorkspace=()=>workspaceStore.getActiveTab();
+
+function resetModeInputs(mode='iv'){
+  planForm.reset();
+  $('test-kind').value=mode;
+  $('waveform-text').value=$('waveform-text').defaultValue;
+  $('waveform-info').textContent='输入波形仅作规划，不会输出到仪器';
+  $('waveform-plot').replaceChildren();
+  $('plan-status').textContent='仅校验方案，尚未开放实机执行。';
+}
 function rememberTabDraft(){
-  if(!expandedKind)return;
+  const tab=getActiveWorkspace();
+  if(!tab||!activeMode)return;
   const formValues={};
   for(const control of planForm.elements){
     if(!control.name)continue;
     formValues[control.name]=control.value;
   }
-  tabDrafts.set(expandedKind,{formValues,waveform:$('waveform-text').value});
+  workspaceStore.saveDraft(tab.id,activeMode,{formValues,waveform:$('waveform-text').value});
 }
-function restoreTabDraft(kind){
-  const draft=tabDrafts.get(kind);
+function restoreTabDraft(mode){
+  resetModeInputs(mode);
+  const tab=getActiveWorkspace();
+  const draft=tab?workspaceStore.getDraft(tab.id,mode):null;
   if(!draft)return;
   for(const control of planForm.elements){
-    if(control.name&&Object.hasOwn(draft.formValues,control.name))
+    if(control.name&&Object.hasOwn(draft.formValues||{},control.name))
       control.value=draft.formValues[control.name];
   }
-  $('waveform-text').value=draft.waveform;
-  $('test-kind').value=kind;
+  $('waveform-text').value=draft.waveform??$('waveform-text').defaultValue;
+  $('test-kind').value=mode;
+}
+function beginTabRename(tabId,button){
+  const tab=workspaceStore.getTab(tabId);
+  if(!tab||!button?.isConnected)return;
+  const editor=document.createElement('input');
+  editor.type='text';editor.className='workspace-tab-rename';
+  editor.maxLength=48;editor.value=tab.name;
+  editor.setAttribute('aria-label','重命名工作区');
+  button.replaceWith(editor);
+  let finished=false;
+  const finish=save=>{
+    if(finished)return;
+    finished=true;
+    if(save)workspaceStore.renameTab(tabId,editor.value);
+    renderWorkspaceTabs();
+  };
+  editor.addEventListener('keydown',event=>{
+    if(event.key==='Enter'){event.preventDefault();finish(true);}
+    else if(event.key==='Escape'){event.preventDefault();finish(false);}
+  });
+  editor.addEventListener('blur',()=>finish(true));
+  editor.focus({preventScroll:true});editor.select();
+}
+function bindTabRenameGestures(button,tabId){
+  let timer=null,pointerId=null,startX=0,startY=0;
+  const cancel=()=>{
+    if(timer!==null)clearTimeout(timer);
+    timer=null;pointerId=null;
+  };
+  button.addEventListener('dblclick',event=>{
+    event.preventDefault();event.stopPropagation();cancel();
+    beginTabRename(tabId,button);
+  });
+  if(!document.body.classList.contains('dkts-android-shell'))return;
+  button.addEventListener('pointerdown',event=>{
+    if(!['touch','pen'].includes(event.pointerType)||event.button!==0)return;
+    cancel();pointerId=event.pointerId;startX=event.clientX;startY=event.clientY;
+    timer=setTimeout(()=>{
+      timer=null;
+      beginTabRename(tabId,button);
+    },560);
+  },{passive:true});
+  button.addEventListener('pointermove',event=>{
+    if(timer===null||event.pointerId!==pointerId)return;
+    if(Math.hypot(event.clientX-startX,event.clientY-startY)>9)cancel();
+  },{passive:true});
+  for(const name of ['pointerup','pointercancel','pointerleave'])
+    button.addEventListener(name,event=>{if(pointerId===event.pointerId)cancel();},{passive:true});
+  button.addEventListener('contextmenu',event=>{
+    event.preventDefault();cancel();beginTabRename(tabId,button);
+  });
 }
 function renderWorkspaceTabs(){
   const nav=$('workspace-tabs');
   nav.querySelectorAll('.workspace-tab-item').forEach(node=>node.remove());
-  $('tab-home').classList.toggle('is-active',expandedKind===null);
-  for(const kind of openedTabs){
-    const tab=document.createElement('div');
-    tab.className='workspace-tab-item';
+  const activeId=getActiveWorkspace()?.id||null;
+  $('tab-home').classList.toggle('is-active',false);
+  for(const workspace of workspaceStore.listTabs()){
+    const item=document.createElement('div');
+    item.className='workspace-tab-item';
+    item.dataset.workspaceId=workspace.id;
     const select=document.createElement('button');
     select.type='button';select.className='workspace-tab';
     select.setAttribute('role','tab');
-    select.setAttribute('aria-selected',String(expandedKind===kind));
-    select.setAttribute('aria-controls','test-detail');
-    select.classList.toggle('is-active',expandedKind===kind);
-    select.textContent=TEST_MODES[kind].title;
-    select.addEventListener('click',()=>selectTestKind(kind));
+    select.setAttribute('aria-selected',String(activeId===workspace.id));
+    select.setAttribute('aria-controls',activeId===workspace.id&&workspace.activeMode?'test-detail':'test-library');
+    select.classList.toggle('is-active',activeId===workspace.id);
+    select.textContent=workspace.name;select.title=workspace.name;
+    select.addEventListener('click',()=>activateWorkspaceTab(workspace.id));
+    bindTabRenameGestures(select,workspace.id);
     const close=document.createElement('button');
     close.type='button';close.className='workspace-tab-close';
-    close.setAttribute('aria-label','关闭'+TEST_MODES[kind].title+'标签');
+    close.setAttribute('aria-label','关闭'+workspace.name+'工作区');
     close.innerHTML='<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M5.5 5.5l9 9m0-9-9 9"/></svg>';
-    close.addEventListener('click',()=>closeWorkspaceTab(kind));
-    tab.append(select,close);
-    nav.appendChild(tab);
+    close.addEventListener('click',()=>closeWorkspaceTab(workspace.id));
+    item.append(select,close);nav.appendChild(item);
   }
 }
-function closeWorkspaceTab(kind){
-  const i=openedTabs.indexOf(kind);
-  if(i<0)return;
-  if(expandedKind===kind)rememberTabDraft();
-  openedTabs.splice(i,1);
-  tabDrafts.delete(kind);
-  if(expandedKind===kind){
-    const next=openedTabs[Math.min(i,openedTabs.length-1)]||null;
-    expandedKind=null;
-    if(next)selectTestKind(next);
-    else returnToTestLibrary();
-  }else renderWorkspaceTabs();
+function createWorkspaceTab(){
+  rememberTabDraft();
+  const tab=workspaceStore.createTab();
+  activeMode=null;resetModeInputs('iv');
+  renderTestSelection();
+  window.scrollTo({top:0,behavior:'instant'});
+  $('test-types-title').setAttribute('tabindex','-1');
+  $('test-types-title').focus({preventScroll:true});
+  showStatusMessage('已创建'+tab.name+' · 请选择测试方式');
 }
-$('tab-home').addEventListener('click',returnToTestLibrary);
+function activateWorkspaceTab(tabId){
+  if(getActiveWorkspace()?.id===tabId)return;
+  rememberTabDraft();
+  const tab=workspaceStore.activateTab(tabId);
+  if(!tab)return;
+  activeMode=tab.activeMode;
+  if(activeMode)restoreTabDraft(activeMode);
+  else resetModeInputs('iv');
+  renderTestSelection();
+  window.scrollTo({top:0,behavior:'instant'});
+}
+function closeWorkspaceTab(tabId){
+  const wasActive=getActiveWorkspace()?.id===tabId;
+  if(wasActive)rememberTabDraft();
+  const next=workspaceStore.closeTab(tabId);
+  if(!wasActive){renderWorkspaceTabs();return;}
+  activeMode=next?.activeMode||null;
+  if(activeMode)restoreTabDraft(activeMode);
+  else resetModeInputs('iv');
+  renderTestSelection();
+}
+$('tab-home').addEventListener('click',createWorkspaceTab);
+
+function modeXValue(row,mode){
+  if(!row)return undefined;
+  if(mode==='iv')return row.voltageV;
+  if(mode==='transfer')return row.gateVoltageV??row.voltageV;
+  if(mode==='output')return row.drainVoltageV??row.voltageV;
+  if(mode==='endurance')return row.cycle??row.cycleIndex??row.timeS;
+  return row.timeS;
+}
+function formatRawValue(value){
+  if(!Number.isFinite(value))return '—';
+  return String(Number(value.toPrecision(7)));
+}
+function renderMeasurementData(rawRows,mode){
+  const rows=Array.isArray(rawRows)?rawRows:[];
+  $('data-count').textContent=rows.length+' 点';
+  const body=$('measurement-rows');body.replaceChildren();
+  if(!rows.length){
+    const tr=document.createElement('tr'),td=document.createElement('td');
+    td.colSpan=4;td.className='empty-row';td.textContent='暂无该测试方式的实测数据';
+    tr.appendChild(td);body.appendChild(tr);
+    for(const id of ['readout-voltage','readout-current','readout-samples','readout-duration'])
+      $(id).textContent='—';
+    return;
+  }
+  const last=rows[rows.length-1];
+  const voltage=Number.isFinite(last.voltageV)?last.voltageV:
+    (['iv','transfer','output'].includes(mode)?modeXValue(last,mode):undefined);
+  $('readout-voltage').textContent=formatRawValue(voltage);
+  $('readout-current').textContent=formatRawValue(last.currentA);
+  $('readout-samples').textContent=String(rows.length);
+  const times=rows.map(row=>row.timeS).filter(Number.isFinite);
+  $('readout-duration').textContent=times.length>1
+    ?formatRawValue(Math.max(...times)-Math.min(...times)):'—';
+  for(let index=0;index<rows.length;index++){
+    const row=rows[index],tr=document.createElement('tr');
+    for(const value of [index+1,modeXValue(row,mode),row.currentA,row.timeS]){
+      const td=document.createElement('td');
+      td.textContent=typeof value==='number'?formatRawValue(value):String(value??'—');
+      tr.appendChild(td);
+    }
+    body.appendChild(tr);
+  }
+}
+function renderMeasurementHistory(tab,mode){
+  const history=workspaceStore.getHistory(tab.id,mode);
+  const list=$('test-history-list');list.replaceChildren();
+  $('test-history-count').textContent=history.length+' 次';
+  const activeRunId=workspaceStore.getActiveRunId(tab.id,mode);
+  if(!history.length){
+    const empty=document.createElement('span');
+    empty.className='history-empty';empty.textContent='暂无'+TEST_MODES[mode].title+'历史记录';
+    list.appendChild(empty);return;
+  }
+  for(let index=history.length-1;index>=0;index--){
+    const run=history[index],button=document.createElement('button');
+    const date=new Date(run.createdAt);
+    const stamp=Number.isNaN(date.getTime())?'未知时间':
+      date.toLocaleString('zh-CN',{hour12:false,month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    button.type='button';button.className='history-run';
+    button.classList.toggle('is-active',run.id===activeRunId);
+    button.setAttribute('role','listitem');
+    button.setAttribute('aria-pressed',String(run.id===activeRunId));
+    button.textContent=stamp+' · '+run.rawRows.length+' 点';
+    button.title=(run.summary?run.summary+' · ':'')+run.status+' · '+run.rawRows.length+' 个原始数据点';
+    button.addEventListener('click',()=>selectMeasurementHistory(tab.id,mode,run.id));
+    list.appendChild(button);
+  }
+}
+function selectMeasurementHistory(tabId,mode,runId){
+  const run=workspaceStore.selectRun(tabId,mode,runId);
+  if(!run)return null;
+  renderStoredMeasurementState(tabId,mode);
+  showStatusMessage('已加载'+TEST_MODES[mode].title+'历史数据 · '+run.rawRows.length+' 点');
+  return run;
+}
+function currentParameterSnapshot(){
+  return {
+    form:Object.fromEntries(new FormData(planForm).entries()),
+    waveform:$('waveform-text').value
+  };
+}
+function renderStoredMeasurementState(tabId,mode){
+  const active=getActiveWorkspace();
+  if(!active||active.id!==tabId||activeMode!==mode)return;
+  const rows=workspaceStore.getData(tabId,mode);
+  measurementPlot.selectTest(mode,rows);
+  renderMeasurementData(rows,mode);
+  renderMeasurementHistory(active,mode);
+}
+function recordMeasurementRun(rawRows,metadata={}){
+  const tab=getActiveWorkspace();
+  if(!tab||!activeMode)throw new Error('请先创建工作区并选择测试方式');
+  const run=workspaceStore.recordRun(tab.id,activeMode,rawRows,{
+    ...metadata,parameters:metadata.parameters||currentParameterSnapshot()
+  });
+  renderStoredMeasurementState(tab.id,activeMode);
+  return run.id;
+}
+function beginMeasurementRun(metadata={}){
+  const tab=getActiveWorkspace();
+  if(!tab||!activeMode)throw new Error('请先创建工作区并选择测试方式');
+  const run=workspaceStore.recordRun(tab.id,activeMode,[],{
+    ...metadata,status:'running',parameters:metadata.parameters||currentParameterSnapshot()
+  });
+  renderStoredMeasurementState(tab.id,activeMode);
+  return {tabId:tab.id,mode:activeMode,runId:run.id};
+}
+function updateMeasurementRun(context,rawRows,metadata={}){
+  if(!context?.tabId||!context?.mode||!context?.runId)throw new TypeError('Invalid measurement run context');
+  const run=workspaceStore.updateRun(context.tabId,context.mode,context.runId,rawRows,metadata);
+  if(!run)throw new Error('Measurement run not found');
+  renderStoredMeasurementState(context.tabId,context.mode);
+  return run.id;
+}
+function appendMeasurementRun(context,rawRows){
+  if(!context?.tabId||!context?.mode||!context?.runId)throw new TypeError('Invalid measurement run context');
+  const run=workspaceStore.appendRunRows(context.tabId,context.mode,context.runId,rawRows);
+  if(!run)throw new Error('Measurement run not found');
+  renderStoredMeasurementState(context.tabId,context.mode);
+  return run.id;
+}
+function finishMeasurementRun(context,metadata={}){
+  if(!context?.tabId||!context?.mode||!context?.runId)throw new TypeError('Invalid measurement run context');
+  const run=workspaceStore.getHistory(context.tabId,context.mode).find(item=>item.id===context.runId);
+  if(!run)throw new Error('Measurement run not found');
+  return updateMeasurementRun(context,run.rawRows,{...metadata,status:metadata.status||'completed'});
+}
+window.DKTSMeasurementPlot=Object.freeze({
+  setMeasurements(rawRows,metadata={}){
+    if(metadata.runContext)return updateMeasurementRun(metadata.runContext,rawRows,metadata);
+    const tab=getActiveWorkspace();
+    if(metadata.runId&&tab&&activeMode)
+      return updateMeasurementRun({tabId:tab.id,mode:activeMode,runId:metadata.runId},rawRows,metadata);
+    return recordMeasurementRun(rawRows,metadata);
+  },
+  beginRun:beginMeasurementRun,
+  updateRun:updateMeasurementRun,
+  appendMeasurements:appendMeasurementRun,
+  finishRun:finishMeasurementRun,
+  selectRun(runId){
+    const tab=getActiveWorkspace();
+    if(!tab||!activeMode)return null;
+    return selectMeasurementHistory(tab.id,activeMode,runId);
+  },
+  get renderer(){return measurementPlot.renderer;}
+});
 
 function renderTestSelection(){
-  const mode=expandedKind?TEST_MODES[expandedKind]:null;
+  const tab=getActiveWorkspace();
+  activeMode=tab?.activeMode||null;
+  const mode=activeMode?TEST_MODES[activeMode]:null;
   const isEditable=Boolean(mode?.ready);
   const isWaveform=Boolean(mode?.planner);
-  const active=Boolean(mode);
+  const active=Boolean(tab&&mode);
   $('test-library').hidden=active;
   detail.hidden=!active;
   detail.inert=!active;
   detail.setAttribute('aria-hidden',String(!active));
   document.querySelector('.workspace').classList.toggle('workspace-active',active);
+  $('workspace-context-label').hidden=!tab;
+  $('workspace-context-label').textContent=tab
+    ?'当前工作区：'+tab.name+' · 可在此工作区切换不同测试方式':'';
   renderWorkspaceTabs();
-  if(!mode)return;
-  $('test-detail-title').textContent=mode.title+' · 测试工作区';
-  measurementPlot.selectTest(expandedKind);
+  if(!active)return;
+  $('test-detail-title').textContent=mode.title;
+  $('test-detail-subtitle').textContent='工作区：'+tab.name;
   $('data-column-x').textContent=mode.xColumn;
   $('measurement-empty').textContent='尚无'+mode.title+'的仪器实测数据';
+  const rows=workspaceStore.getData(tab.id,activeMode);
+  measurementPlot.selectTest(activeMode,rows);
+  renderMeasurementData(rows,activeMode);
+  renderMeasurementHistory(tab,activeMode);
   $('plan-form').hidden=!isEditable;
   $('plan-status').hidden=!isEditable;
   $('validate-plan').hidden=!isEditable;
@@ -537,8 +934,8 @@ function renderTestSelection(){
   $('validate-waveform').hidden=!isWaveform;
   $('pending-parameters').hidden=isEditable||isWaveform;
   if(isEditable){
-    $('test-kind').value=expandedKind;
-    const it=expandedKind==='it';
+    $('test-kind').value=activeMode;
+    const it=activeMode==='it';
     document.querySelectorAll('.iv-only').forEach(node=>node.hidden=it);
     document.querySelectorAll('.it-only').forEach(node=>node.hidden=!it);
     $('parameters-title').textContent='SMU 测试参数';
@@ -551,43 +948,48 @@ function renderTestSelection(){
     $('pending-title').textContent=mode.title+' · 开发中';
     $('pending-description').textContent='此测试方式的参数配置与仪器采集尚未实现。界面仅保留工作区，不会执行任何输出。';
   }
-  // The measured plot stays empty until the actual instrument acquisition layer is implemented.
 }
 function selectTestKind(kind){
   if(!Object.hasOwn(TEST_MODES,kind))return;
-  if(expandedKind!==kind)rememberTabDraft();
-  if(!openedTabs.includes(kind))openedTabs.push(kind);
-  expandedKind=kind;
+  let tab=getActiveWorkspace();
+  if(!tab)tab=workspaceStore.createTab();
+  rememberTabDraft();
+  workspaceStore.setMode(tab.id,kind);
+  activeMode=kind;
   restoreTabDraft(kind);
   renderTestSelection();
   window.scrollTo({top:0,behavior:'instant'});
   $('test-detail-title').focus({preventScroll:true});
-  showStatusMessage('已打开 '+TEST_MODES[kind].title+' · 尚未开放实机测量');
+  showStatusMessage('已切换到'+TEST_MODES[kind].title+' · '+tab.name);
 }
 function returnToTestLibrary(){
   rememberTabDraft();
-  expandedKind=null;
+  const tab=getActiveWorkspace();
+  if(tab)workspaceStore.setMode(tab.id,null);
+  activeMode=null;
   renderTestSelection();
   window.scrollTo({top:0,behavior:'instant'});
   $('test-types-title').setAttribute('tabindex','-1');
   $('test-types-title').focus({preventScroll:true});
-  showStatusMessage('已返回测试方式选择');
+  showStatusMessage(tab?'已返回'+tab.name+'的测试方式选择':'已返回测试方式选择');
 }
+renderTestSelection();
+
 async function validatePlan(){
-  if(!expandedKind||!TEST_MODES[expandedKind]?.ready)return;
+  if(!activeMode||!TEST_MODES[activeMode]?.ready)return;
   const status=$('plan-status');
-  const expectedKind=expandedKind;
+  const expectedKind=activeMode,expectedTabId=getActiveWorkspace()?.id;
   try{
     const payload=Object.fromEntries(new FormData(planForm).entries());
     const r=await post('/api/plan/validate',payload);
-    if(expectedKind!==expandedKind)return;
+    if(expectedKind!==activeMode||expectedTabId!==getActiveWorkspace()?.id)return;
     if(!r.ok)throw Error(r.error||'参数校验失败');
     const p=r.plan;
     status.textContent=(p.kind==='iv'?'I–V 扫描':'I–t 恒压读出')+' · '+p.totalPoints+
       ' 个规划点 · '+p.loops+' 循环 · SMU '+p.sourceSmU+' · 不执行硬件输出';
     showStatusMessage('方案校验通过 · '+p.totalPoints+' 个规划点 · 不执行硬件输出','success');
   }catch(e){
-    if(expectedKind===expandedKind){
+    if(expectedKind===activeMode&&expectedTabId===getActiveWorkspace()?.id){
       status.textContent='方案校验失败：'+String(e.message||e).slice(0,120);
       showStatusMessage('方案校验失败：'+String(e.message||e).slice(0,90),'error');
     }
@@ -622,12 +1024,13 @@ $('restore-parameters').addEventListener('click',()=>setParametersCollapsed(
   !$('detail-columns').classList.contains('parameters-collapsed')
 ));
 document.addEventListener('keydown',event=>{
-  if(event.key==='Escape'&&expandedKind&&!dialog.open){
+  if(event.key==='Escape'&&activeMode&&!dialog.open){
     event.preventDefault();
     returnToTestLibrary();
   }
 });
 planForm.addEventListener('input',()=>{
+  rememberTabDraft();
   $('plan-status').textContent='方案参数已更改，请重新校验。';
   showStatusMessage('参数已修改 · 尚未重新校验','info',false);
 });
@@ -636,6 +1039,7 @@ form.addEventListener('input',()=>{
   showStatusMessage('连接设置已修改 · 重新连接后生效','info',false);
 });
 $('validate-waveform').addEventListener('click',validateWave);
+$('waveform-text').addEventListener('input',rememberTabDraft);
 
 /* Compact cross-platform select menu. Keep the underlying native <select>
  * in the form so connect/plan payloads and DKDS interoperability are unchanged.

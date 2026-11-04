@@ -7,35 +7,57 @@ const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
 const app=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
 const styles=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
-test('test library is a distinct first-level screen, hidden when workbench is active',()=>{
+
+test('test library remains a distinct first-level screen with workspace navigation',()=>{
   assert.match(html,/<section id="test-library" class="card types-card"/);
   assert.doesNotMatch(html,/DK TEST STUDIO · 4200A/);
   assert.doesNotMatch(html,/点击卡片进入测试工作区/);
-  assert.match(html,/id="workspace-tabs" class="workspace-tabs" role="tablist"/);
-  assert.match(html,/id="tab-home" class="workspace-tab-add" aria-label="添加测试"/);
-  assert.doesNotMatch(html,/>测试选择<\/button>/);
-  assert.doesNotMatch(html,/id="tab-home"[^>]+role="tab"/);
-  assert.match(app,/close\.innerHTML='<svg viewBox="0 0 20 20"/);
-  assert.match(styles,/\.workspace-tab-close svg\{display:block;width:14px;height:14px/);
-  assert.match(styles,/\.workspace-tab-close\{\s*display:inline-grid;place-items:center/);
+  assert.match(html,/id="workspace-tabs" class="workspace-tabs" role="tablist" aria-label="已打开的工作区"/);
+  assert.match(html,/id="tab-home" class="workspace-tab-add" aria-label="新建工作区"/);
   assert.match(html,/class="titlebar-version-divider"/);
+  assert.match(html,/id="workspace-context-label"/);
   assert.match(app,/function renderWorkspaceTabs\(\)/);
-  assert.match(app,/function closeWorkspaceTab\(kind\)/);
-  assert.match(app,/const tabDrafts=new Map\(\)/);
+  assert.match(app,/function createWorkspaceTab\(\)/);
   assert.match(html,/<section id="test-detail" class="card test-detail" aria-hidden="true" hidden inert/);
-  assert.match(html,/id="close-test-detail" class="detail-back detail-icon-action" aria-label="返回测试选择"/);
-  assert.doesNotMatch(html,/<section class="intro">/);
+  assert.match(html,/id="close-test-detail" class="detail-back detail-icon-action" aria-label="切换测试方式"/);
   assert.match(app,/\$\('test-library'\)\.hidden=active/);
   assert.match(app,/detail\.hidden=!active/);
   assert.match(app,/classList\.toggle\('workspace-active',active\)/);
   assert.match(app,/function returnToTestLibrary\(\)/);
-  assert.match(styles,/#test-library\[hidden\],#test-detail\[hidden\]\{display:none!important\}/);
 });
-test('each card navigates to a dedicated workspace instead of expanding below the library',()=>{
+
+test('workspace identity is independent of test mode and duplicate modes are allowed',()=>{
+  assert.match(app,/function createWorkspaceStore\(options = \{\}\)/);
+  assert.match(app,/const workspaceStore=createWorkspaceStore\(\)/);
+  assert.match(app,/workspaceStore\.createTab\(\)/);
+  assert.match(app,/workspaceStore\.setMode\(tab\.id,kind\)/);
+  assert.match(app,/function activateWorkspaceTab\(tabId\)/);
+  assert.match(app,/function selectTestKind\(kind\)/);
+  assert.doesNotMatch(app,/openedTabs|tabDrafts|expandedKind/);
+  assert.match(app,/function beginTabRename/);
+  assert.match(app,/addEventListener\('dblclick'/);
+  assert.match(app,/addEventListener\('pointerdown'/);
+  assert.match(html,/id="test-detail-subtitle"/);
+});
+
+test('each workspace owns per-mode history and raw measurement data',()=>{
+  assert.match(html,/id="test-history-list" class="test-history-list"/);
+  assert.match(html,/id="test-history-count"/);
+  assert.match(app,/historyByMode/);
+  assert.match(app,/dataByMode/);
+  assert.match(app,/workspaceStore\.recordRun/);
+  assert.match(app,/workspaceStore\.getHistory/);
+  assert.match(app,/workspaceStore\.getData/);
+  assert.match(app,/workspaceStore\.selectRun/);
+  assert.match(app,/window\.DKTSMeasurementPlot=Object\.freeze/);
+  assert.match(app,/beginRun:beginMeasurementRun/);
+  assert.match(app,/appendMeasurements:appendMeasurementRun/);
+});
+
+test('test cards still provide all eight measurement modes',()=>{
   assert.equal((html.match(/class="test-type-card"/g)||[]).length,8);
   assert.equal((html.match(/data-test-kind="/g)||[]).length,8);
-  assert.match(app,/expandedKind=kind;\s*restoreTabDraft\(kind\);\s*renderTestSelection\(\)/);
-  assert.doesNotMatch(app,/expandedKind=expandedKind===kind\?null:kind/);
+  assert.match(app,/measurementPlot\.selectTest\(activeMode,rows\)/);
   assert.doesNotMatch(html,/<select[^>]*name="kind"/);
   assert.match(html,/id="plan-form"/);
   assert.match(html,/id="waveform-editor" hidden/);
@@ -44,7 +66,8 @@ test('each card navigates to a dedicated workspace instead of expanding below th
   assert.match(styles,/@media\(max-width:850px\)\{/);
   assert.match(styles,/grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
 });
-test('workbench reserves real data surfaces without fabricated measurements',()=>{
+
+test('workbench keeps real-data-only plot and raw-data surfaces',()=>{
   for(const name of ['measurement-plot','measurement-rows','readout-current','readout-voltage'])
     assert(html.includes('id="'+name+'"'));
   assert.match(html,/class="measure-button" disabled/);
@@ -53,7 +76,24 @@ test('workbench reserves real data surfaces without fabricated measurements',()=
   assert.doesNotMatch(app,/post\('\/api\/output'/);
 });
 
-test('workbench reserves narrow top title and bottom status strips and can hide parameters',()=>{
+test('Android scroll gestures follow DKDS vertical handoff and horizontal strip ownership',()=>{
+  assert.match(styles,/body\.dkts-android-shell :where\([\s\S]*?touch-action:pan-y/);
+  assert.match(styles,/body\.dkts-android-shell \.workspace-tabs\{[\s\S]*?touch-action:pan-x/);
+  assert.match(styles,/body\.dkts-android-shell \.test-history-list\{[\s\S]*?touch-action:pan-x/);
+  assert.match(styles,/overscroll-behavior-y:auto/);
+  assert.match(styles,/\.workspace-tab-rename\{[\s\S]*?user-select:text/);
+});
+
+test('add-workspace button remains after the scrollable tabs and follows them',()=>{
+  const index=html.indexOf('id="workspace-tabs"');
+  const plus=html.indexOf('id="tab-home"');
+  const drag=html.indexOf('class="titlebar-drag-region"');
+  assert(index>=0&&plus>index&&drag>plus);
+  assert.match(styles,/\.workspace-tabs\{\s*flex:0 1 auto;\s*width:max-content/);
+  assert.match(styles,/\.workspace-tab-add\{\s*order:0;\s*flex:0 0 30px/);
+});
+
+test('workbench reserves narrow title/status strips and parameter collapse',()=>{
   assert.doesNotMatch(html,/<header class="topbar">/);
   assert.doesNotMatch(html,/class="workspace-actions"/);
   assert.match(html,/id="app-titlebar" class="app-titlebar"/);
@@ -63,18 +103,8 @@ test('workbench reserves narrow top title and bottom status strips and can hide 
   assert.match(app,/classList\.toggle\('parameters-collapsed',collapsed\)/);
   assert.match(app,/\$\('parameters-panel'\)\.hidden=collapsed/);
   assert.match(html,/id="restore-parameters" class="panel-expand-control"/);
-  assert.match(html,/id="restore-parameters" class="panel-expand-control"/);
   assert.match(app,/restore\.textContent=collapsed\?'收起':'展开'/);
   assert.match(styles,/\.detail-columns\.parameters-collapsed\{grid-template-columns:minmax\(0,1fr\)\}/);
   assert.match(styles,/\.workspace,.workspace\.workspace-active\{position:relative;width:100%;max-width:none/);
   assert.match(styles,/\.data-panel\{display:flex;flex-direction:column/);
-});
-
-test('add-test button follows the scrollable test tabs instead of preceding them',()=>{
-  const index=html.indexOf('id="workspace-tabs"');
-  const plus=html.indexOf('id="tab-home"');
-  const drag=html.indexOf('class="titlebar-drag-region"');
-  assert(index>=0&&plus>index&&drag>plus);
-  assert.match(styles,/\.workspace-tabs\{\s*flex:0 1 auto;\s*width:max-content/);
-  assert.match(styles,/\.workspace-tab-add\{\s*order:0;\s*flex:0 0 30px/);
 });

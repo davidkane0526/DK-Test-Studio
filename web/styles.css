@@ -1278,3 +1278,66 @@ body.dkts-android-shell .workspace-tab-item .workspace-tab-close{
 .workspace-tab-item:has(.workspace-tab.is-active):hover{
   background:color-mix(in srgb,var(--dkts-hover-bg) 72%,transparent)
 }
+
+
+/* Independent workspace identity and inline rename editor. */
+.workspace-context-label{margin:4px 0 0;font-size:11px;line-height:1.35;color:var(--dkts-chrome-muted,#8492a6)}
+.workspace-tab{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:pan-x}
+.workspace-tab-rename{
+  flex:1 1 110px;width:124px;min-width:76px;max-width:157px;height:28px;
+  margin:0;padding:3px 7px;border:1px solid var(--dkts-chrome-border,#cfd9e8);
+  border-radius:6px;background:var(--dkts-field-bg,#fff);color:var(--dkts-chrome-text,#344361);
+  font:inherit;font-size:11px;line-height:1.2;outline:0
+}
+.workspace-tab-rename:focus{border-color:#7d9dcc;box-shadow:0 0 0 2px rgba(91,132,190,.12)}
+body.dkts-android-shell .workspace-tab-rename{height:32px;min-height:32px}
+
+/* Each workspace displays only the selected test mode's own run history. */
+.test-history{min-width:0;margin:9px 0 5px}
+.test-history .data-list-heading{margin:0 1px 5px}
+.test-history-list{
+  display:flex;align-items:center;gap:5px;min-width:0;max-width:100%;
+  overflow-x:auto;overflow-y:hidden;padding:1px 1px 4px;
+  scrollbar-width:none;overscroll-behavior-x:contain;overscroll-behavior-y:none
+}
+.test-history-list::-webkit-scrollbar{display:none;width:0;height:0}
+.history-run{
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  min-height:27px;padding:5px 8px;border:1px solid var(--dkts-chrome-border,#dce4ef);
+  border-radius:7px;background:var(--dkts-chrome-bg,#fff);
+  color:var(--dkts-chrome-text,#516681);font-size:10px;font-weight:550;white-space:nowrap
+}
+.history-run:hover,.history-run.is-active{
+  border-color:color-mix(in srgb,#477ac4 36%,var(--dkts-chrome-border));
+  background:color-mix(in srgb,#477ac4 8%,var(--dkts-chrome-bg));color:#315d91
+}
+.history-empty{display:block;padding:4px 2px;color:var(--dkts-chrome-muted,#8996aa);font-size:10px}
+@media(prefers-color-scheme:dark){
+  .history-run:hover,.history-run.is-active{color:#c8dcfa}
+}
+
+/* DKDS Mobile gesture contract: vertical scrolling is handed to the workspace
+   from content and blank panel areas; horizontal strips remain independently scrollable.
+   Only explicit chart controls/grips retain touch-action:none. */
+body.dkts-android-shell :where(.workspace,.test-library,.types-card,.test-detail,
+  .test-detail-inner,.detail-columns,.detail-panel,.parameters-panel,.data-panel,
+  .data-table-scroll){
+  touch-action:pan-y;
+  overscroll-behavior-x:contain;
+  overscroll-behavior-y:auto
+}
+body.dkts-android-shell .workspace-tabs{
+  touch-action:pan-x;
+  overscroll-behavior-x:contain;
+  overscroll-behavior-y:none;
+  -webkit-overflow-scrolling:touch
+}
+body.dkts-android-shell .test-history-list{
+  touch-action:pan-x;
+  overscroll-behavior-x:contain;
+  overscroll-behavior-y:none;
+  -webkit-overflow-scrolling:touch
+}
+body.dkts-android-shell .workspace-tab-close,
+body.dkts-android-shell .history-run{touch-action:manipulation}
+body.dkts-android-shell .workspace-tab-rename{touch-action:manipulation;user-select:text;-webkit-user-select:text}
