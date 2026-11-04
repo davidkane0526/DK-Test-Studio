@@ -170,6 +170,7 @@ final class NativeAppUpdateManager {
     }
     void downloadAndInstall(){
         if(closed||"downloading".equals(state)||"checking".equals(state))return;
+        state="downloading";progress=0;error="";
         worker.execute(()->{
             try{
                 Candidate selected=candidate;
