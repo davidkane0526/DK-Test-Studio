@@ -102,7 +102,7 @@ function createPortableUpdater({app,userData,scriptPath,currentVersion,portableP
       if(!next){candidate=null;state='current';}
       else {
         candidate=next;
-        state=file&&file.version===next.version?'ready':'available';
+        state=file&&file.version===next.version&&file.digest===next.digest?'ready':'available';
       }
     }catch(e){state='error';error=String(e.message||e).slice(0,140);}
     finally{working=false;}
@@ -120,7 +120,7 @@ function createPortableUpdater({app,userData,scriptPath,currentVersion,portableP
       await fs.promises.mkdir(folder,{recursive:true});
       staged=path.join(folder,'DKTS-portable-'+candidate.version+'.exe');
       const downloadNeeded=file?.version!==candidate.version||
-        !fs.existsSync(staged);
+        file?.digest!==candidate.digest||!fs.existsSync(staged);
       if(downloadNeeded){
         state='downloading';progress=0;error='';
         const temp=staged+'.partial';
@@ -142,7 +142,15 @@ function createPortableUpdater({app,userData,scriptPath,currentVersion,portableP
           await fs.promises.rename(temp,staged);
         }catch(e){await fs.promises.rm(temp,{force:true});throw e;}
       }
-      file={version:candidate.version};
+      // A cached executable must still match the current release digest before execution.
+      const verified=await fs.promises.readFile(staged);
+      if(verified.length!==candidate.size||
+        crypto.createHash('sha256').update(verified).digest('hex')!==candidate.digest){
+        await fs.promises.rm(staged,{force:true});
+        file=null;
+        throw Error('Windows 更新缓存的 SHA-256 校验失败');
+      }
+      file={version:candidate.version,digest:candidate.digest};
       progress=100;state='ready';
       if(!fs.existsSync(scriptPath))throw Error('便携更新脚本缺失');
       // Electron packages scripts in app.asar; PowerShell cannot address asar
