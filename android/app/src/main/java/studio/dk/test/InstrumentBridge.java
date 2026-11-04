@@ -40,16 +40,18 @@ public final class InstrumentBridge {
     private final Context context;
     private final WebView webView;
     private final UiUpdateManager uiUpdates;
+    private final NativeAppUpdateManager appUpdates;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private Socket socket;
     private String sessionId;
     private volatile boolean stopped = false;
 
-    InstrumentBridge(Context context, WebView view, UiUpdateManager uiUpdates) {
+    InstrumentBridge(Context context, WebView view, UiUpdateManager uiUpdates, NativeAppUpdateManager appUpdates) {
         this.context = context.getApplicationContext();
         this.webView = view;
         this.uiUpdates = uiUpdates;
+        this.appUpdates = appUpdates;
     }
 
     @JavascriptInterface
@@ -95,6 +97,15 @@ public final class InstrumentBridge {
                 return new JSONObject().put("queued", true);
             }
             case "ui-status": return uiUpdates.status();
+            case "app-update-check": {
+                appUpdates.checkNow();
+                return new JSONObject().put("queued", true);
+            }
+            case "app-update-status": return appUpdates.status();
+            case "app-update-install": {
+                appUpdates.downloadAndInstall();
+                return new JSONObject().put("queued", true);
+            }
             case "open": return open(args);
             case "exchange": return exchange(args);
             case "close": {

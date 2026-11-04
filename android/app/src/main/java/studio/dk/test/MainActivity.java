@@ -24,6 +24,7 @@ public final class MainActivity extends Activity {
     private WebView webView;
     private InstrumentBridge bridge;
     private UiUpdateManager uiUpdates;
+    private NativeAppUpdateManager appUpdates;
     private static final String APP_ORIGIN = "https://appassets.androidplatform.net/";
 
     @Override
@@ -31,6 +32,7 @@ public final class MainActivity extends Activity {
     public void onCreate(Bundle state) {
         super.onCreate(state);
         // Assets are served from the verified UI cache, with bundled APK assets as fallback.
+        appUpdates = new NativeAppUpdateManager(this);
         uiUpdates = new UiUpdateManager(this, () -> {
             if (webView != null) webView.reload();
         });
@@ -68,7 +70,7 @@ public final class MainActivity extends Activity {
                 return !req.getUrl().toString().startsWith(APP_ORIGIN);
             }
         });
-        bridge = new InstrumentBridge(this, webView, uiUpdates);
+        bridge = new InstrumentBridge(this, webView, uiUpdates, appUpdates);
         webView.addJavascriptInterface(bridge, "DKTSNative");
         setContentView(webView);
         // The decor/insets controller can be unavailable before attachment.
@@ -110,11 +112,13 @@ public final class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         scheduleImmersive();
+        if(appUpdates!=null)appUpdates.onResume();
     }
 
     @Override protected void onDestroy() {
         if (webView != null) webView.removeCallbacks(immersiveTask);
         if (uiUpdates != null) uiUpdates.stop();
+        if (appUpdates != null) appUpdates.stop();
         if (bridge != null) bridge.shutdown();
         if (webView != null) {
             webView.removeJavascriptInterface("DKTSNative");
