@@ -87,3 +87,31 @@ test('both update platforms display the exact hot-updated commit in the UI metad
   assert.match(frontend,/function displayUiVersion\(\)/);
   assert.match(frontend,/raw\.slice\(0,8\)/);
 });
+
+test('Windows hot-update detects tampered cached UI and restores the last valid backup',async()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-recovery-'));
+  const first=prepare(),second=prepare();
+  const secondVersion='abcdef123456789abcdef123456789abcdef1234';
+  second.version=secondVersion;
+  const release=(version)=>({tag_name:'dkts-ui-'+version,target_commitish:version,
+    published_at:version===VERSION?'2026-11-03T10:00:00Z':'2026-11-04T10:00:00Z',
+    assets:[{name:'DKTS-UI-bundle.json',browser_download_url:
+      'https://github.com/davidkane0526/DK-Test-Studio/releases/download/dkts-ui-'+version+'/DKTS-UI-bundle.json'}]});
+  let latest=VERSION;
+  const fetchImpl=async(url)=>({ok:true,json:async()=>{
+    if(url.includes('/releases?'))return [release(latest)];
+    return latest===VERSION?first:second;
+  }});
+  const updater=createUiUpdater({cacheDir:root,fetchImpl});
+  try{
+    assert.equal((await updater.updateOnce()).updated,true);
+    latest=secondVersion;
+    assert.equal((await updater.updateOnce()).updated,true);
+    const active=path.join(root,'ui-active','app.js');
+    fs.appendFileSync(active,'\n// unexpected cache modification');
+    const restarted=createUiUpdater({cacheDir:root,fetchImpl});
+    assert.equal(restarted.state().version,VERSION);
+    assert.deepEqual(restarted.getAsset('app.js'),Buffer.from(first.platforms.windows['app.js'].base64,'base64'));
+    restarted.stop();
+  }finally{updater.stop();fs.rmSync(root,{recursive:true,force:true});}
+});
