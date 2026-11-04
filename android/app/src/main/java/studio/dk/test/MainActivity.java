@@ -9,6 +9,8 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.view.View;
+import android.webkit.ConsoleMessage;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
@@ -43,7 +45,22 @@ public final class MainActivity extends Activity {
         webView.getSettings().setAllowContentAccess(false);
         webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(false);
         webView.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onConsoleMessage(ConsoleMessage message) {
+                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    Log.e("DKTS-WebJS", message.message() + " at " +
+                        message.sourceId() + ":" + message.lineNumber());
+                }
+                return true;
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                if (!url.startsWith(APP_ORIGIN)) return;
+                view.postDelayed(() -> view.evaluateJavascript(
+                    "(function(){return JSON.stringify({d3:!!window.d3,renderer:!!window.DKDSD3Renderer,charts:!!window.DKDSCharts,grip:!!document.querySelector('.dkds-scientific-nav-drag')})})()",
+                    value -> Log.i("DKTS-PlotReady", value)), 2600L);
+            }
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
                 return loader.shouldInterceptRequest(req.getUrl());
             }

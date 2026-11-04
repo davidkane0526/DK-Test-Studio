@@ -126,7 +126,7 @@ test('native Android shell version comes from its actual installed package',()=>
  assert.match(src,/case "version": return new JSONObject\(\)/);
  assert.match(src,/getPackageInfo\(context\.getPackageName\(\),0\)\.versionName/);
  assert.match(bridge,/nativeVersion:async\(\)=>String/);
- assert.match(gradle,/versionName '0\.2\.6'/);
+ assert.match(gradle,/versionName '0\.2\.7'/);
 });
 
 test('Android 16 immersive mode is coalesced and cannot repeatedly re-enter from focus changes',()=>{
@@ -179,4 +179,23 @@ test('manual UI update op routes through Android updater without arbitrary TCP a
   assert.match(manager,/updateStatus = "updated"/);
   assert.match(client,/checkUiUpdate:async\(\)=>native\('ui-check'\)/);
   assert.match(client,/uiUpdateStatus:async\(\)=>native\('ui-status'\)/);
+});
+
+test('Android WebView surfaces chart script exceptions in startup smoke testing',()=>{
+  const main=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
+  const workflow=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
+  assert.match(main,/setWebChromeClient\(new WebChromeClient\(\)/);
+  assert.match(main,/Log\.e\("DKTS-WebJS"/);
+  assert.match(workflow,/android-startup-webjs\.log/);
+  assert.match(workflow,/DKDS chart runtime has a JavaScript initialization error/);
+});
+
+test('emulator verifies the actual DKDS engine and toolbar grip at runtime',()=>{
+  const activity=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
+  const workflow=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
+  assert.match(activity,/DKTS-PlotReady/);
+  assert.match(activity,/window\.DKDSD3Renderer/);
+  assert.match(activity,/dkds-scientific-nav-drag/);
+  assert.match(workflow,/android-plot-ready\.log/);
+  assert.match(workflow,/scientific plotting engine or drag grip did not initialize/);
 });

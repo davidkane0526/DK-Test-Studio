@@ -19,6 +19,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Generate dedicated Windows executable and window icons
         run: npm run icons:build
+      - name: Prepare embedded DKDS scientific renderer
+        run: npm run prepare:plot-vendor
       - name: Run tests
         run: npm test
       - name: Stage the exact shared-core DKDS plugin
@@ -81,6 +83,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install pinned scientific renderer
+        run: npm install --no-audit --no-fund
       - name: Test shared Android/Windows/DKDS core
         run: npm test
       - name: Stamp offline Android UI version
@@ -163,6 +167,11 @@ jobs:
             adb shell am start -W -n studio.dk.test/.MainActivity
             sleep 3
             test -n "$(adb shell pidof studio.dk.test | tr -d '\r')"
+            adb logcat -d -s DKTS-PlotReady:I > android-plot-ready.log
+            grep -q 'd3.*true.*renderer.*true.*charts.*true.*grip.*true' android-plot-ready.log
+            adb logcat -d -s DKTS-WebJS:E > android-startup-webjs.log
+            cat android-startup-webjs.log
+            ! grep -Eq 'Uncaught|ReferenceError|TypeError|SyntaxError|Scientific renderer|D3 scientific renderer|DKDS.*must initialize' android-startup-webjs.log
             adb logcat -d -b crash > android-startup-crash.log
             if grep -q "Process: studio.dk.test" android-startup-crash.log; then cat android-startup-crash.log; exit 1; fi
             adb exec-out screencap -p > android-startup.png
@@ -175,6 +184,8 @@ jobs:
           path: |
             android-startup.png
             android-startup-crash.log
+            android-startup-webjs.log
+            android-plot-ready.log
           if-no-files-found: warn
       - name: Prepare Android release asset
         run: |
@@ -197,6 +208,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install pinned scientific renderer
+        run: npm install --no-audit --no-fund
       - name: Check complete frontend resources
         run: npm test
       - name: Build Windows and Android hot-update resource bundle

@@ -23,7 +23,14 @@ function makeAndroidHtml(){
 function syncAssets(){
   fs.mkdirSync(path.join(destination,'android'),{recursive:true});
   fs.mkdirSync(path.join(destination,'shared'),{recursive:true});
+  require('./prepare-dkds-plot-vendor.cjs');
   fs.writeFileSync(path.join(destination,'index.html'),makeAndroidHtml());
+  for(const item of ["d3.min.js","dkds/theme-bridge.js","dkds/style-gate.js","dkds/native-touch-drag.js","dkds/chart-export.js","dkds/display.js","dkds/heatmap-canvas.js","dkds/heatmap-selection.js","dkds/presentation.js","dkds/d3-renderer.js","dkds/chart-runtime.js"]){
+    const source=path.join(root,'web','vendor',item);
+    const output=path.join(destination,'vendor',item);
+    fs.mkdirSync(path.dirname(output),{recursive:true});
+    fs.copyFileSync(source,output);
+  }
   for(const file of ['app.js','styles.css'])
     fs.copyFileSync(path.join(root,'web',file),path.join(destination,file));
   for(const file of ['kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'])

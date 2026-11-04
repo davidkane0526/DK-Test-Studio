@@ -1,17 +1,18 @@
 {
   "name": "dk-test-studio",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "private": true,
   "description": "Standalone Keithley 4200A research test control workspace",
   "main": "desktop/main.cjs",
   "scripts": {
     "test": "node --test tests/*.test.cjs",
     "identify": "node cli/identify.cjs",
-    "serve": "node src/server.cjs",
-    "start": "electron .",
-    "dist:win": "node tools/generate-app-icons.cjs && electron-builder --win nsis portable",
+    "serve": "node tools/prepare-dkds-plot-vendor.cjs && node src/server.cjs",
+    "start": "node tools/prepare-dkds-plot-vendor.cjs && electron .",
+    "dist:win": "node tools/prepare-dkds-plot-vendor.cjs && node tools/generate-app-icons.cjs && electron-builder --win nsis portable",
     "plugin:build": "node tools/build-dkds-plugin.cjs",
-    "icons:build": "node tools/generate-app-icons.cjs"
+    "icons:build": "node tools/generate-app-icons.cjs",
+    "prepare:plot-vendor": "node tools/prepare-dkds-plot-vendor.cjs"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -64,5 +65,8 @@
     "extraMetadata": {
       "description": "DK Test Studio · Keithley 4200A scientific measurement"
     }
+  },
+  "dependencies": {
+    "d3": "7.9.0"
   }
 }

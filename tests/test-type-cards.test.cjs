@@ -49,7 +49,7 @@ test('workbench reserves real data surfaces without fabricated measurements',()=
     assert(html.includes('id="'+name+'"'));
   assert.match(html,/class="measure-button" disabled/);
   assert.match(html,/等待仪器返回原始数据/);
-  assert.match(app,/The measured plot stays empty until the actual instrument acquisition layer/);
+  assert.match(app,/Only actual hardware rows are plotted/);
   assert.doesNotMatch(app,/post\('\/api\/output'/);
 });
 

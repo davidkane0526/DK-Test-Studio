@@ -11,7 +11,10 @@ const root=path.resolve(__dirname,'..');
 const assets=Object.freeze({
   '/':{file:'web/index.html',mime:'text/html; charset=utf-8'},
   '/app.js':{file:'web/app.js',mime:'application/javascript; charset=utf-8'},
-  '/styles.css':{file:'web/styles.css',mime:'text/css; charset=utf-8'}
+  '/styles.css':{file:'web/styles.css',mime:'text/css; charset=utf-8'},
+  ...Object.fromEntries(["d3.min.js","dkds/theme-bridge.js","dkds/style-gate.js","dkds/native-touch-drag.js","dkds/chart-export.js","dkds/display.js","dkds/heatmap-canvas.js","dkds/heatmap-selection.js","dkds/presentation.js","dkds/d3-renderer.js","dkds/chart-runtime.js"].map(name=>[
+    '/vendor/'+name,{file:'web/vendor/'+name,mime:'application/javascript; charset=utf-8'}
+  ]))
 });
 function json(res,code,payload){
   const out=JSON.stringify(payload);
@@ -63,7 +66,7 @@ async function createAppServer(options={}){
         return json(res,200,{version:require('../package.json').version});
       if(req.method==='GET'&&Object.hasOwn(assets,urlPath)){
         const item=assets[urlPath];
-        const bytes=updater?.getAsset(path.basename(item.file))||fs.readFileSync(path.join(root,item.file));
+        const bytes=(urlPath.startsWith('/vendor/')?null:updater?.getAsset(path.basename(item.file)))||fs.readFileSync(path.join(root,item.file));
         res.writeHead(200,{'Content-Type':item.mime,'Cache-Control':'no-store',
           'Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';",
           'X-Content-Type-Options':'nosniff'});
