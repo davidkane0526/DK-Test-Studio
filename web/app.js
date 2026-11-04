@@ -13,7 +13,7 @@ function displayUiVersion(){
   const raw=document.querySelector('meta[name="dkts-ui-version"]')?.content||'bundled';
   const isSha=/^[a-f0-9]{40}$/i.test(raw);
   $('ui-version-text').textContent=isSha?'UI '+raw.slice(0,8):'UI 内置';
-  uiBadge.title=isSha?'完整 UI 版本：'+raw:'当前使用内置界面资源';
+  uiBadge.setAttribute('aria-label',isSha?'完整 UI 版本：'+raw:'当前使用内置界面资源');
 }
 displayUiVersion();
 async function displayNativeVersion(){
