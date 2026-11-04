@@ -41,6 +41,6 @@
     return validateWaveform(points);
   }
   const api=Object.freeze({validateWaveform,parseWaveformText});
-    if(typeof window!=='undefined' && window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-waveform',api);
+    if(typeof window!=='undefined' && window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-waveform',api);
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();

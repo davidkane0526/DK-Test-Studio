@@ -132,6 +132,6 @@
   }
   const api=Object.freeze({createIdentityController,normalizeSettings,summarizeError});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
-    window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-identity-core',api);
+    window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-identity-core',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();

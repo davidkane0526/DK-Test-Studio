@@ -95,6 +95,6 @@
     return Object.freeze({status,begin,run});
   }
   const api=Object.freeze({normalizePlan,previewPlan,createExecutionCoordinator});
-    if(typeof window!=='undefined' && window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-plan',api);
+    if(typeof window!=='undefined' && window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-plan',api);
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
