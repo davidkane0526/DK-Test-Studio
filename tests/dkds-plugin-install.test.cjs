@@ -1,0 +1,60 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const manifest=require('../integrations/dkds/plugin.json');
+const BUILTIN=Object.freeze({
+  id:'com.dkds.keithley-4200',
+  activity:'keithley-4200',
+  pageId:'keithley4200Page',
+  projectSlice:'keithley-4200',
+  capability:'instrument.keithley-4200'
+});
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+
+test('DK Test Studio installs as a distinct external DKDS plugin, not a builtin override',()=>{
+  assert.equal(manifest.id,'com.dkts.keithley-4200');
+  assert.notEqual(manifest.id,BUILTIN.id);
+  assert.equal(manifest.version,'0.5.0');
+  assert.equal(manifest.apiVersion,'1.19.0');
+  assert.equal(manifest.workspace.activity,'dkts-keithley-4200');
+  assert.equal(manifest.window.activity,'dkts-keithley-4200');
+  assert.notEqual(manifest.workspace.activity,BUILTIN.activity);
+  assert.notEqual(manifest.window.activity,BUILTIN.activity);
+  assert(manifest.capabilities.includes('instrument.dkts-keithley-4200'));
+  assert(!manifest.capabilities.includes(BUILTIN.capability));
+});
+
+test('all registered workspace/page/project/capability IDs are isolated from the builtin 4200A',()=>{
+  const js=read('integrations/dkds/plugin.js');
+  const presentation=read('integrations/dkds/presentation.js');
+  assert.match(js,/id:'dkts-keithley-4200'/);
+  assert.match(js,/pageId:'dktsKeithley4200Page'/);
+  assert.match(js,/registerSlice\('dkts-keithley-4200'/);
+  assert.match(js,/capabilities\.register\('instrument\.dkts-keithley-4200'/);
+  assert.doesNotMatch(js,/openPage\('keithley4200Page'\)/);
+  assert.match(presentation,/activity:'dkts-keithley-4200'/);
+  assert.match(presentation,/DKDSPluginModules\.define\('com\.dkts\.keithley-4200'/);
+});
+
+test('generated plugin modules use external identity while standalone modules remain unchanged',()=>{
+  const stage=require('../tools/build-dkds-plugin.cjs').folder;
+  for(const source of ['kxci-protocol.js','measurement-plan.js',
+    'waveform.js','identity-core.js']){
+    const original=read('src/shared/'+source),emitted=fs.readFileSync(path.join(stage,source),'utf8');
+    assert(original.includes("com.dkds.keithley-4200"),source+' standalone source changed');
+    assert(emitted.includes("com.dkts.keithley-4200"),source+' plugin source not adapted');
+    assert(!emitted.includes("com.dkds.keithley-4200"),source+' still registers builtin ID');
+  }
+  const packagedInterop=fs.readFileSync(path.join(stage,'interop.js'),'utf8');
+  assert.match(packagedInterop,/const PLUGIN_ID='com\.dkts\.keithley-4200'/);
+  assert.match(packagedInterop,/LEGACY_PLUGIN_ID='com\.dkds\.keithley-4200'/);
+  assert.match(read('src/shared/interop.js'),/const PLUGIN_ID='com\.dkds\.keithley-4200'/);
+  assert.match(read('integrations/dkds/presentation.js'),/DKDSPluginModules\.define\('com\.dkts\.keithley-4200'/);
+});
+
+test('official package builder refuses repackaging under the built-in ID',()=>{
+  const build=read('tools/build-dkds-plugin.cjs');
+  assert.match(build,/manifest\.id!=='com\.dkts\.keithley-4200'/);
+  assert.match(build,/manifest\.version!=='0\.5\.0'/);
+});

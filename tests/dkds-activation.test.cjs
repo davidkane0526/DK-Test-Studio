@@ -2,6 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
+const pluginStage=require('../tools/build-dkds-plugin.cjs').folder;
 test('DKDS API 1.19 adapter activates real plugin entry and shared capability',async()=>{
   const registry=new Map(),nodes=[],captured={};
   const unit=(kind)=>({
@@ -28,12 +29,12 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
   };
   const context={atob,btoa,DKDSPlugins:{define:(m,fn)=>{captured.manifest=m;captured.activate=fn;}},window:{
     DKDSPluginModules:{define:(owner,name,api)=>{
-      assert.equal(owner,'com.dkds.keithley-4200');registry.set(name,api);
+      assert.equal(owner,'com.dkts.keithley-4200');registry.set(name,api);
     }}
   }};
   vm.createContext(context);
   for(const file of ['kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js','interop.js']){
-    vm.runInContext(fs.readFileSync(path.join(root,'src/shared',file),'utf8'),context);
+    vm.runInContext(fs.readFileSync(path.join(pluginStage,file),'utf8'),context);
   }
   vm.runInContext(fs.readFileSync(path.join(root,'integrations/dkds/presentation.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(path.join(root,'integrations/dkds/plugin.js'),'utf8'),context);
@@ -60,14 +61,14 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
       pages:{add:row=>{captured.page=row;return row;}},
       topWorkspace:{register:row=>{top=row;}}
     },
-    project:{registerSlice:(id,row)=>{assert.equal(id,'keithley-4200');slice=row;},capture(){}},
-    capabilities:{register:(id,row)=>{assert.equal(id,'instrument.keithley-4200');capability=row;}}
+    project:{registerSlice:(id,row)=>{assert.equal(id,'dkts-keithley-4200');slice=row;},capture(){}},
+    capabilities:{register:(id,row)=>{assert.equal(id,'instrument.dkts-keithley-4200');capability=row;}}
   };
   const registered=await captured.activate(ctx);
-  assert.equal(captured.manifest.id,'com.dkds.keithley-4200');
+  assert.equal(captured.manifest.id,'com.dkts.keithley-4200');
   assert.equal(captured.manifest.apiVersion,'1.19.0');
   assert.equal(typeof activity.onActivate,'function');
-  assert.equal(top.activity,'keithley-4200');
+  assert.equal(top.activity,'dkts-keithley-4200');
   assert(composed?.primary?.mainNode);
   assert(nodes.some(row=>row.textContent==='未连接'));
   assert(nodes.some(row=>row.textContent==='重新连接'));

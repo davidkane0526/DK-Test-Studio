@@ -4,7 +4,7 @@
     const units=ctx.ui.unitTemplates,dom=ctx.ui.dom;
     const controls=new Map(),buttons=new Map(),fieldRows=new Map();
     const body=units.page.create(page,{variant:'tool',className:'dkts-plugin-page'}).element;
-    const pageHeader=units.pageHeader.create(body,{variant:'page-owned',activity:'keithley-4200',
+    const pageHeader=units.pageHeader.create(body,{variant:'page-owned',activity:'dkts-keithley-4200',
       title:'DK Test Studio',subtitle:'4200A 共用测试引擎 · 仪器只读连接'});
     // The page header is owned by DKDS Core; only our status control is placed in it.
     const statusHost=units.layout.create(pageHeader.element||body,{
@@ -18,7 +18,7 @@
     buttons.set('status',statusButton);
     const workspaceHost=units.layout.create(body,{variant:'identity',className:'dkts-workspace-host'});
     const workbench=units.workspace.create(workspaceHost,{
-      variant:'standard',header:false,activity:'keithley-4200',primaryScroll:'safe'});
+      variant:'standard',header:false,activity:'dkts-keithley-4200',primaryScroll:'safe'});
     const main=units.layout.create(null,{variant:'stack-comfortable',className:'dkts-workbench'});
     const cards=units.layout.create(main,{variant:'stack-comfortable',className:'dkts-cards'});
     const makeCard=className=>units.surface.create(cards,{tagName:'section',variant:'elevated',
@@ -311,5 +311,5 @@
       renderConnection,renderPlan,renderPlanError,
       dispose(){workbench?.dispose?.();}});
   }
-  window.DKDSPluginModules.define('com.dkds.keithley-4200','presentation',Object.freeze({mount}));
+  window.DKDSPluginModules.define('com.dkts.keithley-4200','presentation',Object.freeze({mount}));
 })();
