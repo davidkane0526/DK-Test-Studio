@@ -168,17 +168,10 @@ jobs:
             sleep 3
             test -n "$(adb shell pidof studio.dk.test | tr -d '\r')"
             adb logcat -d -s DKTS-PlotReady:I > android-plot-ready.log
-            if ! grep -q 'd3.*true.*renderer.*true.*charts.*true.*grip.*true' android-plot-ready.log; then
-              cat android-plot-ready.log
-              echo 'DKDS scientific plotting engine or drag grip did not initialize'
-              exit 1
-            fi
+            grep -q 'd3.*true.*renderer.*true.*charts.*true.*grip.*true' android-plot-ready.log
             adb logcat -d -s DKTS-WebJS:E > android-startup-webjs.log
-            if grep -Eq 'Uncaught|ReferenceError|TypeError|SyntaxError|Scientific renderer|D3 scientific renderer|DKDS.*must initialize' android-startup-webjs.log; then
-              cat android-startup-webjs.log
-              echo 'Bundled DKDS chart runtime has a JavaScript initialization error'
-              exit 1
-            fi
+            cat android-startup-webjs.log
+            ! grep -Eq 'Uncaught|ReferenceError|TypeError|SyntaxError|Scientific renderer|D3 scientific renderer|DKDS.*must initialize' android-startup-webjs.log
             adb logcat -d -b crash > android-startup-crash.log
             if grep -q "Process: studio.dk.test" android-startup-crash.log; then cat android-startup-crash.log; exit 1; fi
             adb exec-out screencap -p > android-startup.png

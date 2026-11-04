@@ -54,10 +54,8 @@ jobs:
             cat android-pr-dkds-ready.log
             grep -q 'd3.*true.*renderer.*true.*charts.*true.*grip.*true' android-pr-dkds-ready.log
             adb logcat -d -s DKTS-WebJS:E > android-pr-dkds-errors.log
-            if grep -Eq 'Uncaught|ReferenceError|TypeError|SyntaxError|Scientific renderer|D3 scientific renderer|DKDS.*must initialize' android-pr-dkds-errors.log; then
-              cat android-pr-dkds-errors.log
-              exit 1
-            fi
+            cat android-pr-dkds-errors.log
+            ! grep -Eq 'Uncaught|ReferenceError|TypeError|SyntaxError|Scientific renderer|D3 scientific renderer|DKDS.*must initialize' android-pr-dkds-errors.log
             adb exec-out screencap -p > android-pr-dkds-screen.png
       - uses: actions/upload-artifact@v4
         if: always()
