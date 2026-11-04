@@ -51,7 +51,7 @@ public final class MainActivity extends Activity {
                 return !req.getUrl().toString().startsWith(APP_ORIGIN);
             }
         });
-        bridge = new InstrumentBridge(this, webView);
+        bridge = new InstrumentBridge(this, webView, uiUpdates);
         webView.addJavascriptInterface(bridge, "DKTSNative");
         setContentView(webView);
         // The decor/insets controller can be unavailable before attachment.

@@ -44,10 +44,12 @@ final class UiUpdateManager {
     private final Runnable applied;
     private volatile boolean closed = false;
     private volatile String installedTag = "";
+    private volatile String updateStatus = "idle";
+    private volatile String updateError = "";
     private final Runnable checkPeriodic = new Runnable() {
         @Override public void run() {
             if (closed) return;
-            updateWorker.execute(() -> { try { checkOnce(); } catch (Exception ignored) {} });
+            checkNow();
             main.postDelayed(this, 180000L);
         }
     };
@@ -69,6 +71,29 @@ final class UiUpdateManager {
     }
 
     void start() { main.post(checkPeriodic); }
+
+    void checkNow() {
+        if (closed) return;
+        updateStatus = "checking";
+        updateError = "";
+        updateWorker.execute(() -> {
+            try {
+                checkOnce();
+                if ("checking".equals(updateStatus)) updateStatus = "current";
+            } catch (Exception error) {
+                updateStatus = "offline";
+                updateError = String.valueOf(error.getMessage());
+                Log.w(TAG, "UI update check failed", error);
+            }
+        });
+    }
+
+    JSONObject status() throws org.json.JSONException {
+        return new JSONObject()
+            .put("status", updateStatus)
+            .put("tag", installedTag)
+            .put("error", updateError);
+    }
 
     void stop() {
         closed = true;
@@ -248,6 +273,7 @@ final class UiUpdateManager {
                 throw new IllegalStateException("Cannot activate UI");
             }
             installedTag = tag;
+            updateStatus = "updated";
             if (!closed) main.post(applied);
             Log.i(TAG, "UI updated to " + tag);
         } finally { deleteTree(stage); }
