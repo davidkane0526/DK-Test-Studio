@@ -173,7 +173,7 @@ test('manual UI update op routes through Android updater without arbitrary TCP a
   assert.match(java,/case "ui-check"/);
   assert.match(java,/case "ui-status"/);
   assert.match(java,/uiUpdates\.checkNow\(\)/);
-  assert.match(activity,/new InstrumentBridge\(this, webView, uiUpdates\)/);
+  assert.match(activity,/new InstrumentBridge\(this, webView, uiUpdates, appUpdates\)/);
   assert.match(manager,/void checkNow\(\)/);
   assert.match(manager,/updateWorker\.execute\(/);
   assert.match(manager,/updateStatus = "updated"/);
