@@ -43,9 +43,10 @@
     const form=document.getElementById(formId);
     return form?Object.fromEntries(new FormData(form).entries()):{};
   }
-  function publishDraft(){
+  function publishDraft(commit=false,source='all'){
     if(!ready)return;
-    emit({type:'draft',plan:fieldSnapshot('plan-form'),connection:fieldSnapshot('connection-form')});
+    emit({type:commit?'commit':'draft',source,
+      plan:fieldSnapshot('plan-form'),connection:fieldSnapshot('connection-form')});
   }
   function restore(value){
     const plan=value&&typeof value==='object'?value:{};
@@ -57,7 +58,7 @@
       if(field.name&&Object.prototype.hasOwnProperty.call(plan,field.name))
         field.value=String(plan[field.name]);
     }
-    publishDraft();
+    publishDraft(false,'restore');
     document.getElementById('validate-plan')?.click();
   }
   window.addEventListener('message',event=>{
@@ -81,18 +82,18 @@
   document.addEventListener('DOMContentLoaded',()=>{
     ready=true;
     emit({type:'ready'});
-    publishDraft();
+    publishDraft(false,'initial');
     document.addEventListener('input',event=>{
-      if(event.target?.closest?.('#plan-form,#connection-form'))
-        publishDraft();
+      const form=event.target?.closest?.('#plan-form,#connection-form');
+      if(form)publishDraft(false,form.id==='plan-form'?'plan':'connection');
     });
     document.addEventListener('change',event=>{
-      if(event.target?.closest?.('#plan-form,#connection-form'))
-        publishDraft();
+      const form=event.target?.closest?.('#plan-form,#connection-form');
+      if(form)publishDraft(true,form.id==='plan-form'?'plan':'connection');
     });
     document.addEventListener('click',event=>{
       if(event.target?.closest?.('.test-type-card,.workspace-tab,.workspace-tab-close'))
-        window.setTimeout(publishDraft,0);
+        window.setTimeout(()=>publishDraft(true,'plan'),0);
     });
   });
   window.addEventListener('pagehide',()=>{
