@@ -886,3 +886,76 @@ body.dkts-android-shell .workspace-tab-close{
   .workspace-tab-add{flex-basis:29px}
 }
 body.dkts-android-shell .workspace-tab-add{flex-basis:36px}
+
+
+/* v0.2.5 — compact long-press versions, mobile alignment and relocated controls. */
+.titlebar-brand .version-hold-toggle{
+  position:relative;cursor:pointer;touch-action:manipulation;
+  -webkit-user-select:none;user-select:none;
+  -webkit-app-region:no-drag;app-region:no-drag
+}
+.titlebar-brand .version-hold-toggle:focus-visible{
+  outline:2px solid #477ac4;outline-offset:2px;border-radius:4px
+}
+.titlebar-brand .version-hold-toggle[data-expanded="true"]{z-index:2}
+.titlebar-brand .version-hold-toggle[data-expanded="true"]::after{
+  content:attr(data-version-detail);
+  position:absolute;left:0;top:calc(100% + 12px);
+  display:block;box-sizing:border-box;
+  min-width:150px;max-width:min(86vw,420px);width:max-content;
+  padding:10px 12px;border:1px solid var(--dkts-chrome-border);
+  border-radius:9px;background:var(--dkts-chrome-bg);
+  box-shadow:0 6px 22px rgba(18,34,55,.17);
+  color:var(--dkts-chrome-text);font-size:11px;font-weight:550;
+  white-space:normal;overflow-wrap:anywhere;line-height:1.5;
+  pointer-events:none
+}
+.detail-heading{
+  padding-right:0;
+}
+.detail-run-actions{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;
+  margin-left:auto;gap:7px;min-width:0
+}
+.detail-run-actions .measure-button{
+  display:inline-flex;align-items:center;justify-content:center;
+  box-sizing:border-box;width:auto;min-height:30px;
+  padding:6px 10px;border:1px solid #dce4f0;border-radius:7px;
+  font-size:11px;line-height:1.25;white-space:nowrap
+}
+.detail-run-actions .measure-button:disabled{cursor:not-allowed;opacity:.65}
+.data-panel-actions{
+  display:flex;align-items:center;justify-content:flex-end;
+  margin-left:auto;min-height:30px;flex:none
+}
+.data-panel-actions #restore-parameters:not([hidden]){
+  display:inline-grid;place-items:center;
+  border:1px solid var(--dkts-chrome-border);
+  background:var(--dkts-chrome-bg)
+}
+@media(max-width:760px){
+  .detail-heading{padding-right:0}
+}
+@media(max-width:660px){
+  .detail-heading{flex-wrap:wrap;gap:6px 9px}
+  .detail-heading-title{flex:1 1 calc(100% - 48px)}
+  .detail-run-actions{flex:1 1 100%;width:100%;justify-content:flex-end;gap:5px}
+  .detail-run-actions .measure-button{padding:6px 8px;font-size:10px}
+}
+@media(max-width:500px){
+  .detail-heading{padding-top:0;padding-right:0}
+  .detail-run-actions .acquisition-state{font-size:9px;padding:5px 6px}
+}
+/* Align Android top chrome to the left edge of “选择测试方式”.
+   Desktop Electron titlebar spacing remains unchanged. */
+body.dkts-android-shell .app-titlebar{
+  padding-left:calc(clamp(8px,1vw,18px) + 19px + var(--dkts-safe-left))
+}
+@media(max-width:500px){
+  body.dkts-android-shell .app-titlebar{
+    padding-left:calc(18px + var(--dkts-safe-left))
+  }
+}
+@media(prefers-color-scheme:dark){
+  .detail-run-actions .measure-button{border-color:#3b4a60}
+}

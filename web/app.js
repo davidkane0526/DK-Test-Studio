@@ -3,19 +3,53 @@ const $=id=>document.getElementById(id);
 // Android WebView has native system bars, not desktop caption/window controls.
 if(typeof window.DKTSNative?.request==='function')
   document.body.classList.add('dkts-android-shell');
+// Keep compact chrome by default. A long press exposes the full version in a
+// floating label instead of expanding and pushing the test tabs off screen.
+function makeVersionBadgeControl(id){
+  const badge=$(id);
+  let shortText='',longText='',fullText='',description='',expanded=false,timer=null;
+  const render=()=>{
+    badge.textContent=expanded?longText:shortText;
+    badge.dataset.expanded=String(expanded);
+    badge.dataset.versionDetail=fullText;
+    badge.title=description+' · 长按切换详细版本';
+    badge.setAttribute('aria-label',description+'，长按或按 Enter 切换详细版本');
+    badge.setAttribute('aria-pressed',String(expanded));
+  };
+  const toggle=()=>{expanded=!expanded;render();};
+  const cancelHold=()=>{if(timer!==null){clearTimeout(timer);timer=null;}};
+  badge.addEventListener('pointerdown',event=>{
+    if(event.button!==0)return;
+    cancelHold();
+    timer=setTimeout(()=>{timer=null;toggle();},550);
+  });
+  for(const eventName of ['pointerup','pointercancel','pointerleave'])
+    badge.addEventListener(eventName,cancelHold);
+  badge.addEventListener('contextmenu',event=>event.preventDefault());
+  badge.addEventListener('keydown',event=>{
+    if(event.key==='Enter'||event.key===' '){
+      event.preventDefault();cancelHold();toggle();
+    }
+  });
+  return {update(compact,detail,full,tip){
+    shortText=compact;longText=detail;fullText=full;description=tip;render();
+  }};
+}
+const nativeVersionControl=makeVersionBadgeControl('native-version-badge');
+const uiVersionControl=makeVersionBadgeControl('ui-version-badge');
+nativeVersionControl.update('v0.2.5','原生 v0.2.5','原生版本 v0.2.5','当前原生安装版本：0.2.5');
 function displayUiVersion(){
   const raw=document.querySelector('meta[name="dkts-ui-version"]')?.content||'bundled';
-  const badge=$('ui-version-badge');
-  if(!badge)return;
   const isCommit=/^[a-f0-9]{40}$/i.test(raw);
-  badge.textContent=isCommit?'UI '+raw.slice(0,8):'UI 内置版';
-  badge.title=isCommit?'当前界面版本：'+raw:'当前界面版本：内置资源';
-  badge.setAttribute('aria-label',badge.title);
+  uiVersionControl.update(
+    isCommit?'UI '+raw.slice(0,4):'UI 内置',
+    isCommit?'UI '+raw.slice(0,8):'UI 内置版',
+    isCommit?'UI commit '+raw:'UI 内置资源',
+    isCommit?'当前 UI 版本：'+raw:'当前 UI 版本：内置资源'
+  );
 }
 displayUiVersion();
 async function displayNativeVersion(){
-  const badge=$('native-version-badge');
-  if(!badge)return;
   try{
     let version='';
     if(window.DKTSClient?.nativeVersion)version=await window.DKTSClient.nativeVersion();
@@ -23,10 +57,9 @@ async function displayNativeVersion(){
       const response=await fetch('/api/app/version',{cache:'no-store'});
       if(response.ok)version=String((await response.json()).version||'');
     }
-    if(/^\d+\.\d+\.\d+$/.test(version)){
-      badge.textContent='v'+version;
-      badge.title='当前原生安装版本：'+version;
-    }
+    if(/^\d+\.\d+\.\d+$/.test(version))
+      nativeVersionControl.update('v'+version,'原生 v'+version,
+        '原生版本 v'+version,'当前原生安装版本：'+version);
   }catch{/* Native version falls back to bundled package label when offline. */}
 }
 void displayNativeVersion();
