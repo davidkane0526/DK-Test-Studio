@@ -12,6 +12,7 @@ const copy={
   'waveform.js':'src/shared/waveform.js',
   'identity-core.js':'src/shared/identity-core.js',
   'interop.js':'src/shared/interop.js',
+  'standalone-shell.js':null,
   'presentation.js':'integrations/dkds/presentation.js',
   'plugin.js':'integrations/dkds/plugin.js'
 };
@@ -33,15 +34,56 @@ function adaptPluginSource(name,data){
   }
   return data;
 }
+// Generate the exact standalone workbench into the plugin from its owning
+// index.html, styles.css and app.js, rather than maintaining a cloned UI.
+function createSharedShellSource(){
+  require('./prepare-dkds-plot-vendor.cjs');
+  const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
+  const css=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
+  const frameBridge=fs.readFileSync(path.join(template,'frame-bridge.js'),'utf8');
+  const matches=[...html.matchAll(/<script\s+src="([^"]+)"\s+defer><\/script>/g)];
+  const scriptNames=matches.map(match=>match[1]);
+  if(!scriptNames.includes('/app.js')||!scriptNames.includes('/vendor/d3.min.js'))
+    throw Error('Standalone script contract changed: cannot generate DKDS frame');
+  if(scriptNames.at(-1)!=='/app.js')throw Error('App script must load last');
+  const sources=scriptNames.map(file=>{
+    if(!file.startsWith('/vendor/')&&file!=='/app.js')
+      throw Error('Unexpected standalone script: '+file);
+    return {file,source:fs.readFileSync(path.join(root,'web',file.slice(1)),'utf8')};
+  });
+  const clean=html.replace(/<script\s+src="[^"]+"\s+defer><\/script>/g,'')
+    .replace('<link rel="stylesheet" href="/styles.css">','');
+  const payload=JSON.stringify({html:clean,css,bridge:frameBridge,sources});
+  const generated=[
+    '(() => {',
+    "  'use strict';",
+    '  const payload='+payload+';',
+    '  function inline(code){',
+    "    return '<script>'+String(code).split('</'+'script').join('<'+String.fromCharCode(92)+'/script')+'</script>';",
+    '  }',
+    '  function createDocument(token,mobile){',
+    '    if(!/^[a-z0-9_-]{16,96}$/i.test(token))throw Error("Invalid DKTS frame token");',
+    '    const shim=payload.bridge.replace("__DKTS_FRAME_TOKEN__",JSON.stringify(token))',
+    '      .replace("__DKTS_FRAME_MOBILE__",mobile?"true":"false");',
+    '    const all=[inline(shim),...payload.sources.map(row=>inline(row.source))].join("");',
+    '    return payload.html.replace("</head>","<style>"+payload.css+"</style></head>")',
+    '      .replace("</body>",all+"</body>");',
+    '  }',
+    "  window.DKDSPluginModules.define('com.dkts.keithley-4200','standalone-shell',Object.freeze({createDocument}));",
+    '})();',''
+  ].join('\n');
+  return generated;
+}
+
 const requireFiles=new Set(manifest.scripts);
-if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.5.0')
+if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.6.0')
   throw Error('Unexpected standalone DK Test Studio plugin identity / API / version');
 if(requireFiles.size!==Object.keys(copy).length||Object.keys(copy).some(x=>!requireFiles.has(x)))
   throw Error('Plugin manifest scripts must exactly match staging files');
 fs.mkdirSync(folder,{recursive:true});
 const files={};
 for(const [name,src] of Object.entries(copy)){
-  const data=adaptPluginSource(name,fs.readFileSync(path.join(root,src),'utf8'));
+  const data=src===null?createSharedShellSource():adaptPluginSource(name,fs.readFileSync(path.join(root,src),'utf8'));
   fs.writeFileSync(path.join(folder,name),data,'utf8');files[name]=data;
 }
 fs.writeFileSync(path.join(folder,'plugin.json'),JSON.stringify(manifest,null,2)+'\n');
