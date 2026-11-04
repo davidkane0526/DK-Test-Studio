@@ -12,7 +12,10 @@ let uiCheckBusy=false;
 function displayUiVersion(){
   const raw=document.querySelector('meta[name="dkts-ui-version"]')?.content||'bundled';
   const isSha=/^[a-f0-9]{40}$/i.test(raw);
-  $('ui-version-text').textContent=isSha?'UI '+raw.slice(0,8):'UI 内置';
+  const bundled=String(nativeBadge.textContent||'').trim();
+  $('ui-version-text').textContent=isSha
+    ?'界面 '+bundled+' · '+raw.slice(0,8)
+    :'界面 '+bundled+'（内置）';
   uiBadge.setAttribute('aria-label',isSha?'完整 UI 版本：'+raw:'当前使用内置界面资源');
 }
 displayUiVersion();
@@ -38,14 +41,14 @@ async function checkUiUpdateNow(){
         await new Promise(resolve=>setTimeout(resolve,900));
         const result=await window.DKTSClient.uiUpdateStatus();
         if(result.status==='updated'){
-          updateStatus.textContent='更新已验证，正在刷新界面…';return;
+          updateStatus.textContent='界面热更新已验证，正在刷新。注意：这不会升级 APK 程序版本。';return;
         }
-        if(result.status==='current'){updateStatus.textContent='UI 已是最新版本';return;}
+        if(result.status==='current'){updateStatus.textContent='界面资源已是最新；请在下方查看程序版本';return;}
         if(result.status==='offline'){
           updateStatus.textContent='检查失败：'+String(result.error||'网络不可用').slice(0,72);return;
         }
       }
-      updateStatus.textContent='检查继续在后台执行';
+      updateStatus.textContent='界面更新检查仍在进行；完整程序升级请使用下方「下载并安装」。';
     }else if(window.DKTSClient)updateStatus.textContent='请安装新版 APK 以使用手动检查';
     else {
       const response=await fetch('/api/ui/check',{method:'POST',cache:'no-store',
@@ -53,11 +56,11 @@ async function checkUiUpdateNow(){
       if(!response.ok)throw Error('更新接口 HTTP '+response.status);
       const result=await response.json();
       if(result.updated){
-        updateStatus.textContent='更新已安装，正在刷新…';
+        updateStatus.textContent='界面热更新完成，正在刷新；程序本体版本不变。';
         if(!window.DKTSMeasurementRunning)window.location.reload();
       }else if(result.error)updateStatus.textContent='检查失败：'+String(result.error).slice(0,72);
       else updateStatus.textContent=result.status==='disabled'
-        ?'当前浏览器模式未启用自动更新':'UI 已是最新版本';
+        ?'当前浏览器模式未启用自动更新':'界面已是最新版本（不代表程序本体已升级）';
     }
   }catch(error){updateStatus.textContent='检查失败：'+String(error.message||error).slice(0,72);}
   finally{uiCheckBusy=false;}
@@ -76,23 +79,28 @@ function nativeUpdateDisplay(result){
   const version=String(result?.version||'').slice(0,32);
   const error=String(result?.error||'').slice(0,105);
   nativeBadge.classList.toggle('has-native-update',status==='available'||status==='ready');
-  nativeAppAction.hidden=!(status==='available'||status==='ready');
+  nativeAppAction.hidden=!(status==='available'||status==='ready'||status==='installer');
   nativeAppAction.disabled=false;
-  nativeAppAction.textContent=status==='ready'?'继续安装':'下载并安装';
+  nativeAppAction.textContent=status==='ready'?'继续安装':
+    status==='installer'?'重新打开安装界面':'下载并安装';
   const label={
     idle:'点击版本号检查程序更新',
     checking:'正在检查完整程序更新…',
-    current:'已是最新程序版本',
-    available:'发现程序更新 v'+version,
+    current:'完整程序已是最新版本',
+    available:'发现完整程序更新 v'+version+' · 当前 '+nativeBadge.textContent,
     downloading:'正在下载更新：'+Math.max(0,Math.min(100,Number(result.progress)||0))+'%',
     ready:'更新文件已验证，可以安装',
     permission:'请在系统设置中允许安装，返回后继续',
-    installer:'已打开 Android 系统安装界面',
-    restarting:'已下载并验证，正在重启便携程序…',
+    installer:'已下载 APK。请在 Android 系统安装界面点击「更新」，安装完成后重新打开软件。未确认安装时程序版本不会改变。',
+    restarting:'已校验完整程序，正在退出旧程序并替换 EXE；只有重新启动后版本才会更新。',
     unsupported:'当前模式不支持程序内安装',
     error:'程序更新失败：'+error
   };
   nativeAppState.textContent=label[status]||'程序更新状态：'+status;
+  if(result?.error&&['ready','permission','installer'].includes(status))
+    nativeAppState.textContent+=' · '+String(result.error).slice(0,110);
+  if(result?.installError)nativeAppState.textContent+=
+    ' · 上一次安装失败：'+String(result.installError).slice(0,100);
 }
 async function pollNativeUpdate(){
   if(!nativeAppApi?.appUpdateStatus||nativeAppPolling)return;

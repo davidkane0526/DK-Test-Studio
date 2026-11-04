@@ -71,7 +71,9 @@
     return btoa(binary);
   }
   async function saveWorkspace(snapshot){
-    if(!snapshot||snapshot.schema!=='dkts.workspace.v1')
+    if(!snapshot||!['dkts.workspace.v1','dkts.workspace.v2'].includes(snapshot.schema)||
+       !Array.isArray(snapshot.tabs)||
+       (snapshot.schema==='dkts.workspace.v2'&&!Array.isArray(snapshot.archivedTabs)))
       throw Error('工作区数据格式无效');
     const bytes=new TextEncoder().encode(JSON.stringify(snapshot));
     if(bytes.length<1||bytes.length>64*1024*1024)

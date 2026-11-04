@@ -63,8 +63,18 @@ final class NativeAppUpdateManager {
     NativeAppUpdateManager(Activity activity) {
         this.activity=activity;
     }
+    private String installedVersion() {
+        try {
+            return activity.getPackageManager()
+                .getPackageInfo(activity.getPackageName(),0).versionName;
+        } catch (Exception exception) {
+            return "";
+        }
+    }
     JSONObject status() throws org.json.JSONException {
+        // A downloaded APK is not an installed update. Report both separately.
         return new JSONObject().put("status",state).put("version",version)
+            .put("installedVersion",installedVersion())
             .put("progress",progress).put("error",error);
     }
     private static int compareVersions(String a, String b) {
@@ -157,8 +167,8 @@ final class NativeAppUpdateManager {
             try{
                 Candidate found=latest();
                 if(closed)return;
-                String installed=activity.getPackageManager()
-                    .getPackageInfo(activity.getPackageName(),0).versionName;
+                String installed=installedVersion();
+                if(installed.isEmpty())throw new IllegalStateException("无法确认本机程序版本");
                 if(found==null||compareVersions(found.version,installed)<=0){
                     candidate=null;version=installed;state="current";return;
                 }
@@ -184,7 +194,10 @@ final class NativeAppUpdateManager {
                     validateApk(apk,selected.version);
                 }
                 if(closed)return;
-                state="ready";progress=100;
+                // Do not expose 'ready' between download completion and the
+                // system installer launch; otherwise the UI can offer a second
+                // install action before Android has opened the first one.
+                state="installer";progress=100;
                 requestInstaller(apk);
             }catch(Exception ex){
                 state="error";error=String.valueOf(ex.getMessage());Log.w(TAG,"APK update rejected",ex);
@@ -241,6 +254,7 @@ final class NativeAppUpdateManager {
             throw new SecurityException("APK 签名证书与当前安装版本不一致");
     }
     private void requestInstaller(File apk){
+        state="installer";
         main.post(()->{
             if(closed||activity.isFinishing())return;
             try{
@@ -266,6 +280,19 @@ final class NativeAppUpdateManager {
         if(resumeInstaller&&downloaded!=null&&downloaded.exists()&&
             (Build.VERSION.SDK_INT<26||activity.getPackageManager().canRequestPackageInstalls())){
             resumeInstaller=false;requestInstaller(downloaded);
+            return;
+        }
+        // Returning from the system package installer is not success evidence.
+        // On cancellation, keep the verified APK and let the user retry.
+        if("installer".equals(state)){
+            final String installed=installedVersion();
+            if(candidate!=null&&!installed.isEmpty()&&
+                compareVersions(installed,candidate.version)>=0){
+                state="current";version=installed;error="";
+            }else{
+                state="ready";
+                error="尚未完成系统安装。请点击「继续安装」，并在系统界面确认更新。";
+            }
         }
     }
     void stop(){

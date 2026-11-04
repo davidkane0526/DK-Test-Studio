@@ -89,7 +89,13 @@ function createPortableUpdater({app,userData,scriptPath,currentVersion,portableP
   const enabled=process.platform==='win32'&&app?.isPackaged&&path.isAbsolute(portablePath)&&
     path.extname(portablePath).toLowerCase()==='.exe'&&fs.existsSync(portablePath);
   let state=enabled?'idle':'unsupported',error='',progress=0,candidate=null,file=null,working=false;
+  const failureLog=path.join(userData,'native-updates','last-update-error.txt');
+  const readInstallFailure=()=>{
+    try{return fs.readFileSync(failureLog,'utf8').trim().slice(0,140);}
+    catch{return '';}
+  };
   const status=()=>({status:state,version:candidate?.version||currentVersion,error,progress,
+    installedVersion:currentVersion,installError:readInstallFailure(),
     supported:enabled});
   async function check(){
     if(!enabled)return status();
@@ -149,6 +155,9 @@ function createPortableUpdater({app,userData,scriptPath,currentVersion,portableP
       // pseudo paths, so write the trusted bundled script to a real local file.
       const preparedScript=path.join(folder,'apply-portable-update.ps1');
       await fs.promises.writeFile(preparedScript,await fs.promises.readFile(scriptPath));
+      // A previous failed detached replacement must not masquerade as the
+      // result of this attempt. The PowerShell helper owns subsequent errors.
+      await fs.promises.rm(failureLog,{force:true});
       const command=spawn('powershell.exe',[
         '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',
         '-File',preparedScript,'-Source',staged,'-Target',portablePath,

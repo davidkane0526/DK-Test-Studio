@@ -6,6 +6,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $replacement = "$Target.dkts-new"
 $backup = "$Target.dkts-previous"
+$log = Join-Path (Split-Path -Parent $Source) 'last-update-error.txt'
 try {
   if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) { throw 'Downloaded update file missing' }
   for ($i = 0; $i -lt 80; $i++) {
@@ -41,9 +42,18 @@ try {
     throw
   }
   Start-Process -FilePath $Target
+  Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $Source -Force -ErrorAction SilentlyContinue
 } catch {
-  $log = Join-Path (Split-Path -Parent $Source) 'last-update-error.txt'
-  $_.Exception.Message | Set-Content -LiteralPath $log -Encoding UTF8
+  # The old program can still be on disk even when an update attempt failed.
+  # Record the error and relaunch it instead of silently leaving the user
+  # with an unchanged executable and no indication why.
+  try { $_.Exception.Message | Set-Content -LiteralPath $log -Encoding UTF8 } catch {}
+  try {
+    if (-not (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue) -and
+        (Test-Path -LiteralPath $Target -PathType Leaf)) {
+      Start-Process -FilePath $Target
+    }
+  } catch {}
   exit 1
 }
