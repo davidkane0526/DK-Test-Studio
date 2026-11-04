@@ -15,10 +15,11 @@ function prepare(){
     querySelector(){return null;},
     contentWindow:kind==='iframe'?{sent:[],postMessage(m){this.sent.push(m);}}:undefined
   });
-  let composed,activity,top,slice,capability,transmit=0,frame;
+  let composed,activity,top,slice,capability,transmit=0,frame,workspaceRoot,workspaceSpec;
   const units={
     page:{create:()=>({element:unit('page')})},
-    workspace:{create:()=>({compose(v){composed=v;},dispose(){}})}
+    layout:{create(parent,spec={}){const node=unit('layout');node.className=spec.className||'';if(parent)parent.appendChild(node);return node;}},
+    workspace:{create(root,spec){workspaceRoot=root;workspaceSpec=spec;return {compose(v){composed=v;},dispose(){}};}}
   };
   const sandbox={
     atob,btoa,crypto:{randomUUID:()=>('a'.repeat(32))},
@@ -55,7 +56,10 @@ function prepare(){
     status:{set(v){captured.status=v;}},
     workspace:{openPage(id){captured.openedPage=id;}},
     ui:{
-      dom:{create(kind){const n=unit(kind);if(kind==='iframe')frame=n;return n;}},
+      dom:{
+        create(kind){const n=unit(kind);if(kind==='iframe')frame=n;return n;},
+        style(target,patch){Object.assign(target.style,patch);return target;}
+      },
       unitTemplates:units,
       activities:{add(spec){activity=spec;}},
       pages:{add(spec){return spec;}},
@@ -70,7 +74,7 @@ function prepare(){
     }}
   };
   return {captured,registry,listeners,ctx,
-    get view(){return {composed,activity,top,slice,capability,frame,transmit};}};
+    get view(){return {composed,activity,top,slice,capability,frame,transmit,workspaceRoot,workspaceSpec};}};
 }
 test('DKDS plugin displays the exact standalone app in a sandboxed workbench',async()=>{
   const env=prepare(),installed=await env.captured.activate(env.ctx),v=env.view;
@@ -78,7 +82,10 @@ test('DKDS plugin displays the exact standalone app in a sandboxed workbench',as
   assert.equal(v.activity.openMode,'window');
   assert.equal(v.top.activity,'dkts-keithley-4200');
   assert(v.composed.primary.mainNode);
-  assert.equal(v.frame.attributes.sandbox,'allow-scripts');
+  assert.equal(v.frame.attributes.sandbox,'allow-scripts allow-modals');
+  assert.equal(v.workspaceRoot.kind,'layout');
+  assert.equal(v.workspaceSpec.activity,'dkts-keithley-4200');
+  assert.equal(v.frame.style.width,'100%');
   assert(!v.frame.attributes.sandbox.includes('allow-same-origin'));
   assert.equal(v.frame.attributes.title,'DK Test Studio 完整测试工作区');
   assert.match(v.frame.srcdoc,/DK Test Studio/);
@@ -99,8 +106,12 @@ test('request bridge only permits read-only KXCI and same form plan validation',
     source:v.frame.contentWindow,data:{channel,session,type,...extra}
   });
   incoming('ready');
-  incoming('draft',{plan:{kind:'it',points:'3',loops:'2'},connection:{host:'169.254.111.118',port:'1225'}});
+  const draft={plan:{kind:'it',points:'3',loops:'2'},connection:{host:'169.254.111.118',port:'1225'}};
+  incoming('draft',{...draft,source:'plan'});
   assert.equal(v.capability.methods.validatePlan().kind,'it');
+  assert.equal(env.captured.capture||0,0,'Typing must not capture the DKDS project');
+  incoming('commit',{...draft,source:'plan'});
+  assert.equal(env.captured.capture,1,'Completed plan edits must capture the DKDS project');
   async function request(ticket,method,route,payload={}){
     incoming('api',{ticket,method,route,payload});
     for(let i=0;i<12;i++){
