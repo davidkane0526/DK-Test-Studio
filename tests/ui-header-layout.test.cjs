@@ -33,10 +33,10 @@ test('Android topbar remains aligned without overriding desktop left padding',()
 });
 test('version identity and signing upgrade remain synchronized',()=>{
   const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
-  assert.match(gradle,/versionCode 9/);
-  assert.match(gradle,/versionName '0\.2\.8'/);
-  assert.equal(require('../package.json').version,'0.2.8');
-  assert.match(html,/v0\.2\.8/);
+  assert.match(gradle,/versionCode 10/);
+  assert.match(gradle,/versionName '0\.2\.9'/);
+  assert.equal(require('../package.json').version,'0.2.9');
+  assert.match(html,/v0\.2\.9/);
 });
 test('plot uses the full scientific DKDS runtime and an integrated movable toolbar',()=>{
   assert.match(html,/id="measurement-plot" class="dkds-scientific-chart-host dkts-scientific-plot"/);
