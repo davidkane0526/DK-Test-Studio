@@ -143,9 +143,14 @@ function createPortableUpdater({app,userData,scriptPath,currentVersion,portableP
         }catch(e){await fs.promises.rm(temp,{force:true});throw e;}
       }
       // A cached executable must still match the current release digest before execution.
-      const verified=await fs.promises.readFile(staged);
-      if(verified.length!==candidate.size||
-        crypto.createHash('sha256').update(verified).digest('hex')!==candidate.digest){
+      const cachedHash=crypto.createHash('sha256');
+      let cachedSize=0;
+      for await(const chunk of fs.createReadStream(staged)){
+        cachedSize+=chunk.length;
+        if(cachedSize>candidate.size)break;
+        cachedHash.update(chunk);
+      }
+      if(cachedSize!==candidate.size||cachedHash.digest('hex')!==candidate.digest){
         await fs.promises.rm(staged,{force:true});
         file=null;
         throw Error('Windows 更新缓存的 SHA-256 校验失败');
