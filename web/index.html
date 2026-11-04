@@ -7,14 +7,25 @@
 <meta name="dkts-ui-version" content="bundled">
 <title>DK Test Studio | Keithley 4200A</title>
 <link rel="stylesheet" href="/styles.css">
+<script src="/vendor/d3.min.js" defer></script>
+<script src="/vendor/dkds/theme-bridge.js" defer></script>
+<script src="/vendor/dkds/style-gate.js" defer></script>
+<script src="/vendor/dkds/native-touch-drag.js" defer></script>
+<script src="/vendor/dkds/chart-export.js" defer></script>
+<script src="/vendor/dkds/display.js" defer></script>
+<script src="/vendor/dkds/heatmap-canvas.js" defer></script>
+<script src="/vendor/dkds/heatmap-selection.js" defer></script>
+<script src="/vendor/dkds/presentation.js" defer></script>
+<script src="/vendor/dkds/d3-renderer.js" defer></script>
+<script src="/vendor/dkds/chart-runtime.js" defer></script>
 <script src="/app.js" defer></script>
 </head>
 <body>
 <header id="app-titlebar" class="app-titlebar" aria-label="DK Test Studio 标题栏">
-  <div class="titlebar-brand" title="按住此处可拖动窗口">
+  <div class="titlebar-brand">
     <span class="titlebar-logo" aria-hidden="true">DK</span>
     <strong>DK Test Studio</strong>
-    <button type="button" id="native-version-badge" class="native-version-badge" aria-expanded="false" aria-controls="ui-version-badge" title="点击显示 UI 版本并检查热更新">v0.2.6</button>
+    <button type="button" id="native-version-badge" class="native-version-badge" aria-expanded="false" aria-controls="ui-version-badge" aria-label="显示 UI 版本并检查更新">v0.2.7</button>
     <div id="ui-version-badge" class="ui-version-badge" role="status" aria-live="polite" hidden>
       <strong id="ui-version-text">UI 内置</strong>
       <span id="ui-update-state">点击版本号检查更新</span>
@@ -212,22 +223,8 @@
               <div class="readout"><span>采集时间</span><strong id="readout-duration">—</strong><small>s</small></div>
             </div>
             <div class="measured-plot" role="img" aria-label="空白的仪器实测曲线区域，尚未采集数据">
-              <svg id="measurement-plot" viewBox="0 0 640 290" preserveAspectRatio="none"
-                tabindex="0" aria-label="交互式实测曲线；双击横轴或纵轴切换线性和对数，滚轮缩放、拖动平移、双击绘图区重置">
-                <rect x="0" y="0" width="640" height="290" fill="transparent"></rect>
-                <g id="measurement-grid"></g>
-                <g id="measurement-traces"></g>
-                <g id="measurement-ticks"></g>
-                <path id="measurement-cursor-lines" class="measurement-cursor-lines" hidden></path>
-                <text id="measurement-x-label" x="338" y="282" class="plot-label" text-anchor="middle">Voltage (V)</text>
-                <text id="measurement-y-label" transform="translate(15 133) rotate(-90)" class="plot-label" text-anchor="middle">Current (A)</text>
-              </svg>
-              <div class="plot-tools" role="group" aria-label="绘图导航">
-                <button type="button" id="measurement-zoom-in" aria-label="放大" title="放大图形">+</button>
-                <button type="button" id="measurement-zoom-out" aria-label="缩小" title="缩小图形">−</button>
-                <button type="button" id="measurement-home" aria-label="重置视图" title="重置视图">⌂</button>
-              </div>
-              <div id="measurement-cursor-tooltip" class="measurement-cursor-tooltip" hidden></div>
+              <div id="measurement-plot" class="dkds-scientific-chart-host dkts-scientific-plot" role="group" tabindex="0"
+                aria-label="DKDS 科学绘图；双击坐标轴切换线性和对数，工具条可拖动"></div>
               <p class="empty-chart-message" id="measurement-empty">尚无仪器采集数据</p>
             </div>
             <div class="data-list-heading"><strong>原始采样数据</strong><span id="data-count">0 点</span></div>

@@ -33,10 +33,10 @@ test('Android topbar remains aligned without overriding desktop left padding',()
 });
 test('version identity and signing upgrade remain synchronized',()=>{
   const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
-  assert.match(gradle,/versionCode 7/);
-  assert.match(gradle,/versionName '0\.2\.6'/);
-  assert.equal(require('../package.json').version,'0.2.6');
-  assert.match(html,/v0\.2\.6/);
+  assert.match(gradle,/versionCode 8/);
+  assert.match(gradle,/versionName '0\\.2\\.7'/);
+  assert.equal(require('../package.json').version,'0.2.7');
+  assert.match(html,/v0\.2\.7/);
 });
 test('plot is navigable and readouts are visibly compact',()=>{
   for(const id of ['measurement-zoom-in','measurement-zoom-out','measurement-home','measurement-grid','measurement-ticks'])

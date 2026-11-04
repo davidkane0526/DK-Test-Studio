@@ -206,171 +206,131 @@ function closeConnectionDialog(){
 
 /* Interactive measured-data plot. Only actual acquisition rows may be supplied
  * by a future instrument adapter; no plan/preview values are used as data. */
+/* The full DKDS scientific D3 renderer (not the old simplified SVG).
+ * Only actual hardware rows are plotted; planning values never impersonate measurements. */
 const measurementPlot=(()=>{
-  const svg=$('measurement-plot'),grid=$('measurement-grid'),traces=$('measurement-traces'),
-    ticks=$('measurement-ticks'),cursor=$('measurement-cursor-lines'),
-    tip=$('measurement-cursor-tooltip'),NS='http://www.w3.org/2000/svg';
-  const b={l:60,r:620,t:16,d:246},sx=b.r-b.l,sy=b.d-b.t;
-  let axes={x:'linear',y:'linear'},kind='iv',samples=[],view=null,drag=null,tap=null,suppressDblUntil=0;
-  const finite=Number.isFinite;
-  const good=(v,key)=>finite(v)&&(axes[key]!=='log'||v>0);
-  const project=(v,key)=>axes[key]==='log'?Math.log10(v):v;
-  const unproject=(v,key)=>axes[key]==='log'?Math.pow(10,v):v;
-  function append(host,tag,attrs={},text=''){
-    const n=document.createElementNS(NS,tag);
-    for(const [key,value] of Object.entries(attrs))n.setAttribute(key,String(value));
-    n.textContent=text;host.appendChild(n);return n;
+  const host=$('measurement-plot');
+  const library=window.DKDSCharts;
+  if(!library?.react || !window.DKDSD3Renderer?.react)
+    throw new Error('Bundled DKDS scientific renderer failed to initialize');
+  const navIcon={
+    grip:'<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="4" r="1"/><circle cx="11" cy="4" r="1"/><circle cx="5" cy="8" r="1"/><circle cx="11" cy="8" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="11" cy="12" r="1"/></svg>',
+    in:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>',
+    out:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg>',
+    home:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.6 8 3l5.5 4.6M4.3 6.8V13h7.4V6.8"/></svg>'
+  };
+  let kind='iv',rows=[],xMode='linear',sequence=0,resizeObserver=null;
+  const isAndroid=document.body.classList.contains('dkts-android-shell');
+  if(isAndroid){
+    document.documentElement.classList.add('react-native-client');
+    document.documentElement.dataset.dkdsHost='mobile';
   }
-  function limits(key){
-    const a=samples.map(row=>key==='x'?row.x:row.y).filter(v=>good(v,key)).map(v=>project(v,key));
-    if(!a.length)return key==='x'
-      ?axes.x==='log'?[-3,1]:[0,1]:axes.y==='log'?[-12,-3]:[-1,1];
-    let low=Math.min(...a),high=Math.max(...a);
-    if(low===high){let d=axes[key]==='log'?.5:Math.max(Math.abs(low)*.05,1e-12);low-=d;high+=d;}
-    const pad=(high-low)*.055;
-    return [low-pad,high+pad];
-  }
-  const px=v=>b.l+(project(v,'x')-view.x[0])/(view.x[1]-view.x[0])*sx;
-  const py=v=>b.d-(project(v,'y')-view.y[0])/(view.y[1]-view.y[0])*sy;
-  function fmt(v){if(!finite(v))return '—';if(v===0)return '0';
-    return (Math.abs(v)>=1e4||Math.abs(v)<1e-3)?v.toExponential(1):Number(v.toPrecision(3)).toString();
-  }
-  function tickRows(key){
-    const [lo,hi]=view[key];
-    if(axes[key]==='log'){
-      const result=[],step=Math.max(1,Math.ceil((hi-lo)/7));
-      for(let n=Math.ceil(lo);n<=hi;n+=step)result.push({n,label:'10^'+n});
-      return result;
+  function decorateNav(){
+    const bar=host.querySelector('.dkds-scientific-nav-tools');if(!bar)return;
+    bar.setAttribute('role','toolbar');bar.setAttribute('aria-label','图形导航与拖动');
+    const grip=bar.querySelector('.dkds-scientific-nav-drag');
+    if(grip){grip.innerHTML=navIcon.grip;grip.removeAttribute('title');grip.setAttribute('aria-label','拖动绘图工具条');}
+    for(const [action,icon] of [['zoom-in','in'],['zoom-out','out'],['home','home']]){
+      const button=bar.querySelector('[data-action="'+action+'"]');
+      if(button){button.innerHTML=navIcon[icon];button.removeAttribute('title');}
     }
-    return Array.from({length:5},(_,i)=>({n:lo+(hi-lo)*i/4,label:fmt(lo+(hi-lo)*i/4)}));
   }
-  function render(){
-    if(!view)view={x:limits('x'),y:limits('y')};
-    grid.replaceChildren();ticks.replaceChildren();traces.replaceChildren();
-    for(const row of tickRows('x')){
-      const x=b.l+(row.n-view.x[0])/(view.x[1]-view.x[0])*sx;
-      append(grid,'line',{x1:x,y1:b.t,x2:x,y2:b.d,class:'plot-guide'});
-      append(ticks,'text',{x,y:b.d+14,'text-anchor':'middle',class:'plot-axis-label'},row.label);
+  const trace=()=>rows.length?[{
+    type:'scatter',mode:'lines+markers',name:'4200A 实测',
+    x:rows.map(row=>kind==='iv'?row.voltageV:row.timeS),
+    y:rows.map(row=>row.currentA),
+    line:{width:1.6,color:'#3d77b6'},marker:{size:4,color:'#3d77b6'},
+    meta:{source:'instrument-raw',measurement:true}
+  }]:[];
+  const layout=()=>({
+    autosize:true,showlegend:false,
+    margin:{l:65,r:16,t:20,b:48},
+    paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',
+    xaxis:{title:kind==='iv'?'Voltage (V)':'Time (s)',type:xMode,automargin:true,showgrid:true,zeroline:false},
+    yaxis:{title:'Current (A)',type:'linear',automargin:true,showgrid:true,zeroline:false}
+  });
+  const config={responsive:true,displaylogo:false,scrollZoom:true,
+    doubleClick:'reset+autosize',__dkdsNavigationTools:true,dkdsRenderer:'d3'};
+  async function render(){
+    const revision=++sequence;
+    try{
+      await library.react(host,trace(),layout(),config);
+      if(revision!==sequence)return;
+      decorateNav();
+      const empty=$('measurement-empty');empty.hidden=rows.length>0;
+      if(isAndroid)host.classList.add('dkts-mobile-gesture-host');
+    }catch(e){
+      const empty=$('measurement-empty');
+      empty.hidden=false;empty.textContent='绘图内核异常：'+String(e.message||e).slice(0,100);
     }
-    for(const row of tickRows('y')){
-      const y=b.d-(row.n-view.y[0])/(view.y[1]-view.y[0])*sy;
-      append(grid,'line',{x1:b.l,y1:y,x2:b.r,y2:y,class:'plot-guide'});
-      append(ticks,'text',{x:b.l-7,y:y+3,'text-anchor':'end',class:'plot-axis-label'},row.label);
-    }
-    append(ticks,'line',{x1:b.l,y1:b.t,x2:b.l,y2:b.d,class:'plot-axis'});
-    append(ticks,'line',{x1:b.l,y1:b.d,x2:b.r,y2:b.d,class:'plot-axis'});
-    $('measurement-x-label').textContent=(kind==='iv'?'Voltage (V)':'Time (s)')+(axes.x==='log'?' · log10':'');
-    $('measurement-y-label').textContent='Current (A)'+(axes.y==='log'?' · log10':'');
-    let path='',open=false;
-    for(const row of samples){
-      if(!good(row.x,'x')||!good(row.y,'y')){open=false;continue;}
-      const x=px(row.x),y=py(row.y);
-      if(!finite(x)||!finite(y)){open=false;continue;}
-      path+=(open?' L':' M')+x.toFixed(3)+' '+y.toFixed(3);open=true;
-    }
-    if(path)append(traces,'path',{d:path,class:'plot-actual-trace'});
-    svg.dataset.xScale=axes.x;svg.dataset.yScale=axes.y;
   }
-  const reset=()=>{view={x:limits('x'),y:limits('y')};render();};
   function selectTest(testKind){
-    if(kind!==testKind){kind=testKind;samples=[];axes={x:'linear',y:'linear'};view=null;}
-    $('measurement-empty').hidden=samples.length>0;reset();
+    if(kind!==testKind){kind=testKind;rows=[];xMode='linear';}
+    void render();
   }
-  function setMeasurements(rows){
-    if(!Array.isArray(rows))throw TypeError('Raw instrument rows must be an array');
-    samples=rows.map(row=>{
-      const x=kind==='iv'?row?.voltageV:row?.timeS,y=row?.currentA;
-      return {x,y};
-    }).filter(row=>finite(row.x)&&finite(row.y));
-    $('measurement-empty').hidden=samples.length>0;
-    view=null;reset();
+  function setMeasurements(raw){
+    if(!Array.isArray(raw))throw TypeError('Expected instrument raw rows');
+    rows=raw.filter(row=>row&&Number.isFinite(row.currentA)&&
+      Number.isFinite(kind==='iv'?row.voltageV:row.timeS)).map(row=>({
+      voltageV:row.voltageV,timeS:row.timeS,currentA:row.currentA
+    }));
+    void render();
   }
-  function toggleAxis(key){
-    axes[key]=axes[key]==='linear'?'log':'linear';
-    view=null;reset();
+  function dblclick(e){
+    const target=e.target;
+    const cls=String(target?.getAttribute?.('class')||'');
+    const rect=host.getBoundingClientRect(),size=host._fullLayout?._size;
+    if(!size||!rect.width||!rect.height)return;
+    const px=e.clientX-rect.left,py=e.clientY-rect.top;
+    const xHit=/xaxis|x-axis|xtick|xtitle|dkds-d3-x-axis/i.test(cls)||
+      (px>=size.l-10&&px<=size.l+size.w+10&&py>=size.t+size.h-2&&py<=rect.height);
+    if(!xHit)return; // Native DKDS handler owns Y-axis double-click mode.
+    e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+    xMode=xMode==='linear'?'log':'linear';
+    void render();
   }
-  function zoom(factor,x=(b.l+b.r)/2,y=(b.t+b.d)/2){
-    if(!view)reset();
-    for(const [key,t] of [['x',(x-b.l)/sx],['y',(b.d-y)/sy]]){
-      const [lo,hi]=view[key],anchor=lo+(hi-lo)*t;
-      view[key]=[anchor+(lo-anchor)*factor,anchor+(hi-anchor)*factor];
-    }
-    render();
+  host.addEventListener('dblclick',dblclick,true);
+  // DKDS touch drag (native capture) owns the grip; normal single-finger
+  // vertical panning must remain available outside a deliberate chart gesture.
+  if(isAndroid) {
+    let pinch=null,lastTap=null;
+    const coord=e=>{const r=host.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};};
+    const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+    host.addEventListener('touchstart',event=>{
+      if(event.touches.length!==2){pinch=null;return;}
+      const a=coord(event.touches[0]),b=coord(event.touches[1]);
+      pinch={span:dist(a,b),center:{x:(a.x+b.x)/2,y:(a.y+b.y)/2},
+        range:host._fullLayout?{x:host._fullLayout.xaxis?.range?.slice(),y:host._fullLayout.yaxis?.range?.slice()}:null};
+    },{passive:true});
+    let nextFrame=0;
+    host.addEventListener('touchmove',event=>{
+      if(event.touches.length!==2||!pinch?.range)return;
+      if(event.cancelable)event.preventDefault();
+      const a=coord(event.touches[0]),b=coord(event.touches[1]),span=dist(a,b);
+      const factor=Math.max(.2,Math.min(5,pinch.span/Math.max(1,span)));
+      if(nextFrame)cancelAnimationFrame(nextFrame);
+      nextFrame=requestAnimationFrame(()=>{
+        nextFrame=0;
+        const patch={};
+        for(const axis of ['x','y']){
+          const initial=pinch?.range?.[axis];if(!Array.isArray(initial)||initial.length<2)continue;
+          const low=Number(initial[0]),high=Number(initial[1]),mid=(low+high)/2;
+          if(!Number.isFinite(low+high))continue;
+          patch[axis+'axis.range']=[mid-(mid-low)*factor,mid+(high-mid)*factor];
+          patch[axis+'axis.autorange']=false;
+        }
+        if(Object.keys(patch).length)void library.relayout(host,patch);
+      });
+    },{passive:false});
+    host.addEventListener('touchend',event=>{if(event.touches.length<2)pinch=null;},{passive:true});
   }
-  function location(e){
-    const rect=svg.getBoundingClientRect();
-    if(!rect.width||!rect.height)return null;
-    return {x:(e.clientX-rect.left)*640/rect.width,y:(e.clientY-rect.top)*290/rect.height};
+  if(typeof ResizeObserver!=='undefined'){
+    resizeObserver=new ResizeObserver(()=>{if(host.isConnected)library.resize(host);});
+    resizeObserver.observe(host);
   }
-  const inPlot=p=>p&&p.x>=b.l&&p.x<=b.r&&p.y>=b.t&&p.y<=b.d;
-  function double(p){
-    if(!p)return;
-    if(p.x<b.l&&p.y>=b.t-8&&p.y<=b.d+8)toggleAxis('y');
-    else if(p.y>=b.d&&p.x>=b.l-8&&p.x<=b.r+8)toggleAxis('x');
-    else if(inPlot(p))reset();
-    cursor.hidden=true;tip.hidden=true;
-  }
-  svg.addEventListener('dblclick',e=>{
-    if(Date.now()<suppressDblUntil)return;
-    e.preventDefault();double(location(e));
-  });
-  svg.addEventListener('wheel',e=>{
-    const p=location(e);if(!inPlot(p))return;
-    e.preventDefault();zoom(e.deltaY>0?1.16:.86,p.x,p.y);
-  },{passive:false});
-  svg.addEventListener('pointerdown',e=>{
-    if(e.button!==0)return;
-    const p=location(e);if(!inPlot(p))return;
-    if(!view)reset();
-    drag={id:e.pointerId,p,x:view.x.slice(),y:view.y.slice(),moved:false};
-    try{svg.setPointerCapture(e.pointerId);}catch{}
-  });
-  svg.addEventListener('pointermove',e=>{
-    const p=location(e);if(!p)return;
-    if(drag&&drag.id===e.pointerId){
-      const dx=p.x-drag.p.x,dy=p.y-drag.p.y;
-      drag.moved=drag.moved||Math.abs(dx)+Math.abs(dy)>5;
-      view.x=drag.x.map(v=>v-dx/sx*(drag.x[1]-drag.x[0]));
-      view.y=drag.y.map(v=>v+dy/sy*(drag.y[1]-drag.y[0]));
-      render();return;
-    }
-    if(!inPlot(p)||!samples.length){cursor.hidden=true;tip.hidden=true;return;}
-    cursor.hidden=false;
-    cursor.setAttribute('d','M'+p.x+' '+b.t+' V'+b.d+' M'+b.l+' '+p.y+' H'+b.r);
-    let near=null,minimum=Infinity;
-    for(const row of samples){
-      if(!good(row.x,'x')||!good(row.y,'y'))continue;
-      const d=Math.hypot(px(row.x)-p.x,py(row.y)-p.y);
-      if(d<minimum){minimum=d;near=row;}
-    }
-    if(!near){tip.hidden=true;return;}
-    tip.hidden=false;tip.textContent='X: '+fmt(near.x)+' · I: '+fmt(near.y)+' A';
-    const host=svg.parentElement.getBoundingClientRect();
-    tip.style.left=Math.max(7,Math.min(host.width-170,e.clientX-host.left+9))+'px';
-    tip.style.top=Math.max(7,e.clientY-host.top-32)+'px';
-  });
-  svg.addEventListener('pointerup',e=>{
-    if(e.pointerType==='touch'){
-      const p=location(e),now=Date.now();
-      if(p&&tap&&now-tap.time<380&&Math.hypot(p.x-tap.p.x,p.y-tap.p.y)<26){
-        if(!drag?.moved){double(p);suppressDblUntil=now+450;}
-        tap=null;
-      }else if(p)tap={p,time:now};
-    }
-    if(drag?.id===e.pointerId){drag=null;try{svg.releasePointerCapture(e.pointerId);}catch{}}
-  });
-  svg.addEventListener('pointercancel',()=>{drag=null;tap=null;cursor.hidden=true;tip.hidden=true;});
-  svg.addEventListener('pointerleave',()=>{if(!drag){cursor.hidden=true;tip.hidden=true;}});
-  svg.addEventListener('keydown',e=>{
-    if(e.key.toLowerCase()==='x'){e.preventDefault();toggleAxis('x');}
-    else if(e.key.toLowerCase()==='y'){e.preventDefault();toggleAxis('y');}
-    else if(e.key==='0'){e.preventDefault();reset();}
-  });
-  $('measurement-zoom-in').addEventListener('click',()=>zoom(.75));
-  $('measurement-zoom-out').addEventListener('click',()=>zoom(1.3));
-  $('measurement-home').addEventListener('click',reset);
-  reset();
-  return Object.freeze({selectTest,setMeasurements,reset});
+  void render();
+  return Object.freeze({selectTest,setMeasurements,reset:()=>void render(),
+    get renderer(){return library.runtimeState().renderer;}});
 })();
 window.DKTSMeasurementPlot=measurementPlot;
 
