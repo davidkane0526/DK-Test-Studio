@@ -34,18 +34,17 @@ test('Android topbar remains aligned without overriding desktop left padding',()
 test('version identity and signing upgrade remain synchronized',()=>{
   const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
   assert.match(gradle,/versionCode 8/);
-  assert.match(gradle,/versionName '0\\.2\\.7'/);
+  assert.match(gradle,/versionName '0\.2\.7'/);
   assert.equal(require('../package.json').version,'0.2.7');
   assert.match(html,/v0\.2\.7/);
 });
-test('plot is navigable and readouts are visibly compact',()=>{
-  for(const id of ['measurement-zoom-in','measurement-zoom-out','measurement-home','measurement-grid','measurement-ticks'])
-    assert.match(html,new RegExp('id="'+id+'"'));
+test('plot uses the full scientific DKDS runtime and an integrated movable toolbar',()=>{
+  assert.match(html,/id="measurement-plot" class="dkds-scientific-chart-host dkts-scientific-plot"/);
+  assert.match(app,/window\.DKDSCharts/);
+  assert.match(app,/library\.react\(host,trace\(\),layout\(\),config\)/);
+  assert.match(app,/navIcon\.grip/);
+  assert.match(app,/window\.DKTSMeasurementPlot=measurementPlot/);
   assert.match(css,/height:49px;min-height:49px/);
-  assert.match(app,/addEventListener\('dblclick'/);
-  assert.match(app,/addEventListener\('wheel'/);
-  assert.match(app,/addEventListener\('pointermove'/);
-  assert.match(app,/axes\[key\]=axes\[key\]==='linear'\?'log':'linear'/);
-  assert.match(app,/axes\[key\]!=='log'\|\|v>0/);
-  assert.doesNotMatch(app,/Math\.abs\(row\.currentA\)/);
+  assert.match(css,/touch-action:pan-y!important/);
+  assert.doesNotMatch(app,/post\('\/api\/output'/);
 });

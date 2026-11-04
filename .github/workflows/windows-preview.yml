@@ -21,10 +21,6 @@ jobs:
         run: npm run icons:build
       - name: Prepare embedded DKDS scientific renderer
         run: npm run prepare:plot-vendor
-      - name: Install scientific renderer dependencies
-        run: npm install --no-audit --no-fund
-      - name: Install scientific renderer dependencies
-        run: npm install --no-audit --no-fund
       - name: Run tests
         run: npm test
       - name: Stage the exact shared-core DKDS plugin
@@ -87,6 +83,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install pinned scientific renderer
+        run: npm install --no-audit --no-fund
       - name: Test shared Android/Windows/DKDS core
         run: npm test
       - name: Stamp offline Android UI version
@@ -203,6 +201,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install pinned scientific renderer
+        run: npm install --no-audit --no-fund
       - name: Check complete frontend resources
         run: npm test
       - name: Build Windows and Android hot-update resource bundle
