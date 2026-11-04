@@ -144,9 +144,13 @@ function createPortableUpdater({app,userData,scriptPath,currentVersion,portableP
       file={version:candidate.version};
       progress=100;state='ready';
       if(!fs.existsSync(scriptPath))throw Error('便携更新脚本缺失');
+      // Electron packages scripts in app.asar; PowerShell cannot address asar
+      // pseudo paths, so write the trusted bundled script to a real local file.
+      const preparedScript=path.join(folder,'apply-portable-update.ps1');
+      await fs.promises.writeFile(preparedScript,await fs.promises.readFile(scriptPath));
       const command=spawn('powershell.exe',[
         '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',
-        '-File',scriptPath,'-Source',staged,'-Target',portablePath,
+        '-File',preparedScript,'-Source',staged,'-Target',portablePath,
         '-ParentPid',String(process.pid)
       ],{detached:true,stdio:'ignore',windowsHide:true});
       await new Promise((resolve,reject)=>{

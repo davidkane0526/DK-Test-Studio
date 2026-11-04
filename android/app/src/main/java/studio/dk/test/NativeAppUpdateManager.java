@@ -162,6 +162,7 @@ final class NativeAppUpdateManager {
                 if(found==null||compareVersions(found.version,installed)<=0){
                     candidate=null;version=installed;state="current";return;
                 }
+                if(candidate==null||!candidate.version.equals(found.version))downloaded=null;
                 candidate=found;version=found.version;
                 state=downloaded!=null&&downloaded.exists()?"ready":"available";
             }catch(Exception ex){state="error";error=String.valueOf(ex.getMessage());Log.w(TAG,"Update check failed",ex);}
