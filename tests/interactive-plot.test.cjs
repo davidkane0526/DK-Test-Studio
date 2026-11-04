@@ -24,5 +24,5 @@ test('mobile gesture uses native grip drag while preserving vertical page scroll
 test('native title tooltip is removed and only portable is preferred for desktop delivery',()=>{
   assert.doesNotMatch(html,/id="native-version-badge"[^>]*title=/);
   assert.doesNotMatch(html,/class="titlebar-brand" title=/);
-  assert.match(js,/window\.DKTSMeasurementPlot=measurementPlot/);
+  assert.match(js,/window\.DKTSMeasurementPlot=Object\.freeze/);
 });

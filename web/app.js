@@ -673,10 +673,6 @@ function bindTabRenameGestures(button,tabId){
     if(timer!==null)clearTimeout(timer);
     timer=null;pointerId=null;
   };
-  button.addEventListener('dblclick',event=>{
-    event.preventDefault();event.stopPropagation();cancel();
-    beginTabRename(tabId,button);
-  });
   if(!document.body.classList.contains('dkts-android-shell'))return;
   button.addEventListener('pointerdown',event=>{
     if(!['touch','pen'].includes(event.pointerType)||event.button!==0)return;
@@ -698,6 +694,16 @@ function bindTabRenameGestures(button,tabId){
 }
 function renderWorkspaceTabs(){
   const nav=$('workspace-tabs');
+  if(!nav.dataset.renameBound){
+    nav.dataset.renameBound='true';
+    nav.addEventListener('dblclick',event=>{
+      const button=event.target.closest('.workspace-tab');
+      const item=button?.closest('.workspace-tab-item');
+      if(!button||!item)return;
+      event.preventDefault();event.stopPropagation();
+      beginTabRename(item.dataset.workspaceId,button);
+    });
+  }
   nav.querySelectorAll('.workspace-tab-item').forEach(node=>node.remove());
   const activeId=getActiveWorkspace()?.id||null;
   $('tab-home').classList.toggle('is-active',false);
@@ -883,6 +889,8 @@ function finishMeasurementRun(context,metadata={}){
   return updateMeasurementRun(context,run.rawRows,{...metadata,status:metadata.status||'completed'});
 }
 window.DKTSMeasurementPlot=Object.freeze({
+  selectTest:measurementPlot.selectTest,
+  reset:measurementPlot.reset,
   setMeasurements(rawRows,metadata={}){
     if(metadata.runContext)return updateMeasurementRun(metadata.runContext,rawRows,metadata);
     const tab=getActiveWorkspace();
@@ -920,7 +928,6 @@ function renderTestSelection(){
   renderWorkspaceTabs();
   if(!active)return;
   $('test-detail-title').textContent=mode.title;
-  $('test-detail-subtitle').textContent='工作区：'+tab.name;
   $('data-column-x').textContent=mode.xColumn;
   $('measurement-empty').textContent='尚无'+mode.title+'的仪器实测数据';
   const rows=workspaceStore.getData(tab.id,activeMode);

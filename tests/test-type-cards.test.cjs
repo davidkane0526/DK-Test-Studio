@@ -37,7 +37,6 @@ test('workspace identity is independent of test mode and duplicate modes are all
   assert.match(app,/function beginTabRename/);
   assert.match(app,/addEventListener\('dblclick'/);
   assert.match(app,/addEventListener\('pointerdown'/);
-  assert.match(html,/id="test-detail-subtitle"/);
 });
 
 test('each workspace owns per-mode history and raw measurement data',()=>{

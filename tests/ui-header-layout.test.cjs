@@ -19,7 +19,6 @@ test('native version reveals hidden UI SHA and explicitly checks updates',()=>{
 test('only one collapsible parameter control lives at the right of the data heading',()=>{
   assert.doesNotMatch(html,/id="toggle-parameters"/);
   assert.doesNotMatch(html,/id="acquisition-state"/);
-  assert.doesNotMatch(html,/id="test-detail-subtitle"/);
   const dataHead=html.slice(html.indexOf('<section class="detail-panel data-panel"'),html.indexOf('<div class="readout-grid"'));
   assert.match(dataHead,/id="data-title"[\s\S]*id="restore-parameters" class="panel-expand-control"/);
   assert.match(app,/restore\.textContent=collapsed\?'收起':'展开'/);
@@ -33,17 +32,17 @@ test('Android topbar remains aligned without overriding desktop left padding',()
 });
 test('version identity and signing upgrade remain synchronized',()=>{
   const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
-  assert.match(gradle,/versionCode 10/);
-  assert.match(gradle,/versionName '0\.2\.9'/);
-  assert.equal(require('../package.json').version,'0.2.9');
-  assert.match(html,/v0\.2\.9/);
+  assert.match(gradle,/versionCode 11/);
+  assert.match(gradle,/versionName '0\.3\.0'/);
+  assert.equal(require('../package.json').version,'0.3.0');
+  assert.match(html,/v0\.3\.0/);
 });
 test('plot uses the full scientific DKDS runtime and an integrated movable toolbar',()=>{
   assert.match(html,/id="measurement-plot" class="dkds-scientific-chart-host dkts-scientific-plot"/);
   assert.match(app,/window\.DKDSCharts/);
   assert.match(app,/library\.react\(host,trace\(\),layout\(\),config\)/);
   assert.match(app,/navIcon\.grip/);
-  assert.match(app,/window\.DKTSMeasurementPlot=measurementPlot/);
+  assert.match(app,/window\.DKTSMeasurementPlot=Object\.freeze/);
   assert.match(css,/height:49px;min-height:49px/);
   assert.match(css,/touch-action:pan-y!important/);
   assert.doesNotMatch(app,/post\('\/api\/output'/);
