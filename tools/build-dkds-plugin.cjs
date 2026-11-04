@@ -21,18 +21,33 @@ const copy={
 // This is a deterministic change of registration metadata, not domain logic.
 const ORIGINAL_OWNER='com.dkds.keithley-4200';
 const EXTERNAL_OWNER='com.dkts.keithley-4200';
+function makeModuleRegistrationReplaceable(name,data){
+  const marker='window.DKDSPluginModules.define(';
+  const start=data.indexOf(marker);
+  if(start<0)return data;
+  const end=data.indexOf(';',start);
+  if(end<0)throw Error('Module registration terminator missing: '+name);
+  const call=data.slice(start,end);
+  if(/,\s*\{\s*replace\s*:\s*true\s*\}\)$/.test(call))return data;
+  if(!call.endsWith(')'))throw Error('Unexpected module registration shape: '+name);
+  return data.slice(0,start)+call.slice(0,-1)+',{replace:true})'+data.slice(end);
+}
 function adaptPluginSource(name,data){
   if(name==='interop.js'){
     const marker="const PLUGIN_ID='"+ORIGINAL_OWNER+"';";
     if(!data.includes(marker))throw Error('Interop owner marker missing');
-    return data.replace(marker,"const PLUGIN_ID='"+EXTERNAL_OWNER+"';");
-  }
-  if(['kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'].includes(name)){
+    data=data.replace(marker,"const PLUGIN_ID='"+EXTERNAL_OWNER+"';");
+  }else if(['kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'].includes(name)){
     const marker="'"+ORIGINAL_OWNER+"'";
     if(!data.includes(marker))throw Error('Shared module registration owner missing: '+name);
-    return data.replace(marker,"'"+EXTERNAL_OWNER+"'");
+    data=data.replace(marker,"'"+EXTERNAL_OWNER+"'");
   }
-  return data;
+  // DKDS keeps module registrations for the lifetime of the host process.
+  // Replacing an external package can therefore re-evaluate its scripts while
+  // the previous version's module names are still registered. These modules
+  // are owned by this exact plugin ID, so explicitly replace that owner's
+  // stale definitions when a new package version is loaded.
+  return makeModuleRegistrationReplaceable(name,data);
 }
 // Generate the exact standalone workbench into the plugin from its owning
 // index.html, styles.css and app.js, rather than maintaining a cloned UI.
@@ -69,14 +84,14 @@ function createSharedShellSource(){
     '    return payload.html.replace("</head>","<style>"+payload.css+"</style></head>")',
     '      .replace("</body>",all+"</body>");',
     '  }',
-    "  window.DKDSPluginModules.define('com.dkts.keithley-4200','standalone-shell',Object.freeze({createDocument}));",
+    "  window.DKDSPluginModules.define('com.dkts.keithley-4200','standalone-shell',Object.freeze({createDocument}),{replace:true});",
     '})();',''
   ].join('\n');
   return generated;
 }
 
 const requireFiles=new Set(manifest.scripts);
-if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.6.1')
+if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.6.2')
   throw Error('Unexpected standalone DK Test Studio plugin identity / API / version');
 if(requireFiles.size!==Object.keys(copy).length||Object.keys(copy).some(x=>!requireFiles.has(x)))
   throw Error('Plugin manifest scripts must exactly match staging files');

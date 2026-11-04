@@ -126,7 +126,7 @@ test('native Android shell version comes from its actual installed package',()=>
  assert.match(src,/case "version": return new JSONObject\(\)/);
  assert.match(src,/getPackageInfo\(context\.getPackageName\(\),0\)\.versionName/);
  assert.match(bridge,/nativeVersion:async\(\)=>String/);
- assert.match(gradle,/versionName '0\.2\.8'/);
+ assert.match(gradle,/versionName '0\.2\.9'/);
 });
 
 test('Android 16 immersive mode is coalesced and cannot repeatedly re-enter from focus changes',()=>{
