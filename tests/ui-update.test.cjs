@@ -4,7 +4,6 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
-const root=path.resolve(__dirname,'..');
 const {bundle}=require('../tools/build-ui-bundle.cjs');
 const {validateBundle,createUiUpdater}=require('../src/ui-update.cjs');
 const VERSION='123456789abcdef123456789abcdef123456789a';
@@ -14,8 +13,8 @@ function prepare(platform){
 }
 test('manifest includes platform-specific entry HTML and identical CSS/JS',()=>{
   const b=prepare();
-  assert.equal(b.minShell,3,'workspace v2 requires the native shell with v2 storage');
-  assert.throws(()=>validateBundle({...b,minShell:2},'windows'),/Unsupported/);
+  assert.equal(b.minShell,4,'safe update ancestry checks require the v0.3.7 native shell');
+  assert.throws(()=>validateBundle({...b,minShell:3},'windows'),/Unsupported/);
   assert.deepEqual(Object.keys(b.platforms).sort(),['android','windows']);
   const win=validateBundle(b,'windows'),android=validateBundle(b,'android');
   assert.notDeepEqual(win['index.html'],android['index.html']);

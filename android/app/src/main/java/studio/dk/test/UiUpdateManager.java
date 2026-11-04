@@ -192,7 +192,7 @@ final class UiUpdateManager {
             if (!folder.isDirectory()) return false;
             JSONObject meta = new JSONObject(readText(new File(folder, "meta.json")));
             if (!SCHEMA.equals(meta.getString("schema")) ||
-                !REPO.equals(meta.getString("repository")) || meta.getInt("minShell") != 3 ||
+                !REPO.equals(meta.getString("repository")) || meta.getInt("minShell") != 4 ||
                 !SHA.matcher(bundledCommit).matches() ||
                 !bundledCommit.equals(meta.optString("shellBase")) ||
                 !SHA.matcher(meta.optString("version")).matches() ||
@@ -245,7 +245,7 @@ final class UiUpdateManager {
         JSONObject bundle=jsonGet(assetUrl,2097152);
         if(!SCHEMA.equals(bundle.getString("schema"))||
             !REPO.equals(bundle.getString("repository"))||
-            bundle.getInt("minShell")!=3||
+            bundle.getInt("minShell")!=4||
             !head.equalsIgnoreCase(bundle.getString("version")))
             throw new IllegalStateException("Bundle does not match main HEAD");
         JSONObject data = bundle.getJSONObject("platforms").getJSONObject("android");
@@ -268,7 +268,7 @@ final class UiUpdateManager {
             }
             JSONObject meta = new JSONObject();
             meta.put("schema", SCHEMA);meta.put("repository", REPO);
-            meta.put("minShell", 3);meta.put("version", head);
+            meta.put("minShell", 4);meta.put("version", head);
             meta.put("tag", tag);meta.put("shellBase",bundledCommit);
             meta.put("hashes", hashes);
             write(new File(stage, "meta.json"), meta.toString().getBytes(StandardCharsets.UTF_8));

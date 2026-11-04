@@ -11,7 +11,7 @@ const TYPE='dkts-ui-v1';
 function validateBundle(bundle,platform){
   if(!bundle||bundle.schema!==TYPE||bundle.repository!==REPO||
     !/^[a-zA-Z0-9._-]{5,80}$/.test(bundle.version||'')||
-    bundle.minShell!==3||!bundle.platforms?.[platform])
+    bundle.minShell!==4||!bundle.platforms?.[platform])
     throw Error('Unsupported UI update bundle');
   const entries=bundle.platforms[platform];
   if(Object.keys(entries).sort().join(',')!==FILES.slice().sort().join(','))
@@ -51,7 +51,7 @@ function createUiUpdater(options={}){
   const active=path.join(root,'ui-active'),stage=path.join(root,'ui-next'),backup=path.join(root,'ui-previous');
   function verifyCached(folder){
     const meta=JSON.parse(fs.readFileSync(path.join(folder,'meta.json'),'utf8'));
-    if(meta.schema!==TYPE||meta.repository!==REPO||meta.minShell!==3||
+    if(meta.schema!==TYPE||meta.repository!==REPO||meta.minShell!==4||
       !COMMIT.test(baseCommit)||meta.shellBase!==baseCommit||
       !COMMIT.test(meta.version)||meta.tag!=='dkts-ui-'+meta.version)
       throw Error('Cached UI does not belong to the current native shell');
@@ -61,7 +61,7 @@ function createUiUpdater(options={}){
       entries[name]={sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
         bytes:bytes.length,base64:bytes.toString('base64')};
     }
-    validateBundle({schema:TYPE,version:meta.version,minShell:3,repository:REPO,
+    validateBundle({schema:TYPE,version:meta.version,minShell:4,repository:REPO,
       platforms:{windows:entries}},'windows');
     return meta;
   }
@@ -128,7 +128,7 @@ function createUiUpdater(options={}){
         fs.rmSync(stage,{recursive:true,force:true});fs.mkdirSync(stage);
         for(const name of FILES)fs.writeFileSync(path.join(stage,name),parts[name]);
         fs.writeFileSync(path.join(stage,'meta.json'),JSON.stringify({
-          schema:TYPE,version:head,tag:releaseTag,minShell:3,repository:REPO,
+          schema:TYPE,version:head,tag:releaseTag,minShell:4,repository:REPO,
           shellBase:baseCommit
         }));
         verifyCached(stage);
