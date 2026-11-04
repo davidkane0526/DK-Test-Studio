@@ -581,10 +581,10 @@ function setParametersCollapsed(collapsed){
   columns.classList.toggle('parameters-collapsed',collapsed);
   $('parameters-panel').hidden=collapsed;
   const restore=$('restore-parameters');
-  restore.setAttribute('aria-expanded',String(!collapsed));
-  restore.textContent=collapsed?'展开':'收起';
-  restore.setAttribute('aria-label',collapsed?'展开参数栏':'收起参数栏');
-  restore.title=collapsed?'展开参数栏':'收起参数栏';
+  restore.setAttribute('aria-expanded',String(collapsed));
+  restore.textContent=collapsed?'收起':'展开';
+  restore.setAttribute('aria-label',collapsed?'收起绘图区':'展开绘图区');
+  restore.title=collapsed?'收起绘图区':'展开绘图区';
   showStatusMessage(collapsed?'参数已收起 · 绘图区域使用全部宽度':'参数栏已显示');
 }
 $('restore-parameters').addEventListener('click',()=>setParametersCollapsed(

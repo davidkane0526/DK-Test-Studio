@@ -64,7 +64,7 @@ test('workbench reserves narrow top title and bottom status strips and can hide 
   assert.match(app,/\$\('parameters-panel'\)\.hidden=collapsed/);
   assert.match(html,/id="restore-parameters" class="panel-expand-control"/);
   assert.match(html,/id="restore-parameters" class="panel-expand-control"/);
-  assert.match(app,/restore\.textContent=collapsed\?'展开':'收起'/);
+  assert.match(app,/restore\.textContent=collapsed\?'收起':'展开'/);
   assert.match(styles,/\.detail-columns\.parameters-collapsed\{grid-template-columns:minmax\(0,1fr\)\}/);
   assert.match(styles,/\.workspace,.workspace\.workspace-active\{position:relative;width:100%;max-width:none/);
   assert.match(styles,/\.data-panel\{display:flex;flex-direction:column/);

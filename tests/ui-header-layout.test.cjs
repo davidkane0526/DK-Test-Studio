@@ -22,7 +22,7 @@ test('only one collapsible parameter control lives at the right of the data head
   assert.doesNotMatch(html,/id="test-detail-subtitle"/);
   const dataHead=html.slice(html.indexOf('<section class="detail-panel data-panel"'),html.indexOf('<div class="readout-grid"'));
   assert.match(dataHead,/id="data-title"[\s\S]*id="restore-parameters" class="panel-expand-control"/);
-  assert.match(app,/restore\.textContent=collapsed\?'展开':'收起'/);
+  assert.match(app,/restore\.textContent=collapsed\?'收起':'展开'/);
   assert.match(app,/classList\.toggle\('parameters-collapsed',collapsed\)/);
   assert.equal((html.match(/id="restore-parameters"/g)||[]).length,1);
 });
