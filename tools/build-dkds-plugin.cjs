@@ -3,7 +3,12 @@
 // Deterministically stage the exact shared core sources into a DKDS API 1.19 plug-in.
 // No generated executable instrument commands or duplicate measurement logic.
 const fs=require('node:fs'),path=require('node:path');
-const root=path.resolve(__dirname,'..'),folder=path.join(root,'dist','dkds-plugin');
+const root=path.resolve(__dirname,'..');
+const standaloneBuild=require.main===module;
+// Node tests execute files in parallel processes; give each worker private
+// staging files to prevent reading another worker's partial plugin writes.
+const suffix=standaloneBuild?'':'-test-'+process.pid;
+const folder=path.join(root,'dist','dkds-plugin'+suffix);
 const template=path.join(root,'integrations','dkds');
 const manifest=JSON.parse(fs.readFileSync(path.join(template,'plugin.json'),'utf8'));
 const copy={
@@ -103,7 +108,7 @@ for(const [name,src] of Object.entries(copy)){
 }
 fs.writeFileSync(path.join(folder,'plugin.json'),JSON.stringify(manifest,null,2)+'\n');
 const pkg={schema:1,manifest,files};
-const artifact=path.join(root,'dist',manifest.id+'-'+manifest.version+'.dkplugin');
+const artifact=path.join(root,'dist',manifest.id+'-'+manifest.version+suffix+'.dkplugin');
 fs.writeFileSync(artifact,JSON.stringify(pkg,null,2)+'\n','utf8');
 console.log('Staged '+folder);
 console.log('DKDS Plugin API 1.19 package candidate '+artifact);
