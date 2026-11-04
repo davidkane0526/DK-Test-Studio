@@ -55,6 +55,12 @@ public final class MainActivity extends Activity {
             }
         });
         webView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                if (!url.startsWith(APP_ORIGIN)) return;
+                view.postDelayed(() -> view.evaluateJavascript(
+                    "(function(){return JSON.stringify({d3:!!window.d3,renderer:!!window.DKDSD3Renderer,charts:!!window.DKDSCharts,grip:!!document.querySelector('.dkds-scientific-nav-drag')})})()",
+                    value -> Log.i("DKTS-PlotReady", value)), 2600L);
+            }
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
                 return loader.shouldInterceptRequest(req.getUrl());
             }

@@ -167,6 +167,12 @@ jobs:
             adb shell am start -W -n studio.dk.test/.MainActivity
             sleep 3
             test -n "$(adb shell pidof studio.dk.test | tr -d '\r')"
+            adb logcat -d -s DKTS-PlotReady:I > android-plot-ready.log
+            if ! grep -q 'd3.*true.*renderer.*true.*charts.*true.*grip.*true' android-plot-ready.log; then
+              cat android-plot-ready.log
+              echo 'DKDS scientific plotting engine or drag grip did not initialize'
+              exit 1
+            fi
             adb logcat -d -s DKTS-WebJS:E > android-startup-webjs.log
             if grep -Eq 'Uncaught|ReferenceError|TypeError|SyntaxError|Scientific renderer|D3 scientific renderer|DKDS.*must initialize' android-startup-webjs.log; then
               cat android-startup-webjs.log
@@ -186,6 +192,7 @@ jobs:
             android-startup.png
             android-startup-crash.log
             android-startup-webjs.log
+            android-plot-ready.log
           if-no-files-found: warn
       - name: Prepare Android release asset
         run: |

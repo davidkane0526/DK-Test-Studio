@@ -189,3 +189,13 @@ test('Android WebView surfaces chart script exceptions in startup smoke testing'
   assert.match(workflow,/android-startup-webjs\.log/);
   assert.match(workflow,/DKDS chart runtime has a JavaScript initialization error/);
 });
+
+test('emulator verifies the actual DKDS engine and toolbar grip at runtime',()=>{
+  const activity=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
+  const workflow=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
+  assert.match(activity,/DKTS-PlotReady/);
+  assert.match(activity,/window\.DKDSD3Renderer/);
+  assert.match(activity,/dkds-scientific-nav-drag/);
+  assert.match(workflow,/android-plot-ready\.log/);
+  assert.match(workflow,/scientific plotting engine or drag grip did not initialize/);
+});
