@@ -1,7 +1,7 @@
 {
   "id": "com.dkts.keithley-4200",
   "name": "DK Test Studio - Keithley 4200A",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "apiVersion": "1.19.0",
   "entry": "plugin.js",
   "enabled": true,

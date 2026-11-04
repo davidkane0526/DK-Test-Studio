@@ -84,3 +84,37 @@ test('local-only API restores and saves a complete workspace without an output e
     assert.equal(forbidden.status,404);
   }finally{await app.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test('HTTP snapshot parser preserves Chinese text split across UTF-8 chunks',async()=>{
+  const http=require('node:http');
+  const dir=temp(),file=path.join(dir,'workspace-state.json');
+  const app=await createAppServer({workspaceFile:file});
+  try{
+    const state=empty();
+    state.tabs.push({
+      id:'中文标签',name:'器件甲的测试历史',activeMode:'iv',
+      modeDrafts:{},historyByMode:{},dataByMode:{},activeRunByMode:{}
+    });
+    const body=Buffer.from(JSON.stringify({workspace:state}),'utf8');
+    const marker=Buffer.from('器件甲','utf8');
+    const first=body.indexOf(marker)+1;
+    assert(first>0);
+    const reply=await new Promise((resolve,reject)=>{
+      const request=http.request(new URL('/api/workspaces',app.url),{
+        method:'POST',headers:{
+          'Content-Type':'application/json','X-DKTS-Request':'1'
+        }
+      },response=>{
+        let data='';response.on('data',part=>{data+=part.toString('utf8');});
+        response.on('end',()=>resolve({status:response.statusCode,body:JSON.parse(data)}));
+      });
+      request.on('error',reject);
+      request.write(body.subarray(0,first));
+      setTimeout(()=>request.end(body.subarray(first)),20);
+    });
+    assert.equal(reply.status,200);
+    assert.equal(reply.body.ok,true);
+    assert.equal(readWorkspace(file).tabs[0].name,'器件甲的测试历史');
+  }finally{await app.close();fs.rmSync(dir,{recursive:true,force:true});}
+});

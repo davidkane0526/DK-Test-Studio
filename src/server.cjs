@@ -1,6 +1,7 @@
 'use strict';
 const http=require('node:http');
 const fs=require('node:fs');
+const {StringDecoder}=require('node:string_decoder');
 const path=require('node:path');
 const {parseWaveformText}=require('./controller/waveform.cjs');
 const {normalizePlan,previewPlan,createExecutionCoordinator}=require('./controller/measurement-plan.cjs');
@@ -26,16 +27,18 @@ function json(res,code,payload){
 function readJson(req,maxBytes=8388608){
   return new Promise((resolve,reject)=>{
     let size=0,body='',done=false;
+    const decoder=new StringDecoder('utf8');
     function fail(e){if(done)return;done=true;reject(e);}
     req.on('data',chunk=>{
       if(done)return;
       size+=chunk.length;
       if(size>maxBytes)return fail(Error('请求内容超过大小限制'));
-      body+=chunk.toString('utf8');
+      body+=decoder.write(chunk);
     });
     req.on('end',()=>{
       if(done)return;
       done=true;
+      body+=decoder.end();
       try{
         const value=JSON.parse(body||'{}');
         if(!value||typeof value!=='object'||Array.isArray(value))throw Error('请求应为 JSON 对象');
