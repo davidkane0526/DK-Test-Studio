@@ -28,7 +28,7 @@ function makeModuleRegistrationReplaceable(name,data){
   const end=data.indexOf(';',start);
   if(end<0)throw Error('Module registration terminator missing: '+name);
   const call=data.slice(start,end);
-  if(/,\\s*\\{\\s*replace\\s*:\\s*true\\s*\\}\\)$/.test(call))return data;
+  if(/,\s*\{\s*replace\s*:\s*true\s*\}\)$/.test(call))return data;
   if(!call.endsWith(')'))throw Error('Unexpected module registration shape: '+name);
   return data.slice(0,end)+call.slice(0,-1)+',{replace:true})'+data.slice(end);
 }
