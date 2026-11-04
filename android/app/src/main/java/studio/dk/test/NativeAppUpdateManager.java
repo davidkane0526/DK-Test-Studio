@@ -181,6 +181,8 @@ final class NativeAppUpdateManager {
                     validateApk(apk,selected.version);
                     downloaded=apk;
                 }else{
+                    // Cache files can change between checks; never trust only the APK signer.
+                    verifyDigest(apk,selected);
                     validateApk(apk,selected.version);
                 }
                 if(closed)return;
@@ -190,6 +192,20 @@ final class NativeAppUpdateManager {
                 state="error";error=String.valueOf(ex.getMessage());Log.w(TAG,"APK update rejected",ex);
             }
         });
+    }
+    private void verifyDigest(File apk,Candidate selected)throws Exception{
+        if(!apk.isFile()||apk.length()!=selected.size)
+            throw new SecurityException("APK 更新缓存大小不匹配");
+        MessageDigest md=MessageDigest.getInstance("SHA-256");
+        try(InputStream in=new FileInputStream(apk)){
+            byte[] chunk=new byte[65536];int read;
+            while((read=in.read(chunk))!=-1)md.update(chunk,0,read);
+        }
+        if(!hex(md.digest()).equals(selected.sha256)){
+            downloaded=null;
+            if(!apk.delete())Log.w(TAG,"Cannot remove invalid update cache");
+            throw new SecurityException("APK 更新缓存 SHA-256 校验失败");
+        }
     }
     private File download(Candidate selected)throws Exception{
         state="downloading";progress=0;error="";
