@@ -187,7 +187,7 @@ test('Android WebView surfaces chart script exceptions in startup smoke testing'
   assert.match(main,/setWebChromeClient\(new WebChromeClient\(\)/);
   assert.match(main,/Log\.e\("DKTS-WebJS"/);
   assert.match(workflow,/android-startup-webjs\.log/);
-  assert.match(workflow,/DKDS chart runtime has a JavaScript initialization error/);
+  assert.match(workflow,/! grep -Eq 'Uncaught\|ReferenceError\|TypeError/);
 });
 
 test('emulator verifies the actual DKDS engine and toolbar grip at runtime',()=>{
@@ -197,5 +197,5 @@ test('emulator verifies the actual DKDS engine and toolbar grip at runtime',()=>
   assert.match(activity,/window\.DKDSD3Renderer/);
   assert.match(activity,/dkds-scientific-nav-drag/);
   assert.match(workflow,/android-plot-ready\.log/);
-  assert.match(workflow,/scientific plotting engine or drag grip did not initialize/);
+  assert.match(workflow,/grep -q 'd3\.\*true\.\*renderer\.\*true\.\*charts\.\*true\.\*grip\.\*true'/);
 });
