@@ -17,6 +17,8 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: node tools/sync-android-assets.cjs
+      - name: Generate Android launcher icons
+        run: npm run icons:build
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
