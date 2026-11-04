@@ -2,47 +2,46 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
-const pluginStage=require('../tools/build-dkds-plugin.cjs').folder;
-test('DKDS API 1.19 adapter activates real plugin entry and shared capability',async()=>{
-  const registry=new Map(),nodes=[],captured={};
+const staged=require('../tools/build-dkds-plugin.cjs').folder;
+const owner='com.dkts.keithley-4200';
+function prepare(){
+  const registry=new Map(),captured={},listeners=new Map();
   const unit=(kind)=>({
-    kind,children:[],hidden:false,open:false,value:'',textContent:'',
-    setAttribute(){},
-    showModal(){this.open=true;},
-    close(){this.open=false;},
-    appendChild(item){this.children.push(item);return item;},
-    querySelector(){return null;}
+    kind,children:[],hidden:false,open:false,style:{},attributes:{},
+    textContent:'',value:'',className:'',
+    setAttribute(key,value){this.attributes[key]=value;},
+    appendChild(n){this.children.push(n);return n;},
+    remove(){this.removed=true;},
+    querySelector(){return null;},
+    contentWindow:kind==='iframe'?{sent:[],postMessage(m){this.sent.push(m);}}:undefined
   });
-  let composed,capability,slice,top,activity,openedPage,transmit=0;
+  let composed,activity,top,slice,capability,transmit=0,frame;
   const units={
     page:{create:()=>({element:unit('page')})},
-    pageHeader:{create:()=>({element:unit('header')})},
-    layout:{create:(parent)=>{const n=unit('layout');parent?.appendChild?.(n);return n;}},
-    workspace:{create:()=>({compose:spec=>{composed=spec;},dispose:()=>{}})},
-    surface:{create:(parent,spec)=>{const n=unit('surface');n.className=spec?.className||'';parent?.appendChild?.(n);return n;}},
-    field:{create:(parent,spec)=>{const n=unit('field'),control=unit('control');control.value=String(spec.value??'');
-      n.appendChild(control);parent?.appendChild?.(n);return {element:n,control};}},
-    action:{create:(parent,spec)=>{const button=unit('button');button.textContent=spec.label;button.invoke=spec.onInvoke;
-      parent?.appendChild?.(button);nodes.push(button);return {button};}},
-    note:{create:(parent,spec)=>{const n=unit('note');n.textContent=spec.text||'';
-      parent?.appendChild?.(n);return n;}}
+    workspace:{create:()=>({compose(v){composed=v;},dispose(){}})}
   };
-  const context={atob,btoa,DKDSPlugins:{define:(m,fn)=>{captured.manifest=m;captured.activate=fn;}},window:{
-    DKDSPluginModules:{define:(owner,name,api)=>{
-      assert.equal(owner,'com.dkts.keithley-4200');registry.set(name,api);
-    }}
-  }};
-  vm.createContext(context);
-  for(const file of ['kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js','interop.js']){
-    vm.runInContext(fs.readFileSync(path.join(pluginStage,file),'utf8'),context);
+  const sandbox={
+    atob,btoa,crypto:{randomUUID:()=>('a'.repeat(32))},
+    DKDSPlugins:{define:(manifest,activate)=>{captured.manifest=manifest;captured.activate=activate;}},
+    window:{
+      addEventListener(name,handler){listeners.set(name,handler);},
+      removeEventListener(name){listeners.delete(name);},
+      DKDSPluginModules:{define(id,name,api){
+        assert.equal(id,owner);registry.set(name,api);
+      }}
+    }
+  };
+  vm.createContext(sandbox);
+  for(const file of ['kxci-protocol.js','measurement-plan.js','waveform.js',
+    'identity-core.js','interop.js','standalone-shell.js','presentation.js','plugin.js']){
+    vm.runInContext(fs.readFileSync(path.join(staged,file),'utf8'),sandbox,
+      {filename:file,timeout:10000});
   }
-  vm.runInContext(fs.readFileSync(path.join(root,'integrations/dkds/presentation.js'),'utf8'),context);
-  vm.runInContext(fs.readFileSync(path.join(root,'integrations/dkds/plugin.js'),'utf8'),context);
   const tcp={
-    open:async()=>({sessionId:'mock',remoteAddress:'169.254.111.118',remotePort:1225}),
-    exchange:async payload=>{
+    open:async()=>({sessionId:'stub',remoteAddress:'169.254.111.118',remotePort:1225}),
+    exchange:async p=>{
       transmit++;
-      const cmd=Buffer.from(payload.base64,'base64').toString('hex');
+      const cmd=Buffer.from(p.base64,'base64').toString('hex');
       assert(['2a49444e3f00','2a4f50543f00'].includes(cmd));
       return {base64:Buffer.from(cmd==='2a49444e3f00'
         ?'KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0'
@@ -52,77 +51,83 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
   };
   const ctx={
     services:{require(name){assert.equal(name,'tcp');return tcp;}},
-    modules:{require(name){assert(registry.has(name),'missing '+name);return registry.get(name);}},
+    modules:{require(name){assert(registry.has(name),'Missing '+name);return registry.get(name);}},
     status:{set(v){captured.status=v;}},
-    workspace:{openPage(id){openedPage=id;}},
+    workspace:{openPage(id){captured.openedPage=id;}},
     ui:{
-      unitTemplates:units,dom:{create:unit},
-      activities:{add:row=>{activity=row;}},
-      pages:{add:row=>{captured.page=row;return row;}},
-      topWorkspace:{register:row=>{top=row;}}
+      dom:{create(kind){const n=unit(kind);if(kind==='iframe')frame=n;return n;}},
+      unitTemplates:units,
+      activities:{add(spec){activity=spec;}},
+      pages:{add(spec){return spec;}},
+      topWorkspace:{register(spec){top=spec;}}
     },
-    project:{registerSlice:(id,row)=>{assert.equal(id,'dkts-keithley-4200');slice=row;},capture(){}},
-    capabilities:{register:(id,row)=>{assert.equal(id,'instrument.dkts-keithley-4200');capability=row;}}
+    project:{
+      registerSlice(id,v){assert.equal(id,'dkts-keithley-4200');slice=v;},
+      capture(){captured.capture=(captured.capture||0)+1;}
+    },
+    capabilities:{register(id,v){
+      assert.equal(id,'instrument.dkts-keithley-4200');capability=v;
+    }}
   };
-  const registered=await captured.activate(ctx);
-  assert.equal(captured.manifest.id,'com.dkts.keithley-4200');
-  assert.equal(captured.manifest.apiVersion,'1.19.0');
-  assert.equal(typeof activity.onActivate,'function');
-  assert.equal(top.activity,'dkts-keithley-4200');
-  assert(composed?.primary?.mainNode);
-  assert(nodes.some(row=>row.textContent==='未连接'));
-  assert(nodes.some(row=>row.textContent==='重新连接'));
-  assert(nodes.some(row=>row.textContent==='断开连接'));
-  const modalButton=nodes.find(row=>row.textContent==='未连接');
-  assert.equal(typeof modalButton.invoke,'function');
-  modalButton.invoke();
-  assert.equal(modalButton.textContent,'未连接','Opening details must not toggle connection');
-  assert.equal(capability.methods.validatePlan().kind,'iv');
-  const ivCard=nodes.find(row=>row.textContent==='SMU I–V 扫描');
-  const itCard=nodes.find(row=>row.textContent==='SMU I–t 恒压读出');
-  assert.equal(typeof ivCard?.invoke,'function');
-  assert.equal(typeof itCard?.invoke,'function');
-  assert.equal(nodes.some(row=>row.textContent==='测试方式'),false,'No legacy DKDS test dropdown');
-  const futureCard=nodes.find(row=>row.textContent==='转移特性');
-  assert.equal(typeof futureCard?.invoke,'function','Future card opens its placeholder workspace');
-  futureCard.invoke();
-  assert.equal(capability.methods.validatePlan().kind,'iv','Future mode cannot mutate executable test plan');
-  const pendingBack=nodes.find(row=>row.textContent==='← 返回测试选择');
-  assert.equal(typeof pendingBack?.invoke,'function');
-  pendingBack.invoke();
-  const allDescendants=(node)=>[node,...(node.children||[]).flatMap(allDescendants)];
-  const surfaces=allDescendants(composed.primary.mainNode);
-  const library=surfaces.find(x=>String(x.className||'').includes('dkts-library-stage'));
-  const workspace=surfaces.find(x=>String(x.className||'').includes('dkts-workspace-stage'));
-  const back=nodes.find(row=>row.textContent==='← 返回测试选择');
-  assert(library&&workspace&&back);
-  assert.equal(library.hidden,false);
-  assert.equal(workspace.hidden,true);
-  itCard.invoke();
-  assert.equal(capability.methods.validatePlan().kind,'it');
-  assert.equal(library.hidden,true,'Mode grid must disappear after selecting a test');
-  assert.equal(workspace.hidden,false,'Workspace occupies the second-level page');
-  back.invoke();
-  assert.equal(library.hidden,false);
-  assert.equal(workspace.hidden,true);
-  assert.equal(capability.methods.validatePlan().kind,'it','Returning to library preserves parameters');
-  ivCard.invoke();
-  assert.equal(capability.methods.validatePlan().kind,'iv');
-  const plan=capability.methods.exportPlan();
-  assert.equal(plan.schema,'dkts.4200.interop.v1');
-  assert.equal(plan.plan.executable,false);
-  const oldPlan={plan:{mode:'iv',loops:2,points:5,startV:-2,stopV:2}};
-  slice.restore(oldPlan);
-  assert.equal(capability.methods.validatePlan().loops,2);
-  assert.equal(capability.methods.importPlan(plan).totalPoints,201);
-  const identified=await capability.methods.connect();
-  assert.equal(identified.phase,'connected');
-  assert.equal(capability.methods.status().identified.serial,'1498377');
-  assert.equal(transmit,2);
-  assert.equal(capability.methods.status().inventory.knownModules.length,4);
-  assert.equal((await capability.methods.connect()).phase,'connected');
-  assert.equal(transmit,2,'no duplicate identify or inventory');
-  assert.equal((await capability.methods.disconnect()).phase,'disconnected');
-  assert.equal(slice.serialize().plan.executable,false);
-  registered.deactivate();
+  return {captured,registry,listeners,ctx,
+    get view(){return {composed,activity,top,slice,capability,frame,transmit};}};
+}
+test('DKDS plugin displays the exact standalone app in a sandboxed workbench',async()=>{
+  const env=prepare(),installed=await env.captured.activate(env.ctx),v=env.view;
+  assert.equal(env.captured.manifest.version,'0.6.0');
+  assert.equal(v.activity.openMode,'window');
+  assert.equal(v.top.activity,'dkts-keithley-4200');
+  assert(v.composed.primary.mainNode);
+  assert.equal(v.frame.attributes.sandbox,'allow-scripts');
+  assert(!v.frame.attributes.sandbox.includes('allow-same-origin'));
+  assert.equal(v.frame.attributes.title,'DK Test Studio 完整测试工作区');
+  assert.match(v.frame.srcdoc,/DK Test Studio/);
+  assert.match(v.frame.srcdoc,/id="workspace-tabs"/);
+  assert.match(v.frame.srcdoc,/id="measurement-plot"/);
+  assert.match(v.frame.srcdoc,/id="plan-form"/);
+  assert.match(v.frame.srcdoc,/DKDSCharts/);
+  assert(!v.frame.srcdoc.includes('<script src="/app.js"'));
+  assert.equal(v.capability.methods.validatePlan().kind,'iv');
+  assert.equal(v.capability.methods.exportPlan().schema,'dkts.4200.interop.v1');
+  installed.deactivate();
+  assert(v.frame.removed);
+});
+test('request bridge only permits read-only KXCI and same form plan validation',async()=>{
+  const env=prepare(),installed=await env.captured.activate(env.ctx),v=env.view;
+  const session='a'.repeat(32),channel='dkts-standalone-workbench-v1';
+  const incoming=(type,extra={})=>env.listeners.get('message')({
+    source:v.frame.contentWindow,data:{channel,session,type,...extra}
+  });
+  incoming('ready');
+  incoming('draft',{plan:{kind:'it',points:'3',loops:'2'},connection:{host:'169.254.111.118',port:'1225'}});
+  assert.equal(v.capability.methods.validatePlan().kind,'it');
+  async function request(ticket,method,route,payload={}){
+    incoming('api',{ticket,method,route,payload});
+    for(let i=0;i<12;i++){
+      await new Promise(resolve=>setImmediate(resolve));
+      const found=v.frame.contentWindow.sent.find(m=>m.type==='api-response'&&m.ticket===ticket);
+      if(found)return found;
+    }
+    throw Error('No DKDS bridge response for '+route);
+  }
+  const status=await request(1,'GET','/api/status');
+  assert.equal(status.status,200);
+  const plan=await request(2,'POST','/api/plan/validate',{kind:'iv',loops:1,points:5});
+  assert.equal(plan.status,200);
+  assert.equal(plan.data.plan.kind,'iv');
+  const connect=await request(3,'POST','/api/connect',{host:'169.254.111.118'});
+  assert.equal(connect.data.phase,'connected');
+  const options=await request(4,'POST','/api/modules/inspect');
+  assert.equal(options.data.inventory.knownModules.length,4);
+  assert.equal(env.view.transmit,2);
+  const forbidden=await request(5,'POST','/api/smu/source',{voltage:15});
+  assert.equal(forbidden.status,404);
+  assert.equal(env.view.transmit,2,'No hardware source command may be sent');
+  const exportPlan=v.capability.methods.exportPlan();
+  assert.equal(exportPlan.plan.executable,false);
+  v.slice.restore({plan:{mode:'iv',loops:3,points:5}});
+  assert.equal(v.capability.methods.validatePlan().loops,3);
+  assert.equal(v.capability.methods.importPlan(exportPlan).totalPoints,12);
+  await v.capability.methods.disconnect();
+  installed.deactivate();
 });
