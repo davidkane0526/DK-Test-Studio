@@ -3,50 +3,17 @@ const $=id=>document.getElementById(id);
 // Android WebView has native system bars, not desktop caption/window controls.
 if(typeof window.DKTSNative?.request==='function')
   document.body.classList.add('dkts-android-shell');
-// Keep compact chrome by default. A long press exposes the full version in a
-// floating label instead of expanding and pushing the test tabs off screen.
-function makeVersionBadgeControl(id){
-  const badge=$(id);
-  let shortText='',longText='',fullText='',description='',expanded=false,timer=null;
-  const render=()=>{
-    badge.textContent=expanded?longText:shortText;
-    badge.dataset.expanded=String(expanded);
-    badge.dataset.versionDetail=fullText;
-    badge.title=description+' · 长按切换详细版本';
-    badge.setAttribute('aria-label',description+'，长按或按 Enter 切换详细版本');
-    badge.setAttribute('aria-pressed',String(expanded));
-  };
-  const toggle=()=>{expanded=!expanded;render();};
-  const cancelHold=()=>{if(timer!==null){clearTimeout(timer);timer=null;}};
-  badge.addEventListener('pointerdown',event=>{
-    if(event.button!==0)return;
-    cancelHold();
-    timer=setTimeout(()=>{timer=null;toggle();},550);
-  });
-  for(const eventName of ['pointerup','pointercancel','pointerleave'])
-    badge.addEventListener(eventName,cancelHold);
-  badge.addEventListener('contextmenu',event=>event.preventDefault());
-  badge.addEventListener('keydown',event=>{
-    if(event.key==='Enter'||event.key===' '){
-      event.preventDefault();cancelHold();toggle();
-    }
-  });
-  return {update(compact,detail,full,tip){
-    shortText=compact;longText=detail;fullText=full;description=tip;render();
-  }};
-}
-const nativeVersionControl=makeVersionBadgeControl('native-version-badge');
-const uiVersionControl=makeVersionBadgeControl('ui-version-badge');
-nativeVersionControl.update('v0.2.5','原生 v0.2.5','原生版本 v0.2.5','当前原生安装版本：0.2.5');
+// UI badge stays hidden until a click on the actual native version.
+// Each opening triggers an immediate verified UI-only update check.
+const nativeBadge=$('native-version-badge');
+const uiBadge=$('ui-version-badge');
+const updateStatus=$('ui-update-state');
+let uiCheckBusy=false;
 function displayUiVersion(){
   const raw=document.querySelector('meta[name="dkts-ui-version"]')?.content||'bundled';
-  const isCommit=/^[a-f0-9]{40}$/i.test(raw);
-  uiVersionControl.update(
-    isCommit?'UI '+raw.slice(0,4):'UI 内置',
-    isCommit?'UI '+raw.slice(0,8):'UI 内置版',
-    isCommit?'UI commit '+raw:'UI 内置资源',
-    isCommit?'当前 UI 版本：'+raw:'当前 UI 版本：内置资源'
-  );
+  const isSha=/^[a-f0-9]{40}$/i.test(raw);
+  $('ui-version-text').textContent=isSha?'UI '+raw.slice(0,8):'UI 内置';
+  uiBadge.title=isSha?'完整 UI 版本：'+raw:'当前使用内置界面资源';
 }
 displayUiVersion();
 async function displayNativeVersion(){
@@ -57,12 +24,55 @@ async function displayNativeVersion(){
       const response=await fetch('/api/app/version',{cache:'no-store'});
       if(response.ok)version=String((await response.json()).version||'');
     }
-    if(/^\d+\.\d+\.\d+$/.test(version))
-      nativeVersionControl.update('v'+version,'原生 v'+version,
-        '原生版本 v'+version,'当前原生安装版本：'+version);
-  }catch{/* Native version falls back to bundled package label when offline. */}
+    if(/^\d+\.\d+\.\d+$/.test(version))nativeBadge.textContent='v'+version;
+  }catch{/* Keep bundled version if unavailable offline. */}
 }
 void displayNativeVersion();
+async function checkUiUpdateNow(){
+  if(uiCheckBusy)return;
+  uiCheckBusy=true;updateStatus.textContent='正在检查热更新…';
+  try{
+    if(window.DKTSClient?.checkUiUpdate){
+      await window.DKTSClient.checkUiUpdate();
+      for(let index=0;index<18;index++){
+        await new Promise(resolve=>setTimeout(resolve,900));
+        const result=await window.DKTSClient.uiUpdateStatus();
+        if(result.status==='updated'){
+          updateStatus.textContent='更新已验证，正在刷新界面…';return;
+        }
+        if(result.status==='current'){updateStatus.textContent='UI 已是最新版本';return;}
+        if(result.status==='offline'){
+          updateStatus.textContent='检查失败：'+String(result.error||'网络不可用').slice(0,72);return;
+        }
+      }
+      updateStatus.textContent='检查继续在后台执行';
+    }else if(window.DKTSClient)updateStatus.textContent='请安装新版 APK 以使用手动检查';
+    else {
+      const response=await fetch('/api/ui/check',{method:'POST',cache:'no-store',
+        headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},body:'{}'});
+      if(!response.ok)throw Error('更新接口 HTTP '+response.status);
+      const result=await response.json();
+      if(result.updated){
+        updateStatus.textContent='更新已安装，正在刷新…';
+        if(!window.DKTSMeasurementRunning)window.location.reload();
+      }else if(result.error)updateStatus.textContent='检查失败：'+String(result.error).slice(0,72);
+      else updateStatus.textContent=result.status==='disabled'
+        ?'当前浏览器模式未启用自动更新':'UI 已是最新版本';
+    }
+  }catch(error){updateStatus.textContent='检查失败：'+String(error.message||error).slice(0,72);}
+  finally{uiCheckBusy=false;}
+}
+nativeBadge.addEventListener('click',()=>{
+  const opening=uiBadge.hidden;
+  uiBadge.hidden=!opening;
+  nativeBadge.setAttribute('aria-expanded',String(opening));
+  if(opening)void checkUiUpdateNow();
+});
+document.addEventListener('pointerdown',event=>{
+  if(!uiBadge.hidden&&!uiBadge.contains(event.target)&&event.target!==nativeBadge){
+    uiBadge.hidden=true;nativeBadge.setAttribute('aria-expanded','false');
+  }
+});
 const form=$('connection-form'),planForm=$('plan-form');
 const dialog=$('connection-dialog'),statusButton=$('connection-status');
 const reconnect=$('reconnect-instrument'),disconnect=$('disconnect-instrument');
@@ -315,7 +325,6 @@ function renderTestSelection(){
   renderWorkspaceTabs();
   if(!mode)return;
   $('test-detail-title').textContent=mode.title+' · 测试工作区';
-  $('test-detail-subtitle').textContent='参数设置 / 数据读取 / 实时曲线';
   $('measurement-x-label').textContent=mode.x;
   $('data-column-x').textContent=mode.xColumn;
   $('measurement-empty').textContent='尚无'+mode.title+'的仪器实测数据';
@@ -341,7 +350,6 @@ function renderTestSelection(){
     $('pending-description').textContent='此测试方式的参数配置与仪器采集尚未实现。界面仅保留工作区，不会执行任何输出。';
   }
   // The measured plot stays empty until the actual instrument acquisition layer is implemented.
-  $('acquisition-state').textContent='等待实机采集';
 }
 function selectTestKind(kind){
   if(!Object.hasOwn(TEST_MODES,kind))return;
@@ -401,16 +409,16 @@ function setParametersCollapsed(collapsed){
   const columns=$('detail-columns');
   columns.classList.toggle('parameters-collapsed',collapsed);
   $('parameters-panel').hidden=collapsed;
-  const collapse=$('toggle-parameters'),restore=$('restore-parameters');
-  collapse.setAttribute('aria-expanded',String(!collapsed));
+  const restore=$('restore-parameters');
   restore.setAttribute('aria-expanded',String(!collapsed));
-  restore.hidden=!collapsed;
-  if(collapsed)restore.focus({preventScroll:true});
-  else collapse.focus({preventScroll:true});
+  restore.textContent=collapsed?'展开':'收起';
+  restore.setAttribute('aria-label',collapsed?'展开参数栏':'收起参数栏');
+  restore.title=collapsed?'展开参数栏':'收起参数栏';
   showStatusMessage(collapsed?'参数已收起 · 绘图区域使用全部宽度':'参数栏已显示');
 }
-$('toggle-parameters').addEventListener('click',()=>setParametersCollapsed(true));
-$('restore-parameters').addEventListener('click',()=>setParametersCollapsed(false));
+$('restore-parameters').addEventListener('click',()=>setParametersCollapsed(
+  !$('detail-columns').classList.contains('parameters-collapsed')
+));
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape'&&expandedKind&&!dialog.open){
     event.preventDefault();
