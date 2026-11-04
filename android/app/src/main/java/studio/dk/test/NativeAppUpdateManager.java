@@ -94,6 +94,7 @@ final class NativeAppUpdateManager {
             h.endsWith(".githubusercontent.com");
     }
     private static HttpURLConnection connect(String raw) throws Exception {
+        GitHubRateLimit.assertAllowed();
         URL url=new URL(raw);
         for(int redirect=0;redirect<6;redirect++){
             if(!trusted(url))throw new SecurityException("Untrusted download host");
@@ -109,7 +110,11 @@ final class NativeAppUpdateManager {
                 if(location==null)throw new IllegalStateException("Missing redirect target");
                 URL next=new URL(url,location);c.disconnect();url=next;continue;
             }
-            if(status!=200){c.disconnect();throw new IllegalStateException("GitHub HTTP "+status);}
+            if(status!=200){
+                String reason=GitHubRateLimit.onHttpError(c,status);
+                c.disconnect();
+                throw new IllegalStateException(reason);
+            }
             return c;
         }
         throw new IllegalStateException("Too many GitHub redirects");

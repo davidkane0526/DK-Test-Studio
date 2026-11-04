@@ -11,6 +11,7 @@ const crypto=require('node:crypto');
 const {spawn}=require('node:child_process');
 const {pipeline}=require('node:stream/promises');
 const {Transform}=require('node:stream');
+const githubLimit=require('../src/github-rate-limit.cjs');
 const RELEASES='https://api.github.com/repos/davidkane0526/DK-Test-Studio/releases?per_page=20';
 const PREVIEW=/^dkts-preview-\d+$/;
 const PORTABLE=/^DK-Test-Studio-Portable-(\d+\.\d+\.\d+)-x64\.exe$/;
@@ -23,6 +24,7 @@ function trusted(url){
   );
 }
 function openHttps(urlString,redirects=0){
+  githubLimit.assertAllowed();
   return new Promise((resolve,reject)=>{
     let url;
     try{url=new URL(urlString);if(!trusted(url))throw Error('更新来源不可信');}
@@ -41,7 +43,7 @@ function openHttps(urlString,redirects=0){
       }
       if(response.statusCode!==200){
         response.resume();
-        return reject(Error('GitHub HTTP '+response.statusCode));
+        return reject(Error(githubLimit.onHttpError(response.statusCode,response.headers)));
       }
       resolve(response);
     });

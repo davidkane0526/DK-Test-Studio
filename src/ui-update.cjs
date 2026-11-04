@@ -2,6 +2,7 @@
 const crypto=require('node:crypto');
 const fs=require('node:fs');
 const path=require('node:path');
+const githubLimit=require('./github-rate-limit.cjs');
 const API='https://api.github.com/repos/davidkane0526/DK-Test-Studio';
 const COMMIT=/^[a-f0-9]{40}$/i;
 const REPO='davidkane0526/DK-Test-Studio';
@@ -81,12 +82,13 @@ function createUiUpdater(options={}){
     catch{return null;}
   }
   async function request(url,{notFound=false}={}){
+    githubLimit.assertAllowed();
     const res=await fetcher(url,{
       headers:{'User-Agent':'DK-Test-Studio','Accept':'application/vnd.github+json'},
       signal:AbortSignal.timeout(12000)
     });
     if(notFound&&res.status===404)return null;
-    if(!res.ok)throw Error('Update endpoint HTTP '+res.status);
+    if(!res.ok)throw Error(githubLimit.onHttpError(res.status,res.headers));
     return res.json();
   }
   async function updateOnce(){
@@ -147,7 +149,7 @@ function createUiUpdater(options={}){
     try{return await task;}finally{if(busy===task)busy=null;}
   }
   let timer=null;
-  function start(intervalMs=180000){
+  function start(intervalMs=3600000){
     if(timer)return;
     void updateOnce();
     timer=setInterval(()=>{void updateOnce();},intervalMs);

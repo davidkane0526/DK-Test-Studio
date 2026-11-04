@@ -54,7 +54,7 @@ final class UiUpdateManager {
         @Override public void run() {
             if (closed) return;
             checkNow();
-            main.postDelayed(this, 180000L);
+            main.postDelayed(this, 3600000L);
         }
     };
 
@@ -86,7 +86,7 @@ final class UiUpdateManager {
     void start() { main.post(checkPeriodic); }
 
     void checkNow() {
-        if (closed) return;
+        if (closed || "checking".equals(updateStatus)) return;
         updateStatus = "checking";
         updateError = "";
         updateWorker.execute(() -> {
@@ -173,6 +173,7 @@ final class UiUpdateManager {
         return jsonGet(url,maxBytes,false);
     }
     private static JSONObject jsonGet(String url, int maxBytes, boolean allowMissing) throws Exception {
+        GitHubRateLimit.assertAllowed();
         URL parsed = new URL(url);
         if (!parsed.getProtocol().equals("https")) throw new SecurityException("HTTPS required for UI updates");
         HttpURLConnection c = (HttpURLConnection) parsed.openConnection();
@@ -183,7 +184,7 @@ final class UiUpdateManager {
         try {
             int status = c.getResponseCode();
             if(allowMissing && status==404)return null;
-            if(status!=200)throw new IllegalStateException("GitHub HTTP "+status);
+            if(status!=200)throw new IllegalStateException(GitHubRateLimit.onHttpError(c,status));
             return new JSONObject(new String(readLimit(c.getInputStream(),maxBytes),StandardCharsets.UTF_8));
         } finally { c.disconnect(); }
     }
