@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
+const root=path.resolve(__dirname,'..');
 const {bundle}=require('../tools/build-ui-bundle.cjs');
 const {validateBundle,createUiUpdater}=require('../src/ui-update.cjs');
 const VERSION='123456789abcdef123456789abcdef123456789a';
