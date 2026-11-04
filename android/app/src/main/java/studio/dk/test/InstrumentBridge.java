@@ -82,7 +82,9 @@ public final class InstrumentBridge {
                 String data = reply.toString();
                 ui.post(() -> {
                     if (!stopped) webView.evaluateJavascript(
-                        "window.DKTSNativeBridgeResolve(" + JSONObject.quote(data) + ")", null);
+                        "(function(){if(typeof window.DKTSNativeBridgeResolve==='function'){" +
+                        "window.DKTSNativeBridgeResolve(" + JSONObject.quote(data) + ");}" +
+                        "})()", null);
                 });
             });
         });
