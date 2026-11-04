@@ -416,12 +416,10 @@ function renderWorkspaceTabs(){
     select.setAttribute('aria-controls','test-detail');
     select.classList.toggle('is-active',expandedKind===kind);
     select.textContent=TEST_MODES[kind].title;
-    select.title=TEST_MODES[kind].title;
     select.addEventListener('click',()=>selectTestKind(kind));
     const close=document.createElement('button');
     close.type='button';close.className='workspace-tab-close';
     close.setAttribute('aria-label','关闭'+TEST_MODES[kind].title+'标签');
-    close.title='关闭标签';
     close.innerHTML='<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M5.5 5.5l9 9m0-9-9 9"/></svg>';
     close.addEventListener('click',()=>closeWorkspaceTab(kind));
     tab.append(select,close);
