@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const fs=require('node:fs'),path=require('node:path');
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.resolve(__dirname,'..');
 const manifest=require('../integrations/dkds/plugin.json');
 const BUILTIN=Object.freeze({
@@ -15,7 +15,7 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 test('DK Test Studio installs as a distinct external DKDS plugin, not a builtin override',()=>{
   assert.equal(manifest.id,'com.dkts.keithley-4200');
   assert.notEqual(manifest.id,BUILTIN.id);
-  assert.equal(manifest.version,'0.6.1');
+  assert.equal(manifest.version,'0.6.2');
   assert.equal(manifest.apiVersion,'1.19.0');
   assert.equal(manifest.workspace.activity,'dkts-keithley-4200');
   assert.equal(manifest.window.activity,'dkts-keithley-4200');
@@ -53,10 +53,36 @@ test('generated plugin modules use external identity while standalone modules re
   assert.match(read('integrations/dkds/presentation.js'),/DKDSPluginModules\.define\('com\.dkts\.keithley-4200'/);
 });
 
+test('external module registrations replace stale definitions when the same package is reloaded',()=>{
+  const staging=require('../tools/build-dkds-plugin.cjs');
+  const pkg=JSON.parse(fs.readFileSync(staging.artifact,'utf8'));
+  const registry=new Map();
+  const sandbox={atob,btoa,window:{DKDSPluginModules:{define(id,name,value,options={})=>{
+    assert.equal(id,manifest.id);
+    const key=id+'/'+name;
+    if(registry.has(key)&&options.replace!==true)
+      throw Error('Plugin module already defined: '+key);
+    registry.set(key,value);
+  }}}};
+  const modules=['kxci-protocol.js','measurement-plan.js','waveform.js',
+    'identity-core.js','interop.js','standalone-shell.js','presentation.js'];
+  for(let version=0;version<2;version++){
+    for(const file of modules)
+      vm.runInNewContext(pkg.files[file],sandbox,{filename:file,timeout:15000});
+  }
+  assert.equal(registry.size,modules.length);
+  for(const file of modules){
+    const source=pkg.files[file],start=source.indexOf('window.DKDSPluginModules.define(');
+    assert(start>=0,file+' must register its module through the DKDS registry');
+    const end=source.indexOf(';',start),call=source.slice(start,end);
+    assert.match(call,/,\{replace:true\}\)$/ ,file+' must replace its previous version during upgrade');
+  }
+});
+
 test('official package builder refuses repackaging under the built-in ID',()=>{
   const build=read('tools/build-dkds-plugin.cjs');
   assert.match(build,/manifest\.id!=='com\.dkts\.keithley-4200'/);
-  assert.match(build,/manifest\.version!=='0\.6\.1'/);
+  assert.match(build,/manifest\.version!=='0\.6\.2'/);
 });
 
 test('full plugin shell is built from canonical App assets, not a separate DKDS UI',()=>{
