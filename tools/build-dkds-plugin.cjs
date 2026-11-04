@@ -30,7 +30,7 @@ function makeModuleRegistrationReplaceable(name,data){
   const call=data.slice(start,end);
   if(/,\s*\{\s*replace\s*:\s*true\s*\}\)$/.test(call))return data;
   if(!call.endsWith(')'))throw Error('Unexpected module registration shape: '+name);
-  return data.slice(0,end)+call.slice(0,-1)+',{replace:true})'+data.slice(end);
+  return data.slice(0,start)+call.slice(0,-1)+',{replace:true})'+data.slice(end);
 }
 function adaptPluginSource(name,data){
   if(name==='interop.js'){
