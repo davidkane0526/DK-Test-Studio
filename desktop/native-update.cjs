@@ -138,6 +138,7 @@ function createPortableUpdater({app,userData,scriptPath,currentVersion,portableP
           await pipeline(response,metering,fs.createWriteStream(temp,{flags:'wx'}));
           if(bytes!==candidate.size||hash.digest('hex')!==candidate.digest)
             throw Error('Windows 更新文件的 SHA-256 校验失败');
+          await fs.promises.rm(staged,{force:true});
           await fs.promises.rename(temp,staged);
         }catch(e){await fs.promises.rm(temp,{force:true});throw e;}
       }

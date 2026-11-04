@@ -1274,3 +1274,7 @@ body.dkts-android-shell .workspace-tab-item .workspace-tab-close{
 .native-version-badge.has-native-update{
   background:transparent!important;box-shadow:none!important
 }
+
+.workspace-tab-item:has(.workspace-tab.is-active):hover{
+  background:color-mix(in srgb,var(--dkts-hover-bg) 72%,transparent)
+}
