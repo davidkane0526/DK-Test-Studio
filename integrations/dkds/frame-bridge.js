@@ -3,9 +3,9 @@
   // Runs only in the sandboxed DK Test Studio frame, never in the DKDS host.
   const session=__DKTS_FRAME_TOKEN__,mobile=__DKTS_FRAME_MOBILE__;
   const allowed=Object.freeze({
-    GET:new Set(['/api/status','/api/ui/version','/api/app/version']),
+    GET:new Set(['/api/status','/api/ui/version','/api/app/version','/api/workspaces']),
     POST:new Set(['/api/connect','/api/disconnect','/api/modules/inspect',
-      '/api/plan/validate','/api/waveform/validate','/api/ui/check'])
+      '/api/plan/validate','/api/waveform/validate','/api/ui/check','/api/workspaces'])
   });
   const pending=new Map();
   let id=0,ready=false;
@@ -71,6 +71,8 @@
       window.clearTimeout(task.timeout);pending.delete(data.ticket);
       task.resolve({status:data.status,data:data.data});
     }else if(data.type==='restore-plan')restore(data.plan);
+    else if(data.type==='restore-workspace'&&window.DKTSWorkspaceState?.restore)
+      window.DKTSWorkspaceState.restore(data.workspace);
     else if(data.type==='status'&&typeof window.renderStatus==='function')
       window.renderStatus(data.snapshot||{});
   });

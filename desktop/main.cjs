@@ -41,7 +41,10 @@ ipcMain.handle('dkts:app-update',async(event,operation)=>{
 });
 async function start(){
   // This is the one-time update-capable native shell. UI comes from a verified user-data cache.
-  serverInstance=await createAppServer({uiCacheDir:require('node:path').join(app.getPath('userData'),'ui-updates')});
+  serverInstance=await createAppServer({
+    uiCacheDir:path.join(app.getPath('userData'),'ui-updates'),
+    workspaceFile:path.join(app.getPath('userData'),'workspace-state.json')
+  });
   portableUpdater=createPortableUpdater({
     app,userData:app.getPath('userData'),
     scriptPath:path.join(__dirname,'apply-portable-update.ps1'),

@@ -33,6 +33,7 @@
   });
   const controller=domain.createIdentityController(tcp,protocol);
   async function post(route,payload={}){
+    if(route==='/api/workspaces')return saveWorkspace(payload.workspace);
     if(route==='/api/connect'){
       try{return {ok:true,...await controller.connect(payload)};}
       catch(error){return {ok:false,...controller.status(),summary:domain.summarizeError(error)};}
@@ -60,8 +61,57 @@
     }
     throw Error('未授权的本机接口：'+route);
   }
+
+  // Private app files retain data across UI hot reload and signed APK upgrades.
+  // Bounded chunks avoid passing a multi-megabyte JSON object through one WebView bridge call.
+  const WORKSPACE_CHUNK_BYTES=32768;
+  function toBase64(bytes){
+    let binary='';
+    for(let i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+  async function saveWorkspace(snapshot){
+    if(!snapshot||snapshot.schema!=='dkts.workspace.v1')
+      throw Error('工作区数据格式无效');
+    const bytes=new TextEncoder().encode(JSON.stringify(snapshot));
+    if(bytes.length<1||bytes.length>64*1024*1024)
+      throw Error('工作区快照超过 64 MiB 限制');
+    const started=await native('workspace-begin',{bytes:bytes.length});
+    try{
+      for(let offset=0;offset<bytes.length;offset+=WORKSPACE_CHUNK_BYTES){
+        const part=bytes.subarray(offset,offset+WORKSPACE_CHUNK_BYTES);
+        await native('workspace-append',{
+          token:started.token,offset,base64:toBase64(part)
+        });
+      }
+      await native('workspace-commit',{token:started.token});
+      return {ok:true,bytes:bytes.length};
+    }catch(error){
+      try{await native('workspace-abort');}catch{}
+      throw error;
+    }
+  }
+  async function loadWorkspace(){
+    const info=await native('workspace-info');
+    if(!info.exists)return {ok:true,workspace:null};
+    if(!Number.isSafeInteger(info.bytes)||info.bytes<1||info.bytes>64*1024*1024)
+      throw Error('应用保存的工作区数据大小无效');
+    const bytes=new Uint8Array(info.bytes);
+    for(let offset=0;offset<bytes.length;offset+=WORKSPACE_CHUNK_BYTES){
+      const part=await native('workspace-read',{
+        offset,length:Math.min(WORKSPACE_CHUNK_BYTES,bytes.length-offset)
+      });
+      const binary=atob(part.base64);
+      if(binary.length!==part.bytes||part.bytes<=0)
+        throw Error('工作区快照读取不完整');
+      for(let i=0;i<binary.length;i++)bytes[offset+i]=binary.charCodeAt(i);
+    }
+    const workspace=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+    return {ok:true,workspace};
+  }
+
   window.DKTSClient=Object.freeze({
-    post,status:()=>Promise.resolve(controller.status()),
+    post,loadWorkspace,status:()=>Promise.resolve(controller.status()),
     nativeVersion:async()=>String((await native('version')).version||''),
     checkUiUpdate:async()=>native('ui-check'),
     uiUpdateStatus:async()=>native('ui-status'),

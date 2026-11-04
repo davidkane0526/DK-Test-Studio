@@ -41,6 +41,7 @@ public final class InstrumentBridge {
     private final WebView webView;
     private final UiUpdateManager uiUpdates;
     private final NativeAppUpdateManager appUpdates;
+    private final WorkspaceFileStore workspaceFiles;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private Socket socket;
@@ -52,6 +53,7 @@ public final class InstrumentBridge {
         this.webView = view;
         this.uiUpdates = uiUpdates;
         this.appUpdates = appUpdates;
+        this.workspaceFiles = new WorkspaceFileStore(this.context);
     }
 
     @JavascriptInterface
@@ -92,6 +94,12 @@ public final class InstrumentBridge {
 
     private JSONObject dispatch(String op, JSONObject args) throws Exception {
         switch (op) {
+            case "workspace-info": return workspaceFiles.info();
+            case "workspace-begin": return workspaceFiles.begin(args);
+            case "workspace-append": return workspaceFiles.append(args);
+            case "workspace-commit": return workspaceFiles.commit(args);
+            case "workspace-abort": {workspaceFiles.abort();return new JSONObject().put("ok",true);}
+            case "workspace-read": return workspaceFiles.read(args);
             case "version": return new JSONObject().put("version",
                 context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionName);
             case "ui-check": {
@@ -289,7 +297,7 @@ public final class InstrumentBridge {
 
     void shutdown() {
         stopped = true;
-        worker.execute(this::closeActive);
+        worker.execute(()->{closeActive();workspaceFiles.abort();});
         worker.shutdown();
     }
 }

@@ -92,6 +92,7 @@
       readConnection:()=>({...connection}),
       readPlan:()=>({...draft}),
       restorePlan:value=>{draft={...value};send({type:'restore-plan',plan:value});},
+      restoreWorkspace:value=>send({type:'restore-workspace',workspace:value}),
       renderConnection:value=>send({type:'status',snapshot:value}),
       renderPlan:()=>{},
       renderPlanError:()=>{},

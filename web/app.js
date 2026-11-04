@@ -475,6 +475,7 @@ const TEST_MODES=Object.freeze({
 });
 function createWorkspaceStore(options = {}) {
   const tabs=[];
+  const changed=()=>{if(typeof options.onChange==='function')options.onChange();};
   let activeTabId=null;
   let tabSerial=0,idSerial=0;
   const idFactory=typeof options.idFactory==='function'?options.idFactory:null;
@@ -507,14 +508,14 @@ function createWorkspaceStore(options = {}) {
       dataByMode:Object.create(null),
       activeRunByMode:Object.create(null)
     };
-    tabs.push(tab);activeTabId=tab.id;return tab;
+    tabs.push(tab);activeTabId=tab.id;changed();return tab;
   }
   function listTabs(){return tabs.slice();}
   function getTab(id){return findTab(id);}
   function getActiveTab(){return findTab(activeTabId);}
   function activateTab(id){
     const tab=findTab(id);if(!tab)return null;
-    activeTabId=tab.id;return tab;
+    activeTabId=tab.id;changed();return tab;
   }
   function closeTab(id){
     const index=tabs.findIndex(tab=>tab.id===id);
@@ -522,21 +523,21 @@ function createWorkspaceStore(options = {}) {
     const wasActive=activeTabId===id;
     tabs.splice(index,1);
     if(wasActive)activeTabId=tabs[Math.min(index,tabs.length-1)]?.id||null;
-    return getActiveTab();
+    changed();return getActiveTab();
   }
   function renameTab(id,name){
     const tab=findTab(id),next=String(name??'').trim();
     if(!tab||!next)return false;
-    tab.name=next.slice(0,48);return true;
+    tab.name=next.slice(0,48);changed();return true;
   }
   function setMode(id,mode){
     const tab=findTab(id);if(!tab)return false;
-    tab.activeMode=mode==null?null:requiredText(mode,'test mode');return true;
+    tab.activeMode=mode==null?null:requiredText(mode,'test mode');changed();return true;
   }
   function saveDraft(id,mode,draft){
     const tab=findTab(id),key=requiredText(mode,'test mode');
     if(!tab)return false;
-    tab.modeDrafts[key]=clone(draft||{});return true;
+    tab.modeDrafts[key]=clone(draft||{});changed();return true;
   }
   function getDraft(id,mode){
     const tab=findTab(id),key=requiredText(mode,'test mode');
@@ -566,7 +567,7 @@ function createWorkspaceStore(options = {}) {
     tab.historyByMode[key].push(run);
     tab.dataByMode[key]=cloneRows(rows);
     tab.activeRunByMode[key]=run.id;
-    return clone(run);
+    changed();return clone(run);
   }
   function updateRun(id,mode,runId,rawRows,metadata={}){
     const tab=findTab(id),key=requiredText(mode,'test mode');
@@ -579,7 +580,7 @@ function createWorkspaceStore(options = {}) {
     if(metadata.parameters!==undefined)run.parameters=clone(metadata.parameters||{});
     tab.dataByMode[key]=cloneRows(run.rawRows);
     tab.activeRunByMode[key]=run.id;
-    return clone(run);
+    changed();return clone(run);
   }
   function appendRunRows(id,mode,runId,rows){
     const tab=findTab(id),key=requiredText(mode,'test mode');
@@ -589,7 +590,7 @@ function createWorkspaceStore(options = {}) {
     run.rawRows.push(...cloneRows(rows));
     tab.dataByMode[key]=cloneRows(run.rawRows);
     tab.activeRunByMode[key]=run.id;
-    return clone(run);
+    changed();return clone(run);
   }
   function selectRun(id,mode,runId){
     const tab=findTab(id),key=requiredText(mode,'test mode');
@@ -598,19 +599,139 @@ function createWorkspaceStore(options = {}) {
     if(!run)return null;
     tab.dataByMode[key]=cloneRows(run.rawRows);
     tab.activeRunByMode[key]=run.id;
-    return clone(run);
+    changed();return clone(run);
   }
   function getActiveRunId(id,mode){
     const tab=findTab(id),key=requiredText(mode,'test mode');
     return tab?.activeRunByMode[key]||null;
   }
+  function snapshot(){
+    return {
+      schema:'dkts.workspace.v1',
+      activeTabId,tabSerial,idSerial,
+      tabs:tabs.map(tab=>clone(tab))
+    };
+  }
+  function restore(saved){
+    if(!saved||saved.schema!=='dkts.workspace.v1'||!Array.isArray(saved.tabs)||
+       saved.tabs.length>500)throw Error('不受支持的工作区数据格式');
+    const next=[],ids=new Set();
+    const dictionary=value=>{
+      const result=Object.create(null);
+      if(value&&typeof value==='object'&&!Array.isArray(value))
+        for(const [key,item] of Object.entries(value)){
+          if(['__proto__','prototype','constructor'].includes(key))continue;
+          result[key]=clone(item);
+        }
+      return result;
+    };
+    for(const item of saved.tabs){
+      if(!item||typeof item!=='object'||Array.isArray(item)||
+         typeof item.id!=='string'||!item.id||item.id.length>128||
+         ids.has(item.id))throw Error('工作区 ID 重复或无效');
+      ids.add(item.id);
+      const mode=typeof item.activeMode==='string'&&item.activeMode
+        ?item.activeMode:null;
+      next.push({
+        id:item.id,
+        name:typeof item.name==='string'&&item.name.trim()
+          ?item.name.trim().slice(0,48):'工作区',
+        activeMode:mode,
+        modeDrafts:dictionary(item.modeDrafts),
+        historyByMode:dictionary(item.historyByMode),
+        dataByMode:dictionary(item.dataByMode),
+        activeRunByMode:dictionary(item.activeRunByMode)
+      });
+    }
+    tabs.splice(0,tabs.length,...next);
+    activeTabId=ids.has(saved.activeTabId)?saved.activeTabId:(tabs[0]?.id||null);
+    tabSerial=Math.max(tabs.length,Number.isSafeInteger(saved.tabSerial)?saved.tabSerial:0);
+    idSerial=Math.max(tabs.length,Number.isSafeInteger(saved.idSerial)?saved.idSerial:0);
+    return true;
+  }
   return Object.freeze({
     createTab,listTabs,getTab,getActiveTab,activateTab,closeTab,renameTab,
     setMode,saveDraft,getDraft,getHistory,getData,recordRun,updateRun,
-    appendRunRows,selectRun,getActiveRunId
+    appendRunRows,selectRun,getActiveRunId,snapshot,restore
   });
 }
-const workspaceStore=createWorkspaceStore();
+const workspaceStore=createWorkspaceStore({onChange:scheduleWorkspaceSave});
+let workspaceStorageReady=false;
+let workspaceStorageFailed=false;
+let workspaceChangeDuringLoad=false;
+let workspaceSaveTimer=null;
+let workspaceSaveQueue=Promise.resolve();
+let lastWorkspaceSaveError='';
+async function persistWorkspaceState(){
+  if(!workspaceStorageReady||workspaceStorageFailed)return;
+  if(workspaceSaveTimer!==null)clearTimeout(workspaceSaveTimer);
+  workspaceSaveTimer=null;
+  const snapshot=workspaceStore.snapshot();
+  workspaceSaveQueue=workspaceSaveQueue.catch(()=>{}).then(async()=>{
+    const result=await post('/api/workspaces',{workspace:snapshot});
+    if(!result?.ok)throw Error(result?.error||'工作区数据保存未获确认');
+    lastWorkspaceSaveError='';
+  });
+  try{await workspaceSaveQueue;}
+  catch(error){
+    const message=String(error.message||error).slice(0,110);
+    if(message!==lastWorkspaceSaveError){
+      lastWorkspaceSaveError=message;
+      showStatusMessage('工作区保存失败：'+message,'error');
+    }
+  }
+}
+function scheduleWorkspaceSave(){
+  if(workspaceStorageFailed)return;
+  if(!workspaceStorageReady){workspaceChangeDuringLoad=true;return;}
+  if(workspaceSaveTimer!==null)clearTimeout(workspaceSaveTimer);
+  workspaceSaveTimer=setTimeout(()=>void persistWorkspaceState(),220);
+}
+function applyWorkspaceSnapshot(snapshot){
+  if(!snapshot)return;
+  workspaceStore.restore(snapshot);
+  const tab=workspaceStore.getActiveTab();
+  activeMode=tab?.activeMode&&Object.hasOwn(TEST_MODES,tab.activeMode)
+    ?tab.activeMode:null;
+  if(activeMode)restoreTabDraft(activeMode);
+  else resetModeInputs('iv');
+  renderTestSelection();
+}
+async function loadWorkspaceState(){
+  try{
+    const result=window.DKTSClient?.loadWorkspace
+      ?await window.DKTSClient.loadWorkspace()
+      :await fetch('/api/workspaces',{cache:'no-store'}).then(async response=>{
+        const json=await response.json();
+        if(!response.ok)throw Error(json.error||'工作区读取失败');
+        return json;
+      });
+    if(!result?.ok)throw Error(result?.error||'工作区读取失败');
+    if(!workspaceChangeDuringLoad&&result.workspace)applyWorkspaceSnapshot(result.workspace);
+    workspaceStorageReady=true;
+    if(workspaceChangeDuringLoad)void persistWorkspaceState();
+  }catch(error){
+    workspaceStorageFailed=true;
+    showStatusMessage('工作区读取失败，已停止自动覆盖旧数据：'+
+      String(error.message||error).slice(0,95),'error');
+  }
+}
+window.DKTSWorkspaceState=Object.freeze({
+  snapshot:()=>workspaceStore.snapshot(),
+  restore:snapshot=>{
+    if(!snapshot)return;
+    workspaceChangeDuringLoad=true;
+    applyWorkspaceSnapshot(snapshot);
+    if(workspaceStorageReady)scheduleWorkspaceSave();
+  }
+});
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'&&workspaceStorageReady)
+    void persistWorkspaceState();
+});
+window.addEventListener('pagehide',()=>{
+  if(workspaceStorageReady)void persistWorkspaceState();
+});
 let activeMode=null;
 const detail=$('test-detail');
 const getActiveWorkspace=()=>workspaceStore.getActiveTab();
@@ -1214,7 +1335,7 @@ function enhanceWorkspaceSelects(){
 }
 enhanceWorkspaceSelects();
 
-(async()=>{renderTestSelection();renderStatus(await refresh());if(state!=='connected')await connectInstrument();})();
+(async()=>{await loadWorkspaceState();renderTestSelection();renderStatus(await refresh());if(state!=='connected')await connectInstrument();})();
 
 /* Native shells update UI assets in the background, without replacing instrument drivers.
  * The local UI version endpoint is cheap; GitHub is queried by the host, not this page. */

@@ -126,7 +126,28 @@ test('native Android shell version comes from its actual installed package',()=>
  assert.match(src,/case "version": return new JSONObject\(\)/);
  assert.match(src,/getPackageInfo\(context\.getPackageName\(\),0\)\.versionName/);
  assert.match(bridge,/nativeVersion:async\(\)=>String/);
- assert.match(gradle,/versionName '0\.3\.0'/);
+ assert.match(gradle,/versionName '0\.3\.1'/);
+});
+
+test('Android workspace snapshots use private chunked atomic storage',()=>{
+  const bridge=fs.readFileSync(path.join(root,
+    'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
+  const native=fs.readFileSync(path.join(root,'android/web/native-client.js'),'utf8');
+  const storage=fs.readFileSync(path.join(root,
+    'android/app/src/main/java/studio/dk/test/WorkspaceFileStore.java'),'utf8');
+  assert.match(bridge,/case "workspace-info"/);
+  assert.match(bridge,/case "workspace-begin"/);
+  assert.match(bridge,/case "workspace-append"/);
+  assert.match(bridge,/case "workspace-commit"/);
+  assert.match(bridge,/case "workspace-read"/);
+  assert.match(native,/WORKSPACE_CHUNK_BYTES=32768/);
+  assert.match(native,/async function saveWorkspace\(snapshot\)/);
+  assert.match(native,/async function loadWorkspace\(\)/);
+  assert.match(storage,/context\.getFilesDir\(\)/);
+  assert.match(storage,/StandardCopyOption\.ATOMIC_MOVE/);
+  assert.match(storage,/StandardCopyOption\.REPLACE_EXISTING/);
+  assert.match(storage,/written!=expected/);
+  assert.match(bridge,/Arrays\.equals\(request, IDN\)/);
 });
 
 test('Android 16 immersive mode is coalesced and cannot repeatedly re-enter from focus changes',()=>{

@@ -6,6 +6,7 @@ const {parseWaveformText}=require('./controller/waveform.cjs');
 const {normalizePlan,previewPlan,createExecutionCoordinator}=require('./controller/measurement-plan.cjs');
 const {createIdentityController,summarizeError}=require('./controller/identity.cjs');
 const {createUiUpdater}=require('./ui-update.cjs');
+const workspaceStorage=require('./workspace-storage.cjs');
 
 const root=path.resolve(__dirname,'..');
 const assets=Object.freeze({
@@ -50,6 +51,7 @@ async function createAppServer(options={}){
   // at present. All future task execution must acquire this single lease.
   const execution=options.execution||createExecutionCoordinator();
   const updater=options.uiCacheDir?createUiUpdater({cacheDir:options.uiCacheDir}):null;
+  const workspaceFile=options.workspaceFile||workspaceStorage.defaultFile();
   const server=http.createServer(async(req,res)=>{
     try{
       const host=req.headers.host;
@@ -64,6 +66,8 @@ async function createAppServer(options={}){
         return json(res,200,updater?updater.state():{version:'bundled',status:'disabled'});
       if(req.method==='GET'&&urlPath==='/api/app/version')
         return json(res,200,{version:require('../package.json').version});
+      if(req.method==='GET'&&urlPath==='/api/workspaces')
+        return json(res,200,{ok:true,workspace:workspaceStorage.readWorkspace(workspaceFile)});
       if(req.method==='GET'&&Object.hasOwn(assets,urlPath)){
         const item=assets[urlPath];
         const bytes=(urlPath.startsWith('/vendor/')?null:updater?.getAsset(path.basename(item.file)))||fs.readFileSync(path.join(root,item.file));
@@ -72,7 +76,7 @@ async function createAppServer(options={}){
           'X-Content-Type-Options':'nosniff'});
         return res.end(bytes);
       }
-      if(req.method!=='POST'||!['/api/ui/check','/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect'].includes(urlPath))
+      if(req.method!=='POST'||!['/api/ui/check','/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect','/api/workspaces'].includes(urlPath))
         return json(res,404,{error:'接口不存在'});
       // No arbitrary command endpoint exists; this only sends the hardcoded KXCI IDN query.
       if(req.headers['x-dkts-request']!=='1'||!String(req.headers['content-type']||'').startsWith('application/json'))
@@ -83,7 +87,11 @@ async function createAppServer(options={}){
         const result=updater?await updater.updateOnce():{updated:false,status:'disabled'};
         return json(res,200,{ok:true,...result,status:updater?updater.state().status:'disabled'});
       }
-      const payload=await readJson(req);
+      const payload=await readJson(req,urlPath==='/api/workspaces'?workspaceStorage.MAX_BYTES:8388608);
+      if(urlPath==='/api/workspaces'){
+        const saved=workspaceStorage.writeWorkspace(workspaceFile,payload.workspace);
+        return json(res,200,{ok:true,...saved});
+      }
       if(urlPath==='/api/disconnect')
         return json(res,200,{ok:true,...await controller.disconnect()});
       if(urlPath==='/api/connect'){

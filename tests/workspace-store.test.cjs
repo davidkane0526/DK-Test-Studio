@@ -79,3 +79,53 @@ test('closing a workspace removes only its data and activates a neighbor',()=>{
   assert.equal(store.getHistory(a.id,'iv').length,0);
   assert.equal(store.getActiveTab().id,c.id);
 });
+
+
+test('workspace snapshots round-trip across process reload without mixing measurements',()=>{
+  const first=makeStore();
+  const a=first.createTab({name:'器件 A',mode:'iv'});
+  const b=first.createTab({name:'器件 B',mode:'iv'});
+  first.saveDraft(a.id,'iv',{startV:-1,stopV:1});
+  first.saveDraft(a.id,'it',{fixedV:.2});
+  const a1=first.recordRun(a.id,'iv',[{voltageV:1,currentA:.01,timeS:0}]);
+  first.recordRun(a.id,'it',[{timeS:0.2,currentA:.02,voltageV:.2}]);
+  first.recordRun(b.id,'iv',[{voltageV:1,currentA:.3,timeS:0}]);
+  first.selectRun(a.id,'iv',a1.id);
+  first.activateTab(b.id);
+  const saved=JSON.parse(JSON.stringify(first.snapshot()));
+  const restarted=makeStore();
+  assert.equal(restarted.restore(saved),true);
+  assert.equal(restarted.getActiveTab().id,b.id);
+  assert.equal(restarted.getTab(a.id).name,'器件 A');
+  assert.deepEqual(restarted.getDraft(a.id,'iv'),{startV:-1,stopV:1});
+  assert.deepEqual(restarted.getDraft(a.id,'it'),{fixedV:.2});
+  assert.equal(restarted.getHistory(a.id,'iv').length,1);
+  assert.equal(restarted.getHistory(a.id,'it').length,1);
+  assert.equal(restarted.getHistory(b.id,'iv').length,1);
+  assert.equal(restarted.getHistory(b.id,'it').length,0);
+  assert.notDeepEqual(restarted.getData(a.id,'iv'),restarted.getData(b.id,'iv'));
+  const created=restarted.createTab({name:'器件 C',mode:'iv'});
+  assert.notEqual(created.id,a.id);
+  assert.notEqual(created.id,b.id);
+});
+
+test('invalid or duplicate workspace identifiers never corrupt a loaded session',()=>{
+  const store=makeStore(),a=store.createTab({name:'A'});
+  const baseline=store.snapshot();
+  assert.throws(()=>store.restore({schema:'bad',tabs:[]}),/格式/);
+  assert.throws(()=>store.restore({...baseline,tabs:[baseline.tabs[0],baseline.tabs[0]]}),/重复/);
+  assert.equal(store.getActiveTab().id,a.id);
+});
+
+test('state changes schedule persistence but read-only inspection does not',()=>{
+  let changes=0;
+  const store=createWorkspaceStore({idFactory:(()=>{let id=0;return k=>k+'-'+(++id)})(),onChange:()=>changes++});
+  const a=store.createTab();
+  assert.equal(changes,1);
+  store.getHistory(a.id,'iv');
+  store.snapshot();
+  assert.equal(changes,1);
+  store.renameTab(a.id,'test');
+  store.recordRun(a.id,'iv',[]);
+  assert.equal(changes,3);
+});
