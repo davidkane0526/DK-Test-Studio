@@ -2,6 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
+const pluginStage=require('../tools/build-dkds-plugin.cjs').folder;
 test('DKDS API 1.19 adapter activates real plugin entry and shared capability',async()=>{
   const registry=new Map(),nodes=[],captured={};
   const unit=(kind)=>({
@@ -33,7 +34,7 @@ test('DKDS API 1.19 adapter activates real plugin entry and shared capability',a
   }};
   vm.createContext(context);
   for(const file of ['kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js','interop.js']){
-    vm.runInContext(fs.readFileSync(path.join(root,'src/shared',file),'utf8'),context);
+    vm.runInContext(fs.readFileSync(path.join(pluginStage,file),'utf8'),context);
   }
   vm.runInContext(fs.readFileSync(path.join(root,'integrations/dkds/presentation.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(path.join(root,'integrations/dkds/plugin.js'),'utf8'),context);

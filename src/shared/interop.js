@@ -2,7 +2,7 @@
   'use strict';
   // Portable, host-neutral interchange for test plans. No network or hardware side effects.
   const SCHEMA='dkts.4200.interop.v1';
-  const PLUGIN_ID='com.dkts.keithley-4200';
+  const PLUGIN_ID='com.dkds.keithley-4200';
   const LEGACY_PLUGIN_ID='com.dkds.keithley-4200';
   function createPlanEnvelope(plan,planApi){
     if(!planApi||typeof planApi.normalizePlan!=='function')throw Error('缺少共享测试规划模块');

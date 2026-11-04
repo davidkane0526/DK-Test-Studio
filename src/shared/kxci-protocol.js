@@ -34,6 +34,6 @@
       unknownModules:modules.filter(x=>x.family==='unknown'),hardwareLimitsVerified:false});
   }
   const api=Object.freeze({IDN_REQUEST,OPTIONS_REQUEST,parseIdentity,parseOptions});
-    if(typeof window!=='undefined' && window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci',api);
+    if(typeof window!=='undefined' && window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-kxci',api);
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();

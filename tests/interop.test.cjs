@@ -11,7 +11,7 @@ const manifest=require('../integrations/dkds/plugin.json');
 test('browser SDK modules use the same implementation as Node',()=>{
   const registry=new Map();
   const sandbox={atob,btoa,window:{DKDSPluginModules:{define:(id,name,value)=>{
-    assert.equal(id,'com.dkts.keithley-4200');registry.set(name,value);
+    assert.equal(id,'com.dkds.keithley-4200');registry.set(name,value);
   }}}};
   vm.createContext(sandbox);
   for(const file of ['kxci-protocol.js','waveform.js','measurement-plan.js','identity-core.js','interop.js'])
@@ -25,7 +25,7 @@ test('browser SDK modules use the same implementation as Node',()=>{
   const envelope=registry.get('dkts-interop').createPlanEnvelope(input,registry.get('dkts-plan'));
   assert.equal(JSON.stringify(envelope),JSON.stringify(interop.createPlanEnvelope(input,plan)));
   assert.equal(interop.readPlanEnvelope(envelope,plan).totalPoints,10);
-  const previous={...envelope,pluginId:'com.dkds.keithley-4200'};
+  const previous={...envelope,pluginId:'com.dkts.keithley-4200'};
   assert.equal(interop.readPlanEnvelope(previous,plan).totalPoints,10,
     'Previous DKDS override plans must still import');
   assert.throws(()=>interop.readPlanEnvelope({...envelope,pluginId:'builtin.theme'},plan),/不支持/);
@@ -39,7 +39,8 @@ test('DKDS package contains byte-for-byte copies of the shared core',()=>{
   assert.equal(pkg.manifest.version,'0.5.0');
   assert.equal(pkg.manifest.apiVersion,'1.19.0');
   for(const file of ['kxci-protocol.js','waveform.js','measurement-plan.js','identity-core.js','interop.js'])
-    assert.equal(pkg.files[file],fs.readFileSync(path.join(root,'src/shared',file),'utf8'));
+    assert.equal(pkg.files[file],require('../tools/build-dkds-plugin.cjs').adaptPluginSource(
+      file,fs.readFileSync(path.join(root,'src/shared',file),'utf8')));
   assert(pkg.manifest.scripts.every(name=>typeof pkg.files[name]==='string'));
   let registered;
   const context={DKDSPlugins:{define:(m,activate)=>{registered={m,activate};}}};

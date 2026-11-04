@@ -37,16 +37,20 @@ test('all registered workspace/page/project/capability IDs are isolated from the
   assert.match(presentation,/DKDSPluginModules\.define\('com\.dkts\.keithley-4200'/);
 });
 
-test('no plugin module registers itself under the built-in ID',()=>{
-  for(const source of ['src/shared/kxci-protocol.js','src/shared/measurement-plan.js',
-    'src/shared/waveform.js','src/shared/identity-core.js','integrations/dkds/presentation.js']){
-    const text=read(source);
-    assert(!text.includes("define('com.dkds.keithley-4200'"),source);
-    assert(text.includes("com.dkts.keithley-4200"),source);
+test('generated plugin modules use external identity while standalone modules remain unchanged',()=>{
+  const stage=require('../tools/build-dkds-plugin.cjs').folder;
+  for(const source of ['kxci-protocol.js','measurement-plan.js',
+    'waveform.js','identity-core.js']){
+    const original=read('src/shared/'+source),emitted=fs.readFileSync(path.join(stage,source),'utf8');
+    assert(original.includes("com.dkds.keithley-4200"),source+' standalone source changed');
+    assert(emitted.includes("com.dkts.keithley-4200"),source+' plugin source not adapted');
+    assert(!emitted.includes("com.dkds.keithley-4200"),source+' still registers builtin ID');
   }
-  const bridge=read('src/shared/interop.js');
-  assert.match(bridge,/LEGACY_PLUGIN_ID='com\.dkds\.keithley-4200'/);
-  assert.match(bridge,/envelope\.pluginId/);
+  const packagedInterop=fs.readFileSync(path.join(stage,'interop.js'),'utf8');
+  assert.match(packagedInterop,/const PLUGIN_ID='com\.dkts\.keithley-4200'/);
+  assert.match(packagedInterop,/LEGACY_PLUGIN_ID='com\.dkds\.keithley-4200'/);
+  assert.match(read('src/shared/interop.js'),/const PLUGIN_ID='com\.dkds\.keithley-4200'/);
+  assert.match(read('integrations/dkds/presentation.js'),/DKDSPluginModules\.define\('com\.dkts\.keithley-4200'/);
 });
 
 test('official package builder refuses repackaging under the built-in ID',()=>{
