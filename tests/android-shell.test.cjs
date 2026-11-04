@@ -180,3 +180,12 @@ test('manual UI update op routes through Android updater without arbitrary TCP a
   assert.match(client,/checkUiUpdate:async\(\)=>native\('ui-check'\)/);
   assert.match(client,/uiUpdateStatus:async\(\)=>native\('ui-status'\)/);
 });
+
+test('Android WebView surfaces chart script exceptions in startup smoke testing',()=>{
+  const main=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
+  const workflow=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
+  assert.match(main,/setWebChromeClient\(new WebChromeClient\(\)/);
+  assert.match(main,/Log\.e\("DKTS-WebJS"/);
+  assert.match(workflow,/android-startup-webjs\.log/);
+  assert.match(workflow,/DKDS chart runtime has a JavaScript initialization error/);
+});

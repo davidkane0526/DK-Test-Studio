@@ -167,6 +167,12 @@ jobs:
             adb shell am start -W -n studio.dk.test/.MainActivity
             sleep 3
             test -n "$(adb shell pidof studio.dk.test | tr -d '\r')"
+            adb logcat -d -s DKTS-WebJS:E > android-startup-webjs.log
+            if grep -Eq 'Uncaught|ReferenceError|TypeError|SyntaxError|Scientific renderer|D3 scientific renderer|DKDS.*must initialize' android-startup-webjs.log; then
+              cat android-startup-webjs.log
+              echo 'Bundled DKDS chart runtime has a JavaScript initialization error'
+              exit 1
+            fi
             adb logcat -d -b crash > android-startup-crash.log
             if grep -q "Process: studio.dk.test" android-startup-crash.log; then cat android-startup-crash.log; exit 1; fi
             adb exec-out screencap -p > android-startup.png
@@ -179,6 +185,7 @@ jobs:
           path: |
             android-startup.png
             android-startup-crash.log
+            android-startup-webjs.log
           if-no-files-found: warn
       - name: Prepare Android release asset
         run: |
