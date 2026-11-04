@@ -22,6 +22,16 @@ jobs:
           node-version: '22'
       - name: Install scientific plot dependencies
         run: npm install --no-audit --no-fund
+      - name: Validate portable updater PowerShell syntax
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'desktop/apply-portable-update.ps1').Path,
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
       - name: Run isolated instrument protocol tests
         run: npm test
   dkds-contract:
