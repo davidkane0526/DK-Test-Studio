@@ -41,11 +41,14 @@ function createUiUpdater(options={}){
   function verifyCached(folder){
     const meta=JSON.parse(fs.readFileSync(path.join(folder,'meta.json'),'utf8'));
     if(meta.schema!==TYPE||meta.repository!==REPO||meta.minShell!==3)throw Error('Invalid cached UI metadata');
+    if(!meta.hashes||typeof meta.hashes!=='object')throw Error('Cached UI hashes missing');
     const entries={};
     for(const name of FILES){
       const bytes=fs.readFileSync(path.join(folder,name));
-      entries[name]={sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
-        bytes:bytes.length,base64:bytes.toString('base64')};
+      const actual=crypto.createHash('sha256').update(bytes).digest('hex');
+      if(!/^[a-f0-9]{64}$/.test(meta.hashes[name])||actual!==meta.hashes[name])
+        throw Error('Cached UI checksum mismatch '+name);
+      entries[name]={sha256:actual,bytes:bytes.length,base64:bytes.toString('base64')};
     }
     validateBundle({schema:TYPE,version:meta.version,minShell:3,repository:REPO,
       platforms:{windows:entries}},'windows');
@@ -63,8 +66,15 @@ function createUiUpdater(options={}){
   restore();
   function getAsset(name){
     if(!FILES.includes(name)||version==='bundled')return null;
-    try{return fs.readFileSync(path.join(active,name));}
-    catch{return null;}
+    try{
+      const meta=verifyCached(active);
+      if(meta.version!==version)throw Error('Cached UI version changed');
+      return fs.readFileSync(path.join(active,name));
+    }catch{
+      restore();
+      if(version==='bundled')return null;
+      try{return fs.readFileSync(path.join(active,name));}catch{return null;}
+    }
   }
   async function request(url){
     const res=await fetcher(url,{
@@ -100,8 +110,10 @@ function createUiUpdater(options={}){
         fs.mkdirSync(root,{recursive:true});
         fs.rmSync(stage,{recursive:true,force:true});fs.mkdirSync(stage);
         for(const name of FILES)fs.writeFileSync(path.join(stage,name),parts[name]);
+        const hashes=Object.fromEntries(FILES.map(name=>[name,
+          bundle.platforms.windows[name].sha256]));
         fs.writeFileSync(path.join(stage,'meta.json'),JSON.stringify({
-          schema:TYPE,version:bundle.version,tag:release.tag_name,minShell:3,repository:REPO
+          schema:TYPE,version:bundle.version,tag:release.tag_name,minShell:3,repository:REPO,hashes
         }));
         verifyCached(stage);
         fs.rmSync(backup,{recursive:true,force:true});
