@@ -1154,3 +1154,15 @@ body.dkts-android-shell .dkds-scientific-nav-tools{opacity:.93}
 .measured-plot .dkds-d3-tooltip{
   border-radius:8px!important;box-shadow:0 8px 22px rgba(22,35,52,.12)
 }
+
+/* DKDS mobile: scroll from anywhere on the plot surface except the
+   deliberate grip. The chart viewport must fit its mobile host. */
+body.dkts-android-shell .measured-plot .dkts-scientific-plot{
+  height:100%;min-height:0;touch-action:pan-y!important
+}
+body.dkts-android-shell .measured-plot .dkts-scientific-plot svg{
+  height:100%;min-height:0;touch-action:pan-y!important
+}
+body.dkts-android-shell .dkds-scientific-nav-tools .dkds-scientific-nav-drag{
+  touch-action:none!important
+}
