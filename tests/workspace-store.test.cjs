@@ -6,7 +6,7 @@ const path=require('node:path');
 const vm=require('node:vm');
 const app=fs.readFileSync(path.join(__dirname,'../web/app.js'),'utf8');
 const start=app.indexOf('function createWorkspaceStore(options = {})');
-const end=app.indexOf('\nconst workspaceStore=createWorkspaceStore();',start);
+const end=app.indexOf('\nconst workspaceStore=createWorkspaceStore(',start);
 assert(start>=0&&end>start,'Workspace store factory must be present in app.js');
 const createWorkspaceStore=vm.runInThisContext('('+app.slice(start,end).trim()+')');
 function makeStore(){

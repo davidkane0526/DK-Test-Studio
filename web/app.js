@@ -493,7 +493,14 @@ function createWorkspaceStore(options = {}) {
     return next;
   }
   function makeId(kind){
-    if(idFactory)return requiredText(idFactory(kind),kind+' id');
+    if(idFactory){
+      for(let attempts=0;attempts<10000;attempts++){
+        const candidate=requiredText(idFactory(kind),kind+' id');
+        if(kind!=='workspace'||!tabs.some(tab=>tab.id===candidate))
+          return candidate;
+      }
+      throw Error('Cannot allocate a unique workspace ID');
+    }
     return kind+'-'+Date.now().toString(36)+'-'+(++idSerial).toString(36);
   }
   function findTab(id){return tabs.find(tab=>tab.id===id)||null;}

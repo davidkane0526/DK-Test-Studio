@@ -28,7 +28,7 @@ test('test library remains a distinct first-level screen with workspace navigati
 
 test('workspace identity is independent of test mode and duplicate modes are allowed',()=>{
   assert.match(app,/function createWorkspaceStore\(options = \{\}\)/);
-  assert.match(app,/const workspaceStore=createWorkspaceStore\(\)/);
+  assert.match(app,/const workspaceStore=createWorkspaceStore\(\{onChange:scheduleWorkspaceSave\}\)/);
   assert.match(app,/workspaceStore\.createTab\(\)/);
   assert.match(app,/workspaceStore\.setMode\(tab\.id,kind\)/);
   assert.match(app,/function activateWorkspaceTab\(tabId\)/);
