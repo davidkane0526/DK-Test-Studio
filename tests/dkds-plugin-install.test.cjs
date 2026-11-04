@@ -57,7 +57,7 @@ test('external module registrations replace stale definitions when the same pack
   const staging=require('../tools/build-dkds-plugin.cjs');
   const pkg=JSON.parse(fs.readFileSync(staging.artifact,'utf8'));
   const registry=new Map();
-  const sandbox={atob,btoa,window:{DKDSPluginModules:{define(id,name,value,options={})=>{
+  const sandbox={atob,btoa,window:{DKDSPluginModules:{define:(id,name,value,options={})=>{
     assert.equal(id,manifest.id);
     const key=id+'/'+name;
     if(registry.has(key)&&options.replace!==true)
