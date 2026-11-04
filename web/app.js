@@ -832,18 +832,42 @@ function renderWorkspaceTabs(){
       beginTabRename(item.dataset.workspaceId,button);
     });
   }
-  nav.querySelectorAll('.workspace-tab-item').forEach(node=>node.remove());
+  const workspaces=workspaceStore.listTabs();
+  const ids=new Set(workspaces.map(tab=>tab.id));
+  const existing=new Map();
+  for(const node of nav.querySelectorAll('.workspace-tab-item')){
+    if(!ids.has(node.dataset.workspaceId))node.remove();
+    else existing.set(node.dataset.workspaceId,node);
+  }
   const activeId=getActiveWorkspace()?.id||null;
   $('tab-home').classList.toggle('is-active',false);
-  for(const workspace of workspaceStore.listTabs()){
-    const item=document.createElement('div');
+  for(const workspace of workspaces){
+    let item=existing.get(workspace.id)||null;
+    let select=item?.querySelector('.workspace-tab')||null;
+    if(item&&select){
+      // Keep the original button in the DOM. Recreating it on the first click
+      // would prevent an inactive tab from ever receiving a true double-click.
+      select.setAttribute('aria-selected',String(activeId===workspace.id));
+      select.setAttribute('aria-controls',activeId===workspace.id&&workspace.activeMode?
+        'test-detail':'test-library');
+      select.classList.toggle('is-active',activeId===workspace.id);
+      select.textContent=workspace.name;select.title=workspace.name;
+      item.querySelector('.workspace-tab-close')?.setAttribute(
+        'aria-label','关闭'+workspace.name+'工作区');
+      continue;
+    }
+    // A completed inline rename temporarily replaces the button with an input.
+    // Rebuild only that one item, keeping all other tab DOM nodes untouched.
+    if(item)item.remove();
+    item=document.createElement('div');
     item.className='workspace-tab-item';
     item.dataset.workspaceId=workspace.id;
-    const select=document.createElement('button');
+    select=document.createElement('button');
     select.type='button';select.className='workspace-tab';
     select.setAttribute('role','tab');
     select.setAttribute('aria-selected',String(activeId===workspace.id));
-    select.setAttribute('aria-controls',activeId===workspace.id&&workspace.activeMode?'test-detail':'test-library');
+    select.setAttribute('aria-controls',activeId===workspace.id&&workspace.activeMode?
+      'test-detail':'test-library');
     select.classList.toggle('is-active',activeId===workspace.id);
     select.textContent=workspace.name;select.title=workspace.name;
     select.addEventListener('click',()=>activateWorkspaceTab(workspace.id));

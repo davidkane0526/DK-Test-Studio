@@ -107,3 +107,16 @@ test('workbench reserves narrow title/status strips and parameter collapse',()=>
   assert.match(styles,/\.workspace,.workspace\.workspace-active\{position:relative;width:100%;max-width:none/);
   assert.match(styles,/\.data-panel\{display:flex;flex-direction:column/);
 });
+
+
+test('tab activation keeps DOM identity so desktop double-click rename works on inactive tabs',()=>{
+  const start=app.indexOf('function renderWorkspaceTabs(){');
+  const end=app.indexOf('function createWorkspaceTab(){',start);
+  assert(start>=0&&end>start);
+  const renderer=app.slice(start,end);
+  assert.match(renderer,/const existing=new Map\(\)/);
+  assert.match(renderer,/if\(item&&select\)\{/);
+  assert.match(renderer,/select\.setAttribute\('aria-selected'/);
+  assert.match(renderer,/nav\.addEventListener\('dblclick'/);
+  assert.doesNotMatch(renderer,/querySelectorAll\('\.workspace-tab-item'\)\.forEach\(node=>node\.remove\(\)\)/);
+});
