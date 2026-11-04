@@ -6,6 +6,9 @@ contextBridge.exposeInMainWorld('DKTSWindow',Object.freeze({
   toggleMaximize:()=>ipcRenderer.invoke('dkts:window-control','toggleMaximize'),
   isMaximized:()=>ipcRenderer.invoke('dkts:window-control','isMaximized'),
   close:()=>ipcRenderer.invoke('dkts:window-control','close'),
+  checkAppUpdate:()=>ipcRenderer.invoke('dkts:app-update','check'),
+  appUpdateStatus:()=>ipcRenderer.invoke('dkts:app-update','status'),
+  installAppUpdate:()=>ipcRenderer.invoke('dkts:app-update','install'),
   onMaximizedChange:(callback)=>{
     if(typeof callback!=='function')return ()=>{};
     const handler=(_event,isMaximized)=>callback(Boolean(isMaximized));

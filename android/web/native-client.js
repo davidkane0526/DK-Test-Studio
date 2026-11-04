@@ -64,6 +64,9 @@
     post,status:()=>Promise.resolve(controller.status()),
     nativeVersion:async()=>String((await native('version')).version||''),
     checkUiUpdate:async()=>native('ui-check'),
-    uiUpdateStatus:async()=>native('ui-status')
+    uiUpdateStatus:async()=>native('ui-status'),
+    checkAppUpdate:async()=>native('app-update-check'),
+    appUpdateStatus:async()=>native('app-update-status'),
+    installAppUpdate:async()=>native('app-update-install')
   });
 })();

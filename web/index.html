@@ -25,10 +25,14 @@
   <div class="titlebar-brand">
     <span class="titlebar-logo" aria-hidden="true">DK</span>
     <strong>DK Test Studio</strong>
-    <button type="button" id="native-version-badge" class="native-version-badge" aria-expanded="false" aria-controls="ui-version-badge" aria-label="显示 UI 版本并检查更新">v0.2.7</button>
+    <button type="button" id="native-version-badge" class="native-version-badge" aria-expanded="false" aria-controls="ui-version-badge" aria-label="显示 UI 版本并检查更新">v0.2.8</button>
     <div id="ui-version-badge" class="ui-version-badge" role="status" aria-live="polite" hidden>
       <strong id="ui-version-text">UI 内置</strong>
-      <span id="ui-update-state">点击版本号检查更新</span>
+      <span id="ui-update-state">正在检查界面更新…</span>
+      <div class="native-app-update" role="group" aria-label="程序本体更新">
+        <span id="native-app-update-state">检查程序更新中…</span>
+        <button type="button" id="native-app-update-action" hidden>下载并安装</button>
+      </div>
     </div>
   </div>
   <span class="titlebar-version-divider" aria-hidden="true"></span>
