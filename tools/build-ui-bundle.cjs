@@ -35,7 +35,7 @@ const android=Object.fromEntries(files.map(f=>{
   return [f,packed(bytes)];
 }));
 const bundle={
-  schema:'dkts-ui-v1',version,minShell:2,
+  schema:'dkts-ui-v1',version,minShell:3,
   repository:'davidkane0526/DK-Test-Studio',
   // Only the allowlisted frontend resources may be replaced.
   platforms:{windows,android}

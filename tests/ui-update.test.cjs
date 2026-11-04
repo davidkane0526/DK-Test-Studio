@@ -13,6 +13,8 @@ function prepare(platform){
 }
 test('manifest includes platform-specific entry HTML and identical CSS/JS',()=>{
   const b=prepare();
+  assert.equal(b.minShell,3,'workspace v2 requires the native shell with v2 storage');
+  assert.throws(()=>validateBundle({...b,minShell:2},'windows'),/Unsupported/);
   assert.deepEqual(Object.keys(b.platforms).sort(),['android','windows']);
   const win=validateBundle(b,'windows'),android=validateBundle(b,'android');
   assert.notDeepEqual(win['index.html'],android['index.html']);

@@ -10,7 +10,7 @@ const TYPE='dkts-ui-v1';
 function validateBundle(bundle,platform){
   if(!bundle||bundle.schema!==TYPE||bundle.repository!==REPO||
     !/^[a-zA-Z0-9._-]{5,80}$/.test(bundle.version||'')||
-    bundle.minShell!==2||!bundle.platforms?.[platform])
+    bundle.minShell!==3||!bundle.platforms?.[platform])
     throw Error('Unsupported UI update bundle');
   const entries=bundle.platforms[platform];
   if(Object.keys(entries).sort().join(',')!==FILES.slice().sort().join(','))
@@ -40,14 +40,14 @@ function createUiUpdater(options={}){
   const active=path.join(root,'ui-active'),stage=path.join(root,'ui-next'),backup=path.join(root,'ui-previous');
   function verifyCached(folder){
     const meta=JSON.parse(fs.readFileSync(path.join(folder,'meta.json'),'utf8'));
-    if(meta.schema!==TYPE||meta.repository!==REPO||meta.minShell!==2)throw Error('Invalid cached UI metadata');
+    if(meta.schema!==TYPE||meta.repository!==REPO||meta.minShell!==3)throw Error('Invalid cached UI metadata');
     const entries={};
     for(const name of FILES){
       const bytes=fs.readFileSync(path.join(folder,name));
       entries[name]={sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
         bytes:bytes.length,base64:bytes.toString('base64')};
     }
-    validateBundle({schema:TYPE,version:meta.version,minShell:2,repository:REPO,
+    validateBundle({schema:TYPE,version:meta.version,minShell:3,repository:REPO,
       platforms:{windows:entries}},'windows');
     return meta;
   }
@@ -101,7 +101,7 @@ function createUiUpdater(options={}){
         fs.rmSync(stage,{recursive:true,force:true});fs.mkdirSync(stage);
         for(const name of FILES)fs.writeFileSync(path.join(stage,name),parts[name]);
         fs.writeFileSync(path.join(stage,'meta.json'),JSON.stringify({
-          schema:TYPE,version:bundle.version,tag:release.tag_name,minShell:2,repository:REPO
+          schema:TYPE,version:bundle.version,tag:release.tag_name,minShell:3,repository:REPO
         }));
         verifyCached(stage);
         fs.rmSync(backup,{recursive:true,force:true});

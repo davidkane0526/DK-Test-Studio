@@ -185,7 +185,7 @@ final class UiUpdateManager {
             if (!folder.isDirectory()) return false;
             JSONObject meta = new JSONObject(readText(new File(folder, "meta.json")));
             if (!SCHEMA.equals(meta.getString("schema")) ||
-                !REPO.equals(meta.getString("repository")) || meta.getInt("minShell") != 2) return false;
+                !REPO.equals(meta.getString("repository")) || meta.getInt("minShell") != 3) return false;
             JSONObject hashes = meta.getJSONObject("hashes");
             for (String name : FILES) {
                 byte[] content;
@@ -237,7 +237,7 @@ final class UiUpdateManager {
         if (!assetUrl.startsWith("https://github.com/" + REPO + "/releases/download/")) return;
         JSONObject bundle = jsonGet(assetUrl, 2097152);
         if (!SCHEMA.equals(bundle.getString("schema")) ||
-            !REPO.equals(bundle.getString("repository")) || bundle.getInt("minShell") != 2 ||
+            !REPO.equals(bundle.getString("repository")) || bundle.getInt("minShell") != 3 ||
             !bundle.getString("version").equals(selected.getString("target_commitish"))) {
             throw new IllegalStateException("Bundle does not match this release");
         }
@@ -261,7 +261,7 @@ final class UiUpdateManager {
             }
             JSONObject meta = new JSONObject();
             meta.put("schema", SCHEMA);meta.put("repository", REPO);
-            meta.put("minShell", 2);meta.put("version", bundle.getString("version"));
+            meta.put("minShell", 3);meta.put("version", bundle.getString("version"));
             meta.put("tag", tag);meta.put("hashes", hashes);
             write(new File(stage, "meta.json"), meta.toString().getBytes(StandardCharsets.UTF_8));
             if (!validateStored(stage)) throw new IllegalStateException("Stage validation failed");
