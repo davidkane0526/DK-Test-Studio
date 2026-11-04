@@ -46,6 +46,8 @@ jobs:
         run: node compat/dkds/sdk/tools/dkds-plugin.js validate dist/dkds-plugin
       - name: Package official DKDS plugin
         run: node compat/dkds/sdk/tools/dkds-plugin.js package dist/dkds-plugin dist/DK-Test-Studio-4200.dkplugin
+      - name: Stamp immutable Windows native version for this workflow run
+        run: node tools/stamp-native-version.cjs windows
       - name: Stamp offline bundled UI version
         run: node tools/stamp-native-ui.cjs
       - name: Build Windows Setup and Portable
@@ -98,6 +100,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Test shared Android/Windows/DKDS core
         run: npm test
+      - name: Stamp immutable Android native version for this workflow run
+        run: node tools/stamp-native-version.cjs android
       - name: Stamp offline Android UI version
         run: node tools/stamp-native-ui.cjs
       - name: Package Android WebView and shared JS assets
