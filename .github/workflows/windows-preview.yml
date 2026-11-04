@@ -21,6 +21,15 @@ jobs:
         run: npm run icons:build
       - name: Prepare embedded DKDS scientific renderer
         run: npm run prepare:plot-vendor
+      - name: Validate bundled PowerShell portable updater syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'desktop/apply-portable-update.ps1').Path,
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
       - name: Run tests
         run: npm test
       - name: Stage the exact shared-core DKDS plugin

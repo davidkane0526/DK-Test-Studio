@@ -19,7 +19,18 @@ try {
   Copy-Item -LiteralPath $Source -Destination $replacement -Force
   if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Force }
   if (Test-Path -LiteralPath $Target) {
-    Move-Item -LiteralPath $Target -Destination $backup -Force
+    # The portable launcher may retain the file lock briefly after Electron exits.
+    $moved = $false
+    for ($attempt = 0; $attempt -lt 40; $attempt++) {
+      try {
+        Move-Item -LiteralPath $Target -Destination $backup -Force
+        $moved = $true
+        break
+      } catch {
+        Start-Sleep -Milliseconds 450
+      }
+    }
+    if (-not $moved) { throw 'Original portable launcher is still locked' }
   }
   try {
     Move-Item -LiteralPath $replacement -Destination $Target -Force

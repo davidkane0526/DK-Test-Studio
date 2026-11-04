@@ -1177,7 +1177,7 @@ body.dkts-android-shell .dkds-scientific-nav-tools .dkds-scientific-nav-drag{
   background:color-mix(in srgb,var(--dkts-hover-bg) 72%,transparent)
 }
 .workspace-tab-item:hover{
-  background:color-mix(in srgb,var(--dkts-hover-bg) 68%,transparent)
+  background:transparent
 }
 .workspace-tab-item .workspace-tab,
 .workspace-tab-item .workspace-tab.is-active{
@@ -1187,7 +1187,7 @@ body.dkts-android-shell .dkds-scientific-nav-tools .dkds-scientific-nav-drag{
   border:0!important;border-radius:7px;
 }
 .workspace-tab-item .workspace-tab:hover{
-  background:transparent!important;
+  background:color-mix(in srgb,var(--dkts-hover-bg) 75%,transparent)!important;
   color:var(--dkts-chrome-text)!important
 }
 .workspace-tab-item .workspace-tab-close,

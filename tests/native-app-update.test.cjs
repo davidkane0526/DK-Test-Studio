@@ -85,6 +85,7 @@ test('portable app replaces executable only via bundled script after parent exit
   assert.match(script,/Get-Process -Id \$ParentPid/);
   assert.match(script,/Move-Item -LiteralPath \$Target -Destination \$backup/);
   assert.match(script,/Start-Process -FilePath \$Target/);
+  assert.match(script,/Original portable launcher is still locked/);
   assert.match(main,/dkts:app-update/);
   assert.match(preload,/installAppUpdate:/);
 });
