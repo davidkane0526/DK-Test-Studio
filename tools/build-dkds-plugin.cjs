@@ -84,14 +84,14 @@ function createSharedShellSource(){
     '    return payload.html.replace("</head>","<style>"+payload.css+"</style></head>")',
     '      .replace("</body>",all+"</body>");',
     '  }',
-    "  window.DKDSPluginModules.define('com.dkts.keithley-4200','standalone-shell',Object.freeze({createDocument}));",
+    "  window.DKDSPluginModules.define('com.dkts.keithley-4200','standalone-shell',Object.freeze({createDocument}),{replace:true});",
     '})();',''
   ].join('\n');
   return generated;
 }
 
 const requireFiles=new Set(manifest.scripts);
-if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.6.1')
+if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.6.2')
   throw Error('Unexpected standalone DK Test Studio plugin identity / API / version');
 if(requireFiles.size!==Object.keys(copy).length||Object.keys(copy).some(x=>!requireFiles.has(x)))
   throw Error('Plugin manifest scripts must exactly match staging files');
