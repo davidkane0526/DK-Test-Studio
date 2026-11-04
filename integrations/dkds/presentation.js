@@ -9,32 +9,33 @@
     const body=units.page.create(page,{
       variant:'tool',className:'dkts-plugin-page dkts-shared-host'
     }).element;
-    const workbench=units.workspace.create(body,{
+    const workspaceHost=units.layout.create(body,{
+      variant:'identity',className:'dkts-shared-workspace-host'
+    });
+    const workbench=units.workspace.create(workspaceHost,{
       variant:'standard',header:false,activity:'dkts-keithley-4200',
       primaryScroll:'safe'
     });
-    const main=dom.create('div');
-    main.className='dkts-shared-workbench';
-    if(main.style){
-      main.style.display='block';
-      main.style.width='100%';
-      main.style.minHeight='min(720px,calc(100dvh - 130px))';
-      main.style.height='calc(100dvh - 100px)';
-      main.style.overflow='hidden';
-    }
+    const main=units.layout.create(null,{
+      variant:'stack-comfortable',className:'dkts-shared-workbench'
+    });
+    dom.style(main,{
+      display:'block',width:'100%',height:'100%',
+      minHeight:'min(720px,calc(100dvh - 130px))',overflow:'hidden'
+    });
     const frame=dom.create('iframe');
     frame.className='dkts-standalone-workbench-frame';
     frame.setAttribute('title','DK Test Studio 完整测试工作区');
-    frame.setAttribute('sandbox','allow-scripts');
+    // The App uses native <dialog>. Keep the opaque origin and deny same-origin
+    // access while explicitly permitting only script execution and modal dialogs.
+    frame.setAttribute('sandbox','allow-scripts allow-modals');
     frame.setAttribute('referrerpolicy','no-referrer');
     frame.setAttribute('loading','eager');
-    if(frame.style){
-      frame.style.display='block';
-      frame.style.width='100%';
-      frame.style.height='100%';
-      frame.style.border='0';
-      frame.style.background='transparent';
-    }
+    dom.style(frame,{
+      display:'block',width:'100%',height:'100%',
+      minHeight:'min(720px,calc(100dvh - 130px))',
+      border:'0',background:'transparent'
+    });
     main.appendChild(frame);
     workbench.compose({primary:{
       id:'main',label:'DK Test Studio',
@@ -65,13 +66,13 @@
       if(data.type==='ready'){
         frameReady=true;
         for(const payload of queued.splice(0))frame.contentWindow?.postMessage(payload,'*');
-      }else if(data.type==='draft'){
+      }else if(data.type==='draft'||data.type==='commit'){
         if(data.plan&&typeof data.plan==='object'&&!Array.isArray(data.plan)){
           draft={...draft,...data.plan};
         }
         if(data.connection&&typeof data.connection==='object'&&!Array.isArray(data.connection))
           connection={...data.connection};
-        onPlanChanged?.({...draft});
+        onPlanChanged?.({...draft},{commit:data.type==='commit',source:data.source||'all'});
       }else if(data.type==='api'){
         const ticket=data.ticket;
         if(!Number.isSafeInteger(ticket)||ticket<1)return;

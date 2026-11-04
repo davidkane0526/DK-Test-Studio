@@ -20,8 +20,15 @@ GitHub Actions 的 `DKDS Plugin API 1.19 compatibility` 任务会从 DK Data Stu
 
 插件安装、真实 TCP 连接、Android 宿主仍需实机验收；跨程序实时控制、实验数据同步、原生文件及仪器图片导出尚未完成。请勿把 SDK 兼容视为完整功能验收。
 
-## 单源界面架构（DKDS 插件 v0.6.0）
+## 单源界面架构（DKDS 插件 v0.6.1）
 
-DKDS 插件不再自建测试卡片、参数区和空白曲线视图。构建时从 `web/index.html`、`web/styles.css`、`web/app.js` 以及独立版的 D3 运行时直接生成 `standalone-shell.js`。DKDS 页只负责宿主窗口/工作区生命周期、项目状态、能力注册和受限桥接。iframe 使用 `sandbox=allow-scripts`（不授予 `allow-same-origin`），不允许浏览器直接访问设备、文件系统或第三方站点。桥接白名单仅提供与独立版 `/api/` 相同的只读连接、模块查询、方案校验、波形校验。原始数据图、标签、设置面板和移动端手势都来自同一套 App 代码。纯安装器和原生更新按钮在 DKDS 宿主不执行，因为插件由 DKDS 插件管理器升级。
+DKDS 插件不再自建测试卡片、参数区和空白曲线视图。构建时从 `web/index.html`、`web/styles.css`、`web/app.js` 以及独立版的 D3 运行时直接生成 `standalone-shell.js`。DKDS 页只负责宿主窗口/工作区生命周期、项目状态、能力注册和受限桥接。iframe 使用 `sandbox=allow-scripts allow-modals`（不授予 `allow-same-origin`），不允许浏览器直接访问设备、文件系统或第三方站点。桥接白名单仅提供与独立版 `/api/` 相同的只读连接、模块查询、方案校验、波形校验。原始数据图、标签、设置面板和移动端手势都来自同一套 App 代码。纯安装器和原生更新按钮在 DKDS 宿主不执行，因为插件由 DKDS 插件管理器升级。
 
 唯一源代码原则适用于 UI 和业务逻辑：新界面需求首先改独立 App 的共享 Web 资源，再通过插件包构建同步。两端不得引入单独的测试页面实现。
+
+
+### v0.6.1：DKDS 宿主兼容性与项目保存
+
+- iframe 沙箱仍保持 opaque origin，不授予 `allow-same-origin`；增加 `allow-modals`，使独立 App 原生连接/日志 Dialog 在插件中可用。
+- 页面结构改用官方 Unit Template 的 `page → layout host → workspace → layout primary` 组合，尺寸由 DKDS DOM/Style Gate 接口管理。
+- 表单输入只更新内存草稿；仅完成的方案字段变更、测试类型/工作区标签切换触发项目捕获。连接参数变更不会写入 DKDS 项目。
