@@ -89,3 +89,12 @@ test('portable app replaces executable only via bundled script after parent exit
   assert.match(main,/dkts:app-update/);
   assert.match(preload,/installAppUpdate:/);
 });
+
+test('cached native installers must be verified against the selected release every time',()=>{
+  const win=fs.readFileSync(path.join(root,'desktop/native-update.cjs'),'utf8');
+  const android=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/NativeAppUpdateManager.java'),'utf8');
+  assert.match(win,/file\.digest!==candidate\.digest/);
+  assert.match(win,/Windows 更新缓存的 SHA-256 校验失败/);
+  assert.match(android,/verifyDigest\(apk,selected\)/);
+  assert.match(android,/APK 更新缓存 SHA-256 校验失败/);
+});
