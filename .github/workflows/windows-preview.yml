@@ -19,6 +19,12 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Generate dedicated Windows executable and window icons
         run: npm run icons:build
+      - name: Prepare embedded DKDS scientific renderer
+        run: npm run prepare:plot-vendor
+      - name: Install scientific renderer dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install scientific renderer dependencies
+        run: npm install --no-audit --no-fund
       - name: Run tests
         run: npm test
       - name: Stage the exact shared-core DKDS plugin
