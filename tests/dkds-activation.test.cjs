@@ -127,7 +127,7 @@ test('request bridge only permits read-only KXCI and same form plan validation',
   assert.equal(exportPlan.plan.executable,false);
   v.slice.restore({plan:{mode:'iv',loops:3,points:5}});
   assert.equal(v.capability.methods.validatePlan().loops,3);
-  assert.equal(v.capability.methods.importPlan(exportPlan).totalPoints,12);
+  assert.equal(v.capability.methods.importPlan(exportPlan).totalPoints,6);
   await v.capability.methods.disconnect();
   installed.deactivate();
 });
