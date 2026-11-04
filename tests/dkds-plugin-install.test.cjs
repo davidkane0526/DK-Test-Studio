@@ -56,7 +56,7 @@ test('generated plugin modules use external identity while standalone modules re
 test('official package builder refuses repackaging under the built-in ID',()=>{
   const build=read('tools/build-dkds-plugin.cjs');
   assert.match(build,/manifest\.id!=='com\.dkts\.keithley-4200'/);
-  assert.match(build,/manifest\.version!=='0\.5\.0'/);
+  assert.match(build,/manifest\.version!=='0\.6\.0'/);
 });
 
 test('full plugin shell is built from canonical App assets, not a separate DKDS UI',()=>{
