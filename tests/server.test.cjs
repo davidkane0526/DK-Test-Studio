@@ -40,3 +40,17 @@ test('browser API can identify a fake 4200A and then disconnect',async()=>{
     const second=await post('/api/disconnect',{});assert.equal(second.phase,'disconnected');
   }finally{await app.close();await new Promise(resolve=>mock.close(resolve));}
 });
+
+test('manual UI update check is origin guarded and explicitly disabled in bare browser mode',async()=>{
+  const app=await createAppServer();
+  try{
+    const url=app.url+'api/ui/check';
+    const bad=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    assert.equal(bad.status,403);
+    const other=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-DKTS-Request':'1','Origin':'https://example.com'},body:'{}'});
+    assert.equal(other.status,403);
+    const valid=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},body:'{}'});
+    assert.equal(valid.status,200);
+    assert.deepEqual(await valid.json(),{ok:true,updated:false,status:'disabled'});
+  }finally{await app.close();}
+});

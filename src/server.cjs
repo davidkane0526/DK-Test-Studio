@@ -69,13 +69,17 @@ async function createAppServer(options={}){
           'X-Content-Type-Options':'nosniff'});
         return res.end(bytes);
       }
-      if(req.method!=='POST'||!['/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect'].includes(urlPath))
+      if(req.method!=='POST'||!['/api/ui/check','/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect'].includes(urlPath))
         return json(res,404,{error:'接口不存在'});
       // No arbitrary command endpoint exists; this only sends the hardcoded KXCI IDN query.
       if(req.headers['x-dkts-request']!=='1'||!String(req.headers['content-type']||'').startsWith('application/json'))
         return json(res,403,{error:'请求来源验证失败'});
       const origin=req.headers.origin;
       if(origin&&origin!=='http://'+expected)return json(res,403,{error:'跨站请求被拒绝'});
+      if(urlPath==='/api/ui/check'){
+        const result=updater?await updater.updateOnce():{updated:false,status:'disabled'};
+        return json(res,200,{ok:true,...result,status:updater?updater.state().status:'disabled'});
+      }
       const payload=await readJson(req);
       if(urlPath==='/api/disconnect')
         return json(res,200,{ok:true,...await controller.disconnect()});

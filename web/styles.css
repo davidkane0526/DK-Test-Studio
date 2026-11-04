@@ -959,3 +959,121 @@ body.dkts-android-shell .app-titlebar{
 @media(prefers-color-scheme:dark){
   .detail-run-actions .measure-button{border-color:#3b4a60}
 }
+
+/* v0.2.6: click-to-check version popover, quiet platform-specific states. */
+.titlebar-brand{position:relative}
+.titlebar-brand .native-version-badge{
+  appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;
+  margin-left:2px;padding:5px 6px;border:0;border-radius:5px;
+  background:transparent;color:var(--dkts-chrome-text);box-shadow:none!important;
+  font:inherit;font-size:10px;font-weight:650;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  app-region:no-drag;-webkit-app-region:no-drag;
+  transition:color .13s ease,background-color .13s ease
+}
+.titlebar-brand .native-version-badge:hover{background:rgba(118,144,176,.08);color:#365b86}
+.titlebar-brand .native-version-badge:active{background:transparent;box-shadow:none!important}
+.titlebar-brand .native-version-badge:focus{outline:none;box-shadow:none!important}
+.titlebar-brand .native-version-badge:focus-visible{outline:1px solid #8299b7;outline-offset:1px}
+body.dkts-android-shell .titlebar-brand .native-version-badge,
+body.dkts-android-shell .titlebar-brand .native-version-badge:hover,
+body.dkts-android-shell .titlebar-brand .native-version-badge:active,
+body.dkts-android-shell .titlebar-brand .native-version-badge:focus{
+  background:transparent!important;box-shadow:none!important;
+  outline:none!important;-webkit-tap-highlight-color:transparent
+}
+#ui-version-badge[hidden]{display:none!important}
+.titlebar-brand #ui-version-badge{
+  position:absolute;left:85%;top:calc(100% - 1px);z-index:150;
+  display:flex;flex-direction:column;align-items:flex-start;gap:6px;
+  box-sizing:border-box;width:max-content;min-width:210px;max-width:min(85vw,330px);
+  padding:11px 13px;margin:0;background:var(--dkts-chrome-bg);
+  border:1px solid var(--dkts-chrome-border);border-radius:10px;
+  color:var(--dkts-chrome-text);font-size:11px;line-height:1.45;
+  box-shadow:0 10px 28px rgba(23,42,68,.12);
+  app-region:no-drag;-webkit-app-region:no-drag
+}
+.titlebar-brand #ui-version-badge strong{font-size:11px;font-weight:700}
+#ui-update-state{font-size:10px;opacity:.8;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:660px){.titlebar-brand #ui-version-badge{left:0;min-width:195px}}
+@media(prefers-color-scheme:dark){
+  .titlebar-brand .native-version-badge:hover{background:rgba(151,177,210,.07);color:#c9dcf4}
+}
+.detail-heading{padding-right:0}
+.detail-run-actions{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;
+  margin-left:auto;gap:6px;min-width:0
+}
+.detail-run-actions .measure-button{
+  display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;
+  width:auto;min-height:30px;padding:6px 10px;border:1px solid #dce4f0;
+  border-radius:7px;font-size:11px;line-height:1.25;white-space:nowrap
+}
+.detail-run-actions .measure-button:disabled{cursor:not-allowed;opacity:.65}
+.data-panel-actions{display:flex;align-items:center;justify-content:flex-end;margin-left:auto;flex:none}
+.panel-expand-control{
+  appearance:none;-webkit-appearance:none;display:inline-flex;
+  align-items:center;justify-content:center;min-width:52px;height:27px;
+  padding:0 9px;border:1px solid transparent;border-radius:7px;
+  background:transparent;color:var(--dkts-chrome-text);
+  font-size:11px;font-weight:600;cursor:pointer
+}
+.panel-expand-control:hover{background:rgba(118,144,176,.10);color:#3e628e}
+.panel-expand-control:focus-visible{outline:1px solid #8299b7}
+@media(max-width:760px){.detail-heading{padding-right:0}}
+@media(max-width:660px){
+  .detail-heading{flex-wrap:wrap;gap:6px 9px}
+  .detail-heading-title{flex:1 1 calc(100% - 48px)}
+  .detail-run-actions{flex:1 1 100%;width:100%;justify-content:flex-end;gap:5px}
+  .detail-run-actions .measure-button{padding:6px 8px;font-size:10px}
+}
+@media(max-width:500px){.detail-heading{padding-top:0;padding-right:0}}
+body.dkts-android-shell .app-titlebar{
+  padding-left:calc(clamp(8px,1vw,18px) + 19px + var(--dkts-safe-left))
+}
+@media(max-width:500px){
+  body.dkts-android-shell .app-titlebar{padding-left:calc(18px + var(--dkts-safe-left))}
+}
+.data-panel .readout-grid{gap:6px;margin:0 0 7px}
+.data-panel .readout{
+  box-sizing:border-box;display:grid;grid-template-columns:1fr auto;
+  grid-template-rows:14px 20px;align-content:center;gap:1px 4px;
+  height:49px;min-height:49px;padding:5px 10px;border-radius:9px
+}
+.data-panel .readout span{grid-column:1/-1;font-size:10px;line-height:1.2}
+.data-panel .readout strong{grid-column:1;grid-row:2;font-size:16px;line-height:1.1}
+.data-panel .readout small{grid-column:2;grid-row:2;font-size:9px;align-self:end}
+@media(max-width:500px){.data-panel .readout{height:46px;min-height:46px;padding:4px 9px}}
+
+/* Scientific plotting controls are quiet until hover/focus on desktop. */
+.measured-plot{position:relative}
+.measured-plot #measurement-plot{touch-action:none;outline:0;cursor:crosshair}
+.plot-tools{
+  position:absolute;right:8px;top:7px;z-index:3;
+  display:flex;align-items:center;gap:2px;padding:2px;
+  border:1px solid var(--dkts-chrome-border);border-radius:8px;
+  background:var(--dkts-chrome-bg);opacity:0;transition:opacity .16s
+}
+.measured-plot:hover .plot-tools,.measured-plot:focus-within .plot-tools{opacity:1}
+body.dkts-android-shell .plot-tools{opacity:.7}
+.plot-tools button{
+  display:grid;place-items:center;width:27px;height:27px;padding:0;
+  border:0;border-radius:6px;background:transparent;color:var(--dkts-chrome-text);
+  font-size:15px;cursor:pointer
+}
+.plot-tools button:hover{background:rgba(118,144,176,.12)}
+.plot-tools button:focus-visible{outline:1px solid #8299b7}
+.measurement-cursor-tooltip{
+  position:absolute;z-index:4;padding:5px 8px;pointer-events:none;
+  font-size:10px;line-height:1.3;white-space:nowrap;
+  border:1px solid var(--dkts-chrome-border);border-radius:6px;
+  background:var(--dkts-chrome-bg);color:var(--dkts-chrome-text)
+}
+.measurement-cursor-lines{
+  stroke:#5d8cc9;stroke-width:1;stroke-dasharray:4 4;fill:none;pointer-events:none
+}
+.plot-axis-label{fill:#8493a9;font-size:10px;pointer-events:none}
+.plot-actual-trace{
+  fill:none;stroke:#447bb7;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round
+}
+@media(prefers-reduced-motion:reduce){.plot-tools{transition:none}}

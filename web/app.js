@@ -3,50 +3,17 @@ const $=id=>document.getElementById(id);
 // Android WebView has native system bars, not desktop caption/window controls.
 if(typeof window.DKTSNative?.request==='function')
   document.body.classList.add('dkts-android-shell');
-// Keep compact chrome by default. A long press exposes the full version in a
-// floating label instead of expanding and pushing the test tabs off screen.
-function makeVersionBadgeControl(id){
-  const badge=$(id);
-  let shortText='',longText='',fullText='',description='',expanded=false,timer=null;
-  const render=()=>{
-    badge.textContent=expanded?longText:shortText;
-    badge.dataset.expanded=String(expanded);
-    badge.dataset.versionDetail=fullText;
-    badge.title=description+' · 长按切换详细版本';
-    badge.setAttribute('aria-label',description+'，长按或按 Enter 切换详细版本');
-    badge.setAttribute('aria-pressed',String(expanded));
-  };
-  const toggle=()=>{expanded=!expanded;render();};
-  const cancelHold=()=>{if(timer!==null){clearTimeout(timer);timer=null;}};
-  badge.addEventListener('pointerdown',event=>{
-    if(event.button!==0)return;
-    cancelHold();
-    timer=setTimeout(()=>{timer=null;toggle();},550);
-  });
-  for(const eventName of ['pointerup','pointercancel','pointerleave'])
-    badge.addEventListener(eventName,cancelHold);
-  badge.addEventListener('contextmenu',event=>event.preventDefault());
-  badge.addEventListener('keydown',event=>{
-    if(event.key==='Enter'||event.key===' '){
-      event.preventDefault();cancelHold();toggle();
-    }
-  });
-  return {update(compact,detail,full,tip){
-    shortText=compact;longText=detail;fullText=full;description=tip;render();
-  }};
-}
-const nativeVersionControl=makeVersionBadgeControl('native-version-badge');
-const uiVersionControl=makeVersionBadgeControl('ui-version-badge');
-nativeVersionControl.update('v0.2.5','原生 v0.2.5','原生版本 v0.2.5','当前原生安装版本：0.2.5');
+// UI badge stays hidden until a click on the actual native version.
+// Each opening triggers an immediate verified UI-only update check.
+const nativeBadge=$('native-version-badge');
+const uiBadge=$('ui-version-badge');
+const updateStatus=$('ui-update-state');
+let uiCheckBusy=false;
 function displayUiVersion(){
   const raw=document.querySelector('meta[name="dkts-ui-version"]')?.content||'bundled';
-  const isCommit=/^[a-f0-9]{40}$/i.test(raw);
-  uiVersionControl.update(
-    isCommit?'UI '+raw.slice(0,4):'UI 内置',
-    isCommit?'UI '+raw.slice(0,8):'UI 内置版',
-    isCommit?'UI commit '+raw:'UI 内置资源',
-    isCommit?'当前 UI 版本：'+raw:'当前 UI 版本：内置资源'
-  );
+  const isSha=/^[a-f0-9]{40}$/i.test(raw);
+  $('ui-version-text').textContent=isSha?'UI '+raw.slice(0,8):'UI 内置';
+  uiBadge.title=isSha?'完整 UI 版本：'+raw:'当前使用内置界面资源';
 }
 displayUiVersion();
 async function displayNativeVersion(){
@@ -57,12 +24,55 @@ async function displayNativeVersion(){
       const response=await fetch('/api/app/version',{cache:'no-store'});
       if(response.ok)version=String((await response.json()).version||'');
     }
-    if(/^\d+\.\d+\.\d+$/.test(version))
-      nativeVersionControl.update('v'+version,'原生 v'+version,
-        '原生版本 v'+version,'当前原生安装版本：'+version);
-  }catch{/* Native version falls back to bundled package label when offline. */}
+    if(/^\d+\.\d+\.\d+$/.test(version))nativeBadge.textContent='v'+version;
+  }catch{/* Keep bundled version if unavailable offline. */}
 }
 void displayNativeVersion();
+async function checkUiUpdateNow(){
+  if(uiCheckBusy)return;
+  uiCheckBusy=true;updateStatus.textContent='正在检查热更新…';
+  try{
+    if(window.DKTSClient?.checkUiUpdate){
+      await window.DKTSClient.checkUiUpdate();
+      for(let index=0;index<18;index++){
+        await new Promise(resolve=>setTimeout(resolve,900));
+        const result=await window.DKTSClient.uiUpdateStatus();
+        if(result.status==='updated'){
+          updateStatus.textContent='更新已验证，正在刷新界面…';return;
+        }
+        if(result.status==='current'){updateStatus.textContent='UI 已是最新版本';return;}
+        if(result.status==='offline'){
+          updateStatus.textContent='检查失败：'+String(result.error||'网络不可用').slice(0,72);return;
+        }
+      }
+      updateStatus.textContent='检查继续在后台执行';
+    }else if(window.DKTSClient)updateStatus.textContent='请安装新版 APK 以使用手动检查';
+    else {
+      const response=await fetch('/api/ui/check',{method:'POST',cache:'no-store',
+        headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},body:'{}'});
+      if(!response.ok)throw Error('更新接口 HTTP '+response.status);
+      const result=await response.json();
+      if(result.updated){
+        updateStatus.textContent='更新已安装，正在刷新…';
+        if(!window.DKTSMeasurementRunning)window.location.reload();
+      }else if(result.error)updateStatus.textContent='检查失败：'+String(result.error).slice(0,72);
+      else updateStatus.textContent=result.status==='disabled'
+        ?'当前浏览器模式未启用自动更新':'UI 已是最新版本';
+    }
+  }catch(error){updateStatus.textContent='检查失败：'+String(error.message||error).slice(0,72);}
+  finally{uiCheckBusy=false;}
+}
+nativeBadge.addEventListener('click',()=>{
+  const opening=uiBadge.hidden;
+  uiBadge.hidden=!opening;
+  nativeBadge.setAttribute('aria-expanded',String(opening));
+  if(opening)void checkUiUpdateNow();
+});
+document.addEventListener('pointerdown',event=>{
+  if(!uiBadge.hidden&&!uiBadge.contains(event.target)&&event.target!==nativeBadge){
+    uiBadge.hidden=true;nativeBadge.setAttribute('aria-expanded','false');
+  }
+});
 const form=$('connection-form'),planForm=$('plan-form');
 const dialog=$('connection-dialog'),statusButton=$('connection-status');
 const reconnect=$('reconnect-instrument'),disconnect=$('disconnect-instrument');
@@ -193,6 +203,177 @@ function openConnectionDialog(){
 function closeConnectionDialog(){
   if(dialog.open)dialog.close();
 }
+
+/* Interactive measured-data plot. Only actual acquisition rows may be supplied
+ * by a future instrument adapter; no plan/preview values are used as data. */
+const measurementPlot=(()=>{
+  const svg=$('measurement-plot'),grid=$('measurement-grid'),traces=$('measurement-traces'),
+    ticks=$('measurement-ticks'),cursor=$('measurement-cursor-lines'),
+    tip=$('measurement-cursor-tooltip'),NS='http://www.w3.org/2000/svg';
+  const b={l:60,r:620,t:16,d:246},sx=b.r-b.l,sy=b.d-b.t;
+  let axes={x:'linear',y:'linear'},kind='iv',samples=[],view=null,drag=null,tap=null,suppressDblUntil=0;
+  const finite=Number.isFinite;
+  const good=(v,key)=>finite(v)&&(axes[key]!=='log'||v>0);
+  const project=(v,key)=>axes[key]==='log'?Math.log10(v):v;
+  const unproject=(v,key)=>axes[key]==='log'?Math.pow(10,v):v;
+  function append(host,tag,attrs={},text=''){
+    const n=document.createElementNS(NS,tag);
+    for(const [key,value] of Object.entries(attrs))n.setAttribute(key,String(value));
+    n.textContent=text;host.appendChild(n);return n;
+  }
+  function limits(key){
+    const a=samples.map(row=>key==='x'?row.x:row.y).filter(v=>good(v,key)).map(v=>project(v,key));
+    if(!a.length)return key==='x'
+      ?axes.x==='log'?[-3,1]:[0,1]:axes.y==='log'?[-12,-3]:[-1,1];
+    let low=Math.min(...a),high=Math.max(...a);
+    if(low===high){let d=axes[key]==='log'?.5:Math.max(Math.abs(low)*.05,1e-12);low-=d;high+=d;}
+    const pad=(high-low)*.055;
+    return [low-pad,high+pad];
+  }
+  const px=v=>b.l+(project(v,'x')-view.x[0])/(view.x[1]-view.x[0])*sx;
+  const py=v=>b.d-(project(v,'y')-view.y[0])/(view.y[1]-view.y[0])*sy;
+  function fmt(v){if(!finite(v))return '—';if(v===0)return '0';
+    return (Math.abs(v)>=1e4||Math.abs(v)<1e-3)?v.toExponential(1):Number(v.toPrecision(3)).toString();
+  }
+  function tickRows(key){
+    const [lo,hi]=view[key];
+    if(axes[key]==='log'){
+      const result=[],step=Math.max(1,Math.ceil((hi-lo)/7));
+      for(let n=Math.ceil(lo);n<=hi;n+=step)result.push({n,label:'10^'+n});
+      return result;
+    }
+    return Array.from({length:5},(_,i)=>({n:lo+(hi-lo)*i/4,label:fmt(lo+(hi-lo)*i/4)}));
+  }
+  function render(){
+    if(!view)view={x:limits('x'),y:limits('y')};
+    grid.replaceChildren();ticks.replaceChildren();traces.replaceChildren();
+    for(const row of tickRows('x')){
+      const x=b.l+(row.n-view.x[0])/(view.x[1]-view.x[0])*sx;
+      append(grid,'line',{x1:x,y1:b.t,x2:x,y2:b.d,class:'plot-guide'});
+      append(ticks,'text',{x,y:b.d+14,'text-anchor':'middle',class:'plot-axis-label'},row.label);
+    }
+    for(const row of tickRows('y')){
+      const y=b.d-(row.n-view.y[0])/(view.y[1]-view.y[0])*sy;
+      append(grid,'line',{x1:b.l,y1:y,x2:b.r,y2:y,class:'plot-guide'});
+      append(ticks,'text',{x:b.l-7,y:y+3,'text-anchor':'end',class:'plot-axis-label'},row.label);
+    }
+    append(ticks,'line',{x1:b.l,y1:b.t,x2:b.l,y2:b.d,class:'plot-axis'});
+    append(ticks,'line',{x1:b.l,y1:b.d,x2:b.r,y2:b.d,class:'plot-axis'});
+    $('measurement-x-label').textContent=(kind==='iv'?'Voltage (V)':'Time (s)')+(axes.x==='log'?' · log10':'');
+    $('measurement-y-label').textContent='Current (A)'+(axes.y==='log'?' · log10':'');
+    let path='',open=false;
+    for(const row of samples){
+      if(!good(row.x,'x')||!good(row.y,'y')){open=false;continue;}
+      const x=px(row.x),y=py(row.y);
+      if(!finite(x)||!finite(y)){open=false;continue;}
+      path+=(open?' L':' M')+x.toFixed(3)+' '+y.toFixed(3);open=true;
+    }
+    if(path)append(traces,'path',{d:path,class:'plot-actual-trace'});
+    svg.dataset.xScale=axes.x;svg.dataset.yScale=axes.y;
+  }
+  const reset=()=>{view={x:limits('x'),y:limits('y')};render();};
+  function selectTest(testKind){
+    if(kind!==testKind){kind=testKind;samples=[];axes={x:'linear',y:'linear'};view=null;}
+    $('measurement-empty').hidden=samples.length>0;reset();
+  }
+  function setMeasurements(rows){
+    if(!Array.isArray(rows))throw TypeError('Raw instrument rows must be an array');
+    samples=rows.map(row=>{
+      const x=kind==='iv'?row?.voltageV:row?.timeS,y=row?.currentA;
+      return {x,y};
+    }).filter(row=>finite(row.x)&&finite(row.y));
+    $('measurement-empty').hidden=samples.length>0;
+    view=null;reset();
+  }
+  function toggleAxis(key){
+    axes[key]=axes[key]==='linear'?'log':'linear';
+    view=null;reset();
+  }
+  function zoom(factor,x=(b.l+b.r)/2,y=(b.t+b.d)/2){
+    if(!view)reset();
+    for(const [key,t] of [['x',(x-b.l)/sx],['y',(b.d-y)/sy]]){
+      const [lo,hi]=view[key],anchor=lo+(hi-lo)*t;
+      view[key]=[anchor+(lo-anchor)*factor,anchor+(hi-anchor)*factor];
+    }
+    render();
+  }
+  function location(e){
+    const rect=svg.getBoundingClientRect();
+    if(!rect.width||!rect.height)return null;
+    return {x:(e.clientX-rect.left)*640/rect.width,y:(e.clientY-rect.top)*290/rect.height};
+  }
+  const inPlot=p=>p&&p.x>=b.l&&p.x<=b.r&&p.y>=b.t&&p.y<=b.d;
+  function double(p){
+    if(!p)return;
+    if(p.x<b.l&&p.y>=b.t-8&&p.y<=b.d+8)toggleAxis('y');
+    else if(p.y>=b.d&&p.x>=b.l-8&&p.x<=b.r+8)toggleAxis('x');
+    else if(inPlot(p))reset();
+    cursor.hidden=true;tip.hidden=true;
+  }
+  svg.addEventListener('dblclick',e=>{
+    if(Date.now()<suppressDblUntil)return;
+    e.preventDefault();double(location(e));
+  });
+  svg.addEventListener('wheel',e=>{
+    const p=location(e);if(!inPlot(p))return;
+    e.preventDefault();zoom(e.deltaY>0?1.16:.86,p.x,p.y);
+  },{passive:false});
+  svg.addEventListener('pointerdown',e=>{
+    if(e.button!==0)return;
+    const p=location(e);if(!inPlot(p))return;
+    if(!view)reset();
+    drag={id:e.pointerId,p,x:view.x.slice(),y:view.y.slice(),moved:false};
+    try{svg.setPointerCapture(e.pointerId);}catch{}
+  });
+  svg.addEventListener('pointermove',e=>{
+    const p=location(e);if(!p)return;
+    if(drag&&drag.id===e.pointerId){
+      const dx=p.x-drag.p.x,dy=p.y-drag.p.y;
+      drag.moved=drag.moved||Math.abs(dx)+Math.abs(dy)>5;
+      view.x=drag.x.map(v=>v-dx/sx*(drag.x[1]-drag.x[0]));
+      view.y=drag.y.map(v=>v+dy/sy*(drag.y[1]-drag.y[0]));
+      render();return;
+    }
+    if(!inPlot(p)||!samples.length){cursor.hidden=true;tip.hidden=true;return;}
+    cursor.hidden=false;
+    cursor.setAttribute('d','M'+p.x+' '+b.t+' V'+b.d+' M'+b.l+' '+p.y+' H'+b.r);
+    let near=null,minimum=Infinity;
+    for(const row of samples){
+      if(!good(row.x,'x')||!good(row.y,'y'))continue;
+      const d=Math.hypot(px(row.x)-p.x,py(row.y)-p.y);
+      if(d<minimum){minimum=d;near=row;}
+    }
+    if(!near){tip.hidden=true;return;}
+    tip.hidden=false;tip.textContent='X: '+fmt(near.x)+' · I: '+fmt(near.y)+' A';
+    const host=svg.parentElement.getBoundingClientRect();
+    tip.style.left=Math.max(7,Math.min(host.width-170,e.clientX-host.left+9))+'px';
+    tip.style.top=Math.max(7,e.clientY-host.top-32)+'px';
+  });
+  svg.addEventListener('pointerup',e=>{
+    if(e.pointerType==='touch'){
+      const p=location(e),now=Date.now();
+      if(p&&tap&&now-tap.time<380&&Math.hypot(p.x-tap.p.x,p.y-tap.p.y)<26){
+        if(!drag?.moved){double(p);suppressDblUntil=now+450;}
+        tap=null;
+      }else if(p)tap={p,time:now};
+    }
+    if(drag?.id===e.pointerId){drag=null;try{svg.releasePointerCapture(e.pointerId);}catch{}}
+  });
+  svg.addEventListener('pointercancel',()=>{drag=null;tap=null;cursor.hidden=true;tip.hidden=true;});
+  svg.addEventListener('pointerleave',()=>{if(!drag){cursor.hidden=true;tip.hidden=true;}});
+  svg.addEventListener('keydown',e=>{
+    if(e.key.toLowerCase()==='x'){e.preventDefault();toggleAxis('x');}
+    else if(e.key.toLowerCase()==='y'){e.preventDefault();toggleAxis('y');}
+    else if(e.key==='0'){e.preventDefault();reset();}
+  });
+  $('measurement-zoom-in').addEventListener('click',()=>zoom(.75));
+  $('measurement-zoom-out').addEventListener('click',()=>zoom(1.3));
+  $('measurement-home').addEventListener('click',reset);
+  reset();
+  return Object.freeze({selectTest,setMeasurements,reset});
+})();
+window.DKTSMeasurementPlot=measurementPlot;
+
 function drawWave(points){
   const svg=$('waveform-plot');svg.replaceChildren();
   const NS='http://www.w3.org/2000/svg',width=640,height=260,left=48,right=18,top=20,bottom=34;
@@ -315,8 +496,7 @@ function renderTestSelection(){
   renderWorkspaceTabs();
   if(!mode)return;
   $('test-detail-title').textContent=mode.title+' · 测试工作区';
-  $('test-detail-subtitle').textContent='参数设置 / 数据读取 / 实时曲线';
-  $('measurement-x-label').textContent=mode.x;
+  measurementPlot.selectTest(expandedKind);
   $('data-column-x').textContent=mode.xColumn;
   $('measurement-empty').textContent='尚无'+mode.title+'的仪器实测数据';
   $('plan-form').hidden=!isEditable;
@@ -341,7 +521,6 @@ function renderTestSelection(){
     $('pending-description').textContent='此测试方式的参数配置与仪器采集尚未实现。界面仅保留工作区，不会执行任何输出。';
   }
   // The measured plot stays empty until the actual instrument acquisition layer is implemented.
-  $('acquisition-state').textContent='等待实机采集';
 }
 function selectTestKind(kind){
   if(!Object.hasOwn(TEST_MODES,kind))return;
@@ -401,16 +580,16 @@ function setParametersCollapsed(collapsed){
   const columns=$('detail-columns');
   columns.classList.toggle('parameters-collapsed',collapsed);
   $('parameters-panel').hidden=collapsed;
-  const collapse=$('toggle-parameters'),restore=$('restore-parameters');
-  collapse.setAttribute('aria-expanded',String(!collapsed));
-  restore.setAttribute('aria-expanded',String(!collapsed));
-  restore.hidden=!collapsed;
-  if(collapsed)restore.focus({preventScroll:true});
-  else collapse.focus({preventScroll:true});
+  const restore=$('restore-parameters');
+  restore.setAttribute('aria-expanded',String(collapsed));
+  restore.textContent=collapsed?'收起':'展开';
+  restore.setAttribute('aria-label',collapsed?'收起绘图区':'展开绘图区');
+  restore.title=collapsed?'收起绘图区':'展开绘图区';
   showStatusMessage(collapsed?'参数已收起 · 绘图区域使用全部宽度':'参数栏已显示');
 }
-$('toggle-parameters').addEventListener('click',()=>setParametersCollapsed(true));
-$('restore-parameters').addEventListener('click',()=>setParametersCollapsed(false));
+$('restore-parameters').addEventListener('click',()=>setParametersCollapsed(
+  !$('detail-columns').classList.contains('parameters-collapsed')
+));
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape'&&expandedKind&&!dialog.open){
     event.preventDefault();

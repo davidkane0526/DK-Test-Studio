@@ -39,15 +39,17 @@ public final class InstrumentBridge {
     private static final byte[] OPT = "*OPT?\0".getBytes(StandardCharsets.US_ASCII);
     private final Context context;
     private final WebView webView;
+    private final UiUpdateManager uiUpdates;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private Socket socket;
     private String sessionId;
     private volatile boolean stopped = false;
 
-    InstrumentBridge(Context context, WebView view) {
+    InstrumentBridge(Context context, WebView view, UiUpdateManager uiUpdates) {
         this.context = context.getApplicationContext();
         this.webView = view;
+        this.uiUpdates = uiUpdates;
     }
 
     @JavascriptInterface
@@ -88,6 +90,11 @@ public final class InstrumentBridge {
         switch (op) {
             case "version": return new JSONObject().put("version",
                 context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionName);
+            case "ui-check": {
+                uiUpdates.checkNow();
+                return new JSONObject().put("queued", true);
+            }
+            case "ui-status": return uiUpdates.status();
             case "open": return open(args);
             case "exchange": return exchange(args);
             case "close": {

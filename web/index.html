@@ -14,8 +14,11 @@
   <div class="titlebar-brand" title="按住此处可拖动窗口">
     <span class="titlebar-logo" aria-hidden="true">DK</span>
     <strong>DK Test Studio</strong>
-    <span id="native-version-badge" class="native-version-badge version-hold-toggle" role="button" tabindex="0" title="长按查看原生版本">v0.2.5</span>
-    <span id="ui-version-badge" class="ui-version-badge version-hold-toggle" role="button" tabindex="0" title="长按查看完整 UI 版本">UI 内置</span>
+    <button type="button" id="native-version-badge" class="native-version-badge" aria-expanded="false" aria-controls="ui-version-badge" title="点击显示 UI 版本并检查热更新">v0.2.6</button>
+    <div id="ui-version-badge" class="ui-version-badge" role="status" aria-live="polite" hidden>
+      <strong id="ui-version-text">UI 内置</strong>
+      <span id="ui-update-state">点击版本号检查更新</span>
+    </div>
   </div>
   <span class="titlebar-version-divider" aria-hidden="true"></span>
   <nav id="workspace-tabs" class="workspace-tabs" role="tablist" aria-label="已打开的测试工作区"></nav>
@@ -136,10 +139,8 @@
           </button>
           <div class="detail-heading-title">
             <h2 id="test-detail-title" tabindex="-1">测试工作区</h2>
-            <p class="detail-subtitle" id="test-detail-subtitle">参数 · 实时曲线 · 原始数据</p>
           </div>
           <div class="data-header-actions detail-run-actions" role="group" aria-label="测试运行控制">
-            <span class="acquisition-state" id="acquisition-state">等待实机采集</span>
             <button type="button" id="start-measurement" class="measure-button" disabled title="实机采集尚未接入">开始测试</button>
             <button type="button" id="pause-measurement" class="measure-button" disabled title="实机采集尚未接入">暂停</button>
             <button type="button" id="stop-measurement" class="measure-button" disabled title="实机采集尚未接入">停止</button>
@@ -150,9 +151,6 @@
             <div class="detail-section-heading">
               <div><p class="eyebrow">CONFIGURATION</p><h4 id="parameters-title">测试参数</h4></div>
               <div class="parameter-heading-actions">
-                <button type="button" id="toggle-parameters" class="detail-icon-action parameter-icon-action" aria-controls="parameters-panel" aria-expanded="true" title="收起参数栏" aria-label="收起参数栏">
-                  <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 3.5h11v13h-11zM10 3.5v13M8.25 8 5.8 10l2.45 2"/></svg>
-                </button>
                 <button type="button" id="validate-plan" class="small-action">校验方案</button>
                 <button type="button" id="validate-waveform" class="small-action" hidden>校验波形</button>
               </div>
@@ -204,9 +202,7 @@
                 <div><p class="eyebrow">ACQUISITION</p><h4 id="data-title">数据读取与绘图</h4></div>
               </div>
               <div class="data-panel-actions">
-                <button type="button" id="restore-parameters" class="detail-icon-action parameter-icon-action" title="展开参数栏" aria-label="展开参数栏" aria-controls="parameters-panel" aria-expanded="false" hidden>
-                  <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 3.5h11v13h-11zM10 3.5v13M12 8l2.45 2-2.45 2"/></svg>
-                </button>
+                <button type="button" id="restore-parameters" class="panel-expand-control" aria-controls="parameters-panel" aria-expanded="false" title="展开绘图区" aria-label="展开绘图区">展开</button>
               </div>
             </div>
             <div class="readout-grid">
@@ -216,15 +212,22 @@
               <div class="readout"><span>采集时间</span><strong id="readout-duration">—</strong><small>s</small></div>
             </div>
             <div class="measured-plot" role="img" aria-label="空白的仪器实测曲线区域，尚未采集数据">
-              <svg id="measurement-plot" viewBox="0 0 640 290" aria-hidden="true">
-                <line x1="54" y1="16" x2="54" y2="248" class="plot-axis"/>
-                <line x1="54" y1="248" x2="620" y2="248" class="plot-axis"/>
-                <line x1="54" y1="76" x2="620" y2="76" class="plot-guide"/>
-                <line x1="54" y1="136" x2="620" y2="136" class="plot-guide"/>
-                <line x1="54" y1="196" x2="620" y2="196" class="plot-guide"/>
-                <text id="measurement-x-label" x="338" y="280" class="plot-label" text-anchor="middle">Voltage (V)</text>
+              <svg id="measurement-plot" viewBox="0 0 640 290" preserveAspectRatio="none"
+                tabindex="0" aria-label="交互式实测曲线；双击横轴或纵轴切换线性和对数，滚轮缩放、拖动平移、双击绘图区重置">
+                <rect x="0" y="0" width="640" height="290" fill="transparent"></rect>
+                <g id="measurement-grid"></g>
+                <g id="measurement-traces"></g>
+                <g id="measurement-ticks"></g>
+                <path id="measurement-cursor-lines" class="measurement-cursor-lines" hidden></path>
+                <text id="measurement-x-label" x="338" y="282" class="plot-label" text-anchor="middle">Voltage (V)</text>
                 <text id="measurement-y-label" transform="translate(15 133) rotate(-90)" class="plot-label" text-anchor="middle">Current (A)</text>
               </svg>
+              <div class="plot-tools" role="group" aria-label="绘图导航">
+                <button type="button" id="measurement-zoom-in" aria-label="放大" title="放大图形">+</button>
+                <button type="button" id="measurement-zoom-out" aria-label="缩小" title="缩小图形">−</button>
+                <button type="button" id="measurement-home" aria-label="重置视图" title="重置视图">⌂</button>
+              </div>
+              <div id="measurement-cursor-tooltip" class="measurement-cursor-tooltip" hidden></div>
               <p class="empty-chart-message" id="measurement-empty">尚无仪器采集数据</p>
             </div>
             <div class="data-list-heading"><strong>原始采样数据</strong><span id="data-count">0 点</span></div>
