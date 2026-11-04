@@ -112,6 +112,8 @@ test('request bridge only permits read-only KXCI and same form plan validation',
   assert.equal(env.captured.capture||0,0,'Typing must not capture the DKDS project');
   incoming('commit',{...draft,source:'plan'});
   assert.equal(env.captured.capture,1,'Completed plan edits must capture the DKDS project');
+  incoming('commit',{...draft,source:'connection'});
+  assert.equal(env.captured.capture,1,'Connection settings must not be captured into the project');
   async function request(ticket,method,route,payload={}){
     incoming('api',{ticket,method,route,payload});
     for(let i=0;i<12;i++){
