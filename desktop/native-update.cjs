@@ -68,7 +68,7 @@ function newer(a,b){
 function pickRelease(releases,currentVersion){
   let best=null;
   for(const release of releases){
-    if(!PREVIEW.test(String(release.tag_name||''))||release.draft)return nullIfUndefined(best);
+    if(!PREVIEW.test(String(release.tag_name||''))||release.draft)continue;
     const assets=Array.isArray(release.assets)?release.assets:[];
     const portable=assets.filter(a=>PORTABLE.test(String(a.name||'')));
     for(const asset of portable){
@@ -85,7 +85,6 @@ function pickRelease(releases,currentVersion){
   }
   return best;
 }
-function nullIfUndefined(value){return value||null;}
 function createPortableUpdater({app,userData,scriptPath,currentVersion,portablePath=process.env.PORTABLE_EXECUTABLE_FILE||''}){
   const enabled=process.platform==='win32'&&app?.isPackaged&&path.isAbsolute(portablePath)&&
     path.extname(portablePath).toLowerCase()==='.exe'&&fs.existsSync(portablePath);

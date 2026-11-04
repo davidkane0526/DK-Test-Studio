@@ -62,17 +62,90 @@ async function checkUiUpdateNow(){
   }catch(error){updateStatus.textContent='检查失败：'+String(error.message||error).slice(0,72);}
   finally{uiCheckBusy=false;}
 }
+// Native APK/portable updates are separate from UI-only hot updates.
+// Clicking the version checks both; no update binary is executed from HTML.
+const nativeAppState=$('native-app-update-state');
+const nativeAppAction=$('native-app-update-action');
+const nativeAppApi=window.DKTSClient?.checkAppUpdate
+  ?window.DKTSClient
+  :window.DKTSWindow?.checkAppUpdate
+    ?window.DKTSWindow:null;
+let nativeAppCheckBusy=false,nativeAppPolling=false;
+function nativeUpdateDisplay(result){
+  const status=String(result?.status||'idle');
+  const version=String(result?.version||'').slice(0,32);
+  const error=String(result?.error||'').slice(0,105);
+  nativeBadge.classList.toggle('has-native-update',status==='available'||status==='ready');
+  nativeAppAction.hidden=!(status==='available'||status==='ready');
+  nativeAppAction.disabled=false;
+  nativeAppAction.textContent=status==='ready'?'继续安装':'下载并安装';
+  const label={
+    idle:'点击版本号检查程序更新',
+    checking:'正在检查完整程序更新…',
+    current:'已是最新程序版本',
+    available:'发现程序更新 v'+version,
+    downloading:'正在下载更新：'+Math.max(0,Math.min(100,Number(result.progress)||0))+'%',
+    ready:'更新文件已验证，可以安装',
+    permission:'请在系统设置中允许安装，返回后继续',
+    installer:'已打开 Android 系统安装界面',
+    restarting:'已下载并验证，正在重启便携程序…',
+    unsupported:'当前模式不支持程序内安装',
+    error:'程序更新失败：'+error
+  };
+  nativeAppState.textContent=label[status]||'程序更新状态：'+status;
+}
+async function pollNativeUpdate(){
+  if(!nativeAppApi?.appUpdateStatus||nativeAppPolling)return;
+  nativeAppPolling=true;
+  try{
+    for(let i=0;i<220;i++){
+      if(i)await new Promise(resolve=>setTimeout(resolve,1300));
+      const result=await nativeAppApi.appUpdateStatus();
+      nativeUpdateDisplay(result);
+      if(!['checking','downloading'].includes(result?.status))return;
+    }
+    nativeAppState.textContent='更新继续在后台进行，可稍后再查看';
+  }catch(error){nativeAppState.textContent='状态查询失败：'+String(error.message||error).slice(0,90);}
+  finally{nativeAppPolling=false;}
+}
+async function checkNativeAppUpdate(){
+  if(nativeAppCheckBusy||!nativeAppApi){nativeUpdateDisplay({status:'unsupported'});return;}
+  nativeAppCheckBusy=true;
+  nativeUpdateDisplay({status:'checking'});
+  try{
+    const result=await nativeAppApi.checkAppUpdate();
+    if(result?.status)nativeUpdateDisplay(result);
+    await pollNativeUpdate();
+  }catch(error){nativeUpdateDisplay({status:'error',error:String(error.message||error)});}
+  finally{nativeAppCheckBusy=false;}
+}
+nativeAppAction.addEventListener('click',async()=>{
+  if(!nativeAppApi?.installAppUpdate)return;
+  nativeAppAction.disabled=true;
+  nativeAppAction.hidden=true;
+  try{
+    const result=await nativeAppApi.installAppUpdate();
+    if(result?.status)nativeUpdateDisplay(result);
+    if(!nativeAppPolling)void pollNativeUpdate();
+  }catch(error){nativeUpdateDisplay({status:'error',error:String(error.message||error)});}
+});
+if(!nativeAppApi)nativeUpdateDisplay({status:'unsupported'});
+
 nativeBadge.addEventListener('click',()=>{
   const opening=uiBadge.hidden;
   uiBadge.hidden=!opening;
   nativeBadge.setAttribute('aria-expanded',String(opening));
-  if(opening)void checkUiUpdateNow();
+  if(opening){
+    void checkUiUpdateNow();
+    void checkNativeAppUpdate();
+  }
 });
 document.addEventListener('pointerdown',event=>{
   if(!uiBadge.hidden&&!uiBadge.contains(event.target)&&event.target!==nativeBadge){
     uiBadge.hidden=true;nativeBadge.setAttribute('aria-expanded','false');
   }
 });
+if(nativeAppApi)setTimeout(()=>{if(!nativeAppCheckBusy)void checkNativeAppUpdate();},7500);
 const form=$('connection-form'),planForm=$('plan-form');
 const dialog=$('connection-dialog'),statusButton=$('connection-status');
 const reconnect=$('reconnect-instrument'),disconnect=$('disconnect-instrument');
