@@ -26,15 +26,37 @@ test('manifest includes platform-specific entry HTML and identical CSS/JS',()=>{
   corrupted.platforms.windows['app.js'].sha256='0'.repeat(64);
   assert.throws(()=>validateBundle(corrupted,'windows'),/checksum/);
 });
-test('a GitHub hot-update release swaps the UI files and preserves a working backup',async()=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-'));
-  const b=prepare();
-  const release={tag_name:'dkts-ui-'+VERSION,target_commitish:VERSION,
+
+const BASE='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const OLD='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+function releaseAt(commit,{published='2026-11-03T07:07:23Z'}={}){
+  return {tag_name:'dkts-ui-'+commit,target_commitish:commit,published_at:published,
     assets:[{name:'DKTS-UI-bundle.json',browser_download_url:
-      'https://github.com/davidkane0526/DK-Test-Studio/releases/download/dkts-ui-'+VERSION+'/DKTS-UI-bundle.json'}]};
-  const responses=[ [release],b ];
-  const fetchImpl=async()=>({ok:true,json:async()=>responses.shift()||[release]});
-  const updater=createUiUpdater({cacheDir:root,fetchImpl});
+      'https://github.com/davidkane0526/DK-Test-Studio/releases/download/dkts-ui-'+commit+'/DKTS-UI-bundle.json'}]};
+}
+function stubGitHub({head=VERSION,release=releaseAt(VERSION),status='ahead',bundleData=prepare()}={}){
+  const requests=[];
+  const fetchImpl=async url=>{
+    requests.push(url);
+    if(url.endsWith('/branches/main'))
+      return {ok:true,json:async()=>({commit:{sha:head}})};
+    if(url.includes('/compare/'))
+      return {ok:true,json:async()=>({status,ahead_by:status==='ahead'?1:0})};
+    if(url.includes('/releases/tags/')){
+      if(release&&url.endsWith('/releases/tags/'+release.tag_name))
+        return {ok:true,json:async()=>release};
+      return {ok:false,status:404};
+    }
+    if(url.includes('/releases/download/'))
+      return {ok:true,json:async()=>bundleData};
+    throw Error('Unexpected GitHub API request '+url);
+  };
+  return {fetchImpl,requests};
+}
+test('main HEAD hot-update replaces cached files, then preserves verified cache across restart',async()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-'));
+  const b=prepare(),github=stubGitHub();
+  const updater=createUiUpdater({cacheDir:dir,baseCommit:BASE,fetchImpl:github.fetchImpl});
   try{
     assert.equal(updater.state().version,'bundled');
     const updated=await updater.updateOnce();
@@ -43,37 +65,80 @@ test('a GitHub hot-update release swaps the UI files and preserves a working bac
     assert.deepEqual(updater.getAsset('styles.css'),Buffer.from(b.platforms.windows['styles.css'].base64,'base64'));
     assert.equal((await updater.updateOnce()).updated,false);
     assert.equal(updater.state().tag,'dkts-ui-'+VERSION);
-    const reread=createUiUpdater({cacheDir:root,fetchImpl});
+    assert(github.requests.some(url=>url.includes('/compare/'+BASE+'...'+VERSION)));
+    assert(github.requests.every(url=>!url.includes('/releases?')));
+    const reread=createUiUpdater({cacheDir:dir,baseCommit:BASE,fetchImpl:github.fetchImpl});
     assert.equal(reread.state().version,VERSION);
     assert.equal(reread.getAsset('../internal.js'),null);
-  }finally{updater.stop();fs.rmSync(root,{recursive:true,force:true});}
+    const newerNative=createUiUpdater({cacheDir:dir,baseCommit:VERSION,fetchImpl:github.fetchImpl});
+    assert.equal(newerNative.state().version,'bundled',
+      'new native shell must not load old shell cache without fresh validation');
+    assert.equal(newerNative.getAsset('styles.css'),null);
+  }finally{updater.stop();fs.rmSync(dir,{recursive:true,force:true});}
 });
 
-test('update selects the newest published release, not the first API item',async()=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-order-'));
-  const newest=prepare();
-  const older={tag_name:'dkts-ui-older',target_commitish:'older',
-    published_at:'2026-11-03T06:00:00Z',
-    assets:[{name:'DKTS-UI-bundle.json',browser_download_url:
-      'https://github.com/davidkane0526/DK-Test-Studio/releases/download/dkts-ui-older/DKTS-UI-bundle.json'}]};
-  const latest={tag_name:'dkts-ui-'+VERSION,target_commitish:VERSION,
-    published_at:'2026-11-03T07:07:23Z',
-    assets:[{name:'DKTS-UI-bundle.json',browser_download_url:
-      'https://github.com/davidkane0526/DK-Test-Studio/releases/download/dkts-ui-'+VERSION+'/DKTS-UI-bundle.json'}]};
-  const requests=[];
-  const updater=createUiUpdater({cacheDir:root,fetchImpl:async url=>{
-    requests.push(url);
-    if(url.includes('/releases?'))return {ok:true,json:async()=>[older,latest]};
-    if(url.includes(VERSION))return {ok:true,json:async()=>newest};
-    throw Error('Updater requested an obsolete release');
+test('old Release published later cannot displace the exact main HEAD UI tag',async()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-order-'));
+  const github=stubGitHub({head:VERSION,release:releaseAt(VERSION,{published:'2026-11-01T00:00:00Z'})});
+  const oldRelease=releaseAt(OLD,{published:'2026-12-31T23:59:59Z'});
+  const updater=createUiUpdater({cacheDir:dir,baseCommit:BASE,fetchImpl:async url=>{
+    if(url.includes('/releases/tags/dkts-ui-'+OLD))throw Error('Selected replayed old release');
+    return github.fetchImpl(url);
   }});
   try{
-    const result=await updater.updateOnce();
-    assert.equal(result.updated,true);
-    assert.equal(result.version,VERSION);
-    assert.equal(requests.length,2);
-    assert(requests[1].includes(VERSION));
-  }finally{updater.stop();fs.rmSync(root,{recursive:true,force:true});}
+    assert(oldRelease.published_at>'2026-11-01T00:00:00Z');
+    assert.equal((await updater.updateOnce()).updated,true);
+    assert.equal(updater.state().version,VERSION);
+    assert(github.requests.some(url=>url.endsWith('/releases/tags/dkts-ui-'+VERSION)));
+    assert(!github.requests.some(url=>url.endsWith('/releases/tags/dkts-ui-'+OLD)));
+  }finally{updater.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('missing HEAD bundle waits for publication without falling back to old releases',async()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-wait-'));
+  const github=stubGitHub({release:null});
+  const updater=createUiUpdater({cacheDir:dir,baseCommit:BASE,fetchImpl:github.fetchImpl});
+  try{
+    assert.equal((await updater.updateOnce()).updated,false);
+    assert.equal(updater.state().status,'pending');
+    assert.equal(updater.state().version,'bundled');
+    assert.equal(github.requests.length,2);
+  }finally{updater.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('replayed or force-reset Git HEAD is rejected by the fast-forward check',async()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-regression-'));
+  const github=stubGitHub({status:'behind'});
+  const updater=createUiUpdater({cacheDir:dir,baseCommit:BASE,fetchImpl:github.fetchImpl});
+  try{
+    assert.equal((await updater.updateOnce()).updated,false);
+    assert.equal(updater.state().version,'bundled');
+    assert.equal(updater.state().status,'blocked');
+    assert.equal(github.requests.length,3);
+  }finally{updater.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('bundled shell at HEAD needs no hot-update download',async()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-current-'));
+  const github=stubGitHub();
+  const updater=createUiUpdater({cacheDir:dir,baseCommit:VERSION,fetchImpl:github.fetchImpl});
+  try{
+    assert.equal((await updater.updateOnce()).updated,false);
+    assert.equal(github.requests.length,1);
+    assert.equal(updater.state().status,'current');
+  }finally{updater.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('Android updater verifies branch commit, ancestry, cache floor and rejects published-at ordering',()=>{
+  const android=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/UiUpdateManager.java'),'utf8');
+  assert.match(android,/API\+"\/branches\/main"/);
+  assert.match(android,/API\+"\/releases\/tags\/"\+tag/);
+  assert.match(android,/API\+"\/compare\/"\+installed\+"\.\.\."\+head/);
+  assert.match(android,/head\.equalsIgnoreCase\(selected\.optString\("target_commitish"\)\)/);
+  assert.match(android,/bundledCommit\.equals\(meta\.optString\("shellBase"\)\)/);
+  assert.doesNotMatch(android,/newestPublished|published_at|listReleases\(/);
+  const windows=fs.readFileSync(path.join(root,'src/ui-update.cjs'),'utf8');
+  assert.doesNotMatch(windows,/sort\(\(a,b\).*published_at|releases\?per_page/);
 });
 
 test('both update platforms display the exact hot-updated commit in the UI metadata',()=>{

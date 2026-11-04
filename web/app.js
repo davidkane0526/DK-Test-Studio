@@ -44,6 +44,12 @@ async function checkUiUpdateNow(){
           updateStatus.textContent='界面热更新已验证，正在刷新。注意：这不会升级 APK 程序版本。';return;
         }
         if(result.status==='current'){updateStatus.textContent='界面资源已是最新；请在下方查看程序版本';return;}
+        if(result.status==='pending'){
+          updateStatus.textContent='主分支新版 UI 尚未发布，已保留当前界面；不会回退到旧版。';return;
+        }
+        if(result.status==='blocked'){
+          updateStatus.textContent='检测到可能的旧版或分支回退，已阻止界面降级。';return;
+        }
         if(result.status==='offline'){
           updateStatus.textContent='检查失败：'+String(result.error||'网络不可用').slice(0,72);return;
         }
@@ -60,7 +66,12 @@ async function checkUiUpdateNow(){
         if(!window.DKTSMeasurementRunning)window.location.reload();
       }else if(result.error)updateStatus.textContent='检查失败：'+String(result.error).slice(0,72);
       else updateStatus.textContent=result.status==='disabled'
-        ?'当前浏览器模式未启用自动更新':'界面已是最新版本（不代表程序本体已升级）';
+        ?'当前浏览器模式未启用自动更新':
+        result.status==='pending'
+          ?'主分支新版 UI 尚未发布，保留当前界面，不安装旧版。':
+        result.status==='blocked'
+          ?'已阻止安装落后于当前界面的旧版 UI。':
+          '界面已是最新版本（不代表程序本体已升级）';
     }
   }catch(error){updateStatus.textContent='检查失败：'+String(error.message||error).slice(0,72);}
   finally{uiCheckBusy=false;}

@@ -2,7 +2,8 @@
 const crypto=require('node:crypto');
 const fs=require('node:fs');
 const path=require('node:path');
-const API='https://api.github.com/repos/davidkane0526/DK-Test-Studio/releases?per_page=12';
+const API='https://api.github.com/repos/davidkane0526/DK-Test-Studio';
+const COMMIT=/^[a-f0-9]{40}$/i;
 const REPO='davidkane0526/DK-Test-Studio';
 const ASSET='DKTS-UI-bundle.json';
 const FILES=Object.freeze(['index.html','app.js','styles.css']);
@@ -36,11 +37,24 @@ function createUiUpdater(options={}){
   const root=options.cacheDir;
   if(!root)throw Error('cacheDir required');
   const fetcher=options.fetchImpl||fetch;
+  // The built-in index.html is stamped with the exact native-shell commit.
+  // This is the offline floor: a Release published later cannot downgrade it.
+  function embeddedCommit(){
+    if(options.baseCommit!==undefined)return String(options.baseCommit);
+    try{
+      const html=fs.readFileSync(path.join(__dirname,'..','web','index.html'),'utf8');
+      return /<meta name="dkts-ui-version" content="([a-f0-9]{40})">/i.exec(html)?.[1]||'';
+    }catch{return '';}
+  }
+  const baseCommit=embeddedCommit().toLowerCase();
   let version='bundled',tag='',status='idle',lastError='',busy=null;
   const active=path.join(root,'ui-active'),stage=path.join(root,'ui-next'),backup=path.join(root,'ui-previous');
   function verifyCached(folder){
     const meta=JSON.parse(fs.readFileSync(path.join(folder,'meta.json'),'utf8'));
-    if(meta.schema!==TYPE||meta.repository!==REPO||meta.minShell!==3)throw Error('Invalid cached UI metadata');
+    if(meta.schema!==TYPE||meta.repository!==REPO||meta.minShell!==3||
+      !COMMIT.test(baseCommit)||meta.shellBase!==baseCommit||
+      !COMMIT.test(meta.version)||meta.tag!=='dkts-ui-'+meta.version)
+      throw Error('Cached UI does not belong to the current native shell');
     const entries={};
     for(const name of FILES){
       const bytes=fs.readFileSync(path.join(folder,name));
@@ -66,11 +80,12 @@ function createUiUpdater(options={}){
     try{return fs.readFileSync(path.join(active,name));}
     catch{return null;}
   }
-  async function request(url){
+  async function request(url,{notFound=false}={}){
     const res=await fetcher(url,{
       headers:{'User-Agent':'DK-Test-Studio','Accept':'application/vnd.github+json'},
       signal:AbortSignal.timeout(12000)
     });
+    if(notFound&&res.status===404)return null;
     if(!res.ok)throw Error('Update endpoint HTTP '+res.status);
     return res.json();
   }
@@ -79,36 +94,49 @@ function createUiUpdater(options={}){
     const task=(async()=>{
       try{
         status='checking';
-        const releases=await request(API);
-        if(!Array.isArray(releases))throw Error('Invalid GitHub Releases response');
-        // The GitHub Releases API is not always ordered by publication time.
-        const release=releases.filter(r=>!r.draft&&r.tag_name?.startsWith('dkts-ui-')&&
-          r.assets?.some(a=>a.name===ASSET))
-          .sort((a,b)=>String(b.published_at||b.created_at||'')
-            .localeCompare(String(a.published_at||a.created_at||'')))[0];
-        if(!release){status='current';return {updated:false,version};}
-        if(release.tag_name===tag){status='current';return {updated:false,version};}
-        const asset=release.assets.find(a=>a.name===ASSET);
-        if(!asset.browser_download_url?.startsWith(
-          'https://github.com/davidkane0526/DK-Test-Studio/releases/download/'))
-          throw Error('Unexpected update asset URL');
-        const bundle=await request(asset.browser_download_url);
-        if(bundle.version!==release.target_commitish&&
-          bundle.version!==release.tag_name.slice('dkts-ui-'.length))
-          throw Error('Update release and bundle version mismatch');
+        if(!COMMIT.test(baseCommit))
+          throw Error('内置程序缺少可信 Git 版本标识，已阻止可能的 UI 回退');
+        // UI hot-update releases are published only while their commit is
+        // main HEAD. Resolve that exact tag: publication dates never order code.
+        const branch=await request(API+'/branches/main');
+        const head=String(branch?.commit?.sha||'').toLowerCase();
+        if(!COMMIT.test(head))throw Error('无法验证主分支 Git 版本');
+        const installed=version==='bundled'?baseCommit:version;
+        if(!COMMIT.test(installed))throw Error('已安装 UI 版本无效');
+        if(head===installed){status='current';return {updated:false,version};}
+        const releaseTag='dkts-ui-'+head;
+        const release=await request(API+'/releases/tags/'+releaseTag,{notFound:true});
+        if(!release){status='pending';return {updated:false,version};}
+        if(release.draft||release.tag_name!==releaseTag||
+           String(release.target_commitish||'').toLowerCase()!==head)
+          throw Error('UI 发布包与 main 提交不一致');
+        // Require a real Git fast-forward from the installed UI to the
+        // requested HEAD. A force-push or replayed release cannot roll back.
+        const comparison=await request(API+'/compare/'+installed+'...'+head);
+        if(comparison?.status!=='ahead'||!(comparison.ahead_by>0)){
+          status='blocked';return {updated:false,version};
+        }
+        const asset=release.assets?.find(a=>a.name===ASSET);
+        const expected='https://github.com/'+REPO+'/releases/download/'+releaseTag+'/'+ASSET;
+        if(!asset||asset.browser_download_url!==expected)
+          throw Error('UI 发布包来源不可信');
+        const bundle=await request(expected);
+        if(String(bundle.version||'').toLowerCase()!==head)
+          throw Error('UI 热更新版本与主分支不一致');
         const parts=validateBundle(bundle,'windows');
         fs.mkdirSync(root,{recursive:true});
         fs.rmSync(stage,{recursive:true,force:true});fs.mkdirSync(stage);
         for(const name of FILES)fs.writeFileSync(path.join(stage,name),parts[name]);
         fs.writeFileSync(path.join(stage,'meta.json'),JSON.stringify({
-          schema:TYPE,version:bundle.version,tag:release.tag_name,minShell:3,repository:REPO
+          schema:TYPE,version:head,tag:releaseTag,minShell:3,repository:REPO,
+          shellBase:baseCommit
         }));
         verifyCached(stage);
         fs.rmSync(backup,{recursive:true,force:true});
         if(fs.existsSync(active))fs.renameSync(active,backup);
         try{fs.renameSync(stage,active);}
         catch(e){if(fs.existsSync(backup))fs.renameSync(backup,active);throw e;}
-        version=bundle.version;tag=release.tag_name;status='updated';lastError='';
+        version=head;tag=releaseTag;status='updated';lastError='';
         return {updated:true,version};
       }catch(e){
         status='offline';lastError=String(e.message||e).slice(0,180);
