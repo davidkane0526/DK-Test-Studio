@@ -5,13 +5,15 @@
 const fs=require('node:fs');
 const path=require('node:path');
 const os=require('node:os');
-const SCHEMA='dkts.workspace.v1';
+const SCHEMA='dkts.workspace.v2';
+const LEGACY_SCHEMA='dkts.workspace.v1';
 const MAX_BYTES=64*1024*1024;
 const defaultFile=()=>path.join(os.homedir(),'.dk-test-studio','workspace-state.json');
 
 function checkWorkspace(workspace){
   if(!workspace||typeof workspace!=='object'||Array.isArray(workspace)||
-     workspace.schema!==SCHEMA||!Array.isArray(workspace.tabs))
+     ![SCHEMA,LEGACY_SCHEMA].includes(workspace.schema)||!Array.isArray(workspace.tabs)||
+     (workspace.schema===SCHEMA&&!Array.isArray(workspace.archivedTabs)))
     throw Error('工作区数据格式无效');
   return workspace;
 }

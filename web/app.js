@@ -475,6 +475,7 @@ const TEST_MODES=Object.freeze({
 });
 function createWorkspaceStore(options = {}) {
   const tabs=[];
+  const archivedTabs=[];
   const changed=()=>{if(typeof options.onChange==='function')options.onChange();};
   let activeTabId=null;
   let tabSerial=0,idSerial=0;
@@ -496,7 +497,7 @@ function createWorkspaceStore(options = {}) {
     if(idFactory){
       for(let attempts=0;attempts<10000;attempts++){
         const candidate=requiredText(idFactory(kind),kind+' id');
-        if(kind!=='workspace'||!tabs.some(tab=>tab.id===candidate))
+        if(kind!=='workspace'||![...tabs,...archivedTabs].some(tab=>tab.id===candidate))
           return candidate;
       }
       throw Error('Cannot allocate a unique workspace ID');
@@ -518,6 +519,7 @@ function createWorkspaceStore(options = {}) {
     tabs.push(tab);activeTabId=tab.id;changed();return tab;
   }
   function listTabs(){return tabs.slice();}
+  function listArchivedTabs(){return archivedTabs.slice().reverse();}
   function getTab(id){return findTab(id);}
   function getActiveTab(){return findTab(activeTabId);}
   function activateTab(id){
@@ -528,9 +530,28 @@ function createWorkspaceStore(options = {}) {
     const index=tabs.findIndex(tab=>tab.id===id);
     if(index<0)return getActiveTab();
     const wasActive=activeTabId===id;
-    tabs.splice(index,1);
+    const [tab]=tabs.splice(index,1);
+    tab.archivedAt=new Date().toISOString();
+    archivedTabs.push(tab);
     if(wasActive)activeTabId=tabs[Math.min(index,tabs.length-1)]?.id||null;
     changed();return getActiveTab();
+  }
+  function reopenTab(id){
+    const index=archivedTabs.findIndex(tab=>tab.id===id);
+    if(index<0)return null;
+    const [tab]=archivedTabs.splice(index,1);
+    delete tab.archivedAt;
+    tabs.push(tab);
+    activeTabId=tab.id;
+    changed();return tab;
+  }
+  // Permanent deletion is only exposed for already-archived workspaces.
+  // The UI must separately require deliberate confirmation before calling it.
+  function deleteArchivedTab(id){
+    const index=archivedTabs.findIndex(tab=>tab.id===id);
+    if(index<0)return false;
+    archivedTabs.splice(index,1);
+    changed();return true;
   }
   function renameTab(id,name){
     const tab=findTab(id),next=String(name??'').trim();
@@ -614,15 +635,20 @@ function createWorkspaceStore(options = {}) {
   }
   function snapshot(){
     return {
-      schema:'dkts.workspace.v1',
+      schema:'dkts.workspace.v2',
       activeTabId,tabSerial,idSerial,
-      tabs:tabs.map(tab=>clone(tab))
+      tabs:tabs.map(tab=>clone(tab)),
+      archivedTabs:archivedTabs.map(tab=>clone(tab))
     };
   }
   function restore(saved){
-    if(!saved||saved.schema!=='dkts.workspace.v1'||!Array.isArray(saved.tabs)||
-       saved.tabs.length>500)throw Error('不受支持的工作区数据格式');
-    const next=[],ids=new Set();
+    const legacy=saved?.schema==='dkts.workspace.v1';
+    if(!saved||(saved.schema!=='dkts.workspace.v2'&&!legacy)||
+       !Array.isArray(saved.tabs)||
+       (!legacy&&!Array.isArray(saved.archivedTabs))||
+       saved.tabs.length+(legacy?0:saved.archivedTabs.length)>500)
+      throw Error('不受支持的工作区数据格式');
+    const next=[],archived=[],ids=new Set();
     const dictionary=value=>{
       const result=Object.create(null);
       if(value&&typeof value==='object'&&!Array.isArray(value))
@@ -632,14 +658,14 @@ function createWorkspaceStore(options = {}) {
         }
       return result;
     };
-    for(const item of saved.tabs){
+    function restoreItem(item,archive){
       if(!item||typeof item!=='object'||Array.isArray(item)||
          typeof item.id!=='string'||!item.id||item.id.length>128||
          ids.has(item.id))throw Error('工作区 ID 重复或无效');
       ids.add(item.id);
       const mode=typeof item.activeMode==='string'&&item.activeMode
         ?item.activeMode:null;
-      next.push({
+      const tab={
         id:item.id,
         name:typeof item.name==='string'&&item.name.trim()
           ?item.name.trim().slice(0,48):'工作区',
@@ -648,16 +674,28 @@ function createWorkspaceStore(options = {}) {
         historyByMode:dictionary(item.historyByMode),
         dataByMode:dictionary(item.dataByMode),
         activeRunByMode:dictionary(item.activeRunByMode)
-      });
+      };
+      if(archive)tab.archivedAt=typeof item.archivedAt==='string'?
+        item.archivedAt:new Date(0).toISOString();
+      return tab;
     }
+    for(const item of saved.tabs)next.push(restoreItem(item,false));
+    if(!legacy)for(const item of saved.archivedTabs)
+      archived.push(restoreItem(item,true));
+    // Commit only after every open and archived entry has passed validation.
     tabs.splice(0,tabs.length,...next);
-    activeTabId=ids.has(saved.activeTabId)?saved.activeTabId:(tabs[0]?.id||null);
-    tabSerial=Math.max(tabs.length,Number.isSafeInteger(saved.tabSerial)?saved.tabSerial:0);
-    idSerial=Math.max(tabs.length,Number.isSafeInteger(saved.idSerial)?saved.idSerial:0);
+    archivedTabs.splice(0,archivedTabs.length,...archived);
+    activeTabId=next.some(tab=>tab.id===saved.activeTabId)
+      ?saved.activeTabId:(tabs[0]?.id||null);
+    tabSerial=Math.max(tabs.length+archivedTabs.length,
+      Number.isSafeInteger(saved.tabSerial)?saved.tabSerial:0);
+    idSerial=Math.max(tabs.length+archivedTabs.length,
+      Number.isSafeInteger(saved.idSerial)?saved.idSerial:0);
     return true;
   }
   return Object.freeze({
-    createTab,listTabs,getTab,getActiveTab,activateTab,closeTab,renameTab,
+    createTab,listTabs,listArchivedTabs,getTab,getActiveTab,activateTab,closeTab,
+    reopenTab,deleteArchivedTab,renameTab,
     setMode,saveDraft,getDraft,getHistory,getData,recordRun,updateRun,
     appendRunRows,selectRun,getActiveRunId,snapshot,restore
   });
@@ -879,6 +917,7 @@ function renderWorkspaceTabs(){
     close.addEventListener('click',()=>closeWorkspaceTab(workspace.id));
     item.append(select,close);nav.appendChild(item);
   }
+  updateArchivedWorkspaceCount();
 }
 function createWorkspaceTab(){
   rememberTabDraft();
@@ -902,16 +941,105 @@ function activateWorkspaceTab(tabId){
   window.scrollTo({top:0,behavior:'instant'});
 }
 function closeWorkspaceTab(tabId){
+  const tab=workspaceStore.getTab(tabId);
+  if(!tab)return;
   const wasActive=getActiveWorkspace()?.id===tabId;
   if(wasActive)rememberTabDraft();
   const next=workspaceStore.closeTab(tabId);
-  if(!wasActive){renderWorkspaceTabs();return;}
-  activeMode=next?.activeMode||null;
-  if(activeMode)restoreTabDraft(activeMode);
-  else resetModeInputs('iv');
-  renderTestSelection();
+  if(!wasActive)renderWorkspaceTabs();
+  else{
+    activeMode=next?.activeMode||null;
+    if(activeMode)restoreTabDraft(activeMode);
+    else resetModeInputs('iv');
+    renderTestSelection();
+  }
+  showStatusMessage('已归档「'+tab.name+'」 · 可从标题栏的归档入口恢复');
+}
+function updateArchivedWorkspaceCount(){
+  const count=workspaceStore.listArchivedTabs().length;
+  $('archive-count').textContent=String(count);
+  $('tab-archives').setAttribute('aria-label','归档工作区，共 '+count+' 个');
+  $('tab-archives').title='归档工作区 · '+count+' 个';
+}
+function renderArchivedWorkspaceList(){
+  const list=$('archive-workspace-list');
+  list.replaceChildren();
+  const archived=workspaceStore.listArchivedTabs();
+  $('archive-dialog-subtitle').textContent='已归档 '+archived.length+' 个工作区。关闭标签不会删除测量数据。';
+  if(!archived.length){
+    const empty=document.createElement('p');
+    empty.className='archive-empty';
+    empty.textContent='暂无归档的工作区。关闭一个标签后，可在这里重新打开。';
+    list.appendChild(empty);return;
+  }
+  for(const tab of archived){
+    const row=document.createElement('div');
+    row.className='archive-workspace-row';
+    const info=document.createElement('div');
+    info.className='archive-workspace-info';
+    const name=document.createElement('strong');
+    name.className='archive-workspace-name';name.textContent=tab.name;
+    const detail=document.createElement('span');
+    const runs=Object.values(tab.historyByMode||{})
+      .reduce((n,history)=>n+(Array.isArray(history)?history.length:0),0);
+    const date=new Date(tab.archivedAt);
+    const archivedWhen=Number.isNaN(date.getTime())?'未知时间':
+      date.toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+    detail.textContent=runs+' 次测试记录 · 归档于 '+archivedWhen;
+    info.append(name,detail);
+    const actions=document.createElement('div');
+    actions.className='archive-workspace-actions';
+    const reopen=document.createElement('button');
+    reopen.type='button';reopen.className='archive-action archive-reopen';
+    reopen.textContent='重新打开';
+    reopen.addEventListener('click',()=>{
+      rememberTabDraft();
+      const restored=workspaceStore.reopenTab(tab.id);
+      if(!restored)return;
+      $('workspace-archive-dialog').close();
+      activeMode=restored.activeMode;
+      if(activeMode)restoreTabDraft(activeMode);
+      else resetModeInputs('iv');
+      renderTestSelection();
+      showStatusMessage('已恢复「'+restored.name+'」工作区及其历史记录');
+    });
+    const remove=document.createElement('button');
+    remove.type='button';remove.className='archive-action archive-remove';
+    remove.textContent='删除';
+    remove.setAttribute('aria-label','永久删除归档工作区 '+tab.name);
+    remove.addEventListener('click',()=>{
+      if(row.querySelector('.archive-delete-confirm'))return;
+      const confirm=document.createElement('div');
+      confirm.className='archive-delete-confirm';
+      const warning=document.createElement('span');
+      warning.textContent='永久删除「'+tab.name+'」及全部原始数据？此操作不可撤销。';
+      const yes=document.createElement('button');
+      yes.type='button';yes.className='archive-action archive-remove archive-delete-yes';
+      yes.textContent='确认永久删除';
+      const no=document.createElement('button');
+      no.type='button';no.className='archive-action';
+      no.textContent='取消';
+      no.addEventListener('click',()=>confirm.remove());
+      yes.addEventListener('click',()=>{
+        if(!workspaceStore.deleteArchivedTab(tab.id))return;
+        renderArchivedWorkspaceList();
+        updateArchivedWorkspaceCount();
+        showStatusMessage('已永久删除「'+tab.name+'」','info');
+      });
+      confirm.append(warning,yes,no);
+      row.appendChild(confirm);
+      yes.focus({preventScroll:true});
+    });
+    actions.append(reopen,remove);
+    row.append(info,actions);list.appendChild(row);
+  }
 }
 $('tab-home').addEventListener('click',createWorkspaceTab);
+$('tab-archives').addEventListener('click',()=>{
+  renderArchivedWorkspaceList();
+  $('workspace-archive-dialog').showModal();
+});
+$('archive-dialog-close').addEventListener('click',()=>$('workspace-archive-dialog').close());
 
 function modeXValue(row,mode){
   if(!row)return undefined;

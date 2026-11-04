@@ -10,7 +10,7 @@ const {
 const {createAppServer}=require('../src/server.cjs');
 
 const empty=()=>({
-  schema:SCHEMA,activeTabId:null,tabSerial:0,idSerial:0,tabs:[]
+  schema:SCHEMA,activeTabId:null,tabSerial:0,idSerial:0,tabs:[],archivedTabs:[]
 });
 function temp(){
   return fs.mkdtempSync(path.join(os.tmpdir(),'dkts-workspace-test-'));
@@ -117,4 +117,23 @@ test('HTTP snapshot parser preserves Chinese text split across UTF-8 chunks',asy
     assert.equal(reply.body.ok,true);
     assert.equal(readWorkspace(file).tabs[0].name,'器件甲的测试历史');
   }finally{await app.close();fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('host storage reads v1 snapshots and preserves closed workspaces in v2',()=>{
+  const dir=temp(),file=path.join(dir,'workspace-state.json');
+  try{
+    const legacy={schema:'dkts.workspace.v1',activeTabId:null,tabSerial:0,idSerial:0,tabs:[]};
+    writeWorkspace(file,legacy);
+    assert.deepEqual(readWorkspace(file),legacy);
+    const upgraded=empty();
+    upgraded.archivedTabs.push({
+      id:'closed',name:'保存的数据',activeMode:'iv',archivedAt:'2026-11-04T01:00:00.000Z',
+      modeDrafts:{},historyByMode:{iv:[{id:'run',rawRows:[{voltageV:1,currentA:1e-9}]}]},
+      dataByMode:{iv:[{voltageV:1,currentA:1e-9}]},activeRunByMode:{iv:'run'}
+    });
+    writeWorkspace(file,upgraded);
+    assert.deepEqual(readWorkspace(file).archivedTabs,upgraded.archivedTabs);
+    assert.throws(()=>writeWorkspace(file,{schema:'dkts.workspace.v2',tabs:[]}),/格式/);
+    assert.deepEqual(readWorkspace(file),upgraded);
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });

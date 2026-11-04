@@ -1341,3 +1341,70 @@ body.dkts-android-shell .test-history-list{
 body.dkts-android-shell .workspace-tab-close,
 body.dkts-android-shell .history-run{touch-action:manipulation}
 body.dkts-android-shell .workspace-tab-rename{touch-action:manipulation;user-select:text;-webkit-user-select:text}
+
+/* Archived workspaces are independent of the open tab strip. */
+.workspace-archive-trigger{
+  display:inline-flex;align-items:center;justify-content:center;gap:3px;
+  min-width:34px;height:30px;padding:0 4px;margin-left:3px;flex:none;
+  color:var(--dkts-chrome-text,#516681);border:0;border-radius:7px;
+  background:transparent;cursor:pointer;-webkit-app-region:no-drag;app-region:no-drag
+}
+.workspace-archive-trigger:hover{background:var(--dkts-hover-bg,#e7eef9);color:#28598f}
+.workspace-archive-trigger:focus-visible{outline:2px solid #477ac4;outline-offset:1px}
+.workspace-archive-count{font-size:10px;min-width:10px;font-variant-numeric:tabular-nums;opacity:.82}
+.workspace-archive-dialog{
+  width:min(560px,calc(100vw - 28px));max-height:min(80dvh,720px);
+  border:1px solid #dce4f1;border-radius:14px;padding:0;
+  background:var(--dkts-surface,#fff);color:var(--dkts-text,#243247);
+  box-shadow:0 20px 65px rgba(15,29,58,.18);overflow:auto
+}
+.workspace-archive-dialog::backdrop{background:rgba(16,27,45,.42);backdrop-filter:blur(3px)}
+.archive-dialog-heading{
+  padding:18px 20px 13px;display:flex;gap:16px;align-items:flex-start;
+  justify-content:space-between;border-bottom:1px solid #e7ecf4
+}
+.archive-dialog-heading h2{margin:0 0 7px;font-size:17px;font-weight:700}
+.archive-dialog-heading p{margin:0;color:#73839b;font-size:11px;line-height:1.5}
+.archive-workspace-list{padding:11px 15px 16px;display:grid;gap:7px}
+.archive-empty{padding:18px 8px;text-align:center;color:#78869b;font-size:12px}
+.archive-workspace-row{
+  display:flex;gap:8px;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;padding:11px 12px;border-radius:10px;border:1px solid #e5eaf3;
+  background:#f9fbfe
+}
+.archive-workspace-info{display:grid;gap:5px;min-width:0;flex:1}
+.archive-workspace-name{font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.archive-workspace-info span{font-size:10px;color:#7b8ca2}
+.archive-workspace-actions{display:flex;gap:6px;flex:none}
+.archive-action{
+  padding:7px 9px;font-size:11px;font-weight:600;border-radius:7px;
+  border:1px solid #dbe4f1;background:#fff;color:#425977;
+  cursor:pointer;white-space:nowrap
+}
+.archive-action:hover{background:#eaf1fb;border-color:#c5d6ec}
+.archive-reopen{color:#285a99}
+.archive-remove{color:#ab4651}
+.archive-remove:hover{background:#fff0f0;border-color:#efd2d3}
+.archive-action:focus-visible{outline:2px solid #477ac4;outline-offset:1px}
+.archive-delete-confirm{
+  flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  border-top:1px solid #e6d8dc;margin-top:6px;padding-top:10px;
+}
+.archive-delete-confirm span{flex-basis:100%;font-size:11px;color:#ab4651;line-height:1.5}
+@media(max-width:480px){
+  .workspace-archive-trigger{min-width:29px;gap:1px;margin-left:0}
+  .workspace-archive-count{font-size:9px}
+  .archive-dialog-heading{padding:15px 16px 12px}
+  .archive-workspace-list{padding:9px 10px 13px}
+}
+@media(prefers-color-scheme:dark){
+  .workspace-archive-dialog{background:#222936;color:#e3e8f3;border-color:#46516a}
+  .archive-dialog-heading{border-color:#3a4458}
+  .archive-dialog-heading p,.archive-workspace-info span,.archive-empty{color:#a2aec0}
+  .archive-workspace-row{background:#293244;border-color:#414d61}
+  .archive-action{background:#2c374b;border-color:#4b5a72;color:#dbe7fc}
+  .archive-action:hover{background:#374c68}
+  .archive-remove{color:#f0a5b0}
+  .archive-delete-confirm{border-color:#65505c}
+  .archive-delete-confirm span{color:#f1acb2}
+}

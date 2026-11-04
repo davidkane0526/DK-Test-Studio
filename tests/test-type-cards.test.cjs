@@ -120,3 +120,16 @@ test('tab activation keeps DOM identity so desktop double-click rename works on 
   assert.match(renderer,/nav\.addEventListener\('dblclick'/);
   assert.doesNotMatch(renderer,/querySelectorAll\('\.workspace-tab-item'\)\.forEach\(node=>node\.remove\(\)\)/);
 });
+
+test('archived workspaces have a visible restore route and two-step destructive action',()=>{
+  assert.match(html,/id="tab-archives"/);
+  assert.match(html,/id="workspace-archive-dialog"/);
+  assert.match(html,/id="archive-workspace-list"/);
+  assert.match(app,/function renderArchivedWorkspaceList\(\)/);
+  assert.match(app,/workspaceStore\.reopenTab\(tab\.id\)/);
+  assert.match(app,/archive-delete-confirm/);
+  assert.match(app,/yes\.addEventListener\('click'/);
+  assert.match(app,/workspaceStore\.deleteArchivedTab\(tab\.id\)/);
+  assert.match(app,/updateArchivedWorkspaceCount\(\)/);
+  assert.match(styles,/\.archive-workspace-row\{/);
+});

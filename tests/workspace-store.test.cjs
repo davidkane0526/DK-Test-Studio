@@ -69,15 +69,29 @@ test('streaming updates append to one run instead of creating mixed histories',(
   assert.equal(store.getHistory(tab.id,'iv')[0].status,'completed');
 });
 
-test('closing a workspace removes only its data and activates a neighbor',()=>{
+test('closing archives a workspace and re-opening preserves measurement history',()=>{
   const store=makeStore();
   const a=store.createTab({name:'A'}),b=store.createTab({name:'B'}),c=store.createTab({name:'C'});
-  store.recordRun(b.id,'iv',[{voltageV:0,currentA:0,timeS:0}]);
+  store.saveDraft(b.id,'iv',{formValues:{startV:'-1'},waveform:'0 0'});
+  const raw=[{voltageV:0,currentA:0,timeS:0},{voltageV:1,currentA:1e-8,timeS:1}];
+  const run=store.recordRun(b.id,'iv',raw,{summary:'unmodified instrument samples'});
   store.activateTab(b.id);
   store.closeTab(b.id);
   assert.equal(store.getTab(b.id),null);
+  assert.equal(store.listTabs().length,2);
+  assert.equal(store.listArchivedTabs().length,1);
+  assert.equal(store.listArchivedTabs()[0].id,b.id);
+  assert.equal(store.listArchivedTabs()[0].historyByMode.iv[0].id,run.id);
   assert.equal(store.getHistory(a.id,'iv').length,0);
   assert.equal(store.getActiveTab().id,c.id);
+  const revived=store.reopenTab(b.id);
+  assert.equal(revived.id,b.id);
+  assert.equal(store.getActiveTab().id,b.id);
+  assert.deepEqual(store.getData(b.id,'iv'),raw);
+  assert.deepEqual(store.getHistory(b.id,'iv')[0].rawRows,raw);
+  assert.deepEqual(store.getDraft(b.id,'iv'),{formValues:{startV:'-1'},waveform:'0 0'});
+  assert.equal(store.getActiveRunId(b.id,'iv'),run.id);
+  assert.equal(store.listArchivedTabs().length,0);
 });
 
 
@@ -128,4 +142,60 @@ test('state changes schedule persistence but read-only inspection does not',()=>
   store.renameTab(a.id,'test');
   store.recordRun(a.id,'iv',[]);
   assert.equal(changes,3);
+});
+
+test('v2 snapshot persists closed tabs and their raw measurements across reload',()=>{
+  const first=makeStore();
+  const tab=first.createTab({name:'归档器件',mode:'it'});
+  const rows=[{timeS:0,currentA:1e-10},{timeS:0.1,currentA:1e-9}];
+  first.recordRun(tab.id,'it',rows);
+  first.closeTab(tab.id);
+  assert.equal(first.snapshot().schema,'dkts.workspace.v2');
+  assert.equal(first.snapshot().archivedTabs.length,1);
+  const restarted=makeStore();
+  assert.equal(restarted.restore(JSON.parse(JSON.stringify(first.snapshot()))),true);
+  assert.equal(restarted.getActiveTab(),null);
+  assert.equal(restarted.listArchivedTabs().length,1);
+  assert.equal(restarted.reopenTab(tab.id).name,'归档器件');
+  assert.deepEqual(restarted.getData(tab.id,'it'),rows);
+  assert.equal(restarted.getHistory(tab.id,'it').length,1);
+});
+
+test('legacy v1 snapshots migrate without losing open workspace measurements',()=>{
+  const legacy=makeStore(),tab=legacy.createTab({name:'旧版 I-V',mode:'iv'});
+  legacy.recordRun(tab.id,'iv',[{voltageV:-1,currentA:-1e-9}]);
+  const old={...legacy.snapshot(),schema:'dkts.workspace.v1'};
+  delete old.archivedTabs;
+  const upgraded=makeStore();
+  assert.equal(upgraded.restore(old),true);
+  assert.deepEqual(upgraded.getHistory(tab.id,'iv')[0].rawRows,[{voltageV:-1,currentA:-1e-9}]);
+  assert.equal(upgraded.listArchivedTabs().length,0);
+  assert.equal(upgraded.snapshot().schema,'dkts.workspace.v2');
+});
+
+test('archived IDs remain reserved and validation is atomic across all tabs',()=>{
+  let id=0;
+  const store=createWorkspaceStore({idFactory:()=>String(++id)});
+  const a=store.createTab(),b=store.createTab();
+  store.closeTab(a.id);
+  assert.notEqual(store.createTab().id,a.id);
+  const snapshot=store.snapshot();
+  const broken=JSON.parse(JSON.stringify(snapshot));
+  broken.archivedTabs[0].id=b.id;
+  assert.throws(()=>store.restore(broken),/重复/);
+  assert.deepEqual(store.snapshot(),snapshot);
+  assert.equal(store.reopenTab('missing'),null);
+  assert.equal(store.deleteArchivedTab('missing'),false);
+});
+
+test('permanent removal is distinct from tab close and only affects archived entries',()=>{
+  const store=makeStore(),a=store.createTab({name:'Keep'}),b=store.createTab({name:'Delete'});
+  store.recordRun(a.id,'iv',[{voltageV:0,currentA:0}]);
+  store.recordRun(b.id,'it',[{timeS:1,currentA:1e-9}]);
+  assert.equal(store.deleteArchivedTab(a.id),false);
+  store.closeTab(b.id);
+  assert.equal(store.deleteArchivedTab(b.id),true);
+  assert.equal(store.listArchivedTabs().length,0);
+  assert.equal(store.getHistory(a.id,'iv').length,1);
+  assert.equal(store.reopenTab(b.id),null);
 });
