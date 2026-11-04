@@ -4,7 +4,8 @@ const path=require('node:path');
 // Windows groups the taskbar window and packaged EXE under the same AppUserModelID.
 if(process.platform==='win32')app.setAppUserModelId('studio.dk.test');
 const {createAppServer}=require('../src/server.cjs');
-let serverInstance;
+const {createPortableUpdater}=require('./native-update.cjs');
+let serverInstance,portableUpdater;
 // Narrow, origin-bound bridge. The renderer can only invoke window operations.
 ipcMain.handle('dkts:window-control',(event,operation)=>{
   const win=BrowserWindow.fromWebContents(event.sender);
@@ -25,9 +26,27 @@ ipcMain.handle('dkts:window-control',(event,operation)=>{
     default:return false;
   }
 });
+ipcMain.handle('dkts:app-update',async(event,operation)=>{
+  const win=BrowserWindow.fromWebContents(event.sender);
+  if(!win||win.isDestroyed()||!portableUpdater||!serverInstance||
+      event.senderFrame!==win.webContents.mainFrame)return {status:'unsupported'};
+  try{
+    if(new URL(event.senderFrame.url).origin!==new URL(serverInstance.url).origin)
+      return {status:'unsupported'};
+  }catch{return {status:'unsupported'};}
+  if(operation==='status')return portableUpdater.status();
+  if(operation==='check')return portableUpdater.check();
+  if(operation==='install')return portableUpdater.install();
+  return {status:'unsupported'};
+});
 async function start(){
   // This is the one-time update-capable native shell. UI comes from a verified user-data cache.
   serverInstance=await createAppServer({uiCacheDir:require('node:path').join(app.getPath('userData'),'ui-updates')});
+  portableUpdater=createPortableUpdater({
+    app,userData:app.getPath('userData'),
+    scriptPath:path.join(__dirname,'apply-portable-update.ps1'),
+    currentVersion:app.getVersion()
+  });
   const win=new BrowserWindow({
     width:1200,height:790,minWidth:780,minHeight:560,
     frame:false,resizable:true,autoHideMenuBar:true,
