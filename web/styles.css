@@ -1433,3 +1433,67 @@ body.dkts-android-shell :where(.test-type-card,.archive-action,
 body.dkts-android-shell .archive-workspace-list{
   -webkit-overflow-scrolling:touch
 }
+
+/* Android nine-key numeric editor: fixed above the status strip, thumb-sized
+   controls, native-like selection; desktop has no overlay or input changes. */
+.dkts-numeric-keypad[hidden]{display:none!important}
+.dkts-numeric-keypad{display:none}
+body.dkts-android-shell .dkts-numeric-keypad{
+  position:fixed;z-index:120;right:calc(8px + var(--dkts-safe-right));
+  bottom:calc(var(--dkts-status-height) + var(--dkts-safe-bottom) + 5px);
+  display:flex;flex-direction:column;gap:5px;width:min(326px,calc(100vw - 16px));
+  max-height:calc(100dvh - var(--dkts-safe-top) - var(--dkts-title-height) -
+    var(--dkts-status-height) - var(--dkts-safe-bottom) - 12px);
+  padding:9px;border-radius:13px;border:1px solid var(--dkts-chrome-border,#dfe6f0);
+  color:var(--dkts-chrome-text,#41536f);
+  background:var(--dkts-chrome-bg,#f4f7fb);box-shadow:0 8px 26px rgba(18,40,75,.19);
+  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch
+}
+.dkts-keypad-head{display:grid;grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;gap:8px;min-height:25px;padding:0 4px}
+.dkts-keypad-label{font-size:11px;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;color:var(--dkts-chrome-muted,#7f8da3)}
+.dkts-keypad-value{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums;
+  color:var(--dkts-chrome-text,#41536f);max-width:178px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.dkts-keypad-functions,.dkts-keypad-grid,.dkts-keypad-foot{
+  display:grid;gap:5px;grid-template-columns:repeat(3,minmax(0,1fr))
+}
+body.dkts-android-shell .dkts-numeric-keypad button{
+  display:flex;align-items:center;justify-content:center;border-radius:7px;
+  border:1px solid var(--dkts-chrome-border,#dfe6f0);color:var(--dkts-chrome-text,#425777);
+  background:var(--dkts-surface,#fff);padding:0;margin:0;
+  font-variant-numeric:tabular-nums;font-size:18px;font-weight:550;
+  min-width:0;min-height:39px;cursor:pointer;user-select:none;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  box-shadow:0 1px 2px rgba(10,30,65,.035)
+}
+body.dkts-android-shell .dkts-keypad-functions button{min-height:30px;font-size:12px;font-weight:600}
+body.dkts-android-shell .dkts-keypad-foot button{min-height:33px;font-size:22px}
+body.dkts-android-shell .dkts-keypad-foot .dkts-keypad-done{
+  grid-column:auto;min-height:33px;font-size:12px;font-weight:650;
+  background:#e3ecfa;border-color:#b7cfef;color:#285992
+}
+body.dkts-android-shell .dkts-numeric-keypad button:active{
+  background:var(--dkts-hover-bg,#e7eef9);transform:translateY(1px)
+}
+body.dkts-android-shell .dkts-numeric-keypad button:disabled{
+  opacity:.25;box-shadow:none;cursor:default
+}
+.dkts-keypad-feedback{margin:0;min-height:0;font-size:10px;line-height:1.2;color:#bc4b57}
+.dkts-keypad-feedback:empty{display:none}
+body.dkts-android-shell.dkts-keypad-open .workspace{padding-bottom:350px}
+body.dkts-android-shell .dkts-numeric-input[readonly]{
+  cursor:text;opacity:1;-webkit-text-fill-color:inherit;
+  background:var(--dkts-surface,#fff)
+}
+@media(prefers-color-scheme:dark){
+  body.dkts-android-shell .dkts-keypad-foot .dkts-keypad-done{
+    background:#293f60;border-color:#425b7e;color:#c9dfff
+  }
+}
+@media(max-height:500px){
+  body.dkts-android-shell .dkts-numeric-keypad{gap:3px;padding:6px}
+  body.dkts-android-shell .dkts-numeric-keypad button{min-height:28px}
+  body.dkts-android-shell .dkts-keypad-functions button{min-height:26px}
+}

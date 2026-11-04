@@ -1583,6 +1583,190 @@ function enhanceWorkspaceSelects(){
   document.querySelectorAll('dialog').forEach(dialog=>
     dialog.addEventListener('close',()=>close()));
 }
+/* Android-only nine-key numeric editor. The underlying form control retains its
+ * name, min/max/step metadata and input/change events; no Android IME appears
+ * for numeric parameters. Text and arbitrary-waveform editors keep the IME.
+ * This stays in app.js so verified UI hot-update bundles deliver it atomically. */
+function numericKeyEdit(value,start,end,key,real=true){
+  const original=String(value??'');
+  const left=Math.max(0,Math.min(original.length,Number(start)||0));
+  const right=Math.max(left,Math.min(original.length,Number(end)||0));
+  const replace=(insert,a=left,b=right)=>{
+    const next=original.slice(0,a)+insert+original.slice(b);
+    return {value:next,start:a+insert.length,end:a+insert.length,changed:next!==original};
+  };
+  if(key==='left'||key==='right'){
+    const point=key==='left'?Math.max(0,left-1):Math.min(original.length,right+1);
+    return {value:original,start:point,end:point,changed:false};
+  }
+  if(key==='clear')return replace('',0,original.length);
+  if(key==='backspace'){
+    if(left!==right)return replace('');
+    if(left===0)return {value:original,start:left,end:left,changed:false};
+    return replace('',left-1,left);
+  }
+  if(key==='sign'){
+    const exp=real?original.toLowerCase().indexOf('e'):-1;
+    if(exp>=0&&left>exp){
+      if(original[exp+1]==='-')return replace('',exp+1,exp+2);
+      return replace('-',exp+1,exp+1);
+    }
+    if(original.startsWith('-'))return replace('',0,1);
+    return replace('-',0,0);
+  }
+  const base=original.slice(0,left)+original.slice(right);
+  if(key==='exp'){
+    if(!real||/[eE]/.test(base)||!/\d/.test(base))return {value:original,start:left,end:right,changed:false};
+    return replace('e');
+  }
+  if(key==='dot'){
+    const before=base.split(/[eE]/)[0];
+    if(!real||base.toLowerCase().includes('e')||before.includes('.'))
+      return {value:original,start:left,end:right,changed:false};
+    return replace('.');
+  }
+  if(!/^[0-9]$/.test(key))return {value:original,start:left,end:right,changed:false};
+  const result=replace(key);
+  if(result.value.length>48)return {value:original,start:left,end:right,changed:false};
+  return result;
+}
+function installAndroidNumericKeypad(){
+  if(!document.body.classList.contains('dkts-android-shell'))return;
+  const panel=$('dkts-numeric-keypad');
+  if(!panel)return;
+  let active=null,original='';
+  const valueView=$('dkts-keypad-value');
+  const labelView=$('dkts-keypad-label');
+  const feedback=$('dkts-keypad-feedback');
+  const buttons=[...panel.querySelectorAll('[data-key]')];
+  const numeric=Array.from(document.querySelectorAll('input[type="number"]'));
+  function isValid(control){
+    const v=control.value.trim();
+    if(!v||!Number.isFinite(Number(v)))return false;
+    const real=control.dataset.dktsNumberKind==='real';
+    if(!(real?/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i:/^-?\d+$/).test(v))return false;
+    const low=control.getAttribute('min'),high=control.getAttribute('max');
+    if(low!==null&&Number(v)<Number(low))return false;
+    if(high!==null&&Number(v)>Number(high))return false;
+    return true;
+  }
+  function syncValue(){
+    valueView.textContent=active?.value||'—';
+    if(active)active.setAttribute('aria-invalid',String(!isValid(active)));
+  }
+  function close(commit=false){
+    if(!active)return true;
+    if(commit&&!isValid(active)){
+      feedback.textContent='请输入有效数字，并检查允许的数值范围。';
+      syncValue();return false;
+    }
+    const control=active;
+    if(!isValid(control)&&control.value!==original){
+      control.value=original;
+      control.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+    control.removeAttribute('aria-invalid');
+    control.dispatchEvent(new Event('change',{bubbles:true}));
+    active=null;panel.hidden=true;document.body.classList.remove('dkts-keypad-open');
+    feedback.textContent='';return true;
+  }
+  function revealInput(control){
+    requestAnimationFrame(()=>{
+      if(!active||active!==control)return;
+      const rect=control.getBoundingClientRect();
+      const keypadTop=panel.getBoundingClientRect().top;
+      const limit=keypadTop-14;
+      if(rect.bottom<=limit)return;
+      const delta=rect.bottom-limit+12;
+      const scrollable=control.closest('dialog[open]');
+      if(scrollable)scrollable.scrollBy({top:delta,behavior:'smooth'});
+      else window.scrollBy({top:delta,behavior:'smooth'});
+    });
+  }
+  function open(control){
+    if(active===control)return;
+    close(false);
+    active=control;original=control.value;
+    panel.hidden=false;document.body.classList.add('dkts-keypad-open');
+    const label=control.closest('label');
+    labelView.textContent=label?.textContent.trim()||control.name||'数字';
+    const real=control.dataset.dktsNumberKind==='real';
+    const min=control.getAttribute('min');
+    buttons.forEach(button=>{
+      const key=button.dataset.key;
+      button.disabled=((key==='dot'||key==='exp')&&!real)||
+        (key==='sign'&&min!==null&&Number(min)>=0);
+    });
+    feedback.textContent='';
+    control.focus({preventScroll:true});
+    // First digit replaces the existing number; caret movement allows editing.
+    control.setSelectionRange(0,control.value.length);
+    syncValue();revealInput(control);
+  }
+  function press(key){
+    if(!active)return;
+    if(key==='done'){close(true);return;}
+    const control=active;
+    const before=control.value;
+    const change=numericKeyEdit(before,control.selectionStart??before.length,
+      control.selectionEnd??before.length,key,
+      control.dataset.dktsNumberKind==='real');
+    control.value=change.value;
+    control.focus({preventScroll:true});
+    control.setSelectionRange(change.start,change.end);
+    feedback.textContent='';
+    if(change.changed)control.dispatchEvent(new Event('input',{bubbles:true}));
+    syncValue();
+  }
+  numeric.forEach(control=>{
+    const step=control.getAttribute('step');
+    control.dataset.dktsNumberKind=step==='any'||(step!==null&&!Number.isInteger(Number(step)))
+      ?'real':'integer';
+    // WebView readonly + inputmode none prevents OEM software keyboards.
+    // Programmatic editing still emits the same input/change events.
+    control.type='text';
+    control.inputMode='none';
+    control.readOnly=true;
+    control.autocomplete='off';
+    control.classList.add('dkts-numeric-input');
+    control.setAttribute('aria-label',(control.closest('label')?.textContent.trim()||
+      control.name||'数字')+'，使用内置数字键盘输入');
+    control.addEventListener('focus',()=>open(control));
+    control.addEventListener('click',()=>open(control));
+  });
+  panel.addEventListener('click',event=>{
+    const button=event.target.closest('button[data-key]');
+    if(button&&!button.disabled)press(button.dataset.key);
+  });
+  panel.addEventListener('pointerdown',event=>event.stopPropagation());
+  document.addEventListener('pointerdown',event=>{
+    if(active&&!panel.contains(event.target)&&event.target!==active)
+      close(false);
+  },true);
+  document.addEventListener('keydown',event=>{
+    if(!active)return;
+    if(event.key==='Escape'){
+      event.preventDefault();event.stopImmediatePropagation();close(false);return;
+    }
+    if(event.key==='Enter'){
+      event.preventDefault();event.stopImmediatePropagation();close(true);return;
+    }
+    if(event.key==='Backspace'||event.key==='Delete'){
+      event.preventDefault();press('backspace');return;
+    }
+    if(/^[0-9]$/.test(event.key)){
+      event.preventDefault();press(event.key);return;
+    }
+    if(event.key==='.'||event.key===','){event.preventDefault();press('dot');return;}
+    if(event.key==='e'||event.key==='E'){event.preventDefault();press('exp');return;}
+    if(event.key==='-'){event.preventDefault();press('sign');}
+  },true);
+  document.querySelectorAll('dialog').forEach(dialog=>
+    dialog.addEventListener('close',()=>close(false)));
+  window.DKTSNumericKeypad=Object.freeze({close:()=>close(true),isOpen:()=>Boolean(active)});
+}
+installAndroidNumericKeypad();
+
 enhanceWorkspaceSelects();
 
 (async()=>{await loadWorkspaceState();renderTestSelection();renderStatus(await refresh());if(state!=='connected')await connectInstrument();})();

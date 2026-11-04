@@ -180,6 +180,7 @@ jobs:
             test -n "$(adb shell pidof studio.dk.test | tr -d '\r')"
             adb logcat -d -s DKTS-PlotReady:I > android-plot-ready.log
             grep -q 'd3.*true.*renderer.*true.*charts.*true.*grip.*true' android-plot-ready.log
+            grep -q 'keypad.*true.*numericField.*true' android-plot-ready.log
             adb logcat -d -s DKTS-WebJS:E > android-startup-webjs.log
             cat android-startup-webjs.log
             ! grep -Eq 'Uncaught|ReferenceError|TypeError|SyntaxError|Scientific renderer|D3 scientific renderer|DKDS.*must initialize' android-startup-webjs.log

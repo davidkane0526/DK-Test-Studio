@@ -60,7 +60,7 @@ public final class MainActivity extends Activity {
             @Override public void onPageFinished(WebView view, String url) {
                 if (!url.startsWith(APP_ORIGIN)) return;
                 view.postDelayed(() -> view.evaluateJavascript(
-                    "(function(){return JSON.stringify({d3:!!window.d3,renderer:!!window.DKDSD3Renderer,charts:!!window.DKDSCharts,grip:!!document.querySelector('.dkds-scientific-nav-drag')})})()",
+                    "(function(){return JSON.stringify({d3:!!window.d3,renderer:!!window.DKDSD3Renderer,charts:!!window.DKDSCharts,grip:!!document.querySelector('.dkds-scientific-nav-drag'),keypad:!!document.querySelector('#dkts-numeric-keypad .dkts-keypad-grid'),numericField:document.querySelector('#plan-form [name=startV]')?.readOnly===true})})()",
                     value -> Log.i("DKTS-PlotReady", value)), 2600L);
             }
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
