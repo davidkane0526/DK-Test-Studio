@@ -109,11 +109,13 @@
     ui=presentation.mount(ctx,page,{
       shell,
       onRequest:handleUiRequest,
-      onPlanChanged:value=>{
+      onPlanChanged:(value,meta={})=>{
         try{
           const next=planner.normalizePlan(value);
           storedPlan={...next};
-          ctx.project.capture();
+          // Draft typing updates the in-memory state; commit only completed plan
+          // edits and test-tab changes. Connection settings are never project data.
+          if(meta.commit===true&&meta.source==='plan')ctx.project.capture();
         }catch{/* Invalid drafts stay visible in the UI but cannot enter saved plans. */}
       }
     });
