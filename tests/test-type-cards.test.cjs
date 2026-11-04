@@ -58,13 +58,13 @@ test('workbench reserves narrow top title and bottom status strips and can hide 
   assert.doesNotMatch(html,/class="workspace-actions"/);
   assert.match(html,/id="app-titlebar" class="app-titlebar"/);
   assert.match(html,/id="app-statusbar" class="app-statusbar"/);
-  assert.match(html,/id="toggle-parameters"/);
+  assert.doesNotMatch(html,/id="toggle-parameters"/);
   assert.match(html,/id="detail-columns"/);
   assert.match(app,/classList\.toggle\('parameters-collapsed',collapsed\)/);
   assert.match(app,/\$\('parameters-panel'\)\.hidden=collapsed/);
-  assert.match(html,/id="toggle-parameters" class="detail-icon-action parameter-icon-action"/);
-  assert.match(html,/id="restore-parameters" class="detail-icon-action parameter-icon-action"/);
-  assert.match(app,/\$\('restore-parameters'\)\.addEventListener\('click',\(\)=>setParametersCollapsed\(false\)\)/);
+  assert.match(html,/id="restore-parameters" class="panel-expand-control"/);
+  assert.match(html,/id="restore-parameters" class="panel-expand-control"/);
+  assert.match(app,/restore\.textContent=collapsed\?'展开':'收起'/);
   assert.match(styles,/\.detail-columns\.parameters-collapsed\{grid-template-columns:minmax\(0,1fr\)\}/);
   assert.match(styles,/\.workspace,.workspace\.workspace-active\{position:relative;width:100%;max-width:none/);
   assert.match(styles,/\.data-panel\{display:flex;flex-direction:column/);

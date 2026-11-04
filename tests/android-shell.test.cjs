@@ -164,3 +164,19 @@ test('released Android artifacts use a fixed, pinned certificate and never use C
   assert.match(workflow,/adb install -r android\/app\/build\/outputs\/apk\/release\/app-release.apk/);
   assert.match(workflow,/certificate drift detected/);
 });
+
+test('manual UI update op routes through Android updater without arbitrary TCP access',()=>{
+  const java=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
+  const manager=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/UiUpdateManager.java'),'utf8');
+  const activity=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
+  const client=fs.readFileSync(path.join(root,'android/web/native-client.js'),'utf8');
+  assert.match(java,/case "ui-check"/);
+  assert.match(java,/case "ui-status"/);
+  assert.match(java,/uiUpdates\.checkNow\(\)/);
+  assert.match(activity,/new InstrumentBridge\(this, webView, uiUpdates\)/);
+  assert.match(manager,/void checkNow\(\)/);
+  assert.match(manager,/updateWorker\.execute\(/);
+  assert.match(manager,/updateStatus = "updated"/);
+  assert.match(client,/checkUiUpdate:async\(\)=>native\('ui-check'\)/);
+  assert.match(client,/uiUpdateStatus:async\(\)=>native\('ui-status'\)/);
+});
