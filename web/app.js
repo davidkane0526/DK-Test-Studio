@@ -281,6 +281,37 @@ function closeConnectionDialog(){
  * by a future instrument adapter; no plan/preview values are used as data. */
 /* The full DKDS scientific D3 renderer (not the old simplified SVG).
  * Only actual hardware rows are plotted; planning values never impersonate measurements. */
+// Keep two-finger chart zoom anchored to the touched data position, including
+// descending axes and D3's logarithmic-axis coordinate ranges.
+function computeMobilePinchRelayout(start,current){
+  const size=start?.size;
+  if(!size||!(Number(size.w)>0&&Number(size.h)>0)||
+     !(Number(start.span)>0&&Number(current?.span)>0))return null;
+  const scale=Math.max(.16,Math.min(6,Number(start.span)/Number(current.span)));
+  const patch={};
+  for(const axis of ['x','y']){
+    const range=start.range?.[axis];
+    if(!Array.isArray(range)||range.length<2)continue;
+    const lo=Number(range[0]),hi=Number(range[1]);
+    if(!Number.isFinite(lo)||!Number.isFinite(hi)||lo===hi)continue;
+    const origin=axis==='x'?Number(size.l):Number(size.t);
+    const length=axis==='x'?Number(size.w):Number(size.h);
+    const initial=axis==='x'?Number(start.center.x):Number(start.center.y);
+    const moved=axis==='x'?Number(current.center.x):Number(current.center.y);
+    if(![origin,length,initial,moved].every(Number.isFinite))continue;
+    // Y plot positions grow downward; axis ranges grow upward.
+    const fraction=point=>axis==='x'?(point-origin)/length:1-(point-origin)/length;
+    const startFraction=Math.max(0,Math.min(1,fraction(initial)));
+    const endFraction=Math.max(0,Math.min(1,fraction(moved)));
+    const span=(hi-lo)*scale;
+    const anchor=lo+(hi-lo)*startFraction;
+    const low=anchor-span*endFraction,high=low+span;
+    if(!Number.isFinite(low)||!Number.isFinite(high)||low===high)continue;
+    patch[axis+'axis.range']=[low,high];
+    patch[axis+'axis.autorange']=false;
+  }
+  return Object.keys(patch).length?patch:null;
+}
 const measurementPlot=(()=>{
   const host=$('measurement-plot');
   const library=window.DKDSCharts;
@@ -381,39 +412,60 @@ const measurementPlot=(()=>{
     void render();
   }
   host.addEventListener('dblclick',dblclick,true);
-  // DKDS touch drag (native capture) owns the grip; normal single-finger
-  // vertical panning must remain available outside a deliberate chart gesture.
-  if(isAndroid) {
-    let pinch=null,lastTap=null;
-    const coord=e=>{const r=host.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};};
-    const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  // The DKDS native drag handler owns the explicit grip. A single finger
+  // scrolls the document even over the plot; only a deliberate two-finger
+  // gesture changes the chart viewport. Never hijack toolbar touches.
+  if(isAndroid){
+    let pinch=null,nextFrame=0;
+    const coord=touch=>{
+      const rect=host.getBoundingClientRect();
+      return {x:touch.clientX-rect.left,y:touch.clientY-rect.top};
+    };
+    const midpoint=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+    const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+    const stopPinch=()=>{
+      pinch=null;
+      if(nextFrame){cancelAnimationFrame(nextFrame);nextFrame=0;}
+    };
     host.addEventListener('touchstart',event=>{
-      if(event.touches.length!==2){pinch=null;return;}
+      if(event.touches.length!==2||
+         event.target?.closest?.('.dkds-scientific-nav-tools')){
+        stopPinch();return;
+      }
+      const layout=host._fullLayout,size=layout?._size;
+      if(!size||size.w<=0||size.h<=0){stopPinch();return;}
       const a=coord(event.touches[0]),b=coord(event.touches[1]);
-      pinch={span:dist(a,b),center:{x:(a.x+b.x)/2,y:(a.y+b.y)/2},
-        range:host._fullLayout?{x:host._fullLayout.xaxis?.range?.slice(),y:host._fullLayout.yaxis?.range?.slice()}:null};
+      const span=distance(a,b);
+      const range={
+        x:layout.xaxis?.range?.slice(),y:layout.yaxis?.range?.slice()
+      };
+      if(!Number.isFinite(span)||span<5||
+         !Array.isArray(range.x)&&!Array.isArray(range.y)){
+        stopPinch();return;
+      }
+      pinch={span,center:midpoint(a,b),size:{...size},range};
     },{passive:true});
-    let nextFrame=0;
     host.addEventListener('touchmove',event=>{
-      if(event.touches.length!==2||!pinch?.range)return;
+      if(event.touches.length!==2||!pinch)return;
+      const a=coord(event.touches[0]),b=coord(event.touches[1]);
+      const current={span:distance(a,b),center:midpoint(a,b)};
+      if(Math.abs(current.span-pinch.span)<4&&
+         Math.hypot(current.center.x-pinch.center.x,
+           current.center.y-pinch.center.y)<4)return;
+      const patch=computeMobilePinchRelayout(pinch,current);
+      if(!patch)return;
       if(event.cancelable)event.preventDefault();
-      const a=coord(event.touches[0]),b=coord(event.touches[1]),span=dist(a,b);
-      const factor=Math.max(.2,Math.min(5,pinch.span/Math.max(1,span)));
       if(nextFrame)cancelAnimationFrame(nextFrame);
+      const started=pinch;
       nextFrame=requestAnimationFrame(()=>{
         nextFrame=0;
-        const patch={};
-        for(const axis of ['x','y']){
-          const initial=pinch?.range?.[axis];if(!Array.isArray(initial)||initial.length<2)continue;
-          const low=Number(initial[0]),high=Number(initial[1]),mid=(low+high)/2;
-          if(!Number.isFinite(low+high))continue;
-          patch[axis+'axis.range']=[mid-(mid-low)*factor,mid+(high-mid)*factor];
-          patch[axis+'axis.autorange']=false;
-        }
-        if(Object.keys(patch).length)void library.relayout(host,patch);
+        if(pinch===started)void library.relayout(host,patch);
       });
     },{passive:false});
-    host.addEventListener('touchend',event=>{if(event.touches.length<2)pinch=null;},{passive:true});
+    host.addEventListener('touchend',event=>{
+      if(event.touches.length!==2)stopPinch();
+    },{passive:true});
+    host.addEventListener('touchcancel',stopPinch,{passive:true});
   }
   if(typeof ResizeObserver!=='undefined'){
     resizeObserver=new ResizeObserver(()=>{if(host.isConnected)library.resize(host);});
@@ -858,6 +910,25 @@ function bindTabRenameGestures(button,tabId){
     event.preventDefault();cancel();beginTabRename(tabId,button);
   });
 }
+let lastRevealedWorkspaceId=null;
+function revealActiveWorkspace(nav,activeId){
+  if(!activeId||activeId===lastRevealedWorkspaceId)return;
+  lastRevealedWorkspaceId=activeId;
+  requestAnimationFrame(()=>{
+    const active=[...nav.querySelectorAll('.workspace-tab-item')]
+      .find(item=>item.dataset.workspaceId===activeId);
+    if(!active||!nav.isConnected||nav.scrollWidth<=nav.clientWidth)return;
+    const viewport=nav.getBoundingClientRect();
+    const bounds=active.getBoundingClientRect();
+    let offset=0;
+    if(bounds.left<viewport.left+6)offset=bounds.left-viewport.left-6;
+    else if(bounds.right>viewport.right-6)offset=bounds.right-viewport.right+6;
+    if(Math.abs(offset)>3)nav.scrollTo({
+      left:Math.max(0,nav.scrollLeft+offset),
+      behavior:document.body.classList.contains('dkts-android-shell')?'smooth':'auto'
+    });
+  });
+}
 function renderWorkspaceTabs(){
   const nav=$('workspace-tabs');
   if(!nav.dataset.renameBound){
@@ -917,6 +988,7 @@ function renderWorkspaceTabs(){
     close.addEventListener('click',()=>closeWorkspaceTab(workspace.id));
     item.append(select,close);nav.appendChild(item);
   }
+  revealActiveWorkspace(nav,activeId);
   updateArchivedWorkspaceCount();
 }
 function createWorkspaceTab(){

@@ -1408,3 +1408,28 @@ body.dkts-android-shell .workspace-tab-rename{touch-action:manipulation;user-sel
   .archive-delete-confirm{border-color:#65505c}
   .archive-delete-confirm span{color:#f1acb2}
 }
+
+/* v0.3.5 mobile gesture handoff: every non-interactive content surface
+   participates in document panning, including filled panels and data rows.
+   Only the DKDS plot navigation grip captures a one-finger drag. */
+body.dkts-android-shell{
+  -webkit-overflow-scrolling:touch;
+}
+body.dkts-android-shell :where(
+  .test-type-grid,.test-type-card,.detail-heading,.detail-heading-title,
+  .detail-section-heading,.plan-form,.plan-form label,.plan-form .settings,
+  .data-panel,.readout-grid,.readout,.test-history,.data-list-heading,
+  .data-table,.data-table thead,.data-table tbody,.data-table tr,
+  .data-table th,.data-table td,.archive-workspace-list,.archive-workspace-row,
+  .archive-workspace-info,.archive-workspace-name
+){
+  touch-action:pan-y;
+  overscroll-behavior-y:auto
+}
+body.dkts-android-shell :where(.test-type-card,.archive-action,
+  .workspace-archive-trigger,.dkts-select-trigger){
+  -webkit-tap-highlight-color:transparent
+}
+body.dkts-android-shell .archive-workspace-list{
+  -webkit-overflow-scrolling:touch
+}
