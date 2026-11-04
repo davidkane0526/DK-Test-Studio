@@ -212,15 +212,22 @@
               <div class="readout"><span>采集时间</span><strong id="readout-duration">—</strong><small>s</small></div>
             </div>
             <div class="measured-plot" role="img" aria-label="空白的仪器实测曲线区域，尚未采集数据">
-              <svg id="measurement-plot" viewBox="0 0 640 290" aria-hidden="true">
-                <line x1="54" y1="16" x2="54" y2="248" class="plot-axis"/>
-                <line x1="54" y1="248" x2="620" y2="248" class="plot-axis"/>
-                <line x1="54" y1="76" x2="620" y2="76" class="plot-guide"/>
-                <line x1="54" y1="136" x2="620" y2="136" class="plot-guide"/>
-                <line x1="54" y1="196" x2="620" y2="196" class="plot-guide"/>
-                <text id="measurement-x-label" x="338" y="280" class="plot-label" text-anchor="middle">Voltage (V)</text>
+              <svg id="measurement-plot" viewBox="0 0 640 290" preserveAspectRatio="none"
+                tabindex="0" aria-label="交互式实测曲线；双击横轴或纵轴切换线性和对数，滚轮缩放、拖动平移、双击绘图区重置">
+                <rect x="0" y="0" width="640" height="290" fill="transparent"></rect>
+                <g id="measurement-grid"></g>
+                <g id="measurement-traces"></g>
+                <g id="measurement-ticks"></g>
+                <path id="measurement-cursor-lines" class="measurement-cursor-lines" hidden></path>
+                <text id="measurement-x-label" x="338" y="282" class="plot-label" text-anchor="middle">Voltage (V)</text>
                 <text id="measurement-y-label" transform="translate(15 133) rotate(-90)" class="plot-label" text-anchor="middle">Current (A)</text>
               </svg>
+              <div class="plot-tools" role="group" aria-label="绘图导航">
+                <button type="button" id="measurement-zoom-in" aria-label="放大" title="放大图形">+</button>
+                <button type="button" id="measurement-zoom-out" aria-label="缩小" title="缩小图形">−</button>
+                <button type="button" id="measurement-home" aria-label="重置视图" title="重置视图">⌂</button>
+              </div>
+              <div id="measurement-cursor-tooltip" class="measurement-cursor-tooltip" hidden></div>
               <p class="empty-chart-message" id="measurement-empty">尚无仪器采集数据</p>
             </div>
             <div class="data-list-heading"><strong>原始采样数据</strong><span id="data-count">0 点</span></div>

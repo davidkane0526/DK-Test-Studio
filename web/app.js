@@ -203,6 +203,177 @@ function openConnectionDialog(){
 function closeConnectionDialog(){
   if(dialog.open)dialog.close();
 }
+
+/* Interactive measured-data plot. Only actual acquisition rows may be supplied
+ * by a future instrument adapter; no plan/preview values are used as data. */
+const measurementPlot=(()=>{
+  const svg=$('measurement-plot'),grid=$('measurement-grid'),traces=$('measurement-traces'),
+    ticks=$('measurement-ticks'),cursor=$('measurement-cursor-lines'),
+    tip=$('measurement-cursor-tooltip'),NS='http://www.w3.org/2000/svg';
+  const b={l:60,r:620,t:16,d:246},sx=b.r-b.l,sy=b.d-b.t;
+  let axes={x:'linear',y:'linear'},kind='iv',samples=[],view=null,drag=null,tap=null,suppressDblUntil=0;
+  const finite=Number.isFinite;
+  const good=(v,key)=>finite(v)&&(axes[key]!=='log'||v>0);
+  const project=(v,key)=>axes[key]==='log'?Math.log10(v):v;
+  const unproject=(v,key)=>axes[key]==='log'?Math.pow(10,v):v;
+  function append(host,tag,attrs={},text=''){
+    const n=document.createElementNS(NS,tag);
+    for(const [key,value] of Object.entries(attrs))n.setAttribute(key,String(value));
+    n.textContent=text;host.appendChild(n);return n;
+  }
+  function limits(key){
+    const a=samples.map(row=>key==='x'?row.x:row.y).filter(v=>good(v,key)).map(v=>project(v,key));
+    if(!a.length)return key==='x'
+      ?axes.x==='log'?[-3,1]:[0,1]:axes.y==='log'?[-12,-3]:[-1,1];
+    let low=Math.min(...a),high=Math.max(...a);
+    if(low===high){let d=axes[key]==='log'?.5:Math.max(Math.abs(low)*.05,1e-12);low-=d;high+=d;}
+    const pad=(high-low)*.055;
+    return [low-pad,high+pad];
+  }
+  const px=v=>b.l+(project(v,'x')-view.x[0])/(view.x[1]-view.x[0])*sx;
+  const py=v=>b.d-(project(v,'y')-view.y[0])/(view.y[1]-view.y[0])*sy;
+  function fmt(v){if(!finite(v))return '—';if(v===0)return '0';
+    return (Math.abs(v)>=1e4||Math.abs(v)<1e-3)?v.toExponential(1):Number(v.toPrecision(3)).toString();
+  }
+  function tickRows(key){
+    const [lo,hi]=view[key];
+    if(axes[key]==='log'){
+      const result=[],step=Math.max(1,Math.ceil((hi-lo)/7));
+      for(let n=Math.ceil(lo);n<=hi;n+=step)result.push({n,label:'10^'+n});
+      return result;
+    }
+    return Array.from({length:5},(_,i)=>({n:lo+(hi-lo)*i/4,label:fmt(lo+(hi-lo)*i/4)}));
+  }
+  function render(){
+    if(!view)view={x:limits('x'),y:limits('y')};
+    grid.replaceChildren();ticks.replaceChildren();traces.replaceChildren();
+    for(const row of tickRows('x')){
+      const x=b.l+(row.n-view.x[0])/(view.x[1]-view.x[0])*sx;
+      append(grid,'line',{x1:x,y1:b.t,x2:x,y2:b.d,class:'plot-guide'});
+      append(ticks,'text',{x,y:b.d+14,'text-anchor':'middle',class:'plot-axis-label'},row.label);
+    }
+    for(const row of tickRows('y')){
+      const y=b.d-(row.n-view.y[0])/(view.y[1]-view.y[0])*sy;
+      append(grid,'line',{x1:b.l,y1:y,x2:b.r,y2:y,class:'plot-guide'});
+      append(ticks,'text',{x:b.l-7,y:y+3,'text-anchor':'end',class:'plot-axis-label'},row.label);
+    }
+    append(ticks,'line',{x1:b.l,y1:b.t,x2:b.l,y2:b.d,class:'plot-axis'});
+    append(ticks,'line',{x1:b.l,y1:b.d,x2:b.r,y2:b.d,class:'plot-axis'});
+    $('measurement-x-label').textContent=(kind==='iv'?'Voltage (V)':'Time (s)')+(axes.x==='log'?' · log10':'');
+    $('measurement-y-label').textContent='Current (A)'+(axes.y==='log'?' · log10':'');
+    let path='',open=false;
+    for(const row of samples){
+      if(!good(row.x,'x')||!good(row.y,'y')){open=false;continue;}
+      const x=px(row.x),y=py(row.y);
+      if(!finite(x)||!finite(y)){open=false;continue;}
+      path+=(open?' L':' M')+x.toFixed(3)+' '+y.toFixed(3);open=true;
+    }
+    if(path)append(traces,'path',{d:path,class:'plot-actual-trace'});
+    svg.dataset.xScale=axes.x;svg.dataset.yScale=axes.y;
+  }
+  const reset=()=>{view={x:limits('x'),y:limits('y')};render();};
+  function selectTest(testKind){
+    if(kind!==testKind){kind=testKind;samples=[];axes={x:'linear',y:'linear'};view=null;}
+    $('measurement-empty').hidden=samples.length>0;reset();
+  }
+  function setMeasurements(rows){
+    if(!Array.isArray(rows))throw TypeError('Raw instrument rows must be an array');
+    samples=rows.map(row=>{
+      const x=kind==='iv'?row?.voltageV:row?.timeS,y=row?.currentA;
+      return {x,y};
+    }).filter(row=>finite(row.x)&&finite(row.y));
+    $('measurement-empty').hidden=samples.length>0;
+    view=null;reset();
+  }
+  function toggleAxis(key){
+    axes[key]=axes[key]==='linear'?'log':'linear';
+    view=null;reset();
+  }
+  function zoom(factor,x=(b.l+b.r)/2,y=(b.t+b.d)/2){
+    if(!view)reset();
+    for(const [key,t] of [['x',(x-b.l)/sx],['y',(b.d-y)/sy]]){
+      const [lo,hi]=view[key],anchor=lo+(hi-lo)*t;
+      view[key]=[anchor+(lo-anchor)*factor,anchor+(hi-anchor)*factor];
+    }
+    render();
+  }
+  function location(e){
+    const rect=svg.getBoundingClientRect();
+    if(!rect.width||!rect.height)return null;
+    return {x:(e.clientX-rect.left)*640/rect.width,y:(e.clientY-rect.top)*290/rect.height};
+  }
+  const inPlot=p=>p&&p.x>=b.l&&p.x<=b.r&&p.y>=b.t&&p.y<=b.d;
+  function double(p){
+    if(!p)return;
+    if(p.x<b.l&&p.y>=b.t-8&&p.y<=b.d+8)toggleAxis('y');
+    else if(p.y>=b.d&&p.x>=b.l-8&&p.x<=b.r+8)toggleAxis('x');
+    else if(inPlot(p))reset();
+    cursor.hidden=true;tip.hidden=true;
+  }
+  svg.addEventListener('dblclick',e=>{
+    if(Date.now()<suppressDblUntil)return;
+    e.preventDefault();double(location(e));
+  });
+  svg.addEventListener('wheel',e=>{
+    const p=location(e);if(!inPlot(p))return;
+    e.preventDefault();zoom(e.deltaY>0?1.16:.86,p.x,p.y);
+  },{passive:false});
+  svg.addEventListener('pointerdown',e=>{
+    if(e.button!==0)return;
+    const p=location(e);if(!inPlot(p))return;
+    if(!view)reset();
+    drag={id:e.pointerId,p,x:view.x.slice(),y:view.y.slice(),moved:false};
+    try{svg.setPointerCapture(e.pointerId);}catch{}
+  });
+  svg.addEventListener('pointermove',e=>{
+    const p=location(e);if(!p)return;
+    if(drag&&drag.id===e.pointerId){
+      const dx=p.x-drag.p.x,dy=p.y-drag.p.y;
+      drag.moved=drag.moved||Math.abs(dx)+Math.abs(dy)>5;
+      view.x=drag.x.map(v=>v-dx/sx*(drag.x[1]-drag.x[0]));
+      view.y=drag.y.map(v=>v+dy/sy*(drag.y[1]-drag.y[0]));
+      render();return;
+    }
+    if(!inPlot(p)||!samples.length){cursor.hidden=true;tip.hidden=true;return;}
+    cursor.hidden=false;
+    cursor.setAttribute('d','M'+p.x+' '+b.t+' V'+b.d+' M'+b.l+' '+p.y+' H'+b.r);
+    let near=null,minimum=Infinity;
+    for(const row of samples){
+      if(!good(row.x,'x')||!good(row.y,'y'))continue;
+      const d=Math.hypot(px(row.x)-p.x,py(row.y)-p.y);
+      if(d<minimum){minimum=d;near=row;}
+    }
+    if(!near){tip.hidden=true;return;}
+    tip.hidden=false;tip.textContent='X: '+fmt(near.x)+' · I: '+fmt(near.y)+' A';
+    const host=svg.parentElement.getBoundingClientRect();
+    tip.style.left=Math.max(7,Math.min(host.width-170,e.clientX-host.left+9))+'px';
+    tip.style.top=Math.max(7,e.clientY-host.top-32)+'px';
+  });
+  svg.addEventListener('pointerup',e=>{
+    if(e.pointerType==='touch'){
+      const p=location(e),now=Date.now();
+      if(p&&tap&&now-tap.time<380&&Math.hypot(p.x-tap.p.x,p.y-tap.p.y)<26){
+        if(!drag?.moved){double(p);suppressDblUntil=now+450;}
+        tap=null;
+      }else if(p)tap={p,time:now};
+    }
+    if(drag?.id===e.pointerId){drag=null;try{svg.releasePointerCapture(e.pointerId);}catch{}}
+  });
+  svg.addEventListener('pointercancel',()=>{drag=null;tap=null;cursor.hidden=true;tip.hidden=true;});
+  svg.addEventListener('pointerleave',()=>{if(!drag){cursor.hidden=true;tip.hidden=true;}});
+  svg.addEventListener('keydown',e=>{
+    if(e.key.toLowerCase()==='x'){e.preventDefault();toggleAxis('x');}
+    else if(e.key.toLowerCase()==='y'){e.preventDefault();toggleAxis('y');}
+    else if(e.key==='0'){e.preventDefault();reset();}
+  });
+  $('measurement-zoom-in').addEventListener('click',()=>zoom(.75));
+  $('measurement-zoom-out').addEventListener('click',()=>zoom(1.3));
+  $('measurement-home').addEventListener('click',reset);
+  reset();
+  return Object.freeze({selectTest,setMeasurements,reset});
+})();
+window.DKTSMeasurementPlot=measurementPlot;
+
 function drawWave(points){
   const svg=$('waveform-plot');svg.replaceChildren();
   const NS='http://www.w3.org/2000/svg',width=640,height=260,left=48,right=18,top=20,bottom=34;
@@ -325,7 +496,7 @@ function renderTestSelection(){
   renderWorkspaceTabs();
   if(!mode)return;
   $('test-detail-title').textContent=mode.title+' · 测试工作区';
-  $('measurement-x-label').textContent=mode.x;
+  measurementPlot.selectTest(expandedKind);
   $('data-column-x').textContent=mode.xColumn;
   $('measurement-empty').textContent='尚无'+mode.title+'的仪器实测数据';
   $('plan-form').hidden=!isEditable;
