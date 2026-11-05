@@ -146,3 +146,19 @@ test('exported module database includes dedicated safety policies for all non-SM
   assert.equal(verifiedPower.highVoltageBiasAllowed, true);
   assert.equal(verifiedPower.powerOption.differentialMaxV, 400);
 });
+
+test('every capability and safety-policy source reference resolves to an exported manufacturer source', () => {
+  const ids = new Set(caps.DATABASE.sources.map(source => source.id));
+  const visit = (value, path = 'DATABASE') => {
+    if (!value || typeof value !== 'object') return;
+    for (const [key, child] of Object.entries(value)) {
+      if (key === 'sourceRefs') {
+        for (const id of child) assert.equal(ids.has(id), true, path + ' references missing source ' + id);
+      } else visit(child, path + '.' + key);
+    }
+  };
+  visit(caps.DATABASE);
+  for (const [name, module] of Object.entries(caps.DATABASE.modules)) {
+    assert.ok(Array.isArray(module.sourceRefs) && module.sourceRefs.length, name + ' must cite its manufacturer source records');
+  }
+});
