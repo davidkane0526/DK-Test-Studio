@@ -219,9 +219,9 @@
             </select></label>
             <label class="iv-only">规划点间延迟 (ms)<input type="number" name="delayMs" value="20" step="any"></label>
             <label class="it-only" hidden>规划采样间隔 (ms)<input type="number" name="intervalMs" value="100" step="any"></label>
-            <label>源 SMU<input type="number" name="sourceSmU" value="1" min="1" max="9"></label>
-            <label>测量 SMU<input type="number" name="measureSmU" value="1" min="1" max="9"></label>
-            <label>栅极 SMU（0 不用）<input type="number" name="gateSmU" value="0" min="0" max="9"></label>
+            <input type="hidden" name="sourceSmU" value="1">
+            <input type="hidden" name="measureSmU" value="1">
+            <input type="hidden" name="gateSmU" value="0">
             <label>栅极偏置 (V)<input type="number" name="gateBiasV" value="0" step="any" min="-210" max="210"></label>
           </div>
         </details>
@@ -240,7 +240,7 @@
             <label>点间延迟 (ms)<input id="xsweep-delay" type="number" min="0" max="6553" step="any" value="20"></label>
             <button type="button" id="xsweep-add" class="sweep-add-row">添加扫描段</button>
           </div>
-          <div class="sweep-table-scroll"><table class="sweep-segment-table"><thead><tr><th>#</th><th>起始 (V)</th><th>结束 (V)</th><th>步长 (V)</th><th>电流档位 (A)</th><th></th></tr></thead><tbody id="xsweep-segments"></tbody></table></div>
+          <div class="sweep-table-scroll"><table class="sweep-segment-table"><thead><tr><th>#</th><th>起始 (V)</th><th>结束 (V)</th><th>步长 (V)</th><th>电流档位 (A)</th><th>延迟 (ms)</th><th></th></tr></thead><tbody id="xsweep-segments"></tbody></table></div>
         </section>
         <section class="sweep-axis-card" id="psweep-card" aria-labelledby="psweep-title">
           <div class="sweep-axis-heading">
@@ -251,7 +251,7 @@
             <button type="button" id="psweep-add" class="sweep-add-row">添加扫描段</button>
           </div>
           <div id="psweep-fields" hidden>
-            <div class="sweep-table-scroll"><table class="sweep-segment-table"><thead><tr><th>#</th><th>起始 (V)</th><th>结束 (V)</th><th>步长 (V)</th><th>电流档位 (A)</th><th></th></tr></thead><tbody id="psweep-segments"></tbody></table></div>
+            <div class="sweep-table-scroll"><table class="sweep-segment-table"><thead><tr><th>#</th><th>起始 (V)</th><th>结束 (V)</th><th>步长 (V)</th><th>电流档位 (A)</th><th>延迟 (ms)</th><th></th></tr></thead><tbody id="psweep-segments"></tbody></table></div>
           </div>
           <p id="psweep-off-note" class="hint">Psweep 未启用：其余电极使用固定偏置。</p>
         </section>
