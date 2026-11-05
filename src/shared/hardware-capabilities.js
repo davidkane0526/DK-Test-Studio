@@ -2,7 +2,7 @@
   'use strict';
   const DATABASE = {
     schema: 'dkts.4200a.hardware-capabilities.v1',
-    databaseVersion: '1.3.0',
+    databaseVersion: '1.4.0',
     generatedAt: '2026-11-05',
     instrument: { family: 'Keithley 4200A-SCS', maxChassisPowerW: 500, kxciInventorySlots: 8, maxKxciSmuChannelNumber: 9 },
     inventoryDiscovery: {
@@ -186,6 +186,38 @@
       unknownModule: { applyGuessedNumericLimit: false, allowNonExecutablePlanning: true, allowHardwareOutput: false, requiredAction: 'Identify the exact installed module or mapped channel before enabling output.' },
       smu: { maximumSourceVoltageV: 210, voltageRangeOverrangePercent: 105, highVoltageNominalRangeV: 200, maximumOutputPowerWByPowerClass: { medium: 2.1, high: 21 }, applyVoltageDependentCompliancePowerLimit: true, interlockRequiredFor200VRange: true, interlockStatusAvailableThroughCurrentReadOnlyBridge: false, complianceMinimumA: { withoutPreamplifier: 1e-7, withPreamplifier: 1e-10 }, note: 'Reject a compliance request below the KXCI minimum instead of allowing KXCI to silently raise it.' },
       pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 1000000, currentKxciBufferPointsPerChannel: 65536 },
+      cvu: {
+        requiresExactVariantIdentification: true,
+        baseDcBiasRangeV: { min: -30, max: 30 },
+        frequencyRangeHz: { min: 1000, max: 10000000 },
+        maximumDcCurrentA: 0.01,
+        maximumMeasurementPoints: 4096,
+        acDriveVrmsByVariant: { '4210-CVU': 0.1, '4215-CVU': 1 },
+        optionalPowerModule: {
+          name: '4200-CVU-PWR', requiresExplicitOptionIdentification: true,
+          unverifiedPowerOptionBlocksHighVoltageBias: true,
+          maximumDifferentialVoltageV: 400, maximumAbsoluteBiasVoltageV: 200,
+          requiresBiasSmu: true, biasSmuChannelsFor200V: 1, biasSmuChannelsFor400VDifferential: 2,
+          maximumDcCurrentAByBiasSmu: { mediumPowerSmu: 0.1, highPowerSmu: 0.3 }
+        }
+      },
+      vsVm: {
+        VS: { logicalKxciRoleOnly: true, requiresPhysicalSmuBinding: true, maximumSourceVoltageV: 20, currentMeasurementSupported: false },
+        VM: { logicalKxciRoleOnly: true, maximumAbsoluteMeasurementVoltageV: 210, sourceOutputSupported: false, inputImpedanceOhm: 1e13 }
+      },
+      accessories: {
+        PA: { independentSource: false, allowedHostFamily: 'SMU', role: 'low-current-preamplifier', lowestCurrentRangeA: 1e-12 },
+        RPM: { independentSource: false, allowedHostFamily: 'PMU', role: 'remote-preamplifier-and-switch', requiresPMU: true, noIndependentPulseOutput: true }
+      },
+      switchMatrix: {
+        CVIV: { maximumVoltageV: 210, maximumCurrentA: 1, independentSource: false,
+          requiresImpedanceLimitedSource: true, forbidDirectMainsConnection: true,
+          requirePowerOffBeforeReconfiguration: true }
+      },
+      groundUnit: {
+        GNDU: { independentSource: false, currentA: { dualMiniTriax: 2.6, bindingPosts: 9.5 },
+          doNotUseAsVoltageSource: true, role: 'ground-return-only' }
+      },
       chassis: { maximumPowerW: 500, blockPlanIfCompletePowerBudgetExceeded: true, doNotAssumeUnknownModulesConsumeZeroPower: true },
       dataProvenance: { callerSuppliedArraysAreRawInstrumentData: false, rawDataRequiresTrustedAcquisitionReceipt: true, currentBuildHasTrustedAcquisitionExecutor: false },
       execution: { allOutputCommandsDisabled: true, allowedKxciCommands: ['*IDN?', '*OPT?', 'UL', 'EX SystemUtil instrumentinfo(,4096,)', 'GN result', 'EX SystemUtil remotemoduleinfo(,4096,)', 'GN result', 'DE'], requireSingleInstrumentLease: true, requireFailClosedOnDisconnect: true, requireEmergencyStop: true }
