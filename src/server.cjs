@@ -110,7 +110,7 @@ async function createAppServer(options={}){
         return json(res,200,{ok:true,plan:preview.plan,firstPoints:preview.firstPoints,truncated:preview.truncated});
       }
       if(typeof payload.text!=='string')return json(res,400,{error:'波形应为文本'});
-      const plan=parseWaveformText(payload.text);
+      const plan=parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu'});
       return json(res,200,{ok:true,count:plan.points.length,durationS:plan.durationS,
         minimumStepS:plan.minimumStepS,maximumStepS:plan.maximumStepS,
         executable:false,hardwareVerified:false,
