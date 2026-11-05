@@ -112,11 +112,23 @@
         kxciPulseTiming: { '10': { periodMinS: 6e-8, periodMaxS: 1, pulseWidthMinS: 4e-8, transitionMinS: 2e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 2e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
         pulseTiming: {
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 }, withMeasurement: { periodMinS: 1.2e-7, periodMaxS: 1, pulseWidthMinS: 6e-8, transitionMinS: 2e-8, maxFrequencyHz: 8.3e6 } },
-          '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
+          '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值不超过10 V时为30 ns，超过10 V时为100 ns', maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
+        },
+        rpmTypicalTiming: {
+          '10': {
+            '1e-7': { recommendedMinPulseWidthS: 0.134, recommendedMinMeasurementWindowS: 0.010, recommendedMinTransitionS: 1e-3, stabilizationTimeS: 0.1, typical: true },
+            '1e-3': { recommendedMinPulseWidthS: 20.4e-3, recommendedMinMeasurementWindowS: 1.64e-3, recommendedMinTransitionS: 360e-9, stabilizationTimeS: 15e-3, typical: true },
+            '1e-2': { recommendedMinPulseWidthS: 8.36e-3, recommendedMinMeasurementWindowS: 1e-3, recommendedMinTransitionS: 360e-9, stabilizationTimeS: 6e-6, typical: true },
+            '1e-1': { recommendedMinPulseWidthS: 1.04e-3, recommendedMinMeasurementWindowS: 130e-9, recommendedMinTransitionS: 40e-9, stabilizationTimeS: 750e-9, typical: true }
+          },
+          '40': {
+            '1e-3': { recommendedMinPulseWidthS: 370e-9, recommendedMinMeasurementWindowS: 40e-9, recommendedMinTransitionS: 30e-9, stabilizationTimeS: 250e-9, typical: true },
+            '1e-2': { recommendedMinPulseWidthS: 160e-9, recommendedMinMeasurementWindowS: 20e-9, recommendedMinTransitionS: 20e-9, stabilizationTimeS: 100e-9, typical: true }
+          }
         },
         measurement: {
-          currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
-          withRpmCurrentRangesA: { '10': [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
+          currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-2, 1e-1, 8e-1] },
+          withRpmCurrentRangesA: { '10': [1e-7, 1e-3, 1e-2, 1e-1], '40': [1e-3, 1e-2] },
           maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
         },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
@@ -134,7 +146,7 @@
           currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
           withRpmCurrentRangesA: { '10': [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
           minimumCurrentRangeA: 1e-7, currentMeasurementResolutionA: 2e-10,
-          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 1000000
+          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
         },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
       },
