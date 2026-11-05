@@ -5,7 +5,7 @@
   const allowed=Object.freeze({
     GET:new Set(['/api/status','/api/ui/version','/api/app/version','/api/workspaces','/api/capabilities','/api/capabilities/export']),
     POST:new Set(['/api/connect','/api/disconnect','/api/modules/inspect',
-      '/api/plan/validate','/api/waveform/validate','/api/ui/check','/api/workspaces'])
+      '/api/plan/validate','/api/waveform/validate','/api/cvu/validate','/api/ui/check','/api/workspaces'])
   });
   const pending=new Map();
   let id=0,ready=false;
