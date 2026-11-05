@@ -93,8 +93,9 @@
     const used=new Set(),unknownModules=[...logical.unknownModules],unverifiedModules=[];
     const slots=logical.slots.map(slot=>{
       if(slot.family==='empty'||slot.family==='unknown')return slot;
-      const record=instruments.find(x=>x.slotNo===slot.slot&&expectedInstrumentName(slot.family,x.name));
-      const attached=remote.filter(x=>x.slotNo===slot.slot);
+      const record=instruments.find(x=>x.slotNo===slot.slot&&expectedInstrumentName(slot.family,x.name,slot.channel))||instruments.find(x=>expectedInstrumentName(slot.family,x.name,slot.channel));
+      const physicalSlotNo=record?.slotNo??slot.slot;
+      const attached=remote.filter(x=>x.slotNo===physicalSlotNo);
       const paRecords=attached.filter(x=>/^PA\d+$/i.test(x.name));
       const rpmRecords=attached.filter(x=>/^RPM\d+-[12]$/i.test(x.name));
       let type=slot.type,physicalType=null,basePhysicalType=null,variant=null,preamplifier=slot.preamplifier,rpmChannels=slot.rpmChannels||[],rpmCount=slot.rpmCount||0;
