@@ -51,8 +51,8 @@
       if(required.some(name=>!protocol[name])||typeof protocol.parseOptions!=='function'||typeof protocol.parseHardwareInventory!=='function')throw Error('当前 KXCI 协议不支持物理模块信息查询');
       const targetId=connection.sessionId;
       const request=(async()=>{
-        const send=async(command,maxBytes=8192)=>{
-          const response=await tcp.exchange({sessionId:targetId,base64:btoa(command),readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:120,maxBytes});
+        const send=async(command,maxBytes=8192,noReply=false)=>{
+          const response=await tcp.exchange({sessionId:targetId,base64:btoa(command),readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:120,maxBytes,noReply});
           if(connection?.sessionId!==targetId)throw Error('连接已切换，模块查询已作废');
           return atob(response?.base64||'');
         };
@@ -64,16 +64,16 @@
             inventoryError='配置响应中没有可识别的模块类型，已停止后续模块查询';
             return status();
           }
-          enteredUserLibrary=true;await send(protocol.UL_REQUEST,1024);
+          enteredUserLibrary=true;await send(protocol.UL_REQUEST,1024,true);
           await send(protocol.INSTRUMENT_INFO_REQUEST,1024);
           const instrumentInfo=await send(protocol.GN_RESULT_REQUEST,8192);
           await send(protocol.REMOTE_MODULE_INFO_REQUEST,1024);
           const remoteModuleInfo=await send(protocol.GN_RESULT_REQUEST,8192);
-          await send(protocol.DE_REQUEST,1024);enteredUserLibrary=false;
+          await send(protocol.DE_REQUEST,1024,true);enteredUserLibrary=false;
           inventory=protocol.parseHardwareInventory(optionsRaw,instrumentInfo,remoteModuleInfo);inventoryError='';return status();
         }catch(error){
           let reason=String(error?.message||error).slice(0,300);
-          if(enteredUserLibrary&&connection?.sessionId===targetId){try{await send(protocol.DE_REQUEST,1024);enteredUserLibrary=false;}catch(restoreError){reason+='；恢复 KXCI 系统模式失败：'+String(restoreError?.message||restoreError).slice(0,120);}}
+          if(enteredUserLibrary&&connection?.sessionId===targetId){try{await send(protocol.DE_REQUEST,1024,true);enteredUserLibrary=false;}catch(restoreError){reason+='；恢复 KXCI 系统模式失败：'+String(restoreError?.message||restoreError).slice(0,120);}}
           inventory=logicalInventory;inventoryError='物理模块型号/PA/RPM 信息读取失败：'+reason;
           if(/timeout|closed|econnreset|unavailable|not connected/i.test(reason)){await closeCurrent();phase='error';diagnostic='模块查询失败，原连接可能已关闭：'+reason;}
           return status();
