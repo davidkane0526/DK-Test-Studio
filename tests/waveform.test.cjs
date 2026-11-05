@@ -13,6 +13,8 @@ test('arbitrary waveform is a non-executable plan with exact input values',()=>{
 test('waveform rejects duplicate/reverse time and out-of-plan voltage',()=>{
   assert.throws(()=>parseWaveformText('0 0\n0 1'),/严格递增/);
   assert.throws(()=>parseWaveformText('1 0\n0.5 1'),/严格递增/);
-  assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:201}]),/规划范围/);
+  assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:211}]),/规划范围/);
+  assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:41}],{sourceType:'pmu'}),/±40 V/);
+  assert.equal(validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:40}],{sourceType:'pmu'}).maxVoltageV,40);
   assert.throws(()=>parseWaveformText('0 0'),/至少需要 2 个/);
 });
