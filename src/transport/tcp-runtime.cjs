@@ -200,7 +200,7 @@ function createTcpRuntime(options={}){
     const idleTimeoutMs=boundedInt(payload.idleTimeoutMs,120,20,10000);
     const maxBytes=boundedInt(payload.maxBytes,65536,1,8*1024*1024);
     const noReply=payload.noReply===true;
-    if(noReply&&!['UL\0','DE\0'].includes(write.toString('ascii')))throw new Error('Write-only TCP mode is restricted to fixed KXCI UL/DE commands.');
+    if(noReply&&!(/^(?:UL|DE|US|:ERROR:LAST:CLEAR|DV[1-9](?:,0,[^\\0]+)?|RI [1-9],[^\\0]+|RG [1-9],[^\\0]+)\\0$/.test(write.toString('ascii'))))throw new Error('Write-only TCP is restricted to allowlisted KXCI commands.');
     if(write.length>1024*1024)throw new Error('TCP write exceeds the 1 MiB safety limit.');
 
     row.busy=true;
