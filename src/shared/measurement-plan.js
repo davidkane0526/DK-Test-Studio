@@ -34,16 +34,25 @@
     const gateSmU=count(input.gateSmU??0,'栅极 SMU（0 为不使用）',0,9);
     if(gateSmU&&(gateSmU===sourceSmU||gateSmU===measureSmU))
       throw Error('栅极 SMU 不得与源/测量 SMU 使用相同编号');
-    // Never trust a model name supplied by the UI/imported plan. Resolve it only from the read-only *OPT? inventory.
+    // Never trust a model name supplied by the UI/imported plan. Resolve each sourcing channel only from read-only *OPT? inventory.
     const sourceModel=detectedSmUClass(sourceSmU,hardware.inventory);
-    const maxAbsVoltage=Math.max(
-      Math.abs(Number(input.gateBiasV??0)),Math.abs(Number(input.startV??-1)),
-      Math.abs(Number(input.stopV??1)),Math.abs(Number(input.fixedV??0.1))
-    );
-    const highVoltage=maxAbsVoltage>21;
-    const highPower=sourceModel==='high';
-    const maxComplianceA=sourceModel==='UNKNOWN'?0.0105:
-      highVoltage?(highPower?0.105:0.0105):(highPower?1.05:0.105);
+    const gateModel=gateSmU?detectedSmUClass(gateSmU,hardware.inventory):null;
+    const sourceMaxAbsVoltage=kind==='iv'
+      ?Math.max(Math.abs(Number(input.startV??-1)),Math.abs(Number(input.stopV??1)))
+      :Math.abs(Number(input.fixedV??0.1));
+    const gateMaxAbsVoltage=Math.abs(Number(input.gateBiasV??0));
+    if(!gateSmU&&gateMaxAbsVoltage>0)
+      throw Error('设置栅极偏置时必须选择独立的栅极 SMU');
+    function channelCompliance(powerClass,voltage){
+      if(powerClass==='UNKNOWN')return 0.0105;
+      const highVoltage=voltage>21;
+      const highPower=powerClass==='high';
+      return highVoltage?(highPower?0.105:0.0105):(highPower?1.05:0.105);
+    }
+    const sourceMaxComplianceA=channelCompliance(sourceModel,sourceMaxAbsVoltage);
+    const gateMaxComplianceA=gateSmU?channelCompliance(gateModel,gateMaxAbsVoltage):Infinity;
+    const maxComplianceA=Math.min(sourceMaxComplianceA,gateMaxComplianceA);
+    const maxAbsVoltage=Math.max(sourceMaxAbsVoltage,gateMaxAbsVoltage);
     const complianceA=finite(input.complianceA??1e-4,'电流限值',1e-12,maxComplianceA);
     const direction=String(input.direction||'roundtrip');
     if(!['forward','reverse','roundtrip'].includes(direction))throw Error('不支持的扫描方向');
@@ -58,10 +67,10 @@
     if(totalPoints>250000)throw Error('预计采样点超过 250000，请减少循环或点数');
     return Object.freeze({
       schema:'dk-test-studio.smu-plan.v1',kind,loops,points,direction,
-      sourceSmU,measureSmU,gateSmU,sourceModel,maxAbsVoltageV:maxAbsVoltage,maxComplianceA,gateBiasV,complianceA,
+      sourceSmU,measureSmU,gateSmU,sourceModel,gateModel,sourceMaxAbsVoltageV:sourceMaxAbsVoltage,gateMaxAbsVoltageV:gateMaxAbsVoltage,maxAbsVoltageV:maxAbsVoltage,sourceMaxComplianceA,gateMaxComplianceA,maxComplianceA,gateBiasV,complianceA,
       delayMs,intervalMs,startV,stopV,fixedV,pointsPerCycle,totalPoints,
       executable:false,hardwareVerified:false,
-      provenance:'user-test-plan',safetyNote:'已按所选 SMU 型号和最大电压应用保守电流边界；仍需核验实际插槽、工作象限及模块额定值，禁止据此直接执行'
+      provenance:'user-test-plan',safetyNote:'已分别按源/栅极 SMU 模块类别与电压档计算电流边界，并取更严格值；仍需核验工作象限和模块额定值，禁止据此直接执行'
     });
   }
   function previewPlan(plan,limit=300,hardware={}){
