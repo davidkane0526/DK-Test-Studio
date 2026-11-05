@@ -190,3 +190,37 @@ test('I–t preserves independent drain and gate compliance rather than imposing
   assert.throws(()=>normalizePlan({...params,gateCurrentRangeA:'1e-8'},hardware),/不.*支持/);
   assert.throws(()=>normalizePlan({...params,sourceCurrentRangeA:'1e-1'},hardware),/不匹配/);
 });
+
+
+test('segment-specific voltage/current envelopes permit full hardware capability without global throttling',()=>{
+  const {normalizeSweepProgram,previewSweepProgram}=require('../src/controller/measurement-plan.cjs');
+  const hardware={inventory:{slots:[
+    {type:'SMU',physicalType:'SMU',family:'SMU',channel:1,ratingsVerified:true}
+  ],unknownModules:[],hardwareLimitsVerified:true}};
+  const program={kind:'iv',terminals:{source:'GNDU',drain:'SMU1',gate:'None'},
+    fixedVoltages:{source:0,drain:0,gate:0},
+    xSweep:{terminal:'drain',delayMs:20,repeats:1,segments:[
+      {startV:0,stopV:2,stepV:1,rangeA:'1e-1'},
+      {startV:2,stopV:200,stepV:99,rangeA:'1e-2'}
+    ]},pSweep:{enabled:false},loops:1,
+    portSettings:{drain:{rangeMode:'auto',complianceMode:'follow-range',
+      complianceA:'1e-4'}}};
+  const result=normalizeSweepProgram(program,hardware);
+  assert.equal(result.totalPoints,6);
+  assert.equal(result.hardwareCapabilityStatus,'identified');
+  assert.deepEqual(result.limitsByRole.drain.segmentLimits.map(x=>x.maxComplianceA),[.105,.0105]);
+  assert.deepEqual(result.limitsByRole.drain.segmentLimits.map(x=>x.selectedRangeA),[.1,.01]);
+  assert.deepEqual(previewSweepProgram(program,30,hardware).firstPoints.map(x=>x.drainVoltageV),
+    [0,1,2,2,101,200]);
+  assert.throws(()=>normalizeSweepProgram({...program,
+    xSweep:{...program.xSweep,segments:[
+      {startV:0,stopV:200,stepV:100,rangeA:'1e-1'}]}
+  },hardware),/当前电压段支持/);
+  assert.throws(()=>normalizeSweepProgram({...program,
+    xSweep:{...program.xSweep,segments:[
+      {startV:0,stopV:1,stepV:.5,rangeA:'1e-13'}]}
+  }),/离散硬件档位/,'A non-existent hardware range must fail even offline');
+  assert.throws(()=>normalizeSweepProgram({...program,
+    portSettings:{drain:{rangeMode:'auto',complianceMode:'custom',complianceA:5}}
+  }),/理论上限 1.05 A/,'No inventory may never allow 5 A compliance');
+});
