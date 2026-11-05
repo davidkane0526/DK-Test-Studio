@@ -182,15 +182,19 @@
       if(!x.every(Number.isFinite)||!y.every(Number.isFinite))
         throw Error('原始测量数据包含非有限数值');
       const id='dkts-4200-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
+      const measurementKind=String(result.kind||'iv').toLowerCase();
+      const isIV=measurementKind==='iv';
+      const xKey=String(result.xKey||(isIV?'Vd':'Time'));
+      const yKey=String(result.yKey||(isIV?'Id':'Current'));
       const artifact=ctx.data.model.createTable({
         id,name:String(result.name||'Keithley 4200A 原始测量'),
-        transient:false,
+        ...(isIV?{semanticType:'science.transport.iv'}:{}),transient:false,
         metadata:{instrument:'Keithley 4200A',model:controller.status().identity?.model||'KI4200A',
-          serial:controller.status().identity?.serial||'',measurementKind:String(result.kind||'unknown'),
+          serial:controller.status().identity?.serial||'',measurementKind,
           rawInstrumentData:true,processing:'none',dataAssignments:[]},
         columns:[
-          {key:String(result.xKey||'X'),name:String(result.xName||'X'),unit:String(result.xUnit||''),role:'x',values:x},
-          {key:String(result.yKey||'Y'),name:String(result.yName||'Y'),unit:String(result.yUnit||''),role:'y',values:y}
+          {key:xKey,name:String(result.xName||xKey),unit:String(result.xUnit||''),role:'x',values:x},
+          {key:yKey,name:String(result.yName||yKey),unit:String(result.yUnit||''),role:'y',values:y}
         ],
         provenance:[{type:'acquisition',label:'Keithley 4200A 原始仪器数据',
           producer:'com.dkts.keithley-4200',operation:'instrument-acquisition',
