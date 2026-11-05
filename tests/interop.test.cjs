@@ -14,9 +14,9 @@ test('browser SDK modules use the same implementation as Node',()=>{
     assert.equal(id,'com.dkds.keithley-4200');registry.set(name,value);
   }}}};
   vm.createContext(sandbox);
-  for(const file of ['kxci-protocol.js','waveform.js','measurement-plan.js','identity-core.js','interop.js'])
+  for(const file of ['hardware-capabilities.js','kxci-protocol.js','waveform.js','measurement-plan.js','identity-core.js','interop.js'])
     vm.runInContext(fs.readFileSync(path.join(root,'src/shared',file),'utf8'),sandbox,{filename:file});
-  assert.equal(registry.size,5);
+  assert.equal(registry.size,6);
   assert.equal(registry.get('dkts-kxci').IDN_REQUEST,protocol.IDN_REQUEST);
   const input={kind:'iv',points:3,loops:2,direction:'roundtrip'};
   assert.equal(JSON.stringify(registry.get('dkts-plan').previewPlan(input)),JSON.stringify(plan.previewPlan(input)));
@@ -31,13 +31,15 @@ test('browser SDK modules use the same implementation as Node',()=>{
   assert.throws(()=>interop.readPlanEnvelope({...envelope,pluginId:'builtin.theme'},plan),/不支持/);
   assert.throws(()=>interop.readPlanEnvelope({...envelope,schema:'unknown'},plan),/不支持/);
   assert.throws(()=>interop.readPlanEnvelope({...envelope,plan:{...envelope.plan,executable:true}},plan),/未获验证/);
-  const highPowerInventory={inventory:{slots:[{family:'SMU',channel:1,powerClass:'high'}]}};
+  const highPowerInventory={inventory:{slots:[{type:'HPSMU',family:'SMU',channel:1,powerClass:'high'}],unknownModules:[]}};
   const highPowerEnvelope=interop.createPlanEnvelope(
     {kind:'iv',sourceSmU:1,startV:200,stopV:200,complianceA:0.1},plan,highPowerInventory
   );
   assert.equal(highPowerEnvelope.plan.maxComplianceA,0.105);
-  assert.throws(()=>interop.readPlanEnvelope(highPowerEnvelope,plan),/规划范围/,
-    'Import without the matching read-only inventory must fall back to the conservative limit');
+  const unresolved=interop.readPlanEnvelope(highPowerEnvelope,plan);
+  assert.equal(unresolved.executable,false);
+  assert.equal(unresolved.hardwareVerified,false);
+  assert.equal(unresolved.maxComplianceA,null,'Import without inventory must not invent a numeric limit');
   assert.equal(interop.readPlanEnvelope(highPowerEnvelope,plan,highPowerInventory).complianceA,0.1);
 
 });
@@ -45,7 +47,7 @@ test('DKDS package contains byte-for-byte copies of the shared core',()=>{
   const pkg=JSON.parse(fs.readFileSync(require('../tools/build-dkds-plugin.cjs').artifact,'utf8'));
   assert.equal(pkg.schema,1);
   assert.equal(pkg.manifest.id,'com.dkts.keithley-4200');
-  assert.equal(pkg.manifest.version,'0.6.13');
+  assert.equal(pkg.manifest.version,'0.6.15');
   assert.equal(pkg.manifest.apiVersion,'1.19.0');
   for(const file of ['kxci-protocol.js','waveform.js','measurement-plan.js','identity-core.js','interop.js'])
     assert.equal(pkg.files[file],require('../tools/build-dkds-plugin.cjs').adaptPluginSource(

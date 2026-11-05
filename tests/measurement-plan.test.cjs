@@ -21,24 +21,30 @@ test('planning rejects invalid limits, missing values, and channel conflicts',()
   assert.throws(()=>normalizePlan({startV:211}),/规划范围/);
   assert.equal(normalizePlan({startV:210,stopV:-210}).startV,210);
   assert.throws(()=>normalizePlan({startV:1000}),/规划范围/);
-  assert.throws(()=>normalizePlan({complianceA:0.011}),/规划范围/,
-    'Unknown SMU identity must use the conservative 10.5 mA ceiling');
-  const medium={inventory:{slots:[{family:'SMU',channel:1,powerClass:'medium'}]}};
-  const high={inventory:{slots:[{family:'SMU',channel:1,powerClass:'high'}]}};
+  const unidentified=normalizePlan({complianceA:0.011});
+  assert.equal(unidentified.maxComplianceA,null);
+  assert.equal(unidentified.hardwareCapabilityStatus,'not-inspected');
+  assert.equal(unidentified.complianceA,0.011,'Unknown modules must not receive a guessed 10.5 mA cap');
+  const medium={inventory:{slots:[{type:'SMU',family:'SMU',channel:1,powerClass:'medium'}],unknownModules:[]}};
+  const high={inventory:{slots:[{type:'HPSMU',family:'SMU',channel:1,powerClass:'high'}],unknownModules:[]}};
+  const unverified={inventory:{slots:[{type:'SMU',family:'SMU',channel:1,physicalIdentityVerified:false}],unknownModules:[],unverifiedModules:[{family:'SMU'}]}};
+  const unverifiedPlan=normalizePlan({complianceA:0.011},unverified);
+  assert.equal(unverifiedPlan.maxComplianceA,null);
+  assert.equal(unverifiedPlan.hardwareCapabilityStatus,'unresolved');
   assert.equal(normalizePlan({startV:200,stopV:200,complianceA:0.0105},medium).maxComplianceA,0.0105);
   assert.equal(normalizePlan({startV:200,stopV:200,complianceA:0.1},high).maxComplianceA,0.105);
   assert.equal(normalizePlan({startV:20,stopV:20,complianceA:1},high).maxComplianceA,1.05);
-  assert.equal(normalizePlan({sourceModel:'high',startV:20,stopV:20,complianceA:0.0001}).maxComplianceA,0.0105,
-    'A user-supplied model name must never override the read-only module inventory');
-  assert.throws(()=>normalizePlan({startV:200,stopV:200,complianceA:0.0106}),/规划范围/);
+  assert.equal(normalizePlan({sourceModel:'high',startV:20,stopV:20,complianceA:0.0001}).maxComplianceA,null,
+    'A user-supplied model name must never create a hardware limit without inventory');
+  assert.throws(()=>normalizePlan({startV:200,stopV:200,complianceA:0.0106},medium),/理论上限/);
   assert.throws(()=>normalizePlan({points:0}),/规划范围/);
   assert.throws(()=>normalizePlan({gateSmU:1,sourceSmU:1}),/不得/);
   const mixed={inventory:{slots:[
-    {family:'SMU',channel:1,powerClass:'high'},
-    {family:'SMU',channel:2,powerClass:'medium'}
+    {type:'HPSMU',family:'SMU',channel:1,powerClass:'high'},
+    {type:'SMU',family:'SMU',channel:2,powerClass:'medium'}
   ]}};
   const dual=normalizePlan({
-    sourceSmU:1,measureSmU:3,gateSmU:2,gateBiasV:100,
+    sourceSmU:1,measureSmU:1,gateSmU:2,gateBiasV:100,
     startV:20,stopV:20,complianceA:0.0105
   },mixed);
   assert.equal(dual.sourceMaxComplianceA,1.05);
@@ -46,6 +52,9 @@ test('planning rejects invalid limits, missing values, and channel conflicts',()
   assert.equal(dual.maxComplianceA,0.0105,
     'The stricter gate-channel limit must constrain the shared compliance setting');
   assert.throws(()=>normalizePlan({gateBiasV:10,gateSmU:0}),/必须选择独立的栅极 SMU/);
+  assert.throws(()=>normalizePlan({intervalMs:9,kind:'it'}),/规划范围/);
+  assert.throws(()=>normalizePlan({intervalMs:10001,kind:'it'}),/规划范围/);
+  assert.throws(()=>normalizePlan({points:3000,direction:'roundtrip'}),/最多 4096 个点/);
 
   assert.throws(()=>normalizePlan({complianceA:''}),/不能为空/);
 });

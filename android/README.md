@@ -4,8 +4,8 @@
 
 - 独立 Android Activity + WebViewAssetLoader，本机加载打包静态工作台。
 - `src/shared/` 与 Windows / DKDS 插件 **逐字节共用** KXCI 身份协议、连接状态机、I–V/I–t 和任意波形规划模型。
-- Android 原生 Java 网络桥接，绑定 Android Ethernet/Wi-Fi Network.socketFactory；仅允许只读 `*IDN?\0` 与 `*OPT?\0`。
-- 暂不发布局域网服务器，不允许任意 KXCI、SMU/PMU 输出和扫描指令。
+- Android 原生 Java 网络桥接，绑定 Android Ethernet/Wi-Fi Network.socketFactory；只允许固定只读 `*IDN?`、`*OPT?`、`UL`、SystemUtil `instrumentinfo`/`remotemoduleinfo`、`GN result` 与恢复模式的 `DE`，不开放任意 KXCI 命令。
+- 暂不发布局域网服务器，不允许任意 KXCI、SMU/PMU 输出和扫描指令。`*OPT?` 识别模块功率类别与 PA/RPM 配置，SystemUtil 查询用于补充物理型号与附件信息。
 - 只在本机应用中执行。本 APK 是开发预览版，**没有实机验收**。
 
 ## 构建

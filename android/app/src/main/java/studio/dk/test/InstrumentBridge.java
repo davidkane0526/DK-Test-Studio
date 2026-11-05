@@ -37,6 +37,11 @@ import java.util.concurrent.Executors;
 public final class InstrumentBridge {
     private static final byte[] IDN = "*IDN?\0".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] OPT = "*OPT?\0".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] UL = "UL\0".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] EX_INSTRUMENT_INFO = "EX SystemUtil instrumentinfo(,4096,)\0".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] EX_REMOTE_MODULE_INFO = "EX SystemUtil remotemoduleinfo(,4096,)\0".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] GN_RESULT = "GN result\0".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] DE = "DE\0".getBytes(StandardCharsets.US_ASCII);
     private final Context context;
     private final WebView webView;
     private final UiUpdateManager uiUpdates;
@@ -251,14 +256,24 @@ public final class InstrumentBridge {
             .put("networkPreparation",preparation);
     }
 
+    private static boolean isReadOnlyKxciRequest(byte[] request) {
+        return Arrays.equals(request, IDN) || Arrays.equals(request, OPT) ||
+            Arrays.equals(request, UL) || Arrays.equals(request, EX_INSTRUMENT_INFO) ||
+            Arrays.equals(request, EX_REMOTE_MODULE_INFO) || Arrays.equals(request, GN_RESULT) ||
+            Arrays.equals(request, DE);
+    }
+
     private JSONObject exchange(JSONObject args) throws Exception {
         if (socket == null || socket.isClosed() ||
             !args.optString("sessionId", "").equals(sessionId))
             throw new IllegalStateException("Instrument session unavailable");
         final byte[] request = Base64.getDecoder().decode(args.getString("base64"));
-        // Security boundary: no arbitrary instrument command even if the WebView is compromised.
-        if (!Arrays.equals(request, IDN) && !Arrays.equals(request, OPT))
-            throw new SecurityException("Only read-only IDN/OPT queries are permitted");
+        // Exact allowlist: identity, logical slot mapping, and documented read-only SystemUtil metadata.
+        if (!isReadOnlyKxciRequest(request))
+            throw new SecurityException("Only fixed read-only KXCI identity and SystemUtil inventory queries are permitted");
+        final boolean noReply = args.optBoolean("noReply", false);
+        if (noReply && !(Arrays.equals(request, UL) || Arrays.equals(request, DE)))
+            throw new SecurityException("Write-only mode is restricted to fixed KXCI UL/DE commands");
         final int maxBytes = bounded(args, "maxBytes", 4096, 1, 8192);
         final int firstTimeout = bounded(args, "readTimeoutMs", 5000, 250, 30000);
         final int idleTimeout = bounded(args, "idleTimeoutMs", 120, 20, 10000);
@@ -268,6 +283,7 @@ public final class InstrumentBridge {
             InputStream in = socket.getInputStream();
             out.write(request);
             out.flush();
+            if (noReply) return new JSONObject().put("base64", "").put("bytesRead", 0);
             byte[] part = new byte[2048];
             socket.setSoTimeout(firstTimeout);
             while (true) {

@@ -1,8 +1,9 @@
 (() => {
   'use strict';
-  const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.6.13","apiVersion":"1.19.0","entry":"plugin.js","enabled":true,"order":82,"description":"DK Test Studio shared standalone UI, DKDS-owned transport and project integration","pluginType":"developer","requiresCore":["runtime","status","services","modules","project","workspace","capabilities","data.model","data.artifacts","ui.dom","ui.dialogs","ui.activities","ui.top-workspace","ui.pages","ui.unit-templates","ui.status-bar"],"capabilities":["instrument.dkts-keithley-4200","network.tcp-client","ui.page","ui.top-workspace","ui.plugin-workspace"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"scripts":["kxci-protocol.js","measurement-plan.js","waveform.js","identity-core.js","interop.js","standalone-shell.js","presentation.js","plugin.js"],"workspace":{"role":"top","activity":"dkts-keithley-4200"},"window":{"activity":"dkts-keithley-4200","width":1280,"height":820,"minWidth":800,"minHeight":620,"dependencies":[],"prewarm":false,"reuse":true,"persistence":"project"}};
+  const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.6.15","apiVersion":"1.19.0","entry":"plugin.js","enabled":true,"order":82,"description":"DK Test Studio shared standalone UI, DKDS-owned transport and project integration","pluginType":"developer","requiresCore":["runtime","status","services","modules","project","workspace","capabilities","data.model","data.artifacts","ui.dom","ui.dialogs","ui.activities","ui.top-workspace","ui.pages","ui.unit-templates","ui.status-bar"],"capabilities":["instrument.dkts-keithley-4200","network.tcp-client","ui.page","ui.top-workspace","ui.plugin-workspace"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"scripts":["hardware-capabilities.js","kxci-protocol.js","measurement-plan.js","waveform.js","identity-core.js","interop.js","standalone-shell.js","presentation.js","plugin.js"],"workspace":{"role":"top","activity":"dkts-keithley-4200"},"window":{"activity":"dkts-keithley-4200","width":1280,"height":820,"minWidth":800,"minHeight":620,"dependencies":[],"prewarm":false,"reuse":true,"persistence":"project"}};
   DKDSPlugins.define(manifest,async ctx=>{
     const modules=ctx.modules;
+    const capabilities=modules.require('dkts-capabilities');
     const protocol=modules.require('dkts-kxci');
     const domain=modules.require('dkts-identity-core');
     const planner=modules.require('dkts-plan');
@@ -32,7 +33,7 @@
       if(json.length>64*1024*1024)throw Error('项目工作区数据超过限制');
       return JSON.parse(json);
     }
-    function hardwareProfile(){return {inventory:controller.status().inventory};}
+    function hardwareProfile(){return {inventory:controller.status().inventory,capabilities};}
     function plan(){
       const candidate=ui?ui.readPlan():storedPlan;
       return planner.normalizePlan(candidate,hardwareProfile());
@@ -63,7 +64,7 @@
     }
     function preview(){
       try{
-        const result=planner.previewPlan(plan(),300,{inventory:controller.status().inventory});
+        const result=planner.previewPlan(plan(),300,hardwareProfile());
         ui?.renderPlan(result);
         return result;
       }catch(e){ui?.renderPlanError(String(e.message||e));throw e;}
@@ -91,11 +92,13 @@
       try{
         if(method==='GET'){
           if(route==='/api/status')return {status:200,data:{ok:true,...controller.status()}};
-          if(route==='/api/app/version')return {status:200,data:{version:'0.3.11'}};
+          if(route==='/api/hardware/capabilities')return {status:200,data:{ok:true,database:capabilities.exportDatabase()}};
+          if(route==='/api/app/version')return {status:200,data:{version:'0.3.12'}};
           if(route==='/api/ui/version')return {status:200,data:{version:'bundled',status:'disabled'}};
           if(route==='/api/workspaces')return {status:200,data:{ok:true,workspace:savedWorkspace}};
         }
         if(method==='POST'){
+          if(route==='/api/hardware/capabilities')return {status:200,data:{ok:true,database:capabilities.exportDatabase()}};
           if(route==='/api/workspaces'){
             savedWorkspace=workspaceCopy(payload.workspace);
             ctx.project.capture();
@@ -118,18 +121,21 @@
             return {status:200,data:{ok:true,...notify(value)}};
           }
           if(route==='/api/plan/validate'){
-            const value=planner.previewPlan(payload,300);
+            const value=planner.previewPlan(payload,300,hardwareProfile());
             return {status:200,data:{ok:true,plan:value.plan,
               firstPoints:value.firstPoints,truncated:value.truncated}};
           }
           if(route==='/api/waveform/validate'){
             if(typeof payload.text!=='string')return {status:400,data:{error:'波形应为文本'}};
-            const wave=waveform.parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadOhms:payload.loadOhms});
+            const wave=waveform.parseWaveformText(payload.text,{...payload,sourceType:payload.sourceType||'smu',inventory:controller.status().inventory,capabilities});
             const interval=Math.max(1,Math.ceil(wave.points.length/300));
             return {status:200,data:{ok:true,count:wave.points.length,
               durationS:wave.durationS,minimumStepS:wave.minimumStepS,
-              maximumStepS:wave.maximumStepS,sourceType:wave.sourceType,rangeV:wave.rangeV,loadOhms:wave.loadOhms,
-              maxCurrentA:wave.maxCurrentA,maxVoltageV:wave.maxVoltageV,executable:false,hardwareVerified:false,
+              maximumStepS:wave.maximumStepS,sourceType:wave.sourceType,waveformMode:wave.waveformMode,timingStatus:wave.timingStatus,
+              rangeV:wave.rangeV,loadOhms:wave.loadOhms,maxCurrentA:wave.maxCurrentA,maxVoltageV:wave.maxVoltageV,
+              moduleType:wave.moduleType,moduleDetected:wave.moduleDetected,powerBudget:wave.powerBudget,
+              captureBudget:wave.captureBudget,pulseCurrentRangesA:wave.pulseCurrentRangesA,
+              capabilityDatabaseVersion:wave.capabilityDatabaseVersion,executable:false,hardwareVerified:false,
               preview:wave.points.length<=300?wave.points:
                 wave.points.filter((_,i)=>i%interval===0)}};
           }
@@ -144,7 +150,7 @@
       onRequest:handleUiRequest,
       onPlanChanged:(value,meta={})=>{
         try{
-          const next=planner.normalizePlan(value);
+          const next=planner.normalizePlan(value,hardwareProfile());
           storedPlan={...next};
           // Draft typing updates the in-memory state; commit only completed plan
           // edits and test-tab changes. Connection settings are never project data.
@@ -169,7 +175,7 @@
         // Preserve the former plugin project slice and upgrade its mode field.
         const old=value.plan;
         const candidate={...old,kind:old.kind||(old.mode==='timed'?'it':old.mode||'iv')};
-        try{storedPlan={...planner.normalizePlan(candidate)};ui?.restorePlan(storedPlan);preview();}catch{}
+        try{storedPlan={...planner.normalizePlan(candidate,hardwareProfile())};ui?.restorePlan(storedPlan);preview();}catch{}
       },
       reset:()=>{storedPlan={};savedWorkspace=null;ui?.restoreWorkspace(EMPTY_WORKSPACE());}
     });
@@ -178,7 +184,7 @@
         throw Error('DKDS Artifact 数据中心接口不可用');
       const x=Array.from(result.xValues||[]),y=Array.from(result.yValues||[]);
       if(x.length<2||x.length!==y.length||x.length>1000000)
-        throw Error('原始测量数据必须包含等长的 X/Y 数组，且为 2 至 1000000 个点');
+        throw Error('数据数组必须包含等长的 X/Y 数组，且为 2 至 1000000 个点');
       if(!x.every(Number.isFinite)||!y.every(Number.isFinite))
         throw Error('原始测量数据包含非有限数值');
       const id='dkts-4200-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
@@ -187,19 +193,20 @@
       const xKey=String(result.xKey||(isIV?'Vd':'Time'));
       const yKey=String(result.yKey||(isIV?'Id':'Current'));
       const artifact=ctx.data.model.createTable({
-        id,name:String(result.name||'Keithley 4200A 原始测量'),
+        id,name:String(result.name||'未验证来源的测量数据'),
         ...(isIV?{semanticType:'science.transport.iv'}:{}),transient:false,
-        metadata:{instrument:'Keithley 4200A',model:controller.status().identity?.model||'KI4200A',
-          serial:controller.status().identity?.serial||'',measurementKind,
-          rawInstrumentData:true,processing:'none',dataAssignments:[]},
+        metadata:{instrument:null,instrumentClaim:'Keithley 4200A',model:controller.status().identity?.model||null,
+          serial:controller.status().identity?.serial||null,measurementKind,
+          rawInstrumentData:false,acquisitionVerified:false,origin:'caller-supplied-unverified-arrays',
+          processing:'unverified',dataAssignments:[]},
         columns:[
           {key:xKey,name:String(result.xName||xKey),unit:String(result.xUnit||''),role:'x',values:x},
           {key:yKey,name:String(result.yName||yKey),unit:String(result.yUnit||''),role:'y',values:y}
         ],
-        provenance:[{type:'acquisition',label:'Keithley 4200A 原始仪器数据',
-          producer:'com.dkts.keithley-4200',operation:'instrument-acquisition',
-          source:{model:controller.status().identity?.model||'KI4200A',
-            serial:controller.status().identity?.serial||''}}]
+        provenance:[{type:'unverified-import',label:'未验证来源的 X/Y 数据',
+          producer:'com.dkts.keithley-4200',operation:'caller-supplied-arrays',
+          source:{model:controller.status().identity?.model||null,
+            serial:controller.status().identity?.serial||null}}]
       });
       ctx.data.artifacts.upsert(artifact);
       return {id:artifact.id,kind:artifact.kind,rowCount:x.length};
@@ -216,8 +223,11 @@
           execution:execution.status()}),
         connect,identify:connect,disconnect,inspectModules:()=>controller.inspectModules(),
         executionStatus:()=>execution.status(),
-        validatePlan:()=>plan(),previewPlan:()=>planner.previewPlan(plan()),
-        validateWaveform:(points,options)=>waveform.validateWaveform(points,options),
+        validatePlan:()=>plan(),previewPlan:()=>planner.previewPlan(plan(),300,hardwareProfile()),
+        validateWaveform:(points,options={})=>waveform.validateWaveform(points,{...options,inventory:controller.status().inventory,capabilities}),
+        hardwareCapabilityDatabase:()=>capabilities.exportDatabase(),
+        moduleCapability:type=>capabilities.getModuleCapability(type),
+        chassisPowerBudget:options=>capabilities.calculateChassisPower(options),
         publishMeasurement,
         parseWaveformText:(text,options)=>waveform.parseWaveformText(text,options),
         exportPlan,importPlan

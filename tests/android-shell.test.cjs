@@ -10,19 +10,31 @@ test('Android APK includes independent native launcher and byte-identical shared
   assert.match(html,/android\/native-client\.js/);
   assert.match(html,/shared\/identity-core\.js/);
   assert.match(html,/app\.js/);
-  for(const file of ['kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'])
+  for(const file of ['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'])
     assert.equal(fs.readFileSync(path.join(assetRoot,'shared',file),'utf8'),
       fs.readFileSync(path.join(root,'src/shared',file),'utf8'));
   const manifest=fs.readFileSync(path.join(root,'android/app/src/main/AndroidManifest.xml'),'utf8');
   assert.match(manifest,/DK Test Studio/);
   assert.doesNotMatch(manifest,/DK Data Studio/);
   const bridge=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
-  assert.match(bridge,/Arrays\.equals\(request, IDN\) && !Arrays\.equals\(request, OPT\)/);
+  assert.match(bridge,/isReadOnlyKxciRequest\(request\)/);
+  assert.match(bridge,/noReply && !\(Arrays\.equals\(request, UL\) \|\| Arrays\.equals\(request, DE\)\)/);
 });
 test('Android host exercises the exact shared identity controller via native TCP adapter',async()=>{
   const writes=[];
   const window={};
-  let session=null;
+  let session=null,lastQuery='';
+  const instrumentInfo=[
+    'slotno:1,name:SMU1,model:KISMU4200,serialno:SMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
+    'slotno:2,name:PMU3,model:KIPMU4225,serialno:PMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
+    'slotno:3,name:CVU1,model:KICVU4210,serialno:CVU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026'
+  ].join(',');
+  const remoteInfo=[
+    'slotno:1,name:PA1,model:KI4200,serialno:PA001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
+    'slotno:2,name:RPM3-1,model:KIRPM4225,serialno:RPM001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026'
+  ].join(',');
+  const hex=value=>Buffer.from(value,'ascii').toString('hex');
+  const commands={idn:hex('*IDN?\0'),opt:hex('*OPT?\0'),ul:hex('UL\0'),instrument:hex('EX SystemUtil instrumentinfo(,4096,)\0'),remote:hex('EX SystemUtil remotemoduleinfo(,4096,)\0'),gn:hex('GN result\0'),de:hex('DE\0')};
   window.DKTSNative={request(payload){
     const request=JSON.parse(payload);
     let value={};
@@ -33,10 +45,22 @@ test('Android host exercises the exact shared identity controller via native TCP
       assert.equal(request.payload.sessionId,session);
       const command=Buffer.from(request.payload.base64,'base64').toString('hex');
       writes.push(command);
-      assert(['2a49444e3f00','2a4f50543f00'].includes(command));
-      value={base64:Buffer.from(command==='2a49444e3f00'
-        ?'KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0'
-        :'SMU1,PMU3,CVU1\0').toString('base64')};
+      const responses={
+        [commands.idn]:'KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0',
+        [commands.opt]:'SMUPA1,PMU3RPM1,CVU1\0',
+        [commands.instrument]:'OK\0',[commands.remote]:'OK\0',
+        [commands.gn]:(lastQuery==='instrument'?instrumentInfo:remoteInfo)+'\0'
+      };
+      if(command===commands.instrument)lastQuery='instrument';
+      if(command===commands.remote)lastQuery='remote';
+      let response='';
+      if(command===commands.ul||command===commands.de){
+        assert.equal(request.payload.noReply,true,'KXCI UL/DE must be sent as write-only commands');
+      }else{
+        assert(Object.hasOwn(responses,command),'Unexpected KXCI request '+command);
+        response=responses[command];
+      }
+      value={base64:Buffer.from(response).toString('base64')};
     }else if(request.op==='close'){
       session=null;value={closed:true};
     }else assert.fail('Unexpected native operation '+request.op);
@@ -46,6 +70,7 @@ test('Android host exercises the exact shared identity controller via native TCP
   vm.createContext(context);
   for(const file of [
     'android/web/bootstrap.js',
+    'src/shared/hardware-capabilities.js',
     'src/shared/kxci-protocol.js',
     'src/shared/measurement-plan.js',
     'src/shared/waveform.js',
@@ -58,7 +83,10 @@ test('Android host exercises the exact shared identity controller via native TCP
   assert.equal(connected.phase,'connected');
   const modules=await client.post('/api/modules/inspect',{});
   assert.equal(modules.inventory.knownModules.length,3);
-  assert.deepEqual(writes,['2a49444e3f00','2a4f50543f00']);
+  assert.equal(modules.inventory.hardwareLimitsVerified,true);
+  assert.deepEqual(writes,[commands.idn,commands.opt,commands.ul,commands.instrument,commands.gn,commands.remote,commands.gn,commands.de]);
+  const database=await client.post('/api/hardware/capabilities');
+  assert.equal(database.database.schema,'dkts.4200a.hardware-capabilities.v1');
   const plan=await client.post('/api/plan/validate',{kind:'iv',points:3,loops:2});
   assert.equal(plan.plan.executable,false);
   const waveform=await client.post('/api/waveform/validate',{text:'0,0\n0.00000002,1'});

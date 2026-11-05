@@ -2,21 +2,21 @@
 
 **独立的 Keithley 4200A-SCS 科研测试工作台**。与 [DK Data Studio](https://github.com/davidkane0526/DK-Data-Studio) 分离开发，目标是逐步承担 Clarius 的日常测量工作界面。保留仪器 KXCI、原厂驱动及必要的硬件配置环境。
 
-## 当前实际能力：v0.3.0（只读预览）
+## 当前实际能力：v0.3.12（只读预览）
 
 - 独立 Windows Electron UI，以及仅监听 `127.0.0.1` 的本机浏览器工作台。
 - 打开工作台自动尝试连接，Windows 原生窗口采用**无边框（frameless）设计**，不显示系统顶部最小化/最大化/关闭标题栏。应用顶部采用约 46px 的**可拖动自定义标题栏**，左侧放 DK Test Studio 图标、应用名称、UI 热更新版本，右侧放 Windows 最小化、最大化/还原、关闭控制。底部**另设独立约 29px 的状态栏**，只显示运行消息和**唯一的仪器连接状态按钮**（连接变化写入消息历史，但不重复覆盖左侧消息）；点击消息可查看最近 30 条会话日志，点击连接状态可查看诊断和设置。浏览器和独立 Android 版同样显示两条紧凑栏，但隐藏 Windows 专属窗口控制。弹窗关闭时无需进行任何手动操作。
 - 从原项目 `4200` 分支迁移 TCP 网络适配器：自动网卡、以太网、Wi-Fi、指定网卡/源地址；超时和详细日志隔离。
-- 真实仪器只发送硬编码的只读 `*IDN?\0` 与 `*OPT?\0` 查询，验证设备型号和序列号。**没有 SMU/PMU 输出、扫描或原生文件导出**。
-- 连接后自动查询 KXCI 的 `*OPT?` 装机模块列表，识别 SMU、PMU、CVU、PGU 类别；这**不代表已经验证模块额定电压、电流、时间分辨率或接线**。
+- 真实仪器只发送固定只读查询：`*IDN?`、`*OPT?`，以及 KXCI `UL` 模式下的 `SystemUtil instrumentinfo`、`remotemoduleinfo` 和 `GN result`，最后以 `DE` 恢复系统模式。**没有 SMU/PMU 输出、扫描或原生文件导出**。
+- 连接后读取 KXCI `*OPT?` 中的 SMU 中/高功率类别、PA、PMU/RPM、PGU、CVU、VS、VM 配置，并通过 SystemUtil 查询物理型号、序列号和校准信息。能力数据库据已识别模块类别计算理论限值；未知或冲突项保持未知。**外部 DUT、线缆和接线状态仍需现场确认**。
 - **测试方式采用真正两级界面**：首页只显示测试类型卡片，点击后整页隐藏选择区，切换到独立测试工作区，仅保留测试名称与返回入口。参数栏右上角使用图标按钮收起，收起后可从数据标题旁的展开图标恢复；左上角返回使用单独箭头图标。参数区采用可一键收起的紧凑侧栏，数据读取、图表与原始数据表尽可能使用整页宽高。桌面端无固定顶部状态栏，绘图区随剩余垂直空间扩展。桌面四列、窄屏至少两列，DKDS 插件同样使用二级页面与返回导航。I–V/I–t 的参数规划可用，任意波形可校验输入，其余测试只显示待开发配置占位。**实测读数和实测绘图均保持空白，绝不以模拟曲线冒充仪器数据。**
-- SMU I–V 与 I–t 的独立测试方案编辑、循环次数/通道/规划电流限值配置、扫描点序列预览（仅规划，不发送输出）。
+- SMU I–V 与 I–t 的独立测试方案编辑、循环次数/通道/规划电流限值配置、扫描点序列预览（仅规划，不发送输出）。共享硬件能力数据库覆盖 SMU/PA、PMU/RPM、PGU、CVU、VS/VM、CVIV 和 GNDU，并可通过 `npm run hardware:export` 导出为 `DKTS-4200A-Hardware-Capability-Database-v1.json` 供外部审查。
 - 可粘贴两列时间(s)、电压(V)，做严格递增检查、纯软件方案验证和本机波形预览。**预览不是仪器测量，也不证明硬件能执行该时间尺度**。
-- 自动化测试含伪 4200A TCP 服务、身份校验、HTTP 安全边界、任意波形规划。
+- 自动化测试含伪 4200A TCP 服务、身份校验、KXCI 模块类别/物理型号交叉核验、HTTP 安全边界、任意波形规划。
 
 ## DK Data Studio 插件兼容
 
-**核心逻辑始终共用一份源码。** 独立 Windows 版和 DKDS 插件版通过各自宿主的 TCP/UI 接口，调用 `src/shared/` 中相同的 KXCI 身份协议、连接状态机、I–V/I–t 方案和任意波形规划。外部插件沿用原有 `com.dkds.keithley-4200` ID，以 `0.4.3` 版本覆盖内置基线 `0.3.0`，目标 API `1.19.0`。
+**核心逻辑始终共用一份源码。** 独立 Windows 版和 DKDS 插件版通过各自宿主的 TCP/UI 接口，调用 `src/shared/` 中相同的 KXCI 身份协议、连接状态机、I–V/I–t 方案和任意波形规划。外部插件使用独立 ID `com.dkts.keithley-4200`，当前开发版本 `0.6.14`，目标 API `1.19.0`，不覆盖 DKDS 内置插件。
 
 执行 `npm run plugin:build` 可生成 `.dkplugin` 候选；GitHub Actions 另用 DK Data Studio 现有 SDK 验证并生成正式插件 Artifact。插件支持原有 `keithley-4200` 工作区入口和项目切片，但**尚未在真实 DKDS 客户端及 4200A 仪器上验证安装与运行**。在开发完成仪器独占 Broker 前，不允许独立版和插件版同时控制同一台仪器。
 
@@ -26,25 +26,25 @@
 
 `android/` 包含 **DK Test Studio 自己的 Android 原生应用**。它不依赖 DK Data Studio，也不需要安装 DKDS 插件。
 Android UI 热更新采用与 Windows 相同的界面文件，同时识别 `DKTSNative` 原生宿主并启用独立的 Android 样式。对 targetSdk 35 的 Android 15+ 系统栏采用 CSS `safe-area-inset-*` 避让，兼顾竖屏两列测试卡片、横屏布局和更大的底部触控区域。**目前是代码和自动化测试覆盖，尚未在目标 Android 平板实机截图验收**。
-Android 使用本机 WebView 工作台、独立原生 Java TCP 网络桥接（可绑定 USB Ethernet / Wi-Fi Network）和与 Windows / DKDS 插件 **字节完全一致** 的 `src/shared/` 协议及测试规划核心。当前安全边界仍限制为只读 `*IDN?` / `*OPT?`。
+Android 使用本机 WebView 工作台、独立原生 Java TCP 网络桥接（可绑定 USB Ethernet / Wi-Fi Network）和与 Windows / DKDS 插件 **字节完全一致** 的 `src/shared/` 协议及测试规划核心。当前安全边界只允许固定身份、模块类别与物理模块元数据只读命令，不开放任意 KXCI 命令。
 
-CI 将通过独立 Android 构建任务生成 APK，并将其与 Windows Setup、Portable、DKDS `.dkplugin` 共同发布到同一次 GitHub 预览 Release。详情见 [Android 构建与网络说明](android/README.md)。
+CI 将通过独立 Android 构建任务生成 APK，并与 Windows Portable、DKDS `.dkplugin`、UI 热更新包及硬件能力数据库共同发布到同一次 GitHub 预览 Release。详情见 [Android 构建与网络说明](android/README.md)。
 
 ## 版本标识与原生图标
 
 软件标题右侧会显示独立的 **UI 资源版本**（`UI <Git commit 前8位>`），鼠标悬停可查看完整 40 位提交号。每次 GitHub 热更新包生成时，在 Windows 和 Android 的 HTML 中嵌入相同的 Git SHA；刷新页面后同步显示新版本。离线内置界面标为“UI 内置版”。`UI` 版本与原生安装包版本是两条独立版本线，不应混为一谈。
 
-Windows 应用图标、任务栏、任务管理器、安装包 EXE，以及 Android 启动图标来自同一套 **DK Test Studio 原生图标源**。通过 `npm run icons:build` 用无外部依赖的矢量几何绘制器生成多分辨率 `build/icon.ico`、Electron 窗口图标和 Android 各密度 `mipmap` 图标。Windows 启动时设置 `AppUserModelID`，打包时将同一图标嵌入安装版与便携版 EXE。这些属于原生资源，必须在首次切换时重新构建安装包；之后普通 UI 修改不影响图标，也无需重新构建。
+Windows 应用图标、任务栏、任务管理器、便携版 EXE，以及 Android 启动图标来自同一套 **DK Test Studio 原生图标源**。通过 `npm run icons:build` 用无外部依赖的矢量几何绘制器生成多分辨率 `build/icon.ico`、Electron 窗口图标和 Android 各密度 `mipmap` 图标。Windows 启动时设置 `AppUserModelID`，打包时将同一图标嵌入便携版 EXE。这些属于原生资源，必须在首次切换时重新构建安装包；之后普通 UI 修改不影响图标，也无需重新构建。
 
 ## 界面热更新（快速开发模式）
 
 **每次向 `main` 推送任何更改，都执行全平台完整构建。热更新只是额外的快速体验渠道，不替代原生安装包。**
 
-1. `Native Shell Windows Android and DKDS Release` 在**每一次 `main` 提交**时运行，不限制修改路径，也不取消排队中的旧提交。分别构建 Windows Setup、Windows Portable、独立 Android APK、DKDS 插件以及 UI 更新资源。
-2. 五项资产全部通过测试和构建后，发布到唯一的 `dkts-preview-<GitHub Actions run ID>` Release，并检查 **5/5** 资产完整性。即使后来有新提交，较早一次构建成功也仍应发布，不因 HEAD 已变化而拒绝。
+1. `Native Shell Windows Android and DKDS Release` 在**每一次 `main` 提交**时运行，不限制修改路径，也不取消排队中的旧提交。只构建 Windows Portable、独立 Android APK、DKDS 插件、UI 更新资源和硬件能力数据库。
+2. 五项资产全部通过测试和构建后，发布到唯一的 `dkts-preview-v<package version>-a<run number>` Release，并检查 **5/5** 资产完整性。即使后来有新提交，较早一次构建成功也仍应发布，不因 HEAD 已变化而拒绝。
 3. `Fast UI Hot Update` 同样在每次提交时运行，另行发布 `dkts-ui-<commit SHA>` 资源包；若该提交已不是最新 HEAD，则跳过*过时的热更新*，防止旧内容覆盖新版本，但对应的完整构建仍继续并发布。
 4. 已安装的独立 Windows 与 Android 软件启动时以及约每 3 分钟检查一次热更新，验证后从私有缓存刷新；离线继续运行已安装版本。
-5. Release 必须分别提供 Windows 安装版、Windows 便携版、独立 Android APK、DKDS 插件和轻量 UI 更新资源。汇报开发结果时同时附上实际发布并验证的 Release 链接；不可用 Actions 地址冒充已完成的 Release。
+5. Release 必须分别提供 Windows Portable、独立 Android APK、DKDS 插件、UI 更新资源和硬件能力数据库。汇报开发结果时同时附上实际发布并验证的 Release 链接；不可用 Actions 地址冒充已完成的 Release。
 
 **第一次必须安装一次具有热更新能力的新壳**：首次支持热更新的四文件原生版是 [dkts-preview-41591728008](https://github.com/davidkane0526/DK-Test-Studio/releases/tag/dkts-preview-41591728008)。旧版不具备自动拉取资源包能力。Android 当前是调试签名 APK，如签名不同可能需要卸载旧预览版。
 
@@ -71,11 +71,11 @@ npm start
 npm run dist:win
 ~~~
 
-GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，并构建 Windows Setup/Portable、独立 Android APK、DKDS 插件与热更新资源，完成后统一发布到 GitHub Release。每次发布必须核对 5 个文件，未成功构建则不能声称 Release 已发布。测试通过不等于完成真实仪器验收。
+GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，并构建 Windows Portable、独立 Android APK、DKDS 插件、热更新资源与硬件能力数据库，完成后统一发布到 GitHub Release。每次发布必须核对 5 个文件，未成功构建则不能声称 Release 已发布。测试通过不等于完成真实仪器验收。
 
 ## 安全与控制边界
 
-本阶段**不会施加电压/电流**。不得把波形规划的 ±200 V 软件输入范围当作任一已安装模块的硬件安全额定值。任何真实 SMU/PMU 输出功能都必须先进行模块检测、命令序列验证、端口/限流配置、故障关闭、物理接线检查及现场验收。HTTP 控制服务仅允许本机访问，不支持远程 LAN 操作。
+本阶段**不会施加电压/电流**。不得把通用规划范围或单一电压边界当作任一已安装模块的安全额定值，必须依据已识别的模块类别、电压档、负载线及接线条件判断。任何真实 SMU/PMU 输出功能都必须先进行模块检测、命令序列验证、端口/限流配置、故障关闭、物理接线检查及现场验收。HTTP 控制服务仅允许本机访问，不支持远程 LAN 操作。
 
 原始仪器数据、Clarius 原生文件/图像与本软件绘制的图必须严格区分。有关路线与验收条件参见 [开发路线](docs/ROADMAP.md)。
 
@@ -91,7 +91,7 @@ GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，
 
 ## 双版本号
 
-顶部始终同时显示原生安装版本（当前 `v0.3.0`，Windows/Android 各自从真实宿主查询）与 `UI <Git SHA 前8位>`（每次热更新及完整构建写入），避免安装版和热更新版混淆。用户无需联网就可以从内置页面看到此次构建对应的 UI 提交号。用户界面的版本以实际装机环境为准，而不是只依赖 Release 的标签。
+顶部始终同时显示原生安装版本（当前 v0.3.12，Windows/Android 各自从真实宿主查询）与 `UI <Git SHA 前8位>`（每次热更新及完整构建写入），避免安装版和热更新版混淆。用户无需联网就可以从内置页面看到此次构建对应的 UI 提交号。用户界面的版本以实际装机环境为准，而不是只依赖 Release 的标签。
 
 
 ## 控件视觉统一（Windows、Android、浏览器）
@@ -138,7 +138,7 @@ Android v0.2.4 开始采用固定签名的 `assembleRelease` APK。GitHub Action
 
 Android 绘图区允许普通单指页面滚动；双指缩放操作由 DKTS 宿主适配 DKDS 的 relayout API；可拖动的工具条使用 DKDS 自有手柄及触控拖拽实现。工具按钮换成轻量 SVG 图标，工具条半透明度、阴影和悬停效果已统一。去掉原生版本按钮和其父元素的 `title`，避免 Windows 上出现黑边系统 Tooltip。
 
-因为本次引入新的绘图运行时，UI 热更新资源需要 `minShell:2`。v0.2.6 及更老的安装包不会加载不兼容的新图表界面；请先安装 v0.2.7。桌面端优先使用 Portable EXE，安装版仅保留兼容构建。
+因为本次引入新的绘图运行时，UI 热更新资源需要 `minShell:2`。v0.2.6 及更老的安装包不会加载不兼容的新图表界面；请先安装 v0.2.7。桌面端只发布 Portable EXE，不发布 Setup 安装版。
 
 
 ## v0.3.0 工作区标签、历史与 Android 手势
@@ -155,3 +155,17 @@ Android 交互沿用 DKDS 的滚动交接原则：普通内容区域与空白面
 Windows 便携版使用 Electron userData 目录的 workspace-state.json，写入完整临时文件后原子替换。Android 使用应用私有目录中的 workspace-state-v1.json，通过 32 KiB 分块读写，已完成写入的数据在签名一致的 APK 升级后继续保留。DKDS 外部插件将同一工作区快照保存在自己的项目切片中，不使用不安全的 iframe same-origin 权限，也不会替换 DKDS 内置 4200 插件。
 
 当前单个快照最大 64 MiB，超过限制或恢复失败会向界面报告，避免静默覆盖已有文件。本版未启用未经验证的 SMU/PMU 硬件输出。长期连续测量的分段文件存储、备份与数据导出仍须在真正的采集层完成。
+
+
+## v0.3.12：4200A 硬件能力数据库与安全策略
+
+- 共享能力数据库覆盖 SMU、SMUPA、HPSMU、HPSMUPA、4225-PMU、4225-RPM、4220-PGU/VPU、CVU、VS、VM、CVIV 和 GNDU。
+- 安全策略同时覆盖 CVU 型号与 4200-CVU-PWR 附件识别、VS/VM 逻辑通道绑定、PA/RPM 宿主模块依赖、CVIV 高压开关矩阵和 GNDU 接地电流边界。CVIV 特殊 400 V 差分模式要求三个 SMU 同步、指定 Bias Tee 接法且仅限封装器件，不允许用于晶圆级器件。
+- 运行 npm run hardware:export 可导出 DKTS-4200A-Hardware-Capability-Database-v1.json。每次完整 GitHub Release 同时发布该 JSON，包含模块能力、数值边界、安全策略、数据来源和未确认项目，便于外部审查。
+- 已识别 SMU 按物理功率类别、实际源电压和额定输出功率计算电流限值（中功率 2.1 W、高功率 21 W），未知模块不套用默认电流值。
+- PMU/PGU 规划按硬件规格校验：Segment Arb 通用硬件规格为每段 20 ns 至 40 s；PGU 10 V 的 KXCI Rev. E 量程专属条目列出 10 ns 最小值，与该手册通用说明及数据表的 20 ns 存在冲突，数据库采用更具体的 10 ns 条目并显式标记冲突。每通道最多 2048 段、每通道最多 512 个序列、序列循环上限 10^12，时间分辨率 10 ns。PMU 硬件采集最高 200 MSa/s，每个 A/D 每次测试严格少于 1,000,000 点（最多 999,999 点）。采样点数按测量窗口 × 采样率 × 脉冲数 × 扫描点数 × 步进点数计算；Clarius ITM 与 UTM 的数据点上限分别为 4,096 和 65,536，不能误当成 PMU 硬件采集上限。
+- 当前 KXCI 远程命令路径另有接口限制：Segment Arb 单段最多 1 s，最小分段时间按量程分别为 PMU 10 V 20 ns、PGU 10 V 10 ns、40 V 50 ns；单条数组命令最多 128 个值（可通过 ADD 命令分批追加），KXCI 波形生成点数和数据缓冲容量均为每通道 65,536 点。Rev. E 对严格小于 65,536 的文字表述与 65,536/总测量时长的采样率公式存在边界歧义，数据库保留该歧义并标记 65,536 点端点待 Rev. F/实机核验，不擅自降为 65,535 点。规划界面保留硬件能力上限，并单独标记当前接口不兼容的方案。
+- 上述 KXCI 接口数值来自可下载并核对内容的 Rev. E 手册。Tektronix 当前支持索引已列出 Rev. F（2026-10-09），但当前可访问的手册详情页仍返回 Rev. E，因此 Rev. E 接口边界在数据库中标为待 Rev. F 正文复核，不作为硬件能力上限。
+- 加入 4200A 500 W 机箱功耗模型。只有完整识别安装模块和活动通道时才给出确定预算。
+- 当前版本只允许固定的 *IDN?、*OPT? 和 SystemUtil 物理模块元数据只读查询，不开放任意 KXCI 指令或 SMU/PMU/PGU 输出。调用方提供的 X/Y 数组不会被误标记为原始仪器数据。
+- 完整发布资产为 Windows Portable、Android APK、DKDS 插件、UI 热更新包及硬件能力数据库，共 5 项。

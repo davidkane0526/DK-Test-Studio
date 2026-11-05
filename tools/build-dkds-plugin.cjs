@@ -12,6 +12,7 @@ const folder=path.join(root,'dist','dkds-plugin'+suffix);
 const template=path.join(root,'integrations','dkds');
 const manifest=JSON.parse(fs.readFileSync(path.join(template,'plugin.json'),'utf8'));
 const copy={
+  'hardware-capabilities.js':'src/shared/hardware-capabilities.js',
   'kxci-protocol.js':'src/shared/kxci-protocol.js',
   'measurement-plan.js':'src/shared/measurement-plan.js',
   'waveform.js':'src/shared/waveform.js',
@@ -42,7 +43,7 @@ function adaptPluginSource(name,data){
     const marker="const PLUGIN_ID='"+ORIGINAL_OWNER+"';";
     if(!data.includes(marker))throw Error('Interop owner marker missing');
     data=data.replace(marker,"const PLUGIN_ID='"+EXTERNAL_OWNER+"';");
-  }else if(['kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'].includes(name)){
+  }else if(['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'].includes(name)){
     const marker="'"+ORIGINAL_OWNER+"'";
     if(!data.includes(marker))throw Error('Shared module registration owner missing: '+name);
     data=data.replace(marker,"'"+EXTERNAL_OWNER+"'");
@@ -96,7 +97,7 @@ function createSharedShellSource(){
 }
 
 const requireFiles=new Set(manifest.scripts);
-if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.6.13')
+if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.6.15')
   throw Error('Unexpected standalone DK Test Studio plugin identity / API / version');
 if(requireFiles.size!==Object.keys(copy).length||Object.keys(copy).some(x=>!requireFiles.has(x)))
   throw Error('Plugin manifest scripts must exactly match staging files');

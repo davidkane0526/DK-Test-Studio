@@ -36,20 +36,40 @@ function prepare(){
     }
   };
   vm.createContext(sandbox);
-  for(const file of ['kxci-protocol.js','measurement-plan.js','waveform.js',
+  for(const file of ['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','waveform.js',
     'identity-core.js','interop.js','standalone-shell.js','presentation.js','plugin.js']){
     vm.runInContext(fs.readFileSync(path.join(staged,file),'utf8'),sandbox,
       {filename:file,timeout:10000});
   }
+  const instrumentInfo=[
+    'slotno:1,name:SMU1,model:KISMU4200,serialno:SMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
+    'slotno:2,name:SMU2,model:KISMU4210,serialno:SMU002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
+    'slotno:3,name:PMU3,model:KIPMU4225,serialno:PMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
+    'slotno:4,name:CVU1,model:KICVU4210,serialno:CVU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026'
+  ].join(',');
+  const remoteInfo=[
+    'slotno:2,name:PA2,model:KI4200,serialno:PA001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
+    'slotno:3,name:RPM3-1,model:KIRPM4225,serialno:RPM001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026'
+  ].join(',');
+  let lastQuery='';
   const tcp={
     open:async()=>({sessionId:'stub',remoteAddress:'169.254.111.118',remotePort:1225}),
     exchange:async p=>{
       transmit++;
       const cmd=Buffer.from(p.base64,'base64').toString('hex');
-      assert(['2a49444e3f00','2a4f50543f00'].includes(cmd));
-      return {base64:Buffer.from(cmd==='2a49444e3f00'
-        ?'KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0'
-        :'SMU1,HPSMUPA2,PMU3,CVU1\0').toString('base64')};
+      const replies={
+        '2a49444e3f00':'KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0',
+        '2a4f50543f00':'SMU1,HPSMUPA2,PMU3RPM1,CVU1\0',
+        '554c00':'OK\0',
+        '45582053797374656d5574696c20696e737472756d656e74696e666f282c343039362c2900':'OK\0',
+        '45582053797374656d5574696c2072656d6f74656d6f64756c65696e666f282c343039362c2900':'OK\0',
+        '474e20726573756c7400':(lastQuery==='instrument'?instrumentInfo:remoteInfo)+'\0',
+        '444500':'OK\0'
+      };
+      if(cmd==='45582053797374656d5574696c20696e737472756d656e74696e666f282c343039362c2900')lastQuery='instrument';
+      if(cmd==='45582053797374656d5574696c2072656d6f74656d6f64756c65696e666f282c343039362c2900')lastQuery='remote';
+      assert(Object.hasOwn(replies,cmd),'Unexpected KXCI request '+cmd);
+      return {base64:Buffer.from(replies[cmd]).toString('base64')};
     },
     close:async()=>true
   };
@@ -83,7 +103,7 @@ function prepare(){
 }
 test('DKDS plugin displays the exact standalone app in a sandboxed workbench',async()=>{
   const env=prepare(),installed=await env.captured.activate(env.ctx),v=env.view;
-  assert.equal(env.captured.manifest.version,'0.6.13');
+  assert.equal(env.captured.manifest.version,'0.6.15');
   assert.equal(v.activity.openMode,'window');
   assert.equal(v.top.activity,'dkts-keithley-4200');
   assert.equal(v.statusSpec.icon,'');
@@ -117,10 +137,13 @@ test('DKDS plugin displays the exact standalone app in a sandboxed workbench',as
   assert(!v.frame.srcdoc.includes('<script src="/app.js"'));
   assert.equal(v.capability.methods.validatePlan().kind,'iv');
   assert.equal(v.capability.methods.exportPlan().schema,'dkts.4200.interop.v1');
+  assert.equal(v.capability.methods.hardwareCapabilityDatabase().schema,'dkts.4200a.hardware-capabilities.v1');
   const published=v.capability.methods.publishMeasurement({xValues:[0,1],yValues:[1e-9,2e-9],xUnit:'V',yUnit:'A'});
   assert.equal(published.rowCount,2);
   assert.equal(v.artifacts.length,1);
-  assert.equal(v.artifacts[0].metadata.rawInstrumentData,true);
+  assert.equal(v.artifacts[0].metadata.rawInstrumentData,false);
+  assert.equal(v.artifacts[0].metadata.acquisitionVerified,false);
+  assert.equal(v.artifacts[0].provenance[0].type,'unverified-import');
   assert.equal(v.artifacts[0].semanticType,'science.transport.iv');
   assert.equal(v.artifacts[0].columns[0].key,'Vd');
   assert.equal(v.artifacts[0].columns[1].key,'Id');
@@ -162,10 +185,10 @@ test('request bridge only permits read-only KXCI and same form plan validation',
   assert.equal(connect.data.phase,'connected');
   const options=await request(4,'POST','/api/modules/inspect');
   assert.equal(options.data.inventory.knownModules.length,4);
-  assert.equal(env.view.transmit,2);
+  assert.equal(env.view.transmit,8);
   const forbidden=await request(5,'POST','/api/smu/source',{voltage:15});
   assert.equal(forbidden.status,404);
-  assert.equal(env.view.transmit,2,'No hardware source command may be sent');
+  assert.equal(env.view.transmit,8,'Only the fixed read-only identity and inventory sequence may be sent');
   const exportPlan=v.capability.methods.exportPlan();
   assert.equal(exportPlan.plan.executable,false);
   v.slice.restore({plan:{mode:'iv',loops:3,points:5}});

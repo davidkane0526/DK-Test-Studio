@@ -60,3 +60,15 @@ test('Windows and Android hot-update verifiers persist the same a-number and pac
   assert.match(android,/meta\.put\("uiVersion",bundle\.getString\("uiVersion"\)\)/);
   assert.match(android,/meta\.put\("packageVersion",bundle\.getString\("packageVersion"\)\)/);
 });
+
+test('Windows desktop releases build and publish only the Portable executable',()=>{
+  const pkg=JSON.parse(read('package.json'));
+  const workflow=read('.github/workflows/windows-preview.yml');
+  assert.deepEqual(pkg.build.win.target.map(item=>item.target),['portable']);
+  assert.match(pkg.scripts['dist:win'],/electron-builder --win portable$/);
+  assert.match(workflow,/Build Windows Portable/);
+  assert.match(workflow,/electron-builder --win portable/);
+  assert.match(workflow,/release\/windows -name '\*Portable\*\.exe'/);
+  assert.match(workflow,/release -type f \| wc -l\)" -eq 5/);
+  assert.doesNotMatch(workflow,/Setup.*\.exe|--win nsis/);
+});
