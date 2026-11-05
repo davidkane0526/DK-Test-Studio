@@ -58,6 +58,6 @@ test('malformed OPT response keeps verified identity but does not invent an inve
   requests++;const cmd=Buffer.from(base64,'base64').toString('ascii');
   return {base64:Buffer.from(cmd===protocol.IDN_REQUEST?'KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0':'UNRECOGNIZED RESPONSE IN EMULATION\0').toString('base64')};
  },close:async()=>true};const ctl=createIdentityController({tcp});
- try{await ctl.connect({host:'127.0.0.1'});const s=await ctl.inspectModules();assert.equal(s.phase,'connected');assert.equal(s.inventory.unknownModules.length,1);assert.equal(s.inventory.hardwareLimitsVerified,false);assert.equal(requests,2);}
+ try{await ctl.connect({host:'127.0.0.1'});const s=await ctl.inspectModules();assert.equal(s.phase,'connected');assert.equal(s.inventory.unknownModules.length,1);assert.equal(s.inventory.hardwareLimitsVerified,false);assert.match(s.inventoryError,/没有可识别的模块类型/);assert.equal(requests,2);}
  finally{await ctl.dispose();}
 });
