@@ -116,8 +116,11 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   assert.equal(caps.DATABASE.safetyPolicies.pulse.latestKxciRevisionContentVerified, false);
   const manualIndex = caps.DATABASE.sources.find(source => source.id === 'tek-4200a-current-manual-index');
   assert.equal(manualIndex.observedManualRevisions.PMU.contentRetrieved, false);
-  assert.equal(manualIndex.indexConflicts.PMU.modelSupportIndexListing.partNumber, '4200A-PMU-900-01C');
-  assert.equal(manualIndex.indexConflicts.PMU.manualSpecificPageListing.partNumber, '4200A-PMU-900-01D');
+  assert.equal(manualIndex.observedManualRevisions.PMU.partNumber, '4200A-PMU-900-01D');
+  assert.equal(manualIndex.indexObservationCheckedAt, '2026-11-05');
+  assert.equal(caps.DATABASE.safetyPolicies.pulse.latestIndexListedPmuRevision, '4200A-PMU-900-01D, 22 Oct 2026');
+  assert.equal(caps.DATABASE.safetyPolicies.pulse.latestPmuRevisionContentVerified, false);
+  assert.equal(caps.DATABASE.safetyPolicies.pulse.numericPmuSpecsCurrentlyGroundedInRevision, '4200A-PMU-900-01C, May 2024');
 });
 test('chassis power is calculated from KXCI inventory and active test channels', () => {
   const inventory = { slots: [
