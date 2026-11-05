@@ -181,6 +181,11 @@ async function exportCapabilities(){
     const payload=await apiGet('/api/capabilities/export');
     const database=payload.database||payload;
     if(!database.databaseVersion||!database.modules)throw Error('导出文件内容不完整');
+    if(window.DKTSClient&&typeof window.DKTSClient.saveCapabilityDatabase==='function'){
+      const saved=await window.DKTSClient.saveCapabilityDatabase(database);
+      showStatusMessage('已生成 '+saved.filename+'，请在系统分享面板中保存或发送','success');
+      return;
+    }
     const blob=new Blob([JSON.stringify(database,null,2)+'\n'],{type:'application/json'});
     const url=URL.createObjectURL(blob),link=document.createElement('a');
     link.href=url;link.download='4200a-capabilities-safety-v'+database.databaseVersion+'.json';
