@@ -25,7 +25,11 @@ test('Chromium scrollbar uses thin rounded transparent style without arrow butto
 test('two frequent selects are progressively enhanced without changing form inputs',()=>{
   assert.match(html,/<select name="networkMode">/);
   assert.match(html,/<select name="direction">/);
-  assert.equal((html.match(/<select /g)||[]).length,4);
+  assert((html.match(/<select /g)||[]).length>=13,'Terminal and Xsweep/Psweep controls must be present');
+  assert.match(html,/id="home-terminal-source"/);
+  assert.match(html,/id="header-terminal-drain"/);
+  assert.match(html,/id="xsweep-terminal"/);
+  assert.match(html,/id="psweep-terminal"/);
   assert.match(html,/<select id="waveform-source-type">/);
   assert.match(html,/<select id="waveform-range-v">/);
   assert.match(app, /function enhanceWorkspaceSelects\(\)/);
