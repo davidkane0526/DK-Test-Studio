@@ -31,6 +31,15 @@ test('browser SDK modules use the same implementation as Node',()=>{
   assert.throws(()=>interop.readPlanEnvelope({...envelope,pluginId:'builtin.theme'},plan),/不支持/);
   assert.throws(()=>interop.readPlanEnvelope({...envelope,schema:'unknown'},plan),/不支持/);
   assert.throws(()=>interop.readPlanEnvelope({...envelope,plan:{...envelope.plan,executable:true}},plan),/未获验证/);
+  const highPowerInventory={inventory:{slots:[{family:'SMU',channel:1,powerClass:'high'}]}};
+  const highPowerEnvelope=interop.createPlanEnvelope(
+    {kind:'iv',sourceSmU:1,startV:200,stopV:200,complianceA:0.1},plan,highPowerInventory
+  );
+  assert.equal(highPowerEnvelope.plan.maxComplianceA,0.105);
+  assert.throws(()=>interop.readPlanEnvelope(highPowerEnvelope,plan),/规划范围/,
+    'Import without the matching read-only inventory must fall back to the conservative limit');
+  assert.equal(interop.readPlanEnvelope(highPowerEnvelope,plan,highPowerInventory).complianceA,0.1);
+
 });
 test('DKDS package contains byte-for-byte copies of the shared core',()=>{
   const pkg=JSON.parse(fs.readFileSync(require('../tools/build-dkds-plugin.cjs').artifact,'utf8'));
