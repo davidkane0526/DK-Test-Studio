@@ -119,6 +119,13 @@ test('exported module database includes dedicated safety policies for all non-SM
   assert.equal(p.accessories.PA.allowedHostFamily, 'SMU');
   assert.equal(p.accessories.RPM.allowedHostFamily, 'PMU');
   assert.equal(p.switchMatrix.CVIV.forbidDirectMainsConnection, true);
+  assert.equal(p.switchMatrix.CVIV.maximumVoltagePerSignalPathV, 210);
+  assert.equal(p.switchMatrix.CVIV.biasTeeModes.biasTSmuCvHiLo.maximumDcCurrentA, 1);
+  assert.equal(p.switchMatrix.CVIV.biasTeeModes.biasTSmuLoICvHiLo.maximumDcCurrentA, 1e-4);
+  assert.equal(p.switchMatrix.CVIV.specialDifferentialMode.maximumDifferentialVoltageV, 400);
+  assert.equal(p.switchMatrix.CVIV.specialDifferentialMode.requiresThreeSynchronizedSmuChannels, true);
+  assert.equal(p.switchMatrix.CVIV.specialDifferentialMode.packagedDevicesOnly, true);
+  assert.equal(caps.DATABASE.modules.CVIV.specialDifferentialMode.waferLevelAllowed, false);
   assert.equal(p.groundUnit.GNDU.doNotUseAsVoltageSource, true);
   const unknownCvu = caps.getCvuCapabilities(null, { powerOptionRequested: true });
   assert.equal(unknownCvu.known, false);
