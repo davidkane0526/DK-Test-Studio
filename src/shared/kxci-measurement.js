@@ -68,6 +68,9 @@
     const active=ROLES.filter(role=>channelNumber(plan.terminals[role])!==null);
     const channels=Object.fromEntries(active.map(role=>[role,channelNumber(plan.terminals[role])]));
     if(!channels.drain)throw Error('当前 KXCI 用户模式需要漏极 SMU');
+    // KXCI SMU current-mode TI responses map SMU1..SMU8 to A..H.
+    // An SMU9 assignment must not be accepted without protocol evidence.
+    if(channels.drain>8)throw Error('当前 KXCI TI 电流回读仅核验 SMU1 至 SMU8，不能选择 SMU9 测量');
     const unsupported=ROLES.filter(role=>{
       const name=plan.terminals[role];
       return name!=='None'&&name!=='GNDU'&&!channelNumber(name);
@@ -103,8 +106,14 @@
     if(!Number.isFinite(currentA))throw Error('KXCI TI 返回非有限电流');
     const status=m[1].toUpperCase();
     if(!['N','C'].includes(status))throw Error('KXCI TI 状态异常：'+status);
-    return Object.freeze({currentA,status,channel:m[2].toUpperCase(),
-      rawResponse:text,requestedSmU:expectedChannel});
+    const requested=integer(expectedChannel,'TI 请求通道',1,8);
+    const channel=m[2].toUpperCase();
+    const observed='ABCDEFGH'.indexOf(channel)+1;
+    if(observed!==requested)
+      throw Error('KXCI TI 响应通道不匹配：请求 SMU'+requested+'，返回 '+channel+
+        (observed?' (SMU'+observed+')':' (未知通道)'));
+    return Object.freeze({currentA,status,channel,
+      rawResponse:text,requestedSmU:requested});
   }
   function createRunner(options={}){
     const {controller,execution}=options;
@@ -199,7 +208,9 @@
             currentA:sample.currentA,sourceVoltageV:point.voltages.source,
             drainVoltageV:point.voltages.drain,gateVoltageV:point.voltages.gate,
             xVoltageV:point.xVoltageV,pVoltageV:point.pVoltageV,
-            cycle:point.cycle,pPoint:point.pPoint,xRepeat:point.xRepeat,
+            sequence:j.rows.length+1,cycle:point.cycle,pRepeat:point.pRepeat,
+            pPoint:point.pPoint,pSegment:point.pSegment,
+            xRepeat:point.xRepeat,xSegment:point.xSegment,
             point:point.xPoint,measurementStatus:sample.status,
             rawKxciResponse:sample.rawResponse,source:'4200A-KXCI-TI'
           }));
