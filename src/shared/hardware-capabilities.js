@@ -18,6 +18,7 @@
     sources: [
       { id: 'tek-4200a-datasheet-2026', title: '4200A-SCS Parameter Analyzer Technical Data', revision: '1KW-60780-7', published: '2026-10-22', url: 'https://www.tek.com.cn/datasheet/4200a-scs-parameter-analyzer', authority: 'manufacturer' },
       { id: 'tek-4200a-kxci-rev-e', title: 'Model 4200A-SCS KXCI Remote Control Programming', revision: '4200A-KXCI-907-01 Rev. E', published: '2025-03', url: 'https://download.tek.com/manual/4200A-KXCI-907-01E_March2025.pdf', authority: 'manufacturer' },
+      { id: 'tek-4200a-pmu-rev-c', title: 'Model 4200A-SCS Pulse Card (PGU and PMU) User Manual', revision: '4200A-PMU-900-01 Rev. C', published: '2024-05', url: 'https://download.tek.com/manual/4200A-PMU-900-01C_May31_2024.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-setup-rev-f', title: 'Model 4200A-SCS Setup and Maintenance', revision: '4200A-908-01 Rev. F', published: '2025-03', url: 'https://download.tek.com/manual/4200A-908-01F_Setup_Maint_March_2025.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-cvu-rev-b', title: 'Model 4200A-SCS CVU User Manual', revision: '4200A-CVU-900-01 Rev. B', published: '2023-03', url: 'https://download.tek.com/manual/4200A-CVU-900-01B_March_2023.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-current-manual-index', title: 'Tektronix 4200A-SCS manuals and software download index', revision: 'Current index checked 2026-11-05', url: 'https://www.tek.com/en/support/datasheets-manuals-software-downloads?model=4200A-SCS', authority: 'manufacturer' },
@@ -107,8 +108,7 @@
       PMU: {
         type: 'PMU', family: 'PMU', role: 'pulse-source-and-measure', verificationStatus: 'documented', modelAliases: ['4225-PMU'], channelsPerCard: 2,
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
-        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
-        kxciPulseTiming: { '10': { periodMinS: 6e-8, periodMaxS: 1, pulseWidthMinS: 4e-8, transitionMinS: 2e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 2e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
+        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
         kxciPulseTiming: { '10': { periodMinS: 6e-8, periodMaxS: 1, pulseWidthMinS: 4e-8, transitionMinS: 2e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 2e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
         pulseTiming: {
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 }, withMeasurement: { periodMinS: 1.2e-7, periodMaxS: 1, pulseWidthMinS: 6e-8, transitionMinS: 2e-8, maxFrequencyHz: 8.3e6 } },
@@ -119,13 +119,13 @@
           withRpmCurrentRangesA: { '10': [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
           maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 1000000
         },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e']
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
       },
       PMURPM: {
         type: 'PMURPM', family: 'PMU', role: 'pulse-source-and-measure-with-rpm', verificationStatus: 'documented',
         modelAliases: ['4225-PMU + 4225-RPM'], channelsPerCard: 2, hasRpm: true,
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
-        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
+        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
         pulseTiming: {
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 }, withMeasurement: { periodMinS: 1.2e-7, periodMaxS: 1, pulseWidthMinS: 6e-8, transitionMinS: 2e-8, maxFrequencyHz: 8.3e6 } },
           '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
@@ -136,14 +136,18 @@
           minimumCurrentRangeA: 1e-7, currentMeasurementResolutionA: 2e-10,
           maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 1000000
         },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e']
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
       },
       VPU: {
         type: 'VPU', family: 'PGU', role: 'pulse-generator-source-only', verificationStatus: 'documented', modelAliases: ['4220-PGU'], channelsPerCard: 2,
         kxciPulseTiming: { '10': { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 1e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
+        pulseTiming: {
+          '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 } },
+          '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值不超过10 V时为30 ns，超过10 V时为100 ns', maxFrequencyHz: 1e7 } }
+        },
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
-        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, timeResolutionS: 1e-8, maxSegmentTimeS: 1, minSegmentTimeS: { '10': 1e-8, '40': 5e-8 } },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e']
+        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 1e-8, '40': 5e-8 } },
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
       },
       CVU: {
         type: 'CVU', family: 'CVU', role: 'capacitance-voltage-measurement', verificationStatus: 'family-documented-variant-dependent',
@@ -165,7 +169,7 @@
     safetyPolicies: {
       unknownModule: { applyGuessedNumericLimit: false, allowNonExecutablePlanning: true, allowHardwareOutput: false, requiredAction: 'Identify the exact installed module or mapped channel before enabling output.' },
       smu: { maximumSourceVoltageV: 210, voltageRangeOverrangePercent: 105, highVoltageNominalRangeV: 200, interlockRequiredFor200VRange: true, interlockStatusAvailableThroughCurrentReadOnlyBridge: false, complianceMinimumA: { withoutPreamplifier: 1e-7, withPreamplifier: 1e-10 }, note: 'Reject a compliance request below the KXCI minimum instead of allowing KXCI to silently raise it.' },
-      pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8 },
+      pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 1000000, currentKxciBufferPointsPerChannel: 65536 },
       chassis: { maximumPowerW: 500, blockPlanIfCompletePowerBudgetExceeded: true, doNotAssumeUnknownModulesConsumeZeroPower: true },
       dataProvenance: { callerSuppliedArraysAreRawInstrumentData: false, rawDataRequiresTrustedAcquisitionReceipt: true, currentBuildHasTrustedAcquisitionExecutor: false },
       execution: { allOutputCommandsDisabled: true, allowedKxciCommands: ['*IDN?', '*OPT?', 'UL', 'EX SystemUtil instrumentinfo(,4096,)', 'GN result', 'EX SystemUtil remotemoduleinfo(,4096,)', 'GN result', 'DE'], requireSingleInstrumentLease: true, requireFailClosedOnDisconnect: true, requireEmergencyStop: true }
@@ -183,12 +187,14 @@
     if (!Number.isFinite(absV)) throw Error('SMU 电压不是有限数值');
     const range = mod.electrical.voltageRanges.filter(item => absV <= item.maxAbsV + 1e-12).sort((a,b) => a.maxAbsV - b.maxAbsV)[0];
     if (!range) throw Error('SMU 电压超过该模块 ±' + mod.electrical.maxSourceVoltageV + ' V 理论边界');
+    const powerLimitedComplianceA = absV > 0 ? mod.electrical.ratedMaxPowerW / absV : Infinity;
+    const maxComplianceA = Math.min(range.maxComplianceA, powerLimitedComplianceA);
     const result = {
       known: true, moduleType: mod.type, powerClass: mod.powerClass, preamplifier: mod.preamplifier,
-      voltageRangeNominalV: range.nominalV, maxAbsVoltageV: range.maxAbsV, maxComplianceA: range.maxComplianceA,
+      voltageRangeNominalV: range.nominalV, maxAbsVoltageV: range.maxAbsV, maxComplianceA,
       minComplianceA: mod.electrical.minComplianceA, requiresInterlock: range.requiresInterlock,
       ratedMaxPowerW: mod.electrical.ratedMaxPowerW, setupManualMaxPowerW: mod.electrical.setupManualMaxPowerW,
-      availableCurrentRangesA: mod.electrical.currentRangesA.filter(r => r <= range.maxComplianceA / mod.electrical.rangeOverrangeFactor + 1e-15)
+      powerLimitedComplianceA, availableCurrentRangesA: mod.electrical.currentRangesA.filter(r => r <= maxComplianceA + 1e-15)
     };
     if (requestedComplianceA !== undefined && requestedComplianceA !== null) {
       const current = Number(requestedComplianceA);
@@ -227,7 +233,7 @@
     const key = String(sourceType || '').toLowerCase() === 'pgu' ? 'VPU' : 'PMU';
     const mod = getModuleCapability(key), range = Number(rangeV);
     if (!mod.output.rangesV.includes(range)) throw Error('PMU/PGU 输出量程只能选择 10 V 或 40 V');
-    return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.maxSegmentsPerCommand, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, timeResolutionS: mod.segmentArb.timeResolutionS });
+    return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.maxSegmentsPerCommand || 128, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, kxciMaxSegmentS: mod.segmentArb.kxciMaxSegmentTimeS || 1, timeResolutionS: mod.segmentArb.timeResolutionS });
   }
   function getPmuCurrentRanges(rangeV, withRpm = false) {
     const mod = getModuleCapability(withRpm ? 'PMURPM' : 'PMU');
@@ -238,30 +244,63 @@
   function getPmuCaptureBudget(durationS, measureWindowS, requestedRateHz) {
     const mod = getModuleCapability('PMU'), duration = Number(durationS);
     if (!Number.isFinite(duration) || duration <= 0) throw Error('PMU 采集时长必须大于 0');
-    const maximumRateHz = Math.min(mod.measurement.maxSampleRateHz, mod.measurement.maxKxciBufferPointsPerChannel / duration);
+    const hardwareMaxPoints = mod.measurement.maxHardwareSamplesPerChannel;
+    const interfaceMaxPoints = mod.measurement.maxKxciBufferPointsPerChannel;
+    const hardwareMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, hardwareMaxPoints / duration);
+    const kxciMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, interfaceMaxPoints / duration);
     const minimumRateHz = mod.measurement.minSampleRateHz;
-    if (maximumRateHz < minimumRateHz) throw Error('PMU 采集时长超过 KXCI 65536 点缓冲区在最低采样率下的容量');
+    if (hardwareMaxRateHz < minimumRateHz) throw Error('PMU 采集时长超过硬件单通道一百万采样点在最低采样率下的容量');
     let minimumRequiredRateHz = minimumRateHz;
     if (measureWindowS !== undefined && measureWindowS !== null) {
       const windowS = Number(measureWindowS);
       if (!Number.isFinite(windowS) || windowS <= 0) throw Error('PMU 测量窗口无效');
       minimumRequiredRateHz = Math.max(minimumRateHz, 1 / windowS);
     }
-    if (minimumRequiredRateHz > maximumRateHz) throw Error('PMU 测量窗口与总采集时长超过 65536 点缓冲区可同时满足的采样率范围');
-    const selectedRateHz = requestedRateHz === undefined || requestedRateHz === null ? maximumRateHz : Number(requestedRateHz);
-    if (!Number.isFinite(selectedRateHz) || selectedRateHz < minimumRequiredRateHz || selectedRateHz > maximumRateHz) throw Error('PMU 采样率必须在 ' + minimumRequiredRateHz + ' 至 ' + maximumRateHz + ' Sa/s 之间');
-    return Object.freeze({ minSampleRateHz: minimumRequiredRateHz, maxSampleRateHz: maximumRateHz, selectedSampleRateHz: selectedRateHz, sampleIntervalS: 1 / selectedRateHz, maxPointsPerChannel: mod.measurement.maxKxciBufferPointsPerChannel, hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz });
+    if (minimumRequiredRateHz > hardwareMaxRateHz) throw Error('PMU 测量窗口与总采集时长超过硬件采样容量可同时满足的采样率范围');
+    const selectedRateHz = requestedRateHz === undefined || requestedRateHz === null ? hardwareMaxRateHz : Number(requestedRateHz);
+    if (!Number.isFinite(selectedRateHz) || selectedRateHz < minimumRequiredRateHz || selectedRateHz > hardwareMaxRateHz) throw Error('PMU 采样率必须在 ' + minimumRequiredRateHz + ' 至 ' + hardwareMaxRateHz + ' Sa/s 之间');
+    const kxciCompatible = selectedRateHz <= kxciMaxRateHz + 1e-6 && selectedRateHz * duration <= interfaceMaxPoints + 1e-6;
+    return Object.freeze({
+      minSampleRateHz: minimumRequiredRateHz, maxSampleRateHz: hardwareMaxRateHz,
+      selectedSampleRateHz: selectedRateHz, sampleIntervalS: 1 / selectedRateHz,
+      maxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsPerChannel: hardwareMaxPoints,
+      interfaceMaxPointsPerChannel: interfaceMaxPoints, kxciMaxSampleRateHz: kxciMaxRateHz,
+      hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz, kxciCompatible,
+      interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 数据缓冲上限为每通道 65536 点；硬件采集上限为每通道 1000000 点'
+    });
   }
-  function getPulseTimingRecommendation(rangeV, measurementRangeA, withMeasurement = true, source = 'pmu') {
+  function getPulseTimingRecommendation(rangeV, measurementRangeA, withMeasurement = true, source = 'pmu', withRpm = false, peakVoltageV = null) {
     const key = String(source || 'pmu').toLowerCase() === 'pgu' ? 'VPU' : 'PMU';
     const mod = getModuleCapability(key), range = String(Number(rangeV));
-    const timing = mod.kxciPulseTiming?.[range];
-    if (!timing) throw Error('没有该模块/电压档的 KXCI 脉冲时序规格');
-    const recommendation = { ...timing, source: 'tek-4200a-kxci-rev-e', measurementEnabled: Boolean(withMeasurement), typical: false };
+    const mode = withMeasurement ? 'withMeasurement' : 'sourceOnly';
+    const timing = mod.pulseTiming?.[range]?.[mode];
+    if (!timing) throw Error('没有该模块/电压档/测量模式的硬件脉冲时序规格');
+    if (key === 'VPU' && withMeasurement) throw Error('4220-PGU/VPU 不具备电流测量功能');
+    const peakAbs = peakVoltageV === null || peakVoltageV === undefined ? null : Math.abs(Number(peakVoltageV));
+    if (peakAbs !== null && !Number.isFinite(peakAbs)) throw Error('脉冲峰值电压无效');
+    let transitionMinS = timing.transitionMinS;
+    let transitionSelection = 'fixed';
+    if (timing.transitionMinSAbove10V !== undefined) {
+      if (peakAbs === null) {
+        transitionMinS = null;
+        transitionSelection = 'requires-output-amplitude';
+      } else {
+        transitionMinS = peakAbs > 10 ? timing.transitionMinSAbove10V : timing.transitionMinS;
+        transitionSelection = peakAbs > 10 ? 'above-10V' : 'at-or-below-10V';
+      }
+    }
+    const recommendation = {
+      ...timing, transitionMinS, transitionSelection, peakAbsVoltageV: peakAbs,
+      source: 'tek-4200a-datasheet-2026', measurementEnabled: Boolean(withMeasurement),
+      hardwareSpecification: true,
+      kxciInterfaceTiming: mod.kxciPulseTiming?.[range] || null,
+      kxciInterfaceSource: mod.kxciPulseTiming ? 'tek-4200a-kxci-rev-e' : null
+    };
     if (measurementRangeA !== undefined && measurementRangeA !== null) {
       const current = Number(measurementRangeA);
-      if (key !== 'PMU' || !getPmuCurrentRanges(Number(rangeV), false).some(x => Math.abs(x - current) <= Math.max(1e-15, current * 1e-9))) throw Error('所选 PMU 电流量程与该电压档不匹配');
+      if (key !== 'PMU' || !getPmuCurrentRanges(Number(rangeV), Boolean(withRpm)).some(x => Math.abs(x - current) <= Math.max(1e-15, current * 1e-9))) throw Error('所选 PMU 电流量程与该电压档/前端模块不匹配');
       recommendation.measurementRangeA = current;
+      recommendation.rpmEnabled = Boolean(withRpm);
     }
     return Object.freeze(recommendation);
   }
