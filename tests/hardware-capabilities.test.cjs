@@ -98,6 +98,12 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   assert.equal(multiPulsePlan.totalMeasureDurationS, 1);
   assert.equal(multiPulsePlan.measurementCount, 1000);
   assert.equal(multiPulsePlan.sampleCountAtSelectedRate, 999999);
+  assert.equal(multiPulsePlan.hardwareCompatible, true);
+  assert.equal(multiPulsePlan.clariusItmCompatible, false);
+  assert.equal(multiPulsePlan.clariusUtmCompatible, false);
+  assert.equal(capture.hardwareCompatible, true);
+  assert.equal(capture.clariusItmCompatible, false);
+  assert.equal(capture.clariusUtmCompatible, false);
   assert.equal(capture.kxciCompatible, false);
   assert.equal(caps.getPmuCaptureBudget(1, null, 65535).kxciCompatible, true);
   assert.equal(caps.getPmuCaptureBudget(1, null, 65536).kxciCompatible, true);
