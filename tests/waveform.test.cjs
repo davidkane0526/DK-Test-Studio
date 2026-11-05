@@ -49,6 +49,7 @@ test('KXCI Segment Arb arrays over 128 values are planned for command chunking, 
   assert.equal(w.interfaceLimits.requiresCommandChunking,true);
   assert.equal(w.interfaceLimits.requiresAlternateBackend,false);
   assert.equal(w.interfaceLimits.maxSegmentsPerCommand,128);
+  assert.equal(w.interfaceLimits.kxciMaxArrayValuesPerCommand,128);
 });
 test('PGU source-only uses its own 10 V minimum segment time and cannot capture current',()=>{
   const points=[{timeS:0,voltageV:0},{timeS:2e-8,voltageV:1},{timeS:4e-8,voltageV:0},{timeS:6e-8,voltageV:1}];
