@@ -80,3 +80,93 @@ test('exclusive execution coordinator forbids overlapping tests but releases on 
   await assert.rejects(()=>gate.run('iv',async()=>{throw Error('instrument fault');}),/instrument fault/);
   assert.equal(gate.status().running,false,'fault must release execution lease');
 });
+
+
+test('Xsweep segments preserve direction, exact endpoints, different ranges and nested Psweep ordering',()=>{
+  const {previewSweepProgram,normalizeSweepProgram}=require('../src/controller/measurement-plan.cjs');
+  const input={kind:'iv',sweepProgram:{
+    terminals:{source:'GNDU',drain:'SMU1',gate:'SMU2'},
+    fixedVoltages:{source:0,drain:0,gate:0},
+    portSettings:{
+      drain:{rangeMode:'auto',rangeA:'1e-6',complianceMode:'follow-range',complianceA:'1e-4'},
+      gate:{rangeMode:'auto',rangeA:'1e-6',complianceMode:'custom',complianceA:'1e-4'}
+    },
+    loops:1,
+    xSweep:{terminal:'drain',repeats:2,delayMs:20,segments:[
+      {startV:0,stopV:2,stepV:.1,rangeA:'1e-6',delayMs:10},
+      {startV:2,stopV:-2,stepV:-.1,rangeA:'1e-8',delayMs:30},
+      {startV:-2,stopV:0,stepV:.1,rangeA:'1e-6',delayMs:10}
+    ]},
+    pSweep:{enabled:true,terminal:'gate',repeats:1,delayMs:50,
+      segments:[{startV:0,stopV:1,stepV:.5,rangeA:'auto'}]}
+  }};
+  const hardware={inventory:{slots:[
+    {type:'SMUPA',physicalType:'SMUPA',family:'SMU',channel:1,ratingsVerified:true,powerClass:'medium'},
+    {type:'SMUPA',physicalType:'SMUPA',family:'SMU',channel:2,ratingsVerified:true,powerClass:'medium'}
+  ],unknownModules:[],hardwareLimitsVerified:true}};
+  const plan=normalizeSweepProgram(input,hardware);
+  assert.equal(plan.totalPoints,498);
+  assert.equal(plan.xSweep.points,83);
+  assert.equal(plan.pSweep.points,3);
+  assert.equal(plan.executable,false);
+  assert.equal(plan.hardwareVerified,false);
+  assert.equal(plan.hardwareCapabilityStatus,'identified');
+  assert.deepEqual(plan.xSweep.segments.map(s=>s.rangeA),['1e-6','1e-8','1e-6']);
+  const result=previewSweepProgram(input,300,hardware);
+  assert.equal(result.firstPoints[0].drainVoltageV,0);
+  assert.equal(result.firstPoints[20].drainVoltageV,2);
+  assert.equal(result.firstPoints[21].drainVoltageV,2);
+  assert.equal(result.firstPoints[22].drainVoltageV,1.9);
+  assert.equal(result.firstPoints[61].drainVoltageV,-2);
+  assert.equal(result.firstPoints[62].drainVoltageV,-2);
+  assert.equal(result.firstPoints[82].drainVoltageV,0);
+  assert.equal(result.firstPoints[21].currentRangeA,'1e-8');
+  assert.equal(result.firstPoints[21].plannedPointDelayMs,30);
+  assert.equal(result.firstPoints[165].gateVoltageV,0,'X repeats before P changes');
+  assert.equal(result.firstPoints[166].gateVoltageV,.5,'P advances only after two X scans');
+  assert.equal(result.firstPoints[166].xRepeat,1);
+  assert.equal(result.truncated,true);
+  const throughUnified=previewPlan(input,300,hardware);
+  assert.equal(throughUnified.plan.schema,'dkts.sweep-program.v1');
+});
+
+test('multi-port sweep planner rejects contradictory directions, missing channels and false hardware ranges',()=>{
+  const {normalizeSweepProgram}=require('../src/controller/measurement-plan.cjs');
+  const base={
+    terminals:{source:'None',drain:'SMU1',gate:'SMU2'},
+    fixedVoltages:{source:0,drain:0,gate:0},
+    loops:1,
+    xSweep:{terminal:'drain',repeats:1,delayMs:0,
+      segments:[{startV:0,stopV:2,stepV:.1,rangeA:'auto'}]},
+    pSweep:{enabled:false,terminal:'gate',delayMs:20,repeats:1,
+      segments:[{startV:0,stopV:1,stepV:.1,rangeA:'auto'}]}
+  };
+  assert.throws(()=>normalizeSweepProgram({kind:'iv',...base,xSweep:{...base.xSweep,
+    segments:[{startV:2,stopV:-2,stepV:.1}]} }),/步长符号/);
+  assert.throws(()=>normalizeSweepProgram({kind:'iv',...base,xSweep:{...base.xSweep,
+    segments:[{startV:0,stopV:1,stepV:.3}]} }),/准确到达终点/);
+  assert.throws(()=>normalizeSweepProgram({kind:'iv',...base,
+    terminals:{source:'SMU1',drain:'SMU1',gate:'SMU2'}}),/端口冲突/);
+  assert.throws(()=>normalizeSweepProgram({kind:'iv',...base,pSweep:{...base.pSweep,enabled:true,
+    terminal:'drain'}}),/不能扫描同一个电极/);
+  assert.throws(()=>normalizeSweepProgram({kind:'iv',...base,pSweep:{...base.pSweep,enabled:true},
+    terminals:{source:'None',drain:'SMU1',gate:'None'}}),/必须分配/);
+  const withoutPa={inventory:{slots:[
+    {family:'SMU',type:'SMU',physicalType:'SMU',channel:1,ratingsVerified:true},
+    {family:'SMU',type:'SMU',physicalType:'SMU',channel:2,ratingsVerified:true}
+  ]}};
+  assert.throws(()=>normalizeSweepProgram({kind:'iv',...base,
+    xSweep:{...base.xSweep,segments:[{startV:0,stopV:1,stepV:.1,rangeA:'1e-8'}]}
+  },withoutPa),/不受已识别模块支持/);
+  const withPa={inventory:{slots:[
+    {family:'SMU',type:'SMUPA',physicalType:'SMUPA',channel:1,ratingsVerified:true},
+    {family:'SMU',type:'SMUPA',physicalType:'SMUPA',channel:2,ratingsVerified:true}
+  ]}};
+  assert.throws(()=>normalizeSweepProgram({kind:'iv',...base,
+    xSweep:{...base.xSweep,segments:[{startV:0,stopV:1,stepV:.1,rangeA:'1e-8'}]},
+    portSettings:{drain:{rangeMode:'auto',complianceMode:'custom',complianceA:'1e-4'}}
+  },withPa),/不匹配/);
+  const offline=normalizeSweepProgram({kind:'iv',...base});
+  assert.equal(offline.hardwareCapabilityStatus,'not-inspected');
+  assert.equal(offline.executable,false);
+});
