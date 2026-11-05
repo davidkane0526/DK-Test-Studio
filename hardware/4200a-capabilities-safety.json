@@ -88,7 +88,7 @@
             "US"
           ],
           "source": "kxci2025",
-          "status": "to be integrated"
+          "status": "implemented in the shared identity controller; actual-instrument response format and parsing still require hardware validation"
         },
         {
           "name": "remotemoduleinfo",
@@ -101,7 +101,7 @@
             "US"
           ],
           "source": "kxci2025",
-          "status": "to be integrated"
+          "status": "implemented in the shared identity controller; actual-instrument response format and parsing still require hardware validation"
         },
         {
           "name": "systeminfo",
@@ -114,7 +114,7 @@
             "US"
           ],
           "source": "kxci2025",
-          "status": "to be integrated"
+          "status": "implemented in the shared identity controller; actual-instrument response format and parsing still require hardware validation"
         }
       ],
       "doesNotDiscover": [
@@ -126,11 +126,11 @@
       "secondaryOfficialQueries": {
         "instrumentinfo": {
           "purpose": "Read-only SystemUtil function for exact installed instrument cards and CVIV",
-          "implementationStatus": "planned read-only query; current identity bridge only has *IDN? and *OPT?"
+          "implementationStatus": "implemented as a read-only UL/EX/GN/US sequence in src/shared/identity-core.js; actual-instrument validation pending"
         },
         "remotemoduleinfo": {
           "purpose": "Read-only SystemUtil function for remote preamplifier and RPM modules",
-          "implementationStatus": "planned read-only query; current identity bridge only has *IDN? and *OPT?"
+          "implementationStatus": "implemented as a read-only UL/EX/GN/US sequence in src/shared/identity-core.js; actual-instrument validation pending"
         }
       }
     },
@@ -1011,7 +1011,11 @@
         "kxci2025"
       ],
       "maxAcCurrentA": 0.01,
-      "dcBiasMaxCurrentA": 0.01
+      "dcBiasMaxCurrentA": 0.01,
+      "internalDcBiasDifferentialV": {
+        "min": -60,
+        "max": 60
+      }
     },
     "4215-CVU": {
       "category": "CVU",
@@ -1054,7 +1058,11 @@
         "kxci2025"
       ],
       "maxAcCurrentA": 0.01,
-      "dcBiasMaxCurrentA": 0.01
+      "dcBiasMaxCurrentA": 0.01,
+      "internalDcBiasDifferentialV": {
+        "min": -60,
+        "max": 60
+      }
     },
     "4200A-CVIV": {
       "category": "SWITCH-MATRIX",
@@ -1074,7 +1082,7 @@
         "bias-tee modes are for C-V only",
         "unused SMU input positions require channel blockers",
         "must be bonded to protective earth using both supplied ground cables",
-        "Bias-tee DC bias is limited to ±200 V single-ended or 400 V differential; this is distinct from the switch general 210 V / 1 A rating."
+        "Bias-tee DC bias is limited to ±210 V single-ended or 420 V differential according to the 2025 datasheet; this is distinct from the switch general 210 V / 1 A rating."
       ],
       "discovery": "not reported by *OPT?; requires separate verified instrument information or explicit operator confirmation",
       "evidence": [
@@ -1183,7 +1191,7 @@
       "exactSmuModelUnknown": "use the exact *OPT? hardware class rating when it is identified (SMU=medium, HPSMU=high); do not reduce the electrical limits; keep model-specific load-capacitance behavior unavailable until the exact model is identified",
       "cvuModelUnknown": "do not silently substitute 4210-CVU limits; require exact SystemUtil model identification when connected, or explicit 4210-CVU/4215-CVU selection for offline planning",
       "externalAccessories": "CVIV, CVU-PWR and GNDU physical configuration must be verified separately; do not infer from *OPT?",
-      "detailedQueries": "instrumentinfo and remotemoduleinfo are read-only SystemUtil KULT queries; integrate with UL/EX/GN/US sequence and always restore US in finally."
+      "detailedQueries": "implemented as read-only instrumentinfo, remotemoduleinfo and systeminfo queries; preserve UL/EX/GN/US sequence and restore US in finally; hardware response parsing remains pending validation on the physical 4200A"
     },
     "smu": {
       "voltageSourceRangeThresholdV": 21,
@@ -1296,7 +1304,7 @@
     },
     "cvu": {
       "requireExplicitModelWhenUsing1VRms": true,
-      "unknownModelUses4210Limits": true,
+      "unknownModelUses4210Limits": false,
       "internalBiasLimitV": 30,
       "externalSmuBiasLimitV": 210,
       "acCurrentMeasureRangesA": [
@@ -1304,17 +1312,43 @@
         0.00003,
         0.001
       ],
-      "requirePowerPackageForHighPowerBias": true
+      "requirePowerPackageForHighPowerBias": true,
+      "requireExactModelForAllModelDependentLimits": true,
+      "offlineRequiresExplicitModelSelection": true,
+      "internalBiasSingleEndedLimitV": 30,
+      "internalBiasDifferentialLimitV": 60,
+      "cvuPowerSingleEndedLimitV": 200,
+      "cvuPowerDifferentialLimitV": 400,
+      "externalSmuBiasSingleEndedLimitV": 210,
+      "externalSmuDifferentialSupported": false,
+      "cvuPowerMaxCurrentA": 0.3,
+      "externalSmuBiasMaxCurrentA": 1,
+      "externalSmuRequiresCviv": true,
+      "externalSmuRequiresGroundBonding": true,
+      "externalSmuRequiresChannelBlockers": true
     },
     "cviv": {
       "maxVoltageV": 210,
       "maxCurrentA": 1,
       "requireEarthBonding": true,
       "requireChannelBlockersForUnusedInputs": true,
-      "neverTreatAsSource": true
+      "neverTreatAsSource": true,
+      "biasTeeMaxSingleEndedV": 210,
+      "biasTeeMaxDifferentialV": 420,
+      "biasTeeMaxComplianceAByMode": {
+        "lowCurrent": 0.001,
+        "cvMode": 1
+      },
+      "requireGroundBonding": true
     },
     "gndu": {
-      "neverTreatAsSource": true
+      "neverTreatAsSource": true,
+      "maxCurrentAByTerminal": {
+        "triaxial": 2.6,
+        "bindingPost": 9.5
+      },
+      "terminalSelectionRequiredWhenUsed": true,
+      "note": "GNDU current rating is a terminal-specific hardware limit only when the GNDU terminal is actually used as the return path; do not apply it as an SMU/PMU output-current ceiling."
     }
   },
   "kxciOptionTokens": {
