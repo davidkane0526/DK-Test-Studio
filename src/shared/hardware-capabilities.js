@@ -135,7 +135,7 @@
         typicalTimingNote: '原厂典型最小脉冲宽度及上升/下降时间建议，条件为空载。10 V 档 100 nA 至 1 mA 为 RPM 扩展量程，10 mA 同时属于 PMU 与 RPM 量程，200 mA 为 PMU 量程；40 V 档 100 µA、10 mA、800 mA 为 PMU 量程。实际 DUT、线缆和互连可能需要更长的稳定时间。该表不提供独立的测量窗口或稳定时间数值；这些典型建议不作为硬件绝对最小值或自动拒绝条件。',
         measurement: {
           currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
-          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxKxciGeneratedPointsExclusive: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
+          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxKxciGeneratedPointsPerChannel: 65536, kxciGeneratedPointBoundaryNote: 'Rev. E states generated points must be below 65536, but also defines fastestSampleRate = 65536 / TotalMeasureDuration and a 65536-point data buffer. Exact endpoint semantics are ambiguous; expose the documented 65536 capacity and flag this boundary rather than silently reducing it to 65535.', maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
         },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c', 'tek-4200a-current-manual-index']
       },
@@ -154,7 +154,7 @@
           withRpmCurrentRangesA: { '10': [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
           
           minimumCurrentRangeA: 1e-7, currentMeasurementResolutionA: 2e-10,
-          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxKxciGeneratedPointsExclusive: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
+          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxKxciGeneratedPointsPerChannel: 65536, kxciGeneratedPointBoundaryNote: 'Rev. E states generated points must be below 65536, but also defines fastestSampleRate = 65536 / TotalMeasureDuration and a 65536-point data buffer. Exact endpoint semantics are ambiguous; expose the documented 65536 capacity and flag this boundary rather than silently reducing it to 65535.', maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
         },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c', 'tek-4200a-current-manual-index']
       },
@@ -204,7 +204,7 @@
     safetyPolicies: {
       unknownModule: { policyBasis: 'fail-closed software policy; no numeric hardware capability is inferred for unidentified modules', applyGuessedNumericLimit: false, allowNonExecutablePlanning: true, allowHardwareOutput: false, requiredAction: 'Identify the exact installed module or mapped channel before enabling output.' },
       smu: { maximumSourceVoltageV: 210, voltageRangeOverrangePercent: 105, highVoltageNominalRangeV: 200, maximumOutputPowerWByPowerClass: { medium: 2.1, high: 21 }, applyVoltageDependentCompliancePowerLimit: true, interlockRequiredFor200VRange: true, interlockStatusAvailableThroughCurrentReadOnlyBridge: false, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-setup-rev-f', 'tek-4200a-current-manual-index'], complianceMinimumA: { withoutPreamplifier: 1e-7, withPreamplifier: 1e-10 }, note: 'Reject a compliance request below the KXCI minimum instead of allowing KXCI to silently raise it.' },
-      pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciMinSegmentTimeSByRangeS: { PMU: { '10': 2e-8, '40': 5e-8 }, PGU: { '10': 1e-8, '40': 5e-8 } }, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000, currentKxciBufferPointsPerChannel: 65536, currentKxciGeneratedPointsExclusive: 65536, kxciInterfaceLimitsSourceRevision: '4200A-KXCI-907-01 Rev. E, March 2025', latestIndexListedKxciRevision: '4200A-KXCI-907-01F, 09 Oct 2026', latestKxciRevisionContentVerified: false, kxciInterfaceLimitsVerificationStatus: 'provisional-pending-rev-f-content-verification', sourceRefs: ['tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index'] },
+      pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciMinSegmentTimeSByRangeS: { PMU: { '10': 2e-8, '40': 5e-8 }, PGU: { '10': 1e-8, '40': 5e-8 } }, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000, currentKxciBufferPointsPerChannel: 65536, currentKxciMaxGeneratedPointsPerChannel: 65536, kxciGeneratedPointBoundaryNote: 'Rev. E states generated points must be below 65536, but also defines fastestSampleRate = 65536 / TotalMeasureDuration and a 65536-point data buffer. Exact endpoint semantics are ambiguous; expose the documented 65536 capacity and flag this boundary rather than silently reducing it to 65535.', kxciInterfaceLimitsSourceRevision: '4200A-KXCI-907-01 Rev. E, March 2025', latestIndexListedKxciRevision: '4200A-KXCI-907-01F, 09 Oct 2026', latestKxciRevisionContentVerified: false, kxciInterfaceLimitsVerificationStatus: 'provisional-pending-rev-f-content-verification', sourceRefs: ['tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index'] },
       cvu: {
         requiresExactVariantIdentification: true,
         baseDcBiasRangeV: { min: -30, max: 30 },
@@ -332,8 +332,8 @@
     if (!Number.isFinite(duration) || duration <= 0) throw Error('PMU 采集时长必须大于 0');
     const hardwareMaxPoints = mod.measurement.maxHardwareSamplesPerChannel;
     const interfaceBufferCapacity = mod.measurement.maxKxciBufferPointsPerChannel;
-    const interfaceGeneratedPointsExclusive = mod.measurement.maxKxciGeneratedPointsExclusive;
-    const interfaceMaxPoints = interfaceGeneratedPointsExclusive - 1;
+    const interfaceMaxGeneratedPoints = mod.measurement.maxKxciGeneratedPointsPerChannel;
+    const interfaceMaxPoints = interfaceMaxGeneratedPoints;
     const hardwareMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, hardwareMaxPoints / duration);
     const kxciMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, interfaceMaxPoints / duration);
     const minimumRateHz = mod.measurement.minSampleRateHz;
@@ -352,9 +352,9 @@
       minSampleRateHz: minimumRequiredRateHz, maxSampleRateHz: hardwareMaxRateHz,
       selectedSampleRateHz: selectedRateHz, sampleIntervalS: 1 / selectedRateHz,
       maxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsExclusivePerChannel: mod.measurement.hardwareSampleCountUpperBoundExclusive,
-      interfaceMaxPointsPerChannel: interfaceMaxPoints, interfaceDataBufferCapacityPointsPerChannel: interfaceBufferCapacity, interfaceMaxGeneratedPointsExclusive: interfaceGeneratedPointsExclusive, kxciMaxSampleRateHz: kxciMaxRateHz,
+      interfaceMaxPointsPerChannel: interfaceMaxPoints, interfaceDataBufferCapacityPointsPerChannel: interfaceBufferCapacity, interfaceMaxGeneratedPointsPerChannel: interfaceMaxGeneratedPoints, kxciMaxSampleRateHz: kxciMaxRateHz,
       hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz, kxciCompatible,
-      interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 波形生成点数必须严格少于每通道 65536 点（数据缓冲容量为 65536 点）；PMU 硬件单次采集点数必须严格少于 1000000 点', interfaceLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus
+      interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 波形生成点数上限为每通道 65536 点（数据缓冲容量同为 65536 点；手册对等于上限的文字表述存在歧义）；PMU 硬件单次采集点数必须严格少于 1000000 点', interfaceLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus
     });
   }
   function getPulseTimingRecommendation(rangeV, measurementRangeA, withMeasurement = true, source = 'pmu', withRpm = false, peakVoltageV = null) {
