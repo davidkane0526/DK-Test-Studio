@@ -1,6 +1,9 @@
 (() => {
   'use strict';
   // Hardware-independent, NON-EXECUTABLE SMU test planning.
+  // Keithley 4200A SMU absolute source-voltage capability is ±210 V
+  // (105% overrange of the nominal 200 V range). This is a planning ceiling,
+  // not permission to use every voltage/current combination.
   // Deliberately contains no KXCI write or instrument output command.
   function finite(input,label,min,max){
     if(input===undefined||input===null||String(input).trim()==='')throw Error(label+' 不能为空');
@@ -23,15 +26,15 @@
     const gateSmU=count(input.gateSmU??0,'栅极 SMU（0 为不使用）',0,9);
     if(gateSmU&&(gateSmU===sourceSmU||gateSmU===measureSmU))
       throw Error('栅极 SMU 不得与源/测量 SMU 使用相同编号');
-    const complianceA=finite(input.complianceA??1e-4,'电流限值',1e-12,1);
+    const complianceA=finite(input.complianceA??1e-4,'电流限值',1e-12,1.05);
     const direction=String(input.direction||'roundtrip');
     if(!['forward','reverse','roundtrip'].includes(direction))throw Error('不支持的扫描方向');
     const delayMs=finite(input.delayMs??20,'扫描点间延迟',0,60000);
     const intervalMs=finite(input.intervalMs??100,'I–t 规划采样间隔',0.000001,3600000);
-    const gateBiasV=finite(input.gateBiasV??0,'栅极电压',-200,200);
-    const startV=finite(input.startV??-1,'扫描起始电压',-200,200);
-    const stopV=finite(input.stopV??1,'扫描结束电压',-200,200);
-    const fixedV=finite(input.fixedV??0.1,'固定偏置',-200,200);
+    const gateBiasV=finite(input.gateBiasV??0,'栅极电压',-210,210);
+    const startV=finite(input.startV??-1,'扫描起始电压',-210,210);
+    const stopV=finite(input.stopV??1,'扫描结束电压',-210,210);
+    const fixedV=finite(input.fixedV??0.1,'固定偏置',-210,210);
     const pointsPerCycle=kind==='iv'&&direction==='roundtrip'?points*2-1:points;
     const totalPoints=loops*pointsPerCycle;
     if(totalPoints>250000)throw Error('预计采样点超过 250000，请减少循环或点数');
@@ -40,7 +43,7 @@
       sourceSmU,measureSmU,gateSmU,gateBiasV,complianceA,
       delayMs,intervalMs,startV,stopV,fixedV,pointsPerCycle,totalPoints,
       executable:false,hardwareVerified:false,
-      provenance:'user-test-plan',safetyNote:'仅校验测试参数，未核验实际插槽、限值和可执行指令'
+      provenance:'user-test-plan',safetyNote:'±210 V 为 SMU 规划上限；未核验模块型号、工作象限及电压-电流组合，禁止据此直接执行'
     });
   }
   function previewPlan(plan,limit=300){
