@@ -73,6 +73,14 @@ test('PMU planning exposes the one-million-point hardware budget separately from
   assert.equal(w.interfaceLimits.requiresAlternateBackend,true);
   assert.equal(w.executionCompatibility,'hardware-valid-kxci-limited');
 });
+test('PMU plus RPM plan exposes published current-range timing guidance',()=>{
+  const rpmInventory={slots:[{type:'PMURPM',family:'PMU',channel:1,rpmCount:1,rpmChannels:[1]}],unknownModules:[]};
+  const points=[{timeS:0,voltageV:0},{timeS:50e-9,voltageV:1},{timeS:100e-9,voltageV:0},{timeS:150e-9,voltageV:1}];
+  const w=validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measurementRangeA:1e-7,measureWindowS:20e-9,inventory:rpmInventory});
+  assert.equal(w.timingRecommendation.rpmTimingStatus,'published-typical');
+  assert.equal(w.timingRecommendation.rpmTypicalTiming.recommendedMinPulseWidthS,0.134);
+  assert.equal(w.timingRecommendation.measurementRangeA,1e-7);
+});
 test('waveform parser rejects duplicate times, invalid load and point counts',()=>{
   assert.throws(()=>parseWaveformText('0 0\n0 1'),/严格递增/);
   assert.throws(()=>parseWaveformText('1 0\n0.5 1'),/严格递增/);
