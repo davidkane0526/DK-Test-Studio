@@ -2,7 +2,7 @@
   'use strict';
   const DATABASE = {
     schema: 'dkts.4200a.hardware-capabilities.v1',
-    databaseVersion: '1.1.0',
+    databaseVersion: '1.2.0',
     generatedAt: '2026-11-05',
     instrument: { family: 'Keithley 4200A-SCS', maxChassisPowerW: 500, kxciInventorySlots: 8, maxKxciSmuChannelNumber: 9 },
     inventoryDiscovery: {
@@ -168,7 +168,7 @@
     },
     safetyPolicies: {
       unknownModule: { applyGuessedNumericLimit: false, allowNonExecutablePlanning: true, allowHardwareOutput: false, requiredAction: 'Identify the exact installed module or mapped channel before enabling output.' },
-      smu: { maximumSourceVoltageV: 210, voltageRangeOverrangePercent: 105, highVoltageNominalRangeV: 200, interlockRequiredFor200VRange: true, interlockStatusAvailableThroughCurrentReadOnlyBridge: false, complianceMinimumA: { withoutPreamplifier: 1e-7, withPreamplifier: 1e-10 }, note: 'Reject a compliance request below the KXCI minimum instead of allowing KXCI to silently raise it.' },
+      smu: { maximumSourceVoltageV: 210, voltageRangeOverrangePercent: 105, highVoltageNominalRangeV: 200, maximumOutputPowerWByPowerClass: { medium: 2.1, high: 21 }, applyVoltageDependentCompliancePowerLimit: true, interlockRequiredFor200VRange: true, interlockStatusAvailableThroughCurrentReadOnlyBridge: false, complianceMinimumA: { withoutPreamplifier: 1e-7, withPreamplifier: 1e-10 }, note: 'Reject a compliance request below the KXCI minimum instead of allowing KXCI to silently raise it.' },
       pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 1000000, currentKxciBufferPointsPerChannel: 65536 },
       chassis: { maximumPowerW: 500, blockPlanIfCompletePowerBudgetExceeded: true, doNotAssumeUnknownModulesConsumeZeroPower: true },
       dataProvenance: { callerSuppliedArraysAreRawInstrumentData: false, rawDataRequiresTrustedAcquisitionReceipt: true, currentBuildHasTrustedAcquisitionExecutor: false },
