@@ -80,6 +80,9 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   assert.equal(capture.maxSampleRateHz, 1000000);
   assert.equal(capture.kxciMaxSampleRateHz, 65536);
   assert.equal(capture.kxciCompatible, false);
+  assert.equal(capture.interfaceLimitVerificationStatus, 'provisional-pending-rev-f-content-verification');
+  assert.equal(caps.DATABASE.safetyPolicies.pulse.latestIndexListedKxciRevision, '4200A-KXCI-907-01F, 09 Oct 2026');
+  assert.equal(caps.DATABASE.safetyPolicies.pulse.latestKxciRevisionContentVerified, false);
 });
 test('chassis power is calculated from KXCI inventory and active test channels', () => {
   const inventory = { slots: [
