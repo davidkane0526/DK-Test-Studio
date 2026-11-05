@@ -10,7 +10,7 @@ test('Android APK includes independent native launcher and byte-identical shared
   assert.match(html,/android\/native-client\.js/);
   assert.match(html,/shared\/identity-core\.js/);
   assert.match(html,/app\.js/);
-  for(const file of ['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'])
+  for(const file of ['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','kxci-measurement.js','waveform.js','identity-core.js'])
     assert.equal(fs.readFileSync(path.join(assetRoot,'shared',file),'utf8'),
       fs.readFileSync(path.join(root,'src/shared',file),'utf8'));
   const manifest=fs.readFileSync(path.join(root,'android/app/src/main/AndroidManifest.xml'),'utf8');
@@ -18,7 +18,9 @@ test('Android APK includes independent native launcher and byte-identical shared
   assert.doesNotMatch(manifest,/DK Data Studio/);
   const bridge=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
   assert.match(bridge,/isReadOnlyKxciRequest\(request\)/);
-  assert.match(bridge,/noReply && !\(Arrays\.equals\(request, UL\) \|\| Arrays\.equals\(request, DE\)\)/);
+  assert.match(bridge,/isMeasurementKxciRequest\(request\)/);
+  assert.match(bridge,/if \(noReply && querying\)/);
+  assert.match(bridge,/if \(!noReply && isMeasurementKxciRequest\(request\) && !querying\)/);
 });
 test('Android host exercises the exact shared identity controller via native TCP adapter',async()=>{
   const writes=[];
@@ -73,6 +75,7 @@ test('Android host exercises the exact shared identity controller via native TCP
     'src/shared/hardware-capabilities.js',
     'src/shared/kxci-protocol.js',
     'src/shared/measurement-plan.js',
+    'src/shared/kxci-measurement.js',
     'src/shared/waveform.js',
     'src/shared/identity-core.js',
     'android/web/native-client.js'
