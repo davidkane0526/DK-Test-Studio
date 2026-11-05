@@ -360,7 +360,7 @@
     const sampleCountAtSelectedRate = Math.ceil(selectedRateHz * totalDuration - 1e-9);
     const kxciCompatible = selectedRateHz <= kxciMaxRateHz + 1e-6 && sampleCountAtSelectedRate <= interfaceMaxPoints;
     return Object.freeze({
-      totalMeasureDurationS: totalDuration, pulseCount, sweepPoints, stepPoints, measurementCount,
+      totalMeasureDurationS: totalDuration, measureWindowS: measureWindowS == null ? null : Number(measureWindowS), totalMeasureDurationSource: context.totalMeasureDurationSource || 'caller-supplied', pulseCount, sweepPoints, stepPoints, measurementCount,
       sampleCountFormula: mod.measurement.sampleCountFormula,
       sampleCountAtSelectedRate,
       minSampleRateHz: minimumRequiredRateHz, maxSampleRateHz: hardwareMaxRateHz,
