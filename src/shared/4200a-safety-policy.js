@@ -30,21 +30,35 @@
     return String(Number(n.toPrecision(12)));
   }
   function getDatabase(){return DB;}
-  function slotFor(family,channel,hardware={},label='模块'){
+  function slotFor(family,channel,hardware={},label='模块',modelHint=null){
     const id=integer(channel,label+' 编号',1,9);
     const inventory=hardware.inventory;
     if(!inventory){
-      if(hardware.connected)throw Error('仪器已连接，但模块清单未成功读取，禁止按离线默认规格校验');
-      return {offline:true,channel:id,family,powerClass:family==='SMU'?'medium':'unknown',
-        preamplifier:false,rpm:false,modelKey:family==='SMU'?'4200-SMU':family==='PMU'?'4225-PMU':family==='PGU'?'4220-PGU':null};
+      if(hardware.connected)throw Error('仪器已连接，但模块清单未成功读取，禁止推断模块型号或额定能力');
+      let modelKey=null;
+      if(family==='SMU'){
+        modelKey=modelHint||hardware.selectedModels?.SMU?.[id]||null;
+        if(!['4200-SMU','4201-SMU','4210-SMU','4211-SMU'].includes(modelKey))
+          throw Error('离线规划必须明确选择 SMU'+id+' 的具体型号（4200-SMU、4201-SMU、4210-SMU 或 4211-SMU），DKTS 不会默认套用较低规格');
+      }else if(family==='CVU'){
+        modelKey=modelHint||hardware.selectedModels?.CVU?.[id]||null;
+        if(!['4210-CVU','4215-CVU'].includes(modelKey))
+          throw Error('离线规划必须明确选择 CVU'+id+' 的具体型号（4210-CVU 或 4215-CVU）');
+      }else if(family==='PMU')modelKey='4225-PMU';
+      else if(family==='PGU')modelKey='4220-PGU';
+      else throw Error('离线状态下无法确定 '+family+' 模块的具体型号');
+      const model=DB.modules[modelKey];
+      if(!model)throw Error('能力数据库中不存在所选模块型号 '+modelKey);
+      return {...model,offline:true,channel:id,family,modelKey,
+        powerClass:model.powerClass||'unknown',preamplifier:false,rpm:false,exactModelVerified:false};
     }
     if(!Array.isArray(inventory.slots))throw Error('模块清单格式无效');
     const slot=inventory.slots.find(x=>x&&Number(x.channel)===id&&x.family===family);
     if(!slot)throw Error('所选 '+label+id+' 不在已识别的 '+family+' 模块清单中');
     if(slot.family==='unknown'||slot.type==='unknown')throw Error(label+id+' 的模块类型未知，已阻止使用');
     const modelKey=slot.modelKey&&DB.modules[slot.modelKey]?slot.modelKey:
-      family==='SMU'?(slot.powerClass==='high'?'4210-SMU':'4200-SMU'):
-      family==='PMU'?'4225-PMU':family==='PGU'?'4220-PGU':family==='CVU'?null:null;
+      family==='SMU'?(slot.powerClass==='high'?'4210-SMU':slot.powerClass==='medium'?'4200-SMU':null):
+      family==='PMU'?'4225-PMU':family==='PGU'?'4220-PGU':null;
     const remotes=Array.isArray(inventory.remoteModules)?inventory.remoteModules:[];
     const preamp=family==='SMU'&&(slot.preamplifier===true||remotes.some(x=>
       x&&x.category==='SMU-PREAMPLIFIER'&&Number(x.channel)===id));
@@ -53,7 +67,8 @@
       slot.rpmChannels==='unknown'||
       remotes.some(x=>x&&x.category==='PMU-REMOTE-PREAMPLIFIER-SWITCH'&&
         Number(x.pmuChannel)===id&&Number(x.rpmChannel)===Number(hardware.pmuChannel||1)));
-    return {...slot,offline:false,modelKey,exactModelVerified:!!(slot.modelKey&&DB.modules[slot.modelKey]),preamplifier:preamp,rpm};
+    return {...slot,offline:false,modelKey,
+      exactModelVerified:!!(slot.modelKey&&DB.modules[slot.modelKey]),preamplifier:preamp,rpm};
   }
   function smuClass(slot){
     const exact=DB.modules[slot.modelKey];
@@ -79,7 +94,7 @@
   function currentRangeFor(slot,requested){
     const ranges=currentRanges(slot);
     const value=Number(requested);
-    return ranges.find(x=>x+EPS>=value)||null;
+    return ranges.find(x=>x*DB.rules.smu.rangeOverrangeFactor+EPS>=value)||null;
   }
   function smuVoltageBounds(slot,absV){
     const cls=smuClass(slot),rule=DB.rules.smu;
@@ -100,12 +115,13 @@
     const gateSmU=integer(input.gateSmU??0,'栅极 SMU（0 为不使用）',0,9);
     if(gateSmU&&(gateSmU===sourceSmU||gateSmU===measureSmU))
       throw Error('栅极 SMU 不得与源/测量 SMU 使用相同编号');
-    const source=slotFor('SMU',sourceSmU,hardware,'SMU');
-    const measure=measureSmU===sourceSmU?source:slotFor('SMU',measureSmU,hardware,'测量 SMU');
+    const source=slotFor('SMU',sourceSmU,hardware,'SMU',input.sourceModel);
+    const measure=measureSmU===sourceSmU?source:slotFor('SMU',measureSmU,hardware,'测量 SMU',input.measureModel);
+    const measurementClass=smuClass(measure);
     const sourceMode=String(input.sourceMode||'voltage').toLowerCase();
     if(!['voltage','current'].includes(sourceMode))throw Error('SMU 源模式只能是 voltage 或 current');
     if(sourceMode==='current'&&gateSmU)throw Error('电流源模式暂不支持独立栅极通道，请先使用电压源模式');
-    const gate=gateSmU?slotFor('SMU',gateSmU,hardware,'栅极 SMU'):null;
+    const gate=gateSmU?slotFor('SMU',gateSmU,hardware,'栅极 SMU',input.gateModel):null;
     const gateBiasV=finite(input.gateBiasV??0,'栅极电压',-210,210);
     if(!gate&&Math.abs(gateBiasV)>EPS)throw Error('设置栅极偏置时必须选择独立的栅极 SMU');
     let bounds,complianceA=null,voltageComplianceV=null,maxAbsVoltageV=0,maxAbsCurrentA=0;
@@ -127,8 +143,9 @@
       if(requiresInterlock&&hardware.interlockState===false)
         throw Error('超过 ±21 V 的 200 V SMU 量程需要物理安全联锁闭合');
       return Object.freeze({
-        sourceMode,sourceSmU,measureSmU,gateSmU,sourceModel:bounds.modelKey||bounds.powerClass,
-        gateModel:gateBounds?.modelKey||gateBounds?.powerClass||null,
+        sourceMode,sourceSmU,measureSmU,gateSmU,sourceModel:source.modelKey||('SMU-'+bounds.powerClass+'-class'),
+        measureModel:measure.modelKey||('SMU-'+measurementClass+'-class'),
+        gateModel:gate?(gate.modelKey||('SMU-'+gateBounds.powerClass+'-class')):null,
         sourcePowerClass:bounds.powerClass,gatePowerClass:gateBounds?.powerClass||null,
         sourcePreamplifier:bounds.preamplifier,gatePreamplifier:gateBounds?.preamplifier||false,
         sourceVoltageRangeV:bounds.rangeV,gateVoltageRangeV:gateBounds?.rangeV||null,
@@ -137,9 +154,9 @@
         gateMaxComplianceA:gateBounds?.maxComplianceA??null,maxComplianceA,
         minComplianceA,complianceA,selectedCurrentRangeA,selectedGateCurrentRangeA:selectedGateRangeA,
         maxPowerW:bounds.maxPowerW,requiresInterlock,warnings:[
-          source.offline?'未连接仪器，按中功率 SMU、无前置放大器进行保守预校验。连接后必须重新校验。':null,
+          source.offline?'离线规划按明确选择的 '+source.modelKey+' 型号及数据库额定能力校验；连接仪器后必须重新读取模块清单并校验。':null,
           requiresInterlock&&hardware.interlockState==null?'该方案使用 200 V 量程；必须确认实体安全联锁已闭合。软件不能读取联锁状态。':null,
-          !source.exactModelVerified?'*OPT? 只识别功率等级；精确型号尚未从 SystemUtil 确认。':null
+          !source.offline&&!source.exactModelVerified?'*OPT? 只识别了 SMU 功率等级；电气限值按该硬件等级的公开规格执行，型号专属功能需等 SystemUtil 精确型号。':null
         ].filter(Boolean),executable:false,hardwareVerified:false
       });
     }
@@ -164,12 +181,12 @@
     if(requiresInterlock&&hardware.interlockState===false)
       throw Error('超过 ±21 V 的 200 V SMU 量程需要物理安全联锁闭合');
     return Object.freeze({
-      sourceMode,sourceSmU,measureSmU,gateSmU,sourceModel:source.modelKey||cls,
+      sourceMode,sourceSmU,measureSmU,gateSmU,sourceModel:source.modelKey||('SMU-'+cls+'-class'),measureModel:measure.modelKey||('SMU-'+measurementClass+'-class'),
       sourcePowerClass:cls,sourcePreamplifier:!!source.preamplifier,
       sourceCurrentRangeA:selectedCurrentRangeA,maxAbsCurrentA,
       maxVoltageComplianceV,voltageComplianceV,voltageRangeV:rangeV,
       requiresInterlock,warnings:[
-        source.offline?'未连接仪器，按中功率 SMU、无前置放大器进行保守预校验。连接后必须重新校验。':null,
+        source.offline?'离线规划按明确选择的 '+source.modelKey+' 型号及数据库额定能力校验；连接仪器后必须重新读取模块清单并校验。':null,
         requiresInterlock&&hardware.interlockState==null?'该方案使用 200 V 量程；必须确认实体安全联锁已闭合。软件不能读取联锁状态。':null
       ].filter(Boolean),executable:false,hardwareVerified:false
     });
@@ -186,19 +203,18 @@
   function pulseTimingProfile(sourceType,rangeV,measureMode,useRPM,currentRangeA){
     if(sourceType==='pgu'||measureMode==='none')return null;
     const pmu=DB.modules['4225-PMU'],rangeKey=String(rangeV)+'V';
-    let profiles=[];
+    const profiles=[];
     if(measureMode==='current'||measureMode==='both'){
       const table=useRPM?pmu.timing.currentMeasureWithRpm:pmu.timing.currentMeasureNoRpm;
       const profile=table[rangeKey]?.[roundKey(currentRangeA)];
-      if(!profile)throw Error('该 PMU 电流测量量程没有可核验的推荐时序数据，DKTS 暂不允许在该模式下生成 Segment ARB 测量方案');
-      profiles.push(profile);
+      if(profile)profiles.push(profile);
     }
     if(measureMode==='voltage'||measureMode==='both'){
       const table=useRPM?pmu.timing.voltageMeasureWithRpm:pmu.timing.voltageMeasureNoRpm;
       const profile=table[rangeKey];
-      if(!profile)throw Error('该 PMU 电压测量组合没有已核验的推荐时序数据');
-      profiles.push(profile);
+      if(profile)profiles.push(profile);
     }
+    if(!profiles.length)return null;
     return {
       minPulseS:Math.max(...profiles.map(x=>x.minPulseS)),
       minMeasureWindowS:Math.max(...profiles.map(x=>x.minMeasureWindowS)),
@@ -209,13 +225,13 @@
   function validatePulseWaveform(points,options={},hardware={}){
     const sourceType=String(options.sourceType||'pmu').toLowerCase();
     if(!['pmu','pgu'].includes(sourceType))throw Error('脉冲波形源类型必须为 PMU 或 PGU');
-    const rangeV=finite(options.rangeV??10,'脉冲电压量程 (V)',10,40);
-    if(rangeV!==10&&rangeV!==40)throw Error('PMU/PGU 电压量程只能选择 10 V 或 40 V');
+    const requestedRangeV=finite(options.rangeV??10,'脉冲电压量程 (V)',10,40);
+    if(requestedRangeV!==10&&requestedRangeV!==40)throw Error('PMU/PGU 电压量程只能选择 10 V 或 40 V');
     const loadOhms=finite(options.loadOhms,'DUT 与互连最小总负载阻值 (Ω)',0.000001,1e9);
     const dutCurrentLimitA=finite(options.dutCurrentLimitA,'DUT 允许最大电流 (A)',1e-12,0.8);
     const slot=resolvePulseSlot(sourceType,options,hardware);
     const useRPM=sourceType==='pmu'&&!!slot.rpm;
-    const effectiveRangeV=useRPM?Math.min(rangeV,10):rangeV;
+    const effectiveRangeV=useRPM?Math.min(requestedRangeV,10):requestedRangeV;
     const instrumentCurrentLimitA=DB.rules.pulse.instrumentCurrentCeilingAByRange[String(effectiveRangeV)];
     const sourceImpedanceOhm=DB.modules[sourceType==='pmu'?'4225-PMU':'4220-PGU'].sourceImpedanceOhm;
     const availableCurrentA=effectiveRangeV/(sourceImpedanceOhm+loadOhms);
@@ -227,27 +243,30 @@
     if(!['none','current','voltage','both'].includes(measureMode))throw Error('PMU 测量模式无效');
     if(sourceType==='pgu'&&measureMode!=='none')throw Error('4220-PGU 是纯电压脉冲源，不能测量电流或电压波形；需要使用 4225-PMU');
     let currentMeasureRangeA=null,timing=null,measureWindowS=null;
+    const pmu=DB.modules['4225-PMU'];
+    const sampleIntervalS=Number(pmu.sampling.minimumMeasureWindowS||pmu.sampling.nominalSampleIntervalS);
     if(sourceType==='pmu'&&(measureMode==='current'||measureMode==='both')){
-      const allowed=(useRPM?DB.modules['4225-RPM'].currentMeasureRangesA:DB.modules['4225-PMU'].currentMeasureRangesA)[String(rangeV)+'V']||[];
+      const allowed=(useRPM?DB.modules['4225-RPM'].currentMeasureRangesA:pmu.currentMeasureRangesA)[String(effectiveRangeV)+'V']||[];
+      if(!allowed.length)throw Error('当前 PMU/RPM 硬件组合没有对应的电流测量量程');
       const defaultRange=allowed[allowed.length-1];
       currentMeasureRangeA=finite(options.currentMeasureRangeA??defaultRange,'PMU 电流测量量程 (A)',Math.min(...allowed),Math.max(...allowed));
       if(!allowed.some(x=>Math.abs(x-currentMeasureRangeA)<=Math.max(1e-15,x*1e-9)))
         throw Error('所选电流测量量程与 PMU 电压量程/RPM 配置不匹配');
     }
-    timing=pulseTimingProfile(sourceType,rangeV,measureMode,useRPM,currentMeasureRangeA);
-    if(timing){
-      measureWindowS=finite(options.measureWindowS??timing.minMeasureWindowS,
-        'PMU 测量窗口 (s)',timing.minMeasureWindowS,1);
+    timing=pulseTimingProfile(sourceType,effectiveRangeV,measureMode,useRPM,currentMeasureRangeA);
+    if(sourceType==='pmu'&&measureMode!=='none'){
+      measureWindowS=finite(options.measureWindowS??timing?.minMeasureWindowS??sampleIntervalS,
+        'PMU 测量窗口 (s)',sampleIntervalS,DB.rules.waveform.segmentArb.hardware.maxSegmentTimeS);
     }
-    if(!Array.isArray(points)||points.length<4||points.length>2049)
-      throw Error('Segment ARB 至少需要 3 段、最多 2048 段（即 4 至 2049 个时间-电压点）');
+    const hw=DB.rules.waveform.segmentArb.hardware;
+    const minSegmentS=Number(hw.minSegmentTimeS);
+    const maxSegmentS=Number(hw.maxSegmentTimeS);
+    const minSegments=Number(hw.minSegments??1);
+    const maxSegments=Number(hw.maxSegments??2048);
+    if(!Array.isArray(points)||points.length<minSegments+1||points.length>maxSegments+1)
+      throw Error('Segment ARB 需要 '+minSegments+' 至 '+maxSegments+' 段（即 '+(minSegments+1)+' 至 '+(maxSegments+1)+' 个时间-电压点）');
     const firstTime=Number(points[0]?.timeS);
     if(!Number.isFinite(firstTime)||Math.abs(firstTime)>EPS)throw Error('Segment ARB 第一个时间点必须为 0 s');
-    const rangeProfile=DB.rules.waveform.segmentArb.clariusExampleProfile;
-    const rangeKey=String(rangeV)+'V';
-    const minSegmentS=rangeProfile.minSegmentTimeByRange[rangeKey];
-    const maxSegmentS=rangeProfile.maxSegmentTimeByRange[rangeKey];
-    const minTimeS=Math.max(minSegmentS,timing?.minPulseS||0,measureWindowS||0);
     let previous=-Infinity,minimumStepS=Infinity,maximumStepS=0;
     const normalized=points.map((point,index)=>{
       if(!point||typeof point!=='object')throw Error('第 '+(index+1)+' 个波形点格式错误');
@@ -257,31 +276,50 @@
       previous=t;
       return Object.freeze({timeS:t,voltageV:v});
     });
+    if(Math.abs(normalized[0].voltageV-normalized.at(-1).voltageV)>1e-9)
+      throw Error('Segment ARB 波形必须首尾电压相同，以满足循环序列的闭合条件');
+    let belowRecommendedPulse=false,belowRecommendedTransition=false,belowRecommendedWindow=false;
     for(let i=1;i<normalized.length;i++){
       const dt=normalized[i].timeS-normalized[i-1].timeS;
-      if(dt<minTimeS-EPS||dt>maxSegmentS+EPS)
-        throw Error('第 '+i+' 段持续时间必须在 '+minTimeS+' 至 '+maxSegmentS+' s 之间（按 '+rangeV+' V 档及测量量程校验）');
-      const ticks=dt/DB.rules.waveform.segmentArb.hardware.timeResolutionS;
+      if(dt<minSegmentS-EPS||dt>maxSegmentS+EPS)
+        throw Error('第 '+i+' 段持续时间必须在硬件范围 '+minSegmentS+' 至 '+maxSegmentS+' s 之间');
+      const ticks=dt/Number(hw.timeResolutionS);
       if(Math.abs(ticks-Math.round(ticks))>1e-6)
-        throw Error('第 '+i+' 段时间必须符合 10 ns 编程分辨率');
+        throw Error('第 '+i+' 段时间必须符合 '+(Number(hw.timeResolutionS)*1e9)+' ns 硬件编程分辨率');
+      if(measureWindowS!==null&&measureWindowS>dt+EPS)
+        throw Error('第 '+i+' 段持续时间小于 PMU 测量窗口；测量窗口必须位于当前段内');
       const deltaV=Math.abs(normalized[i].voltageV-normalized[i-1].voltageV);
-      if(deltaV>EPS&&timing&&dt<timing.minTransitionS-EPS)
-        throw Error('第 '+i+' 段电压转换时间小于该 PMU 测量量程的推荐最小转换时间');
+      if(deltaV>EPS&&timing&&dt<timing.minTransitionS-EPS)belowRecommendedTransition=true;
+      if(timing&&dt<timing.minPulseS-EPS)belowRecommendedPulse=true;
       minimumStepS=Math.min(minimumStepS,dt);maximumStepS=Math.max(maximumStepS,dt);
     }
+    if(timing&&measureWindowS!==null&&measureWindowS<timing.minMeasureWindowS-EPS)
+      belowRecommendedWindow=true;
+    const recommendations=timing?{
+      minimumPulseWidthS:timing.minPulseS,
+      minimumMeasureWindowS:timing.minMeasureWindowS,
+      minimumTransitionTimeS:timing.minTransitionS,
+      settlingTimeS:timing.settlingS,
+      status:'typical-recommended-not-hard-limits'
+    }:null;
     const warnings=[
-      slot.offline?'未连接仪器，按所选 PMU/PGU 规格进行离线预校验；连接后必须确认实际卡槽和 RPM 配置。':null,
-      sourceType==='pmu'&&useRPM?'检测到 RPM：输出幅度按 ±10 V 限制，测量时序采用 RPM 专用参数。':null,
-      sourceType==='pmu'&&measureMode==='current'?'电流测量量程是 ADC 测量范围，不是 DUT 输出电流限值。实际输出限值另按 DUT 限流和 50 Ω 负载模型计算。':null
+      slot.offline?'离线规划按 '+slot.modelKey+' 的官方硬件规格校验；连接后必须重新读取实际卡槽/RPM 配置。':null,
+      sourceType==='pmu'&&useRPM?'检测到 RPM：PMU 输出量程按 RPM 规格限制为 ±10 V。':null,
+      sourceType==='pmu'&&measureMode==='current'?'电流测量量程是 ADC 测量范围，不是 DUT 输出电流限值；输出限流另按 DUT 限流和 50 Ω 负载模型计算。':null,
+      belowRecommendedPulse?'部分段时间低于所选测量量程的典型推荐最小脉宽；仍在 Segment ARB 硬件定时范围内，但测量稳定性/精度可能下降。':null,
+      belowRecommendedTransition?'部分电压变化段短于典型推荐转换时间；软件保留硬件允许值，实际波形边沿可能无法达到目标斜率。':null,
+      belowRecommendedWindow?'测量窗口低于典型推荐窗口，但不低于 PMU 的一个 ADC 采样周期。':null,
+      sourceType==='pmu'&&measureMode!=='none'&&!timing?'当前量程组合没有可用的典型时序建议；仅按 Segment ARB 硬件范围和 ADC 采样周期校验。':null
     ].filter(Boolean);
     return Object.freeze({
-      sourceType,rangeV,loadOhms,sourceImpedanceOhm,
+      sourceType,requestedRangeV,rangeV:effectiveRangeV,loadOhms,sourceImpedanceOhm,
       maxCurrentA,availableCurrentA,effectiveCurrentLimitA,maxVoltageV,
       dutCurrentLimitA,measureMode,currentMeasureRangeA,measureWindowS,useRPM,
       sourceCard:slot.channel,sourceChannel:slot.selectedOutputChannel,
       segmentCount:normalized.length-1,durationS:normalized.at(-1).timeS-normalized[0].timeS,
-      minimumStepS,maximumStepS,minSegmentTimeS:minTimeS,maxSegmentTimeS:maxSegmentS,
-      timeResolutionS:DB.rules.waveform.segmentArb.hardware.timeResolutionS,
+      minimumStepS,maximumStepS,minSegmentTimeS:minSegmentS,maxSegmentTimeS:maxSegmentS,
+      timeResolutionS:Number(hw.timeResolutionS),sampleIntervalS:sourceType==='pmu'?sampleIntervalS:null,
+      timingRecommendations:recommendations,
       points:normalized,warnings,executable:false,hardwareVerified:false,
       safetyDatabaseVersion:DB.databaseVersion
     });
@@ -323,12 +361,9 @@
   }
   function validateCvuPlan(input={},hardware={}){
     const cvuChannel=integer(input.cvuChannel??1,'CVU 通道',1,9);
-    let slot=null;
-    if(hardware.inventory){
-      slot=slotFor('CVU',cvuChannel,hardware,'CVU');
-    }else if(hardware.connected)throw Error('仪器已连接但 CVU 模块清单不可用');
-    const modelKey=slot?.modelKey&&DB.modules[slot.modelKey]?slot.modelKey:
-      input.cvuModel==='4215-CVU'?'4215-CVU':'4210-CVU';
+    const slot=slotFor('CVU',cvuChannel,hardware,'CVU',input.cvuModel);
+    const modelKey=slot.modelKey;
+    if(!modelKey||!DB.modules[modelKey])throw Error('未识别到 CVU 的确切型号，不能用较低规格型号代替');
     const model=DB.modules[modelKey];
     const acDriveVrms=finite(input.acDriveVrms??0.05,'CVU AC 激励 (Vrms)',model.acDriveVrms.min,model.acDriveVrms.max);
     const frequencyHz=finite(input.frequencyHz??100000,'CVU 测试频率 (Hz)',model.frequencyHz.min,model.frequencyHz.max);
@@ -361,8 +396,7 @@
       throw Error('未确认安装 4200-CVU-PWR 高功率 C-V 选件');
     return Object.freeze({
       cvuChannel,modelKey,frequencyHz,acDriveVrms,biasSource,dcBiasV,dcBiasCurrentLimitA,
-      warnings:[slot?.offline?'未连接仪器，按 4210-CVU 的保守规格校验。':null,
-        !slot?.modelKey&&modelKey==='4210-CVU'?'*OPT? 未区分 4210-CVU 与 4215-CVU，按 4210-CVU 100 mVrms 限制。':null].filter(Boolean),
+      warnings:[slot.offline?'离线规划按明确选择的 '+modelKey+' 官方规格校验；连接后必须重新读取实际 CVU 型号。':null].filter(Boolean),
       executable:false,hardwareVerified:false,safetyDatabaseVersion:DB.databaseVersion
     });
   }
