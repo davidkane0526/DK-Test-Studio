@@ -387,10 +387,17 @@
     const testW = nHighPowerSmu * DATABASE.chassisPower.testW.highPowerSmu + nC10 * DATABASE.chassisPower.testW.pmuOrPguChannel10V + nC40 * DATABASE.chassisPower.testW.pmuOrPguChannel40V;
     return Object.freeze({ known: true, nPGU: nPgu, nPMU: nPmu, nRPM: nRpm, nHPSMU: nHighPowerSmu, nC10, nC40, idleW, testW, totalW: idleW + testW, limitW: DATABASE.chassisPower.maximumW, withinLimit: idleW + testW <= DATABASE.chassisPower.maximumW });
   }
-  function getCvuCapabilities(variant, powerOption = false) {
+  function getCvuCapabilities(variant, options = {}) {
     const mod = getModuleCapability('CVU'), key = String(variant || '').toUpperCase();
-    if (!Object.hasOwn(mod.variants, key)) return Object.freeze({ known: false, variantRequired: true, common: mod.common, reason: 'KXCI *OPT? 只报告 CVU，不能区分 4210-CVU 与 4215-CVU' });
-    return Object.freeze({ known: true, variant: key, ...mod.variants[key], powerOption: powerOption ? mod.optionalPowerModule : null });
+    const powerOptionRequested = typeof options === 'boolean' ? options : Boolean(options?.powerOptionRequested);
+    const powerOptionVerified = typeof options === 'object' && options?.powerOptionVerified === true;
+    if (!Object.hasOwn(mod.variants, key)) return Object.freeze({ known: false, variantRequired: true, common: mod.common, powerOption: null, powerOptionStatus: powerOptionRequested ? 'variant-and-option-identification-required' : 'not-identified', reason: 'KXCI *OPT? 只报告 CVU，不能区分 4210-CVU 与 4215-CVU；高压附件也必须单独确认' });
+    return Object.freeze({
+      known: true, variant: key, ...mod.variants[key],
+      powerOption: powerOptionVerified ? mod.optionalPowerModule : null,
+      powerOptionStatus: powerOptionVerified ? 'verified' : powerOptionRequested ? 'requested-but-unverified' : 'not-identified',
+      highVoltageBiasAllowed: powerOptionVerified
+    });
   }
   function exportDatabase() { return JSON.parse(JSON.stringify(DATABASE)); }
   const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
