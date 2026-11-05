@@ -15,7 +15,7 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 test('DK Test Studio installs as a distinct external DKDS plugin, not a builtin override',()=>{
   assert.equal(manifest.id,'com.dkts.keithley-4200');
   assert.notEqual(manifest.id,BUILTIN.id);
-  assert.equal(manifest.version,'0.6.13');
+  assert.equal(manifest.version,'0.6.14');
   assert.equal(manifest.apiVersion,'1.19.0');
   assert.equal(manifest.workspace.activity,'dkts-keithley-4200');
   assert.equal(manifest.window.activity,'dkts-keithley-4200');
