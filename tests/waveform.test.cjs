@@ -70,18 +70,36 @@ test('PMU current capture exposes ranges and enforces acquisition buffer',()=>{
   assert.equal(w.captureBudget.interfaceMaxPointsPerChannel,65536);
   assert.equal(w.captureBudget.interfaceDataBufferCapacityPointsPerChannel,65536);
   assert.equal(w.captureBudget.hardwareMaxSampleRateHz,200e6);
+  assert.ok(Math.abs(w.captureBudget.totalMeasureDurationS-20e-9)<1e-20);
+  assert.equal(w.captureBudget.sampleCountAtSelectedRate,4);
+  assert.equal(w.captureBudget.clariusItmMaxPointsPerChannel,4096);
+  assert.equal(w.captureBudget.clariusUtmMaxPointsPerChannel,65536);
   assert.throws(()=>validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measureWindowS:1e-9,inventory}),/采样率范围/);
 });
 test('PMU planning enforces fewer than one million hardware samples and up to 65536 KXCI-generated points with an explicitly flagged endpoint',()=>{
   const points=[{timeS:0,voltageV:0},{timeS:0.25,voltageV:1},{timeS:0.5,voltageV:0},{timeS:0.75,voltageV:1},{timeS:1,voltageV:0}];
-  const w=validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measureWindowS:1e-3,inventory});
+  const w=validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measureWindowS:1e-3,pulseCount:50,sweepPoints:20,stepPoints:1,inventory});
   assert.equal(w.captureBudget.maxPointsPerChannel,999999);
   assert.equal(w.captureBudget.interfaceMaxPointsPerChannel,65536);
   assert.equal(w.captureBudget.maxSampleRateHz,999999);
+  assert.equal(w.captureBudget.totalMeasureDurationS,1);
+  assert.equal(w.captureBudget.measurementCount,1000);
+  assert.equal(w.captureBudget.sampleCountAtSelectedRate,999999);
   assert.equal(w.captureBudget.kxciCompatible,false);
   assert.equal(w.interfaceLimits.capturePointsCompatible,false);
   assert.equal(w.interfaceLimits.requiresAlternateBackend,true);
   assert.equal(w.executionCompatibility,'hardware-valid-kxci-limited');
+});
+test('PMU sample budget uses cumulative measurement windows rather than the output waveform duration',()=>{
+  const points=[{timeS:0,voltageV:0},{timeS:0.5,voltageV:1},{timeS:1,voltageV:0},{timeS:1.5,voltageV:1}];
+  const w=validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measureWindowS:20e-9,pulseCount:1,sweepPoints:1,stepPoints:1,inventory});
+  assert.equal(w.durationS,1.5);
+  assert.ok(Math.abs(w.captureBudget.totalMeasureDurationS-20e-9)<1e-20);
+  assert.equal(w.captureBudget.maxSampleRateHz,200e6);
+  assert.equal(w.captureBudget.sampleCountAtSelectedRate,4);
+  assert.equal(w.captureBudget.totalMeasureDurationSource,'measure-window-times-pulse-sweep-step-counts');
+  assert.throws(()=>validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measureWindowS:20e-9,pulseCount:0,inventory}),/脉冲数/);
+  assert.throws(()=>validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,inventory}),/必须提供总测量窗口累计时长/);
 });
 test('PMU plus RPM plan exposes published current-range timing guidance',()=>{
   const rpmInventory={slots:[{type:'PMURPM',family:'PMU',channel:1,rpmCount:1,rpmChannels:[1]}],unknownModules:[]};
