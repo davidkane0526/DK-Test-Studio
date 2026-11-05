@@ -345,7 +345,7 @@
     return Object.freeze({
       minSampleRateHz: minimumRequiredRateHz, maxSampleRateHz: hardwareMaxRateHz,
       selectedSampleRateHz: selectedRateHz, sampleIntervalS: 1 / selectedRateHz,
-      maxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsPerChannel: hardwareMaxPoints,
+      maxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsExclusivePerChannel: mod.measurement.hardwareSampleCountUpperBoundExclusive,
       interfaceMaxPointsPerChannel: interfaceMaxPoints, interfaceDataBufferCapacityPointsPerChannel: interfaceBufferCapacity, interfaceMaxGeneratedPointsExclusive: interfaceGeneratedPointsExclusive, kxciMaxSampleRateHz: kxciMaxRateHz,
       hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz, kxciCompatible,
       interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 波形生成点数必须严格少于每通道 65536 点（数据缓冲容量为 65536 点）；PMU 硬件单次采集点数必须严格少于 1000000 点', interfaceLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus
@@ -376,7 +376,7 @@
     const recommendation = {
       ...timing, transitionMinS, transitionSelection, peakAbsVoltageV: peakAbs,
       source: 'tek-4200a-datasheet-2026', measurementEnabled: Boolean(withMeasurement),
-      hardwareSpecification: true, kxciInterfaceTiming: mod.kxciPulseTiming?.[range] || null,
+      hardwareSpecification: true, kxciInterfaceTiming: mod.kxciPulseTiming?.[range] || null, typicalTimingSource: 'tek-4200a-pmu-rev-c',
       kxciInterfaceSource: mod.kxciPulseTiming ? 'tek-4200a-kxci-rev-e' : null
     };
     if (measurementRangeA !== undefined && measurementRangeA !== null) {
