@@ -1,0 +1,109 @@
+name: DKTS native PR preview (never publish)
+run-name: DKTS V0.3.13 a${{ github.run_number }} PR
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+concurrency:
+  group: dkts-native-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      DKTS_BUILD_SHA: ${{ github.event.pull_request.head.sha }}
+      DKTS_UI_VERSION: a${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run icons:build
+      - run: npm run prepare:plot-vendor
+      - run: node tools/stamp-native-ui.cjs
+      - run: npx electron-builder --win portable --x64 --publish never
+      - name: Require portable executable
+        shell: pwsh
+        run: |
+          $f = @(Get-ChildItem dist -File -Filter '*Portable*.exe')
+          if ($f.Count -ne 1) { throw 'Portable binary missing or ambiguous' }
+          if ($f[0].Length -lt 1000000) { throw 'Truncated binary' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-PR-Windows-Portable-a${{ github.run_number }}
+          path: dist/*Portable*.exe
+          if-no-files-found: error
+  android:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      DKTS_BUILD_SHA: ${{ github.event.pull_request.head.sha }}
+      DKTS_UI_VERSION: a${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: node tools/stamp-native-ui.cjs
+      - run: node tools/sync-android-assets.cjs
+      - run: npm run icons:build
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Restore existing Android signing identity
+        env:
+          DKTS_ANDROID_KEYSTORE_B64: ${{ secrets.DKTS_ANDROID_KEYSTORE_B64 }}
+          DKTS_ANDROID_SIGNING_PASSWORD: ${{ secrets.DKTS_ANDROID_SIGNING_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$DKTS_ANDROID_KEYSTORE_B64" ] || [ -z "$DKTS_ANDROID_SIGNING_PASSWORD" ]; then
+            echo "::error::Stable Android signing secret unavailable; refuse to create a new key"
+            exit 1
+          fi
+          keypath="$RUNNER_TEMP/dkts-signing.p12"
+          printf '%s' "$DKTS_ANDROID_KEYSTORE_B64" | base64 --decode > "$keypath"
+          chmod 600 "$keypath"
+          keytool -list -keystore "$keypath" -storetype PKCS12 -storepass "$DKTS_ANDROID_SIGNING_PASSWORD" -alias dkts > /dev/null
+          echo "DKTS_ANDROID_KEYSTORE_PATH=$keypath" >> "$GITHUB_ENV"
+      - name: Assemble signed APK
+        env:
+          DKTS_ANDROID_SIGNING_PASSWORD: ${{ secrets.DKTS_ANDROID_SIGNING_PASSWORD }}
+        run: gradle -p android :app:assembleRelease --no-daemon
+      - name: Verify distribution signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$apk"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          "$apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/dkts-signature.txt"
+          actual="$(awk '/^(Signer #[0-9]+|V[0-9]+ Signer):? certificate SHA-256 digest:/ { print $NF; exit }' "$RUNNER_TEMP/dkts-signature.txt" | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
+          expected="$(tr -d ':[:space:]' < android/signing-certificate.sha256 | tr 'A-F' 'a-f')"
+          test "$actual" = "$expected" || { echo "::error::Android certificate mismatch"; exit 1; }
+          echo "Signing identity verified."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-PR-Android-Signed-a${{ github.run_number }}
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
