@@ -112,7 +112,7 @@
         kxciPulseTiming: { '10': { periodMinS: 6e-8, periodMaxS: 1, pulseWidthMinS: 4e-8, transitionMinS: 2e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 2e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
         pulseTiming: {
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 }, withMeasurement: { periodMinS: 1.2e-7, periodMaxS: 1, pulseWidthMinS: 6e-8, transitionMinS: 2e-8, maxFrequencyHz: 8.3e6 } },
-          '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值不超过10 V时为30 ns，超过10 V时为100 ns', maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
+          '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值小于10 V时为30 ns，大于10 V时为100 ns；恰为10 V时手册未明确', maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
         },
         measurement: {
           currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-2, 1e-1, 8e-1] },
@@ -128,7 +128,7 @@
         kxciPulseTiming: { '10': { periodMinS: 6e-8, periodMaxS: 1, pulseWidthMinS: 4e-8, transitionMinS: 2e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 2e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
         pulseTiming: {
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 }, withMeasurement: { periodMinS: 1.2e-7, periodMaxS: 1, pulseWidthMinS: 6e-8, transitionMinS: 2e-8, maxFrequencyHz: 8.3e6 } },
-          '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值不超过10 V时为30 ns，超过10 V时为100 ns', maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
+          '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值小于10 V时为30 ns，大于10 V时为100 ns；恰为10 V时手册未明确', maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
         },
         rpmTypicalTiming: {
           '10': {
@@ -159,7 +159,7 @@
         kxciPulseTiming: { '10': { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 1e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
         pulseTiming: {
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 } },
-          '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值不超过10 V时为30 ns，超过10 V时为100 ns', maxFrequencyHz: 1e7 } }
+          '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值小于10 V时为30 ns，大于10 V时为100 ns；恰为10 V时手册未明确', maxFrequencyHz: 1e7 } }
         },
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
         segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 2e-8 }, kxciMinSegmentTimeS: { '10': 1e-8, '40': 5e-8 } },
@@ -329,8 +329,15 @@
     if (peakAbs !== null && !Number.isFinite(peakAbs)) throw Error('脉冲峰值电压无效');
     let transitionMinS = timing.transitionMinS, transitionSelection = 'fixed';
     if (timing.transitionMinSAbove10V !== undefined) {
-      if (peakAbs === null) { transitionMinS = null; transitionSelection = 'requires-output-amplitude'; }
-      else { transitionMinS = peakAbs > 10 ? timing.transitionMinSAbove10V : timing.transitionMinS; transitionSelection = peakAbs > 10 ? 'above-10V' : 'at-or-below-10V'; }
+      if (peakAbs === null) {
+        transitionMinS = null; transitionSelection = 'requires-output-amplitude';
+      } else if (peakAbs < 10) {
+        transitionMinS = timing.transitionMinS; transitionSelection = 'below-10V';
+      } else if (peakAbs > 10) {
+        transitionMinS = timing.transitionMinSAbove10V; transitionSelection = 'above-10V';
+      } else {
+        transitionMinS = null; transitionSelection = 'exactly-10V-not-specified-in-manual';
+      }
     }
     const recommendation = {
       ...timing, transitionMinS, transitionSelection, peakAbsVoltageV: peakAbs,
