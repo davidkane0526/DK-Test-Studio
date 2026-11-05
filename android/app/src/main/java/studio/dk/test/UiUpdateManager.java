@@ -39,15 +39,20 @@ final class UiUpdateManager {
     private static final String API = "https://api.github.com/repos/" + REPO;
     private static final Pattern SHA = Pattern.compile("^[a-fA-F0-9]{40}$");
     private static final Pattern STAMP = Pattern.compile("name=\"dkts-ui-version\" content=\"([a-fA-F0-9]{40})\"");
+    private static final Pattern UI_STAMP = Pattern.compile("name=\"dkts-ui-release\" content=\"(a\\d+)\"");
+    private static final Pattern HOTFIX = Pattern.compile("^a\\d+$");
+    private static final Pattern SEMVER = Pattern.compile("^\\d+\\.\\d+\\.\\d+$");
     private static final String[] FILES = {"index.html", "app.js", "styles.css"};
     private final File live, stage, backup;
     private final String bundledCommit;
+    private final String bundledUiVersion;
     private final WebViewAssetLoader.AssetsPathHandler bundled;
     private final ExecutorService updateWorker = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable applied;
     private volatile boolean closed = false;
     private volatile String installedTag = "";
+    private volatile String installedUiVersion = "a0";
     private volatile String updateStatus = "idle";
     private volatile String updateError = "";
     private final Runnable checkPeriodic = new Runnable() {
@@ -63,23 +68,30 @@ final class UiUpdateManager {
         this.stage = new File(ctx.getFilesDir(), "dkts-ui-next");
         this.backup = new File(ctx.getFilesDir(), "dkts-ui-backup");
         this.bundled = new WebViewAssetLoader.AssetsPathHandler(ctx);
-        String embedded = "";
+        String embedded = "", embeddedUi = "a0";
         try (InputStream input = ctx.getAssets().open("index.html")) {
             String html = new String(readLimit(input, 524288), StandardCharsets.UTF_8);
             Matcher marker = STAMP.matcher(html);
             if (marker.find()) embedded = marker.group(1).toLowerCase(java.util.Locale.ROOT);
+            Matcher uiMarker = UI_STAMP.matcher(html);
+            if (uiMarker.find()) embeddedUi = uiMarker.group(1);
         } catch (Exception error) {
-            Log.w(TAG, "Cannot verify bundled UI commit", error);
+            Log.w(TAG, "Cannot verify bundled UI identity", error);
         }
         this.bundledCommit = embedded;
+        this.bundledUiVersion = embeddedUi;
+        this.installedUiVersion = embeddedUi;
         this.applied = onApplied;
         if (!validateStored(live)) {
             deleteTree(live);
             if (validateStored(backup)) backup.renameTo(live);
         }
         if (validateStored(live)) {
-            try { installedTag = new JSONObject(readText(new File(live, "meta.json"))).getString("tag"); }
-            catch (Exception ignored) {}
+            try {
+                JSONObject meta = new JSONObject(readText(new File(live, "meta.json")));
+                installedTag = meta.getString("tag");
+                installedUiVersion = meta.getString("uiVersion");
+            } catch (Exception ignored) {}
         }
     }
 
@@ -105,6 +117,7 @@ final class UiUpdateManager {
         return new JSONObject()
             .put("status", updateStatus)
             .put("tag", installedTag)
+            .put("uiVersion", installedUiVersion)
             .put("error", updateError);
     }
 
@@ -197,7 +210,9 @@ final class UiUpdateManager {
                 !SHA.matcher(bundledCommit).matches() ||
                 !bundledCommit.equals(meta.optString("shellBase")) ||
                 !SHA.matcher(meta.optString("version")).matches() ||
-                !("dkts-ui-"+meta.optString("version")).equals(meta.optString("tag"))) return false;
+                !("dkts-ui-"+meta.optString("version")).equals(meta.optString("tag")) ||
+                !HOTFIX.matcher(meta.optString("uiVersion")).matches() ||
+                !SEMVER.matcher(meta.optString("packageVersion")).matches()) return false;
             JSONObject hashes = meta.getJSONObject("hashes");
             for (String name : FILES) {
                 byte[] content;
@@ -247,7 +262,9 @@ final class UiUpdateManager {
         if(!SCHEMA.equals(bundle.getString("schema"))||
             !REPO.equals(bundle.getString("repository"))||
             bundle.getInt("minShell")!=4||
-            !head.equalsIgnoreCase(bundle.getString("version")))
+            !head.equalsIgnoreCase(bundle.getString("version"))||
+            !HOTFIX.matcher(bundle.optString("uiVersion")).matches()||
+            !SEMVER.matcher(bundle.optString("packageVersion")).matches())
             throw new IllegalStateException("Bundle does not match main HEAD");
         JSONObject data = bundle.getJSONObject("platforms").getJSONObject("android");
         JSONObject hashes = new JSONObject();
@@ -271,6 +288,8 @@ final class UiUpdateManager {
             meta.put("schema", SCHEMA);meta.put("repository", REPO);
             meta.put("minShell", 4);meta.put("version", head);
             meta.put("tag", tag);meta.put("shellBase",bundledCommit);
+            meta.put("uiVersion",bundle.getString("uiVersion"));
+            meta.put("packageVersion",bundle.getString("packageVersion"));
             meta.put("hashes", hashes);
             write(new File(stage, "meta.json"), meta.toString().getBytes(StandardCharsets.UTF_8));
             if (!validateStored(stage)) throw new IllegalStateException("Stage validation failed");
@@ -282,6 +301,7 @@ final class UiUpdateManager {
                 throw new IllegalStateException("Cannot activate UI");
             }
             installedTag = tag;
+            installedUiVersion = bundle.getString("uiVersion");
             updateStatus = "updated";
             if (!closed) main.post(applied);
             Log.i(TAG, "UI updated to " + tag);

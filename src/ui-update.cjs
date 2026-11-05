@@ -12,6 +12,8 @@ const TYPE='dkts-ui-v1';
 function validateBundle(bundle,platform){
   if(!bundle||bundle.schema!==TYPE||bundle.repository!==REPO||
     !/^[a-zA-Z0-9._-]{5,80}$/.test(bundle.version||'')||
+    !/^a\d+$/.test(bundle.uiVersion||'')||
+    !/^\d+\.\d+\.\d+$/.test(bundle.packageVersion||'')||
     bundle.minShell!==4||!bundle.platforms?.[platform])
     throw Error('Unsupported UI update bundle');
   const entries=bundle.platforms[platform];
@@ -48,13 +50,22 @@ function createUiUpdater(options={}){
     }catch{return '';}
   }
   const baseCommit=embeddedCommit().toLowerCase();
-  let version='bundled',tag='',status='idle',lastError='',busy=null;
+  function embeddedUiVersion(){
+    try{
+      const html=fs.readFileSync(path.join(__dirname,'..','web','index.html'),'utf8');
+      return /<meta name="dkts-ui-release" content="(a\d+)">/i.exec(html)?.[1]||'a0';
+    }catch{return 'a0';}
+  }
+  let version='bundled',uiVersion=embeddedUiVersion(),packageVersion=require('../package.json').version;
+  let tag='',status='idle',lastError='',busy=null;
   const active=path.join(root,'ui-active'),stage=path.join(root,'ui-next'),backup=path.join(root,'ui-previous');
   function verifyCached(folder){
     const meta=JSON.parse(fs.readFileSync(path.join(folder,'meta.json'),'utf8'));
     if(meta.schema!==TYPE||meta.repository!==REPO||meta.minShell!==4||
       !COMMIT.test(baseCommit)||meta.shellBase!==baseCommit||
-      !COMMIT.test(meta.version)||meta.tag!=='dkts-ui-'+meta.version)
+      !COMMIT.test(meta.version)||meta.tag!=='dkts-ui-'+meta.version||
+      !/^a\d+$/.test(meta.uiVersion||'')||
+      !/^\d+\.\d+\.\d+$/.test(meta.packageVersion||''))
       throw Error('Cached UI does not belong to the current native shell');
     const entries={};
     for(const name of FILES){
@@ -62,16 +73,21 @@ function createUiUpdater(options={}){
       entries[name]={sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
         bytes:bytes.length,base64:bytes.toString('base64')};
     }
-    validateBundle({schema:TYPE,version:meta.version,minShell:4,repository:REPO,
+    validateBundle({schema:TYPE,version:meta.version,uiVersion:meta.uiVersion,
+      packageVersion:meta.packageVersion,minShell:4,repository:REPO,
       platforms:{windows:entries}},'windows');
     return meta;
   }
   function restore(){
-    try{const meta=verifyCached(active);version=meta.version;tag=meta.tag;}catch{
-      version='bundled';tag='';
-      try{const meta=verifyCached(backup);
+    try{
+      const meta=verifyCached(active);
+      version=meta.version;uiVersion=meta.uiVersion;packageVersion=meta.packageVersion;tag=meta.tag;
+    }catch{
+      version='bundled';uiVersion=embeddedUiVersion();tag='';
+      try{
+        const meta=verifyCached(backup);
         fs.rmSync(active,{recursive:true,force:true});fs.renameSync(backup,active);
-        version=meta.version;tag=meta.tag;
+        version=meta.version;uiVersion=meta.uiVersion;packageVersion=meta.packageVersion;tag=meta.tag;
       }catch{ /* bundled frontend remains usable */ }
     }
   }
@@ -105,7 +121,7 @@ function createUiUpdater(options={}){
         if(!COMMIT.test(head))throw Error('无法验证主分支 Git 版本');
         const installed=version==='bundled'?baseCommit:version;
         if(!COMMIT.test(installed))throw Error('已安装 UI 版本无效');
-        if(head===installed){status='current';return {updated:false,version};}
+        if(head===installed){status='current';return {updated:false,version,uiVersion,packageVersion};}
         const releaseTag='dkts-ui-'+head;
         const release=await request(API+'/releases/tags/'+releaseTag,{notFound:true});
         if(!release){status='pending';return {updated:false,version};}
@@ -130,16 +146,18 @@ function createUiUpdater(options={}){
         fs.rmSync(stage,{recursive:true,force:true});fs.mkdirSync(stage);
         for(const name of FILES)fs.writeFileSync(path.join(stage,name),parts[name]);
         fs.writeFileSync(path.join(stage,'meta.json'),JSON.stringify({
-          schema:TYPE,version:head,tag:releaseTag,minShell:4,repository:REPO,
-          shellBase:baseCommit
+          schema:TYPE,version:head,uiVersion:bundle.uiVersion,
+          packageVersion:bundle.packageVersion,tag:releaseTag,minShell:4,
+          repository:REPO,shellBase:baseCommit
         }));
         verifyCached(stage);
         fs.rmSync(backup,{recursive:true,force:true});
         if(fs.existsSync(active))fs.renameSync(active,backup);
         try{fs.renameSync(stage,active);}
         catch(e){if(fs.existsSync(backup))fs.renameSync(backup,active);throw e;}
-        version=head;tag=releaseTag;status='updated';lastError='';
-        return {updated:true,version};
+        version=head;uiVersion=bundle.uiVersion;packageVersion=bundle.packageVersion;
+        tag=releaseTag;status='updated';lastError='';
+        return {updated:true,version,uiVersion,packageVersion};
       }catch(e){
         status='offline';lastError=String(e.message||e).slice(0,180);
         return {updated:false,version,error:lastError};
@@ -157,6 +175,6 @@ function createUiUpdater(options={}){
   }
   function stop(){if(timer)clearInterval(timer);timer=null;}
   return Object.freeze({getAsset,updateOnce,start,stop,
-    state:()=>({version,tag,status,error:lastError})});
+    state:()=>({version,uiVersion,packageVersion,tag,status,error:lastError})});
 }
 module.exports={createUiUpdater,validateBundle};

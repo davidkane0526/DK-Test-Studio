@@ -2,24 +2,24 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.resolve(__dirname,'..');
+const packageVersion=require('../package.json').version;
 const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
 const app=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
 const css=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
-test('native version reveals hidden UI SHA and explicitly checks updates',()=>{
-  assert.match(html,/id="native-version-badge"[^>]*aria-expanded="false"/);
-  assert.match(html,/id="ui-version-badge"[^>]*hidden/);
-  assert.match(app,/nativeBadge\.addEventListener\('click'/);
-  assert.match(app,/meta\[name="dkts-ui-release"\]/);
-  assert.match(app,/nativePackageVersion/);
-  assert.match(app,/nativeBadge\.textContent='v'\+release/);
-  assert.match(app,/安装包 v/);
-  assert.match(app,/可选完整升级/);
-  assert.match(app,/void checkUiUpdateNow\(\)/);
-  assert.match(app,/fetch\('\/api\/ui\/check'/);
-  assert.match(app,/window\.DKTSClient\.checkUiUpdate\(\)/);
-  assert.match(css,/#ui-version-badge\[hidden\]\{display:none!important\}/);
-  assert.match(css,/-webkit-tap-highlight-color:transparent/);
-  assert.doesNotMatch(html,/version-hold-toggle/);
+test('the version button shows V package version and hides the a-number UI version until opened',()=>{
+  assert(html.includes('id="native-version-badge"'));
+  assert(html.includes('id="ui-version-badge"')&&html.includes('hidden'));
+  assert(html.includes('>V'+packageVersion+'</button>'));
+  assert(!html.includes('native-app-update-state')&&!html.includes('native-app-update-action'));
+  assert(app.includes("nativeBadge.textContent='V'+nativePackageVersion;"));
+  assert(app.includes("hasHotfix?hotfix:'a0'"));
+  assert(app.includes("if(opening)void checkUiUpdateNow();"));
+  assert(!app.includes('checkNativeAppUpdate')&&!app.includes('可选完整升级'));
+  assert(app.includes("fetch('/api/ui/check'"));
+  assert(app.includes('window.DKTSClient.checkUiUpdate()'));
+  assert(css.includes('#ui-version-badge[hidden]{display:none!important}'));
+  assert(css.includes('-webkit-tap-highlight-color:transparent'));
+  assert(!html.includes('version-hold-toggle'));
 });
 test('only one collapsible parameter control lives at the right of the data heading',()=>{
   assert.doesNotMatch(html,/id="toggle-parameters"/);

@@ -1,33 +1,26 @@
 name: Native Shell Windows Android and DKDS Release
+run-name: DK Test Studio V0.3.10 a${{ github.event.workflow_run.run_number }} · Full Package
 on:
-  push:
+  workflow_run:
+    workflows: ["Fast UI Hot Update"]
+    types: [completed]
     branches: [main]
-    # Frontend-only changes are delivered by ui-update.yml. Do not rebuild
-    # or republish APK/EXE binaries when a verified UI hot update is sufficient.
-    paths:
-      - 'android/**'
-      - 'desktop/**'
-      - 'src/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'build/**'
-      - 'integrations/**'
-      - 'tools/sync-android-assets.cjs'
-      - 'tools/stamp-native-ui.cjs'
-      - 'tools/prepare-dkds-plot-vendor.cjs'
-      - 'tools/generate-app-icons.cjs'
-      - 'tools/build-dkds-plugin.cjs'
-      - 'tools/verify-dkds-installability.cjs'
-  workflow_dispatch:
 permissions:
   contents: write
+env:
+  # Reuse the exact source commit and UI ID assigned by Fast UI Hot Update.
+  DKTS_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
+  DKTS_UI_VERSION: a${{ github.event.workflow_run.run_number }}
 jobs:
   windows:
+    if: github.event.workflow_run.conclusion == 'success'
     name: Windows Setup, Portable, and validated DKDS plugin
     runs-on: windows-latest
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DKTS_BUILD_SHA }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -102,11 +95,14 @@ jobs:
           if-no-files-found: error
 
   android:
+    if: github.event.workflow_run.conclusion == 'success'
     name: Independent Android APK (native Ethernet / Wi-Fi)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DKTS_BUILD_SHA }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -228,11 +224,14 @@ jobs:
           if-no-files-found: error
 
   ui-bundle:
-    name: Build lightweight update resources for this commit
+    if: github.event.workflow_run.conclusion == 'success'
+    name: Build V0.3.10 a${{ github.event.workflow_run.run_number }} UI update resources
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DKTS_BUILD_SHA }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -249,12 +248,15 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Publish all supported platforms and UI bundle in one GitHub prerelease
+    name: Publish V0.3.10 a${{ github.event.workflow_run.run_number }} full GitHub Release
     needs: [windows, android, ui-bundle]
-    if: github.ref == 'refs/heads/main'
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DKTS_BUILD_SHA }}
       - uses: actions/download-artifact@v4
         with:
           name: DKTS-Windows
@@ -282,25 +284,35 @@ jobs:
           test "$(find release/ui -name 'DKTS-UI-bundle.json' | wc -l)" -eq 1
           test "$(find release -type f | wc -l)" -eq 5
           find release -type f -print0 | xargs -0 -n1 sha256sum
-      - name: Publish exact commit with Windows, independent Android and DKDS plugin
+      - name: Publish V0.3.10 a${{ github.event.workflow_run.run_number }} full package Release
         env:
           GH_TOKEN: ${{ github.token }}
+          DKTS_BUILD_SHA: ${{ env.DKTS_BUILD_SHA }}
+          DKTS_UI_VERSION: ${{ env.DKTS_UI_VERSION }}
         shell: bash
         run: |
           set -euo pipefail
-          # Every pushed commit gets a complete Release, even if a later commit
-          # reaches main while this build is running. Never silently drop builds.
-          tag="dkts-preview-$GITHUB_RUN_ID"
+          package_version="$(node -p "require('./package.json').version")"
+          hotfix_id="$DKTS_UI_VERSION"
+          test "$hotfix_id" = "a${{ github.event.workflow_run.run_number }}"
+          tag="dkts-preview-v${package_version}-${hotfix_id}"
+          title="DK Test Studio V${package_version} ${hotfix_id} · Full Package"
+          hotfix_url="https://github.com/$GITHUB_REPOSITORY/releases/tag/dkts-ui-$DKTS_BUILD_SHA"
+          notes="Program package version: V${package_version}
+          UI hot-update ID: ${hotfix_id}
+          Source commit: ${DKTS_BUILD_SHA}
+          Matching UI hot update: ${hotfix_url}
+
+          This is the complete downloadable development package for this exact commit: Windows Setup, Windows Portable, Android APK, DKDS plugin, and the UI bundle. The installed DKTS application checks and applies the UI hot update only; it does not display or offer a full-package upgrade. Users can download this complete package directly from GitHub Releases. UI-only commits keep the same program version V${package_version}; only the hot-update ID advances."
           files=(release/windows/*.exe release/plugin/*.dkplugin release/android/*.apk release/ui/*.json)
           test "${#files[@]}" -eq 5
           url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes "$notes"
           else
             gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" \
-              --title "DK Test Studio Full Preview ${GITHUB_SHA:0:10} (Windows + Android + DKDS + UI)" \
-              --notes "Every main commit triggers a complete development build. Includes Windows installer, Windows portable EXE, independent Android APK signed with the pinned DKTS distribution certificate, API 1.19 DKDS plugin and fast UI resource bundle from exactly $GITHUB_SHA. The Android certificate SHA-256 is recorded in android/signing-certificate.sha256 and the signing key is stored only in GitHub Actions Secrets. Hot updates supplement full builds, not replace them. Device queries remain read-only IDN/OPT; no validated SMU/PMU hardware measurement. Existing ephemeral-debug-signed APKs need a one-time uninstall before the fixed-signature APK can be installed." \
+              --target "$DKTS_BUILD_SHA" --title "$title" --notes "$notes" \
               --prerelease --latest=false
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort | tee release-assets.txt
@@ -311,4 +323,4 @@ jobs:
           grep -qE 'Setup.*[.]exe$' release-assets.txt
           grep -qE 'Portable.*[.]exe$' release-assets.txt
           printf 'Verified full-platform Release: %s\n' "$url"
-          printf '### Complete DK Test Studio Release\n\n%s\n\nCommit: `%s`\n\nWindows Setup, Windows Portable, Android APK, DKDS plugin, UI hot-update bundle: **5/5** verified.\n' "$url" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          printf '### Complete DK Test Studio Release\n\n**V%s %s**\n\n%s\n\nCommit: `%s`\n\nWindows Setup, Windows Portable, Android APK, DKDS plugin, UI bundle: **5/5** verified.\n' "$package_version" "$hotfix_id" "$url" "$DKTS_BUILD_SHA" >> "$GITHUB_STEP_SUMMARY"

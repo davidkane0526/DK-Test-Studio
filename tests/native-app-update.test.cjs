@@ -44,13 +44,12 @@ test('scientific toolbar shrinks to 80 percent and uses lightweight strokes',()=
   assert.match(css,/stroke-width:1\.3!important/);
   assert.match(css,/\.dkds-scientific-nav-drag svg/);
 });
-test('native update UI is explicit and separate from UI-only hot update',()=>{
-  assert.match(html,/id="native-app-update-state"/);
-  assert.match(html,/id="native-app-update-action" hidden/);
-  assert.match(app,/nativeAppApi\.installAppUpdate\(\)/);
-  assert.match(app,/nativeAppApi\.checkAppUpdate\(\)/);
-  assert.match(app,/void checkUiUpdateNow\(\)/);
-  assert.match(app,/void checkNativeAppUpdate\(\)/);
+test('the installed app offers only UI hot updates; full packages are GitHub-only',()=>{
+  assert.doesNotMatch(html,/native-app-update-state|native-app-update-action/);
+  assert.doesNotMatch(app,/nativeAppApi|checkNativeAppUpdate|installAppUpdate/);
+  assert.match(app,/if\(opening\)void checkUiUpdateNow\(\)/);
+  assert.match(html,/id="native-version-badge"/);
+  assert.match(html,/id="ui-version-badge"[^>]*hidden/);
 });
 test('Android update uses system installer, installed certificate and GitHub digest',()=>{
   const source=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/NativeAppUpdateManager.java'),'utf8');

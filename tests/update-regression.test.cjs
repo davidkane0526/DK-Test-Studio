@@ -5,6 +5,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const root=path.resolve(__dirname,'..');
+const packageVersion=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8')).version;
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 
 test('Android workspace bridge saves v2 archives and can still save legacy v1 state',async()=>{
@@ -41,23 +42,19 @@ test('Android workspace bridge saves v2 archives and can still save legacy v1 st
   await assert.rejects(()=>save({...sample,archivedTabs:undefined}),/格式/);
 });
 
-test('native and frontend report separately installed program and UI resource versions',()=>{
-  const js=read('web/app.js'),native=read('android/app/src/main/java/studio/dk/test/NativeAppUpdateManager.java');
-  assert.match(js,/meta\[name="dkts-ui-release"\]/);
-  assert.match(js,/if\(hasRelease\)nativeBadge\.textContent='v'\+release/);
-  assert.match(js,/界面热更新已验证，正在刷新；安装包版本保持不变，无需重新安装/);
-  assert.match(js,/nativePackageVersion/);
-  assert.match(js,/安装包 v/);
-  assert.match(js,/安装完成后重新打开软件/);
-  assert.match(js,/完整程序更新/);
-  assert.match(js,/可选完整升级/);
-  assert.match(js,/重新打开安装界面/);
-  assert.match(native,/put\("installedVersion",installedVersion\(\)\)/);
-  assert.match(native,/if\("installer"\.equals\(state\)\)/);
-  assert.match(native,/state="ready";[\s\S]*?尚未完成系统安装/);
-  assert.match(native,/state="installer";progress=100/);
+test('the UI button shows only V package version and hidden a-number hot-update identity',()=>{
+  const js=read('web/app.js'),html=read('web/index.html');
+  assert(js.includes('const hasHotfix=/^a\\d+$/.test(hotfix);'));
+  assert(js.includes("nativeBadge.textContent='V'+nativePackageVersion;"));
+  assert(js.includes("$('ui-version-text').textContent=hasHotfix?hotfix:'a0';"));
+  assert(js.includes("if(opening)void checkUiUpdateNow();"));
+  assert(js.includes('界面热更新已验证，正在刷新；安装包版本保持不变，无需重新安装。'));
+  assert(!js.includes('checkNativeAppUpdate'));
+  assert(!js.includes('native-app-update-action'));
+  assert(!html.includes('native-app-update-state'));
+  assert(html.includes('id="ui-version-badge"')&&html.includes('role="status" aria-live="polite" hidden'));
+  assert(html.includes('>V'+packageVersion+'</button>'));
 });
-
 test('portable replacement failures are preserved as diagnostics and original exe reopens',()=>{
   const updater=read('desktop/native-update.cjs');
   const script=read('desktop/apply-portable-update.ps1');

@@ -17,6 +17,9 @@ test('manifest includes platform-specific entry HTML and identical CSS/JS',()=>{
   assert.equal(b.minShell,4,'safe update ancestry checks require the v0.3.7 native shell');
   assert.throws(()=>validateBundle({...b,minShell:3},'windows'),/Unsupported/);
   assert.deepEqual(Object.keys(b.platforms).sort(),['android','windows']);
+  assert.match(b.uiVersion,/^a\d+$/);
+  assert.match(b.packageVersion,/^\d+\.\d+\.\d+$/);
+  assert.equal(uiReleaseVersion,b.uiVersion);
   const win=validateBundle(b,'windows'),android=validateBundle(b,'android');
   assert.notDeepEqual(win['index.html'],android['index.html']);
   assert.deepEqual(win['app.js'],android['app.js']);
@@ -60,9 +63,12 @@ test('main HEAD hot-update replaces cached files, then preserves verified cache 
   const updater=createUiUpdater({cacheDir:dir,baseCommit:BASE,fetchImpl:github.fetchImpl});
   try{
     assert.equal(updater.state().version,'bundled');
+    assert.match(updater.state().uiVersion,/^a\d+$/);
     const updated=await updater.updateOnce();
     assert.equal(updated.updated,true);
     assert.equal(updated.version,VERSION);
+    assert.equal(updated.uiVersion,b.uiVersion);
+    assert.equal(updater.state().packageVersion,b.packageVersion);
     assert.deepEqual(updater.getAsset('styles.css'),Buffer.from(b.platforms.windows['styles.css'].base64,'base64'));
     assert.equal((await updater.updateOnce()).updated,false);
     assert.equal(updater.state().tag,'dkts-ui-'+VERSION);
@@ -70,6 +76,8 @@ test('main HEAD hot-update replaces cached files, then preserves verified cache 
     assert(github.requests.every(url=>!url.includes('/releases?')));
     const reread=createUiUpdater({cacheDir:dir,baseCommit:BASE,fetchImpl:github.fetchImpl});
     assert.equal(reread.state().version,VERSION);
+    assert.equal(reread.state().uiVersion,b.uiVersion);
+    assert.equal(reread.state().packageVersion,b.packageVersion);
     assert.equal(reread.getAsset('../internal.js'),null);
     const newerNative=createUiUpdater({cacheDir:dir,baseCommit:VERSION,fetchImpl:github.fetchImpl});
     assert.equal(newerNative.state().version,'bundled',
@@ -147,6 +155,7 @@ test('both update platforms display the exact hot-updated commit in the UI metad
     const page=Buffer.from(bundle.platforms[platform]['index.html'].base64,'base64').toString('utf8');
     assert.match(page,new RegExp('<meta name="dkts-ui-version" content="'+bundle.version+'">'));
     assert.match(page,new RegExp('<meta name="dkts-ui-release" content="'+uiReleaseVersion+'">'));
+    assert.match(uiReleaseVersion,/^a\d+$/);
     assert.match(page,/id="ui-version-badge"/);
     assert(!page.includes('name="dkts-ui-version" content="bundled"') || bundle.version==='bundled');
   }
@@ -154,7 +163,8 @@ test('both update platforms display the exact hot-updated commit in the UI metad
   assert.match(frontend,/function displayUiVersion\(\)/);
   assert.match(frontend,/meta\[name="dkts-ui-release"\]/);
   assert.match(frontend,/nativePackageVersion/);
-  assert.match(frontend,/安装包 v/);
-  assert.match(frontend,/可选完整升级/);
-  assert.match(frontend,/raw\.slice\(0,8\)/);
+  assert.doesNotMatch(frontend,/可选完整升级|checkNativeAppUpdate/);
+  assert.match(frontend,/hasHotfix/);
+  assert.match(frontend,/nativeBadge\.textContent='V'\+nativePackageVersion/);
+  assert.match(frontend,/textContent=hasHotfix\?hotfix/);
 });
