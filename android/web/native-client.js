@@ -43,6 +43,7 @@
       catch(e){return {ok:false,error:String(e.message||e)};}
     }
     if(route==='/api/measurement/stop')return {ok:true,...runner.stop()};
+    if(route==='/api/measurement/status')return {ok:true,...runner.status(Number(payload.cursor||0))};
     if(route==='/api/connect'){
       if(runner.status().running)return {ok:false,error:'测量期间不能重新连接'};
       try{return {ok:true,...await controller.connect(payload)};}
