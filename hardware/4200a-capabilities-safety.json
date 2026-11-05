@@ -304,8 +304,7 @@
         "byCurrentRange": [
           {
             "rangeA": 0.1,
-            "maxF": 0.00001,
-            "evidence": "conservative due summary/table discrepancy"
+            "maxF": 0.0001
           },
           {
             "minCurrentA": 1e-7,
@@ -325,11 +324,12 @@
             "requiresPreamplifier": true
           }
         ],
-        "note": "The 2025 datasheet table and ordering-summary wording differ for the 4201-SMU at 100 mA. DKTS uses the stricter 10 µF value pending a revision/errata check."
+        "note": "Official maximum load capacitance: 100 µF on the 100 mA range; 10 µF on 100 nA–10 mA ranges; 10 µF on 1 nA–10 nA preamplifier ranges; 1 µF on 1 pA–100 pA preamplifier ranges."
       },
       "evidence": [
         "datasheet2025",
-        "setup2025"
+        "setup2025",
+        "stableLowCurrent2019"
       ]
     },
     "4210-SMU": {
@@ -529,7 +529,8 @@
       },
       "evidence": [
         "datasheet2025",
-        "setup2025"
+        "setup2025",
+        "stableLowCurrent2019"
       ]
     },
     "4200-PA": {
@@ -1574,6 +1575,20 @@
         "measurement timing"
       ],
       "note": "The official detail-page search result identifies Rev.D dated 2026-10-22, while the support catalog page currently lists Rev.C dated 2024-06-07. Obtain and diff the Rev.D PDF before updating numeric tables."
+    },
+    {
+      "id": "stableLowCurrent2019",
+      "title": "Making Stable Low Current Measurements with High Test Connection Capacitance Using the 4201-SMU and 4211-SMU",
+      "document": "Tektronix application note",
+      "revision": "official online application note; accessed 2026-11-05",
+      "url": "https://www.tek.com/en/documents/application-note/making-stable-low-current-measurements-high-test-connection-capacitance",
+      "sections": [
+        "4201-SMU and 4211-SMU maximum load capacitance",
+        "100 mA–1 A ranges: 100 µF",
+        "100 nA–10 mA ranges: 10 µF",
+        "4200-PA low-current ranges"
+      ],
+      "note": "Used to resolve the 4201-SMU 100 mA load-capacitance value; use the published 100 µF rating rather than a reduced 10 µF value."
     }
   ],
   "limitations": [
