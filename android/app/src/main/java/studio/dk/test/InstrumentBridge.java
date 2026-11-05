@@ -42,6 +42,7 @@ public final class InstrumentBridge {
     private final UiUpdateManager uiUpdates;
     private final NativeAppUpdateManager appUpdates;
     private final WorkspaceFileStore workspaceFiles;
+    private final CapabilityExportStore capabilityExports;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private Socket socket;
@@ -54,6 +55,7 @@ public final class InstrumentBridge {
         this.uiUpdates = uiUpdates;
         this.appUpdates = appUpdates;
         this.workspaceFiles = new WorkspaceFileStore(this.context);
+        this.capabilityExports = new CapabilityExportStore(this.context);
     }
 
     @JavascriptInterface
@@ -100,6 +102,10 @@ public final class InstrumentBridge {
             case "workspace-commit": return workspaceFiles.commit(args);
             case "workspace-abort": {workspaceFiles.abort();return new JSONObject().put("ok",true);}
             case "workspace-read": return workspaceFiles.read(args);
+            case "capability-export-begin": return capabilityExports.begin(args);
+            case "capability-export-append": return capabilityExports.append(args);
+            case "capability-export-commit": return capabilityExports.commit(args);
+            case "capability-export-abort": {capabilityExports.abort();return new JSONObject().put("aborted",true);}
             case "version": return new JSONObject().put("version",
                 context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionName);
             case "ui-check": {
@@ -297,7 +303,7 @@ public final class InstrumentBridge {
 
     void shutdown() {
         stopped = true;
-        worker.execute(()->{closeActive();workspaceFiles.abort();});
+        worker.execute(()->{closeActive();workspaceFiles.abort();capabilityExports.abort();});
         worker.shutdown();
     }
 }
