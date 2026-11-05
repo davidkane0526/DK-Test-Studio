@@ -58,13 +58,21 @@ test('waveform rejects duplicate/reverse time, non-hardware time ticks, and non-
   ],pmu40),/首尾电压相同/);
   assert.throws(()=>validateWaveform([
     {timeS:0,voltageV:0},{timeS:2e-8,voltageV:21},{timeS:4e-8,voltageV:0}
-  ],pmu40),/规划范围/);
+  ],pmu40),/必须在/);
+});
+
+test('PMU measurement defaults to the hardware ADC interval, not the recommended window',()=>{
+  const w=validateWaveform([
+    {timeS:0,voltageV:0},{timeS:2e-8,voltageV:1},{timeS:4e-8,voltageV:0}
+  ],{...pmu10Measure,measureWindowS:undefined});
+  assert.equal(w.measureWindowS,5e-9);
+  assert(w.warnings.some(x=>x.includes('典型推荐窗口')));
 });
 
 test('PMU measurement window cannot be shorter than one ADC sample or exceed its segment',()=>{
   assert.throws(()=>validateWaveform([
     {timeS:0,voltageV:0},{timeS:2e-8,voltageV:1},{timeS:4e-8,voltageV:0}
-  ],{...pmu10Measure,measureWindowS:4e-9}),/规划范围/);
+  ],{...pmu10Measure,measureWindowS:4e-9}),/必须在/);
   assert.throws(()=>validateWaveform([
     {timeS:0,voltageV:0},{timeS:2e-8,voltageV:1},{timeS:4e-8,voltageV:0}
   ],{...pmu10Measure,measureWindowS:3e-8}),/小于 PMU 测量窗口/);
