@@ -11,6 +11,9 @@ function prepare(){
     textContent:'',value:'',className:'',
     setAttribute(key,value){this.attributes[key]=value;},
     appendChild(n){this.children.push(n);return n;},
+    append(...nodes){this.children.push(...nodes);},
+    replaceChildren(...nodes){this.children=nodes;},
+    addEventListener(name,handler){this.events??={};this.events[name]=handler;},
     remove(){this.removed=true;},
     querySelector(){return null;},
     contentWindow:kind==='iframe'?{sent:[],postMessage(m){this.sent.push(m);}}:undefined
@@ -88,6 +91,18 @@ test('DKDS plugin displays the exact standalone app in a sandboxed workbench',as
   assert.equal(env.captured.manifest.window.title,undefined);
   assert.equal(env.captured.manifest.workspace.icon,undefined);
   assert(v.composed.primary.mainNode);
+  const incoming=(type,extra={})=>env.listeners.get('message')({
+    source:v.frame.contentWindow,
+    data:{channel:'dkts-standalone-workbench-v1',session:'a'.repeat(32),type,...extra}
+  });
+  incoming('ready');
+  incoming('workspace-state',{workspace:{tabs:[{id:'w1',name:'器件 A',activeMode:'iv'}],activeTabId:'w1'}});
+  const hostTabs=v.composed.primary.mainNode.children[0];
+  assert.equal(hostTabs.className,'dkts-host-workspace-tabs');
+  assert.equal(hostTabs.children.length,2,'One workspace tab and one add button belong to DKDS chrome');
+  assert.equal(hostTabs.children[0].children[0].textContent,'器件 A');
+  hostTabs.children[0].children[0].events.click();
+  assert(v.frame.contentWindow.sent.some(message=>message.type==='workspace-select'&&message.workspaceId==='w1'));
   assert.equal(v.frame.attributes.sandbox,'allow-scripts allow-modals');
   assert.equal(v.workspaceRoot.kind,'layout');
   assert.equal(v.workspaceSpec.activity,'dkts-keithley-4200');
