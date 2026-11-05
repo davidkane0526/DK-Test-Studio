@@ -4,7 +4,7 @@
 
 1. 单一源代码：`src/shared/*.js` 是唯一 KXCI 协议、身份状态机、测试规划与波形校验实现。Node 包装层通过 CommonJS 转发；`tools/build-dkds-plugin.cjs` 复制同一份字节到 `.dkplugin`。严禁为两个程序各自另写测试核心。
 2. 宿主适配而非平台耦合：独立版在 Node/Electron 中使用 TCP；插件版使用 `ctx.services.require('tcp')`、`ctx.ui.*`、`ctx.project`、`ctx.capabilities`。共享领域模块不直接依赖 Electron、DOM、React Native 或 DKDS Core。
-3. 插件必须作为独立外部插件安装，禁止覆盖 DKDS 内置的 `com.dkds.keithley-4200`。独立插件 ID 为 `com.dkts.keithley-4200`，工作区和项目切片均为 `dkts-keithley-4200`，能力为 `instrument.dkts-keithley-4200`，Plugin API 为 `1.19.0`，插件版本 `0.6.2`。保留 `dkts.4200.interop.v1` 交换格式及旧 `com.dkds.keithley-4200` 方案导入兼容；旧项目中的 `plan.mode` 在导入时转成新的 `plan.kind`，不擅自更改实验参数。DKDS 原有项目切片不自动覆盖或迁移。
+3. 插件必须作为独立外部插件安装，禁止覆盖 DKDS 内置的 `com.dkds.keithley-4200`。独立插件 ID 为 `com.dkts.keithley-4200`，工作区和项目切片均为 `dkts-keithley-4200`，能力为 `instrument.dkts-keithley-4200`，Plugin API 为 `1.19.0`，当前开发插件版本 `0.6.13`。保留 `dkts.4200.interop.v1` 交换格式及旧 `com.dkds.keithley-4200` 方案导入兼容；旧项目中的 `plan.mode` 在导入时转成新的 `plan.kind`，不擅自更改实验参数。DKDS 原有项目切片不自动覆盖或迁移。
 4. 稳定的方案交换格式：`dkts.4200.interop.v1`。导出和导入都强制 `executable:false` 与 `hardwareVerified:false`，不允许通过导入配置触发硬件动作。未来新增数据格式必须版本化，并保留原始仪器数据、派生数据及仿真数据的独立来源标识。
 5. 统一的仪器安全边界：目前真实设备只发送 `*IDN?` 加 NUL；SMU/PMU 产生电压的执行层不开放。未来任何输出必须统一通过同一硬件能力验证、状态机、限流、紧急停止与故障关闭流程，不能为 DKDS 插件增加旁路。
 6. 同一仪器只能有一个控制者：当前两个应用都是独立 TCP 客户端，严禁同时连接同一台 4200A 进行操作。实时互联需要未来统一的仪器 Broker，包括会话租约、用户鉴权、独占锁、失联停止和日志审计。
@@ -16,11 +16,25 @@
 运行 `npm run plugin:build` 在 `dist/dkds-plugin` 临时目录按同一源码生成插件，并生成候选 `.dkplugin`。
 GitHub Actions 的 `DKDS Plugin API 1.19 compatibility` 任务会从 DK Data Studio 的 `4200` 分支读取官方 SDK，运行 `sdk/tools/dkds-plugin.js validate` 与 `package`，将通过校验的插件包上传为 `DK-Test-Studio-DKDS-Plugin` Artifact。
 
+## 4200A 数值保护（v0.3.11 / plugin 0.6.13）
+
+- SMU 电压规划上限按 4200A 规格采用 ±210 V；该值是最大规划边界，不表示任意电压/电流组合均安全。
+- 4225-PMU 与 4220-PGU 波形规划边界为 ±40 V。
+- SMU 电流限值按型号和最大电压采用保守分段边界：4200/4201-SMU 在高压区不超过 10.5 mA、低压区不超过 105 mA；4210/4211-SMU 在高压区不超过 105 mA、低压区不超过 1.05 A。当前模块清单不能可靠区分具体 SMU 型号时，规划器默认使用 10.5 mA 保守上限。
+- 所有数值校验只生成不可执行方案。硬件执行前仍必须依据真实插槽、模块型号、工作象限、所选电流档位和设备 interlock 重新验证；目前没有开放 SMU/PMU 输出命令。
+
+## DKDS 原生宿主集成（plugin 0.6.13）
+
+- 插件工作区不再声明独立图标和窗口标题，连接状态通过 `ctx.ui.statusBar.add()` 注册到 DKDS 状态栏。
+- 插件能力提供 `publishMeasurement()`，把经校验的原始 X/Y 测量数组写入 `ctx.data.model.createTable()` 创建的 DataTable，再通过 `ctx.data.artifacts.upsert()` 发布到 DKDS canonical Artifact Store。
+- 原始采集数据保留仪器型号、序列号、测量类型和 acquisition provenance；不把规划预览或软件派生曲线伪装成仪器原始数据。
+- 数据中心发布接口已具备，但当前版本尚未开放真实测量执行器，因此不能把该接口的测试通过描述为已完成实机数据采集。
+
 ## 未完成的无缝联动内容
 
 插件安装、真实 TCP 连接、Android 宿主仍需实机验收；跨程序实时控制、实验数据同步、原生文件及仪器图片导出尚未完成。请勿把 SDK 兼容视为完整功能验收。
 
-## 单源界面架构（DKDS 插件 v0.6.2）
+## 单源界面架构（DKDS 插件 v0.6.13）
 
 DKDS 插件不再自建测试卡片、参数区和空白曲线视图。构建时从 `web/index.html`、`web/styles.css`、`web/app.js` 以及独立版的 D3 运行时直接生成 `standalone-shell.js`。DKDS 页只负责宿主窗口/工作区生命周期、项目状态、能力注册和受限桥接。iframe 使用 `sandbox=allow-scripts allow-modals`（不授予 `allow-same-origin`），不允许浏览器直接访问设备、文件系统或第三方站点。桥接白名单仅提供与独立版 `/api/` 相同的只读连接、模块查询、方案校验、波形校验。原始数据图、标签、设置面板和移动端手势都来自同一套 App 代码。纯安装器和原生更新按钮在 DKDS 宿主不执行，因为插件由 DKDS 插件管理器升级。
 
