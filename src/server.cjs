@@ -106,11 +106,11 @@ async function createAppServer(options={}){
         catch(error){return json(res,400,{ok:false,error:summarizeError(error),...controller.status()});}
       }
       if(urlPath==='/api/plan/validate'){
-        const preview=previewPlan(payload,300);
+        const preview=previewPlan(payload,300,{inventory:controller.status().inventory});
         return json(res,200,{ok:true,plan:preview.plan,firstPoints:preview.firstPoints,truncated:preview.truncated});
       }
       if(typeof payload.text!=='string')return json(res,400,{error:'波形应为文本'});
-      const plan=parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu'});
+      const plan=parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadMode:payload.loadMode||'unknown'});
       return json(res,200,{ok:true,count:plan.points.length,durationS:plan.durationS,
         minimumStepS:plan.minimumStepS,maximumStepS:plan.maximumStepS,
         executable:false,hardwareVerified:false,
