@@ -2,7 +2,7 @@
   'use strict';
   const DATABASE = {
     schema: 'dkts.4200a.hardware-capabilities.v1',
-    databaseVersion: '1.5.1',
+    databaseVersion: '1.6.0',
     generatedAt: '2026-11-05',
     instrument: { family: 'Keithley 4200A-SCS', maxChassisPowerW: 500, kxciInventorySlots: 8, maxKxciSmuChannelNumber: 9 },
     inventoryDiscovery: {
@@ -116,9 +116,26 @@
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 }, withMeasurement: { periodMinS: 1.2e-7, periodMaxS: 1, pulseWidthMinS: 6e-8, transitionMinS: 2e-8, maxFrequencyHz: 8.3e6 } },
           '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值小于10 V时为30 ns，大于10 V时为100 ns；恰为10 V时手册未明确', maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
         },
+        typicalTimingByCurrentRangeA: {
+          '10': {
+            '1e-7': { recommendedMinPulseWidthS: 134e-6, recommendedMinTransitionS: 1e-6, typical: true, measurementFrontEnd: 'RPM' },
+            '1e-6': { recommendedMinPulseWidthS: 20.4e-6, recommendedMinTransitionS: 360e-9, typical: true, measurementFrontEnd: 'RPM' },
+            '1e-5': { recommendedMinPulseWidthS: 8.36e-6, recommendedMinTransitionS: 360e-9, typical: true, measurementFrontEnd: 'RPM' },
+            '1e-4': { recommendedMinPulseWidthS: 1.04e-6, recommendedMinTransitionS: 40e-9, typical: true, measurementFrontEnd: 'RPM' },
+            '1e-3': { recommendedMinPulseWidthS: 370e-9, recommendedMinTransitionS: 30e-9, typical: true, measurementFrontEnd: 'RPM' },
+            '1e-2': { recommendedMinPulseWidthS: 160e-9, recommendedMinTransitionS: 20e-9, typical: true, measurementFrontEnd: 'RPM' },
+            '2e-1': { recommendedMinPulseWidthS: 70e-9, recommendedMinTransitionS: 20e-9, typical: true, measurementFrontEnd: 'PMU' }
+          },
+          '40': {
+            '1e-4': { recommendedMinPulseWidthS: 6.4e-6, recommendedMinTransitionS: 1e-6, typical: true, measurementFrontEnd: 'PMU' },
+            '1e-2': { recommendedMinPulseWidthS: 770e-9, recommendedMinTransitionS: 100e-9, typical: true, measurementFrontEnd: 'PMU' },
+            '8e-1': { recommendedMinPulseWidthS: 770e-9, recommendedMinTransitionS: 100e-9, typical: true, measurementFrontEnd: 'PMU' }
+          }
+        },
+        typicalTimingNote: '原厂典型最小脉冲宽度及上升/下降时间建议，条件为空载。10 V 档 100 nA 至 10 mA 为 RPM 量程；10 V 档 200 mA、40 V 档 100 µA/10 mA/800 mA 为 PMU 量程。实际 DUT、线缆和互连可能需要更长的稳定时间。该表不提供独立的测量窗口或稳定时间数值；这些典型建议不作为硬件绝对最小值或自动拒绝条件。',
         measurement: {
-          currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-2, 1e-1, 8e-1] },
-          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 1000000
+          currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
+          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxKxciGeneratedPointsExclusive: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
         },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
       },
@@ -132,27 +149,12 @@
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 }, withMeasurement: { periodMinS: 1.2e-7, periodMaxS: 1, pulseWidthMinS: 6e-8, transitionMinS: 2e-8, maxFrequencyHz: 8.3e6 } },
           '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值小于10 V时为30 ns，大于10 V时为100 ns；恰为10 V时手册未明确', maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
         },
-        rpmTypicalTiming: {
-          '10': {
-            '1e-7': { recommendedMinPulseWidthS: 134e-6, recommendedMinMeasurementWindowS: 10e-6, recommendedMinTransitionS: 1e-6, stabilizationTimeS: 100e-6, typical: true },
-            '1e-6': { recommendedMinPulseWidthS: 20.4e-6, recommendedMinMeasurementWindowS: 1.64e-6, recommendedMinTransitionS: 360e-9, stabilizationTimeS: 15e-6, typical: true },
-            '1e-5': { recommendedMinPulseWidthS: 8.36e-6, recommendedMinMeasurementWindowS: 1e-6, recommendedMinTransitionS: 360e-9, stabilizationTimeS: 6e-6, typical: true },
-            '1e-4': { recommendedMinPulseWidthS: 1.04e-6, recommendedMinMeasurementWindowS: 130e-9, recommendedMinTransitionS: 40e-9, stabilizationTimeS: 750e-9, typical: true },
-            '1e-3': { recommendedMinPulseWidthS: 370e-9, recommendedMinMeasurementWindowS: 40e-9, recommendedMinTransitionS: 30e-9, stabilizationTimeS: 250e-9, typical: true },
-            '1e-2': { recommendedMinPulseWidthS: 160e-9, recommendedMinMeasurementWindowS: 20e-9, recommendedMinTransitionS: 20e-9, stabilizationTimeS: 100e-9, typical: true }
-          },
-          '40': {
-            '1e-4': { recommendedMinPulseWidthS: 6.4e-6, recommendedMinMeasurementWindowS: 1e-6, recommendedMinTransitionS: 1e-6, stabilizationTimeS: 4e-6, typical: true },
-            '1e-2': { recommendedMinPulseWidthS: 770e-9, recommendedMinMeasurementWindowS: 100e-9, recommendedMinTransitionS: 100e-9, stabilizationTimeS: 500e-9, typical: true }
-          }
-        },
-        rpmTimingNote: '这些数值是制造商公布的典型推荐值（开路条件），用于显示测量窗口、转换时间和稳定时间参考，不作为硬件绝对最小值或自动拒绝条件。',
         measurement: {
           currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-2, 1e-1, 8e-1] },
-          withRpmCurrentRangesA: { '10': [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2], '40': [1e-4, 1e-2] },
+          withRpmCurrentRangesA: { '10': [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
           
           minimumCurrentRangeA: 1e-7, currentMeasurementResolutionA: 2e-10,
-          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 1000000
+          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxKxciGeneratedPointsExclusive: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
         },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
       },
@@ -202,7 +204,7 @@
     safetyPolicies: {
       unknownModule: { applyGuessedNumericLimit: false, allowNonExecutablePlanning: true, allowHardwareOutput: false, requiredAction: 'Identify the exact installed module or mapped channel before enabling output.' },
       smu: { maximumSourceVoltageV: 210, voltageRangeOverrangePercent: 105, highVoltageNominalRangeV: 200, maximumOutputPowerWByPowerClass: { medium: 2.1, high: 21 }, applyVoltageDependentCompliancePowerLimit: true, interlockRequiredFor200VRange: true, interlockStatusAvailableThroughCurrentReadOnlyBridge: false, complianceMinimumA: { withoutPreamplifier: 1e-7, withPreamplifier: 1e-10 }, note: 'Reject a compliance request below the KXCI minimum instead of allowing KXCI to silently raise it.' },
-      pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciMinSegmentTimeSByRangeS: { PMU: { '10': 2e-8, '40': 5e-8 }, PGU: { '10': 1e-8, '40': 5e-8 } }, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 1000000, currentKxciBufferPointsPerChannel: 65536, kxciInterfaceLimitsSourceRevision: '4200A-KXCI-907-01 Rev. E, March 2025', latestIndexListedKxciRevision: '4200A-KXCI-907-01F, 09 Oct 2026', latestKxciRevisionContentVerified: false, kxciInterfaceLimitsVerificationStatus: 'provisional-pending-rev-f-content-verification', sourceRefs: ['tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index'] },
+      pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciMinSegmentTimeSByRangeS: { PMU: { '10': 2e-8, '40': 5e-8 }, PGU: { '10': 1e-8, '40': 5e-8 } }, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000, currentKxciBufferPointsPerChannel: 65536, currentKxciGeneratedPointsExclusive: 65536, kxciInterfaceLimitsSourceRevision: '4200A-KXCI-907-01 Rev. E, March 2025', latestIndexListedKxciRevision: '4200A-KXCI-907-01F, 09 Oct 2026', latestKxciRevisionContentVerified: false, kxciInterfaceLimitsVerificationStatus: 'provisional-pending-rev-f-content-verification', sourceRefs: ['tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index'] },
       cvu: {
         requiresExactVariantIdentification: true,
         baseDcBiasRangeV: { min: -30, max: 30 },
@@ -323,11 +325,13 @@
     const mod = getModuleCapability('PMU'), duration = Number(durationS);
     if (!Number.isFinite(duration) || duration <= 0) throw Error('PMU 采集时长必须大于 0');
     const hardwareMaxPoints = mod.measurement.maxHardwareSamplesPerChannel;
-    const interfaceMaxPoints = mod.measurement.maxKxciBufferPointsPerChannel;
+    const interfaceBufferCapacity = mod.measurement.maxKxciBufferPointsPerChannel;
+    const interfaceGeneratedPointsExclusive = mod.measurement.maxKxciGeneratedPointsExclusive;
+    const interfaceMaxPoints = interfaceGeneratedPointsExclusive - 1;
     const hardwareMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, hardwareMaxPoints / duration);
     const kxciMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, interfaceMaxPoints / duration);
     const minimumRateHz = mod.measurement.minSampleRateHz;
-    if (hardwareMaxRateHz < minimumRateHz) throw Error('PMU 采集时长超过硬件单通道一百万采样点在最低采样率下的容量');
+    if (hardwareMaxRateHz < minimumRateHz) throw Error('PMU 采集时长超过硬件单通道严格少于一百万采样点在最低采样率下的容量');
     let minimumRequiredRateHz = minimumRateHz;
     if (measureWindowS !== undefined && measureWindowS !== null) {
       const windowS = Number(measureWindowS);
@@ -337,19 +341,19 @@
     if (minimumRequiredRateHz > hardwareMaxRateHz) throw Error('PMU 测量窗口与总采集时长超过硬件采样容量可同时满足的采样率范围');
     const selectedRateHz = requestedRateHz === undefined || requestedRateHz === null ? hardwareMaxRateHz : Number(requestedRateHz);
     if (!Number.isFinite(selectedRateHz) || selectedRateHz < minimumRequiredRateHz || selectedRateHz > hardwareMaxRateHz) throw Error('PMU 采样率必须在 ' + minimumRequiredRateHz + ' 至 ' + hardwareMaxRateHz + ' Sa/s 之间');
-    const kxciCompatible = selectedRateHz <= kxciMaxRateHz + 1e-6 && selectedRateHz * duration <= interfaceMaxPoints + 1e-6;
+    const kxciCompatible = selectedRateHz <= kxciMaxRateHz + 1e-6 && Math.ceil(selectedRateHz * duration - 1e-9) <= interfaceMaxPoints;
     return Object.freeze({
       minSampleRateHz: minimumRequiredRateHz, maxSampleRateHz: hardwareMaxRateHz,
       selectedSampleRateHz: selectedRateHz, sampleIntervalS: 1 / selectedRateHz,
       maxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsPerChannel: hardwareMaxPoints,
-      interfaceMaxPointsPerChannel: interfaceMaxPoints, kxciMaxSampleRateHz: kxciMaxRateHz,
+      interfaceMaxPointsPerChannel: interfaceMaxPoints, interfaceDataBufferCapacityPointsPerChannel: interfaceBufferCapacity, interfaceMaxGeneratedPointsExclusive: interfaceGeneratedPointsExclusive, kxciMaxSampleRateHz: kxciMaxRateHz,
       hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz, kxciCompatible,
-      interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 数据缓冲上限为每通道 65536 点；硬件采集上限为每通道 1000000 点', interfaceLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus
+      interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 波形生成点数必须严格少于每通道 65536 点（数据缓冲容量为 65536 点）；PMU 硬件单次采集点数必须严格少于 1000000 点', interfaceLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus
     });
   }
   function getPulseTimingRecommendation(rangeV, measurementRangeA, withMeasurement = true, source = 'pmu', withRpm = false, peakVoltageV = null) {
     const key = String(source || 'pmu').toLowerCase() === 'pgu' ? 'VPU' : 'PMU';
-    const mod = getModuleCapability(key), rpmMod = withRpm ? getModuleCapability('PMURPM') : null;
+    const mod = getModuleCapability(key), timingTable = getModuleCapability('PMU').typicalTimingByCurrentRangeA;
     const range = String(Number(rangeV)), mode = withMeasurement ? 'withMeasurement' : 'sourceOnly';
     if (key === 'VPU' && withMeasurement) throw Error('4220-PGU/VPU 不具备电流测量功能');
     const timing = mod.pulseTiming?.[range]?.[mode];
@@ -380,10 +384,12 @@
       if (key !== 'PMU' || !getPmuCurrentRanges(Number(rangeV), Boolean(withRpm)).some(x => Math.abs(x - current) <= Math.max(1e-15, current * 1e-9))) throw Error('所选 PMU 电流量程与该电压档/前端模块不匹配');
       recommendation.measurementRangeA = current;
       recommendation.rpmEnabled = Boolean(withRpm);
+      const rangeTable = timingTable?.[range] || {};
+      recommendation.publishedTypicalTiming = Object.entries(rangeTable).find(([rangeKey]) => Number(rangeKey) === current)?.[1] || null;
+      recommendation.typicalTimingStatus = recommendation.publishedTypicalTiming ? 'published-typical' : 'not-published-for-current-range';
       if (withRpm) {
-        const rpmRangeTable = rpmMod.rpmTypicalTiming?.[range] || {};
-        recommendation.rpmTypicalTiming = Object.entries(rpmRangeTable).find(([key]) => Number(key) === current)?.[1] || null;
-        recommendation.rpmTimingStatus = recommendation.rpmTypicalTiming ? 'published-typical' : 'not-published-for-current-range';
+        recommendation.rpmTypicalTiming = recommendation.publishedTypicalTiming;
+        recommendation.rpmTimingStatus = recommendation.typicalTimingStatus;
       }
     } else if (withRpm) recommendation.rpmTimingStatus = 'current-range-required';
     if (!withMeasurement && measurementRangeA !== undefined && measurementRangeA !== null) throw Error('纯源模式不能设置电流测量量程');
