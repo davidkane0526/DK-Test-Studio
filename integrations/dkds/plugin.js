@@ -128,6 +128,10 @@
             return {status:200,data:{ok:true,plan:value.plan,
               firstPoints:value.firstPoints,truncated:value.truncated}};
           }
+          if(route==='/api/cvu/validate'){
+            const plan=safety.validateCvuPlan(payload,hardwareProfile());
+            return {status:200,data:{ok:true,plan}};
+          }
           if(route==='/api/waveform/validate'){
             if(typeof payload.text!=='string')return {status:400,data:{error:'波形应为文本'}};
             const wave=waveform.parseWaveformText(payload.text,{...payload,hardware:hardwareProfile()});
