@@ -93,7 +93,7 @@ async function createAppServer(options={}){
           'X-Content-Type-Options':'nosniff'});
         return res.end(bytes);
       }
-      if(req.method!=='POST'||!['/api/ui/check','/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect','/api/workspaces'].includes(urlPath))
+      if(req.method!=='POST'||!['/api/ui/check','/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/cvu/validate','/api/modules/inspect','/api/workspaces'].includes(urlPath))
         return json(res,404,{error:'接口不存在'});
       // No arbitrary command endpoint exists; this only sends the hardcoded KXCI IDN query.
       if(req.headers['x-dkts-request']!=='1'||!String(req.headers['content-type']||'').startsWith('application/json'))
@@ -123,6 +123,13 @@ async function createAppServer(options={}){
         const snapshot=controller.status();
         const preview=previewPlan(payload,300,{inventory:snapshot.inventory,connected:snapshot.phase==='connected'});
         return json(res,200,{ok:true,plan:preview.plan,firstPoints:preview.firstPoints,truncated:preview.truncated});
+      }
+      if(urlPath==='/api/cvu/validate'){
+        const snapshot=controller.status();
+        const plan=safetyPolicy.validateCvuPlan(payload,{
+          inventory:snapshot.inventory,connected:snapshot.phase==='connected'
+        });
+        return json(res,200,{ok:true,plan});
       }
       if(typeof payload.text!=='string')return json(res,400,{error:'波形应为文本'});
       const snapshot=controller.status();
