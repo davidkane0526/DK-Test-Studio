@@ -1558,7 +1558,7 @@ body.dkts-android-shell .dkts-numeric-input.dkts-numeric-active{
 .sweep-terminal-heading strong,.sweep-fixed-heading strong{font-size:12px}
 .sweep-terminal-heading span,.sweep-fixed-heading span{font-size:10px;color:#8292a9}
 .sweep-terminal-settings{display:flex;flex-direction:column;gap:6px}
-.sweep-terminal-row{display:grid;grid-template-columns:66px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:end}
+.sweep-terminal-row{display:grid;grid-template-columns:66px repeat(4,minmax(0,1fr));gap:6px;align-items:end}
 .sweep-terminal-row>strong{font-size:11px;padding:0 0 9px}
 .sweep-terminal-row label{min-width:0;font-size:9px;gap:3px}
 .sweep-terminal-row select,.sweep-terminal-row input{padding:6px 5px;font-size:10px}
@@ -1578,7 +1578,7 @@ body.dkts-android-shell .dkts-numeric-input.dkts-numeric-active{
   .heading-terminal-ports select{min-width:58px;padding:4px;font-size:10px}
   .detail-heading{flex-wrap:wrap;row-gap:7px}
   .detail-run-actions{flex-wrap:wrap}
-  .sweep-terminal-row{grid-template-columns:50px repeat(3,minmax(0,1fr))}
+  .sweep-terminal-row{grid-template-columns:50px repeat(4,minmax(0,1fr))}
 }
 @media(max-width:620px){
   .terminal-profiles{padding:12px!important}
