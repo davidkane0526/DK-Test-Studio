@@ -8,7 +8,7 @@ DKTS uses two independent identifiers for every development commit.
 For a given successful main-branch development run, both Actions workflows and both Releases must use the same pair, for example `V0.3.12 a1234`:
 
 1. `Fast UI Hot Update` builds and publishes the UI bundle under a title containing `V0.3.12 a1234`.
-2. `Native Shell Windows Android and DKDS Release` is triggered by `workflow_run`. It reuses the upstream run number and commit SHA, then publishes the complete Windows Setup, Windows Portable, Android APK, DKDS plugin, UI bundle, and exportable 4200A hardware capability database under the same `V0.3.12 a1234` identity.
+2. `Native Shell Windows Android and DKDS Release` is triggered by `workflow_run`. It reuses the upstream run number and commit SHA, then publishes the complete Windows Portable, Android APK, DKDS plugin, UI bundle, and exportable 4200A hardware capability database under the same `V0.3.12 a1234` identity.
 3. The installed application checks and installs **only** the `aN` UI hot update. It never presents a full-package upgrade prompt.
 4. The full package remains available for manual download from GitHub Releases.
 
