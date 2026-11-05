@@ -34,6 +34,30 @@ jobs:
           if ($errors.Count -gt 0) { throw ($errors | Out-String) }
       - name: Run isolated instrument protocol tests
         run: npm test
+  capability-database:
+    name: Export 4200A hardware capability database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Export the runtime capability database
+        run: npm run hardware:export
+      - name: Validate exported database metadata
+        run: |
+          node -e "const fs=require('node:fs'); const p='dist/DKTS-4200A-Hardware-Capability-Database-v1.json'; const d=JSON.parse(fs.readFileSync(p,'utf8')); if(d.schema!=='dkts.4200.hardware-capabilities.v1'||d.databaseVersion!=='1.2.0'||!d.modules||!d.safetyPolicies||!d.sources) process.exit(1); console.log(d.schema,d.databaseVersion,Object.keys(d.modules).length+' module records');"
+      - name: Create database checksum
+        run: sha256sum dist/DKTS-4200A-Hardware-Capability-Database-v1.json > dist/DKTS-4200A-Hardware-Capability-Database-v1.json.sha256
+      - name: Upload database for independent review
+        uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-4200A-Hardware-Capability-Database-v1
+          path: |
+            dist/DKTS-4200A-Hardware-Capability-Database-v1.json
+            dist/DKTS-4200A-Hardware-Capability-Database-v1.json.sha256
+          if-no-files-found: error
+          retention-days: 90
   dkds-contract:
     name: DKDS Plugin API 1.19 compatibility
     runs-on: ubuntu-latest
