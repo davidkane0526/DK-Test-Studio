@@ -94,24 +94,78 @@
         throw Error('不支持模块查询的 KXCI 版本');
       const targetId=connection.sessionId;
       const request=(async()=>{
+        const exchangeText=async(command,maxBytes=8192)=>{
+          if(connection?.sessionId!==targetId)throw Error('连接已切换，硬件查询已作废');
+          const response=await tcp.exchange({
+            sessionId:targetId,base64:btoa(command),
+            readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:120,maxBytes
+          });
+          return atob(response.base64||'').replace(/\0+$/g,'').trim();
+        };
         try{
-          // Read-only KXCI 4200A-mode slot inventory, never a source command.
+          // Native KXCI *OPT? is the first, read-only inventory source.
           const response=await tcp.exchange({
             sessionId:targetId,base64:btoa(protocol.OPTIONS_REQUEST),
             readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:120,maxBytes:4096
           });
           if(connection?.sessionId!==targetId)throw Error('连接已切换，模块查询已作废');
-          inventory=protocol.parseOptions(atob(response.base64));
-          inventoryError='';
+          const base=protocol.parseOptions(atob(response.base64));
+          let instrumentRaw='',remoteRaw='',systemRaw='',restoreError='';
+          let enteredUserLibrary=false;
+          try{
+            // SystemUtil functions are read-only. UL/US are fixed KXCI mode
+            // transitions; no user-supplied command or output command is sent.
+            await exchangeText(protocol.USER_LIBRARY_REQUEST,2048);
+            enteredUserLibrary=true;
+            try{
+              await exchangeText(protocol.INSTRUMENT_INFO_REQUEST,4096);
+              instrumentRaw=await exchangeText(protocol.GET_RESULT_REQUEST,8192);
+            }catch(error){inventoryError='instrumentinfo: '+String(error?.message||error).slice(0,180);}
+            try{
+              await exchangeText(protocol.REMOTE_MODULE_INFO_REQUEST,4096);
+              remoteRaw=await exchangeText(protocol.GET_RESULT_REQUEST,8192);
+            }catch(error){
+              inventoryError=(inventoryError?inventoryError+'; ':'')+'remotemoduleinfo: '+String(error?.message||error).slice(0,180);
+            }
+            try{
+              await exchangeText(protocol.SYSTEM_INFO_REQUEST,4096);
+              systemRaw=await exchangeText(protocol.GET_RESULT_REQUEST,4096);
+            }catch(error){
+              inventoryError=(inventoryError?inventoryError+'; ':'')+'systeminfo: '+String(error?.message||error).slice(0,120);
+            }
+          }finally{
+            if(enteredUserLibrary){
+              try{await exchangeText(protocol.USER_MODE_REQUEST,2048);}
+              catch(error){restoreError=String(error?.message||error).slice(0,180);}
+            }
+          }
+          if(restoreError){
+            const reason='无法将 KXCI 恢复到正常用户模式：'+restoreError;
+            await closeCurrent();phase='error';diagnostic=reason;inventoryError=reason;
+            return status();
+          }
+          let instrumentInfo=[],remoteModules=[],systemInfo=null;
+          try{if(instrumentRaw)instrumentInfo=protocol.parseInfoRecords(instrumentRaw);}catch(e){
+            inventoryError=(inventoryError?inventoryError+'; ':'')+'instrumentinfo parse: '+String(e.message||e).slice(0,120);
+          }
+          try{if(remoteRaw)remoteModules=protocol.parseRemoteModules(remoteRaw);}catch(e){
+            inventoryError=(inventoryError?inventoryError+'; ':'')+'remotemoduleinfo parse: '+String(e.message||e).slice(0,120);
+          }
+          try{if(systemRaw)systemInfo=protocol.parseSystemInfo(systemRaw);}catch(e){
+            inventoryError=(inventoryError?inventoryError+'; ':'')+'systeminfo parse: '+String(e.message||e).slice(0,120);
+          }
+          if(instrumentInfo.length||remoteModules.length){
+            inventory=protocol.enrichInventory(base,instrumentInfo,remoteModules,systemInfo);
+          }else{
+            inventory={...base,detailedInventoryAvailable:false,
+              detailedInventoryError:inventoryError||'SystemUtil 详细模块信息不可用'};
+          }
           return status();
         }catch(error){
           inventoryError=String(error?.message||error).slice(0,300);
-          // KXCI *OPT? is unavailable in 4145 emulation. A parse failure
-          // does not imply the previously verified device identity is wrong.
           if(/timeout|closed|econnreset|unavailable|not connected/i.test(inventoryError)){
             const reason=inventoryError;
-            await closeCurrent();
-            phase='error';diagnostic='模块查询失败，原连接可能已关闭：'+reason;
+            await closeCurrent();phase='error';diagnostic='模块查询失败，原连接可能已关闭：'+reason;
             inventoryError=reason;
           }
           return status();
