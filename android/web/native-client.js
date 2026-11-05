@@ -54,6 +54,7 @@
         const value=waveform.parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadMode:payload.loadMode||'unknown'});
         return {ok:true,count:value.points.length,durationS:value.durationS,
           minimumStepS:value.minimumStepS,maximumStepS:value.maximumStepS,
+          sourceType:value.sourceType,loadMode:value.loadMode,maxVoltageV:value.maxVoltageV,
           executable:false,hardwareVerified:false,
           preview:value.points.length<=300?value.points:
             value.points.filter((_,i)=>i%Math.ceil(value.points.length/300)===0)};
