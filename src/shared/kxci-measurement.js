@@ -71,6 +71,8 @@
     // KXCI SMU current-mode TI responses map SMU1..SMU8 to A..H.
     // An SMU9 assignment must not be accepted without protocol evidence.
     if(channels.drain>8)throw Error('当前 KXCI TI 电流回读仅核验 SMU1 至 SMU8，不能选择 SMU9 测量');
+    if(active.some(role=>channels[role]>8))
+      throw Error('当前用户模式要求所有启用 SMU 均支持 TI 通道回读（SMU1 至 SMU8）');
     const unsupported=ROLES.filter(role=>{
       const name=plan.terminals[role];
       return name!=='None'&&name!=='GNDU'&&!channelNumber(name);
@@ -200,22 +202,51 @@
           }
           j.wake=null;
           if(j.cancelled)break;
-          const raw=await command('TI'+j.compiled.measurementChannel,true);
-          const sample=parseTi(raw,j.compiled.measurementChannel);
-          const now=Date.now();
-          j.rows.push(Object.freeze({
-            timeS:(now-started)/1000,voltageV:point.voltages.drain,
-            currentA:sample.currentA,sourceVoltageV:point.voltages.source,
-            drainVoltageV:point.voltages.drain,gateVoltageV:point.voltages.gate,
-            xVoltageV:point.xVoltageV,pVoltageV:point.pVoltageV,
-            sequence:j.rows.length+1,cycle:point.cycle,pRepeat:point.pRepeat,
-            pPoint:point.pPoint,pSegment:point.pSegment,
-            xRepeat:point.xRepeat,xSegment:point.xSegment,
-            point:point.xPoint,measurementStatus:sample.status,
-            rawKxciResponse:sample.rawResponse,source:'4200A-KXCI-TI'
-          }));
-          if(sample.status==='C')
-            throw Error('SMU 触及电流保护（Compliance），测量已终止');
+          // TI samples one SMU at a time. All actively driven terminals need
+          // their own compliance check; a healthy drain never proves the gate
+          // or source is within its independent current protection.
+          const rolesToRead=['drain',...j.compiled.active.filter(role=>role!=='drain')];
+          const readings=Object.create(null);
+          let complianceRole=null;
+          for(const role of rolesToRead){
+            if(j.cancelled)break;
+            const channel=j.compiled.channels[role];
+            const raw=await command('TI'+channel,true);
+            const sample=parseTi(raw,channel);
+            readings[role]=sample;
+            if(sample.status==='C'){complianceRole=role;break;}
+          }
+          // Keep a partial row if cancellation arrives between channel reads,
+          // rather than fabricating values for channels never measured.
+          if(readings.drain){
+            const now=Date.now();
+            const full=rolesToRead.every(role=>Boolean(readings[role]));
+            j.rows.push(Object.freeze({
+              timeS:(now-started)/1000,voltageV:point.voltages.drain,
+              currentA:readings.drain.currentA,
+              drainCurrentA:readings.drain.currentA,
+              gateCurrentA:readings.gate?.currentA??null,
+              sourceCurrentA:readings.source?.currentA??null,
+              sourceVoltageV:point.voltages.source,
+              drainVoltageV:point.voltages.drain,gateVoltageV:point.voltages.gate,
+              xVoltageV:point.xVoltageV,pVoltageV:point.pVoltageV,
+              sequence:j.rows.length+1,cycle:point.cycle,pRepeat:point.pRepeat,
+              pPoint:point.pPoint,pSegment:point.pSegment,
+              xRepeat:point.xRepeat,xSegment:point.xSegment,
+              point:point.xPoint,
+              measurementStatus:complianceRole?'C':'N',
+              complianceRole,measurementCompleteness:full?'complete':'partial',
+              measurementOrder:[...rolesToRead.filter(role=>Boolean(readings[role]))],
+              measurementStatusByRole:Object.fromEntries(
+                Object.entries(readings).map(([role,value])=>[role,value.status])),
+              rawKxciResponses:Object.fromEntries(
+                Object.entries(readings).map(([role,value])=>[role,value.rawResponse])),
+              rawKxciResponse:readings.drain.rawResponse,source:'4200A-KXCI-TI'
+            }));
+          }
+          if(complianceRole)
+            throw Error(complianceRole+' SMU 触及电流保护（Compliance），测量已终止');
+          if(j.cancelled)break;
         }
         if(j.cancelled)j.state='stopping';
         // KXCI exposes its last error non-destructively. A failed query is
