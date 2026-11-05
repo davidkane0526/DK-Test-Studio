@@ -77,6 +77,7 @@ test('KXCI module inspection sends only fixed read-only metadata commands and ca
   const cfg={host:'127.0.0.1',port:server.address().port};assert.equal((await ctl.connect(cfg)).phase,'connected');
   const info=await ctl.inspectModules();assert.equal(info.inventory.hardwareLimitsVerified,true);assert.equal(info.inventory.slots[1].type,'PMURPM');
   await ctl.inspectModules();
+  await new Promise((resolve,reject)=>{const deadline=Date.now()+750;const poll=()=>{if(writes.length===8)return resolve();if(Date.now()>deadline)return reject(new Error('Timed out waiting for the write-only DE command to reach the fake KXCI server.'));setTimeout(poll,5);};poll();});
   assert.deepEqual(writes,[protocol.IDN_REQUEST,protocol.OPTIONS_REQUEST,protocol.UL_REQUEST,protocol.INSTRUMENT_INFO_REQUEST,protocol.GN_RESULT_REQUEST,protocol.REMOTE_MODULE_INFO_REQUEST,protocol.GN_RESULT_REQUEST,protocol.DE_REQUEST]);
   assert.equal((await ctl.disconnect()).inventory,null);
  }finally{await ctl.dispose();await new Promise(resolve=>server.close(resolve));}
