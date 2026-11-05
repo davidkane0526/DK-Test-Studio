@@ -128,7 +128,7 @@
             const interval=Math.max(1,Math.ceil(wave.points.length/300));
             return {status:200,data:{ok:true,count:wave.points.length,
               durationS:wave.durationS,minimumStepS:wave.minimumStepS,
-              maximumStepS:wave.maximumStepS,sourceType:wave.sourceType,loadOhms:wave.loadOhms,
+              maximumStepS:wave.maximumStepS,sourceType:wave.sourceType,rangeV:wave.rangeV,loadOhms:wave.loadOhms,
               maxCurrentA:wave.maxCurrentA,maxVoltageV:wave.maxVoltageV,executable:false,hardwareVerified:false,
               preview:wave.points.length<=300?wave.points:
                 wave.points.filter((_,i)=>i%interval===0)}};
