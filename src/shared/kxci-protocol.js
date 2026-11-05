@@ -111,7 +111,7 @@
           }else if(['VS','VM'].includes(slot.family)&&basePhysicalType){
             const remotePa=paRecords.some(x=>/4200/.test(x.model));
             const badPa=paRecords.some(x=>!/4200/.test(x.model));
-            if(badPa||remotePa!==paRecords.length>0){mismatch=true;reason='VS/VM 的 PA 物理信息不一致';}
+            if(badPa||remotePa!==(paRecords.length>0)){mismatch=true;reason='VS/VM 的 PA 物理信息不一致';}
             else{preamplifier=remotePa;physicalType=basePhysicalType+(remotePa?'PA':'');}
           }else{mismatch=true;reason='instrumentinfo 中的 SMU 物理型号无法识别';}
         }else if(slot.family==='PMU'){
