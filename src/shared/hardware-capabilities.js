@@ -274,11 +274,17 @@
     const nPgu = slots.filter(slot => slot.family === 'PGU').length;
     const nPmu = slots.filter(slot => slot.family === 'PMU').length;
     const nRpm = slots.filter(slot => slot.family === 'PMU').reduce((sum, slot) => sum + (slot.rpmCount || 0), 0);
-    const active = [...new Set(activeSmuChannels.map(Number).filter(Number.isInteger))];
+    const activeMap = new Map();
+    for (const item of activeSmuChannels) {
+      const channel = Number(item && typeof item === 'object' ? item.channel : item);
+      const family = item && typeof item === 'object' ? String(item.family || '') : '';
+      if (Number.isInteger(channel)) activeMap.set((family || '*') + ':' + channel, { channel, family });
+    }
     let nHighPowerSmu = 0;
-    for (const channel of active) {
-      const slot = slots.find(item => ['SMU','VS','VM'].includes(item.family) && item.channel === channel);
-      if (!slot) return Object.freeze({ known: false, reason: '活动 SMU 通道 ' + channel + ' 未映射到已识别物理模块' });
+    for (const activeChannel of activeMap.values()) {
+      const channel=activeChannel.channel,family=activeChannel.family;
+      const slot = slots.find(item => ['SMU','VS','VM'].includes(item.family) && item.channel === channel && (!family || item.family === family));
+      if (!slot) return Object.freeze({ known: false, reason: '活动 SMU 通道 ' + (family ? family + channel : channel) + ' 未映射到已识别物理模块' });
       if (slot.powerClass === 'high') nHighPowerSmu++;
     }
     let nC10 = 0, nC40 = 0;
