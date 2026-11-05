@@ -1495,3 +1495,6 @@ body.dkts-android-shell .dkts-numeric-input.dkts-numeric-active{
 /* DKDS owns the plugin identity and host title. Keep DKTS workspace tabs, but remove its duplicate app logo/name/version row inside the embedded plugin. */
 .dkds-plugin-host #app-titlebar .titlebar-brand,
 .dkds-plugin-host #app-titlebar .titlebar-version-divider{display:none!important;}
+
+.dkds-plugin-host #workspace-tabs,
+.dkds-plugin-host #tab-home{display:none!important;}
