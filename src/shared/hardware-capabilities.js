@@ -232,6 +232,7 @@
         sourceRefs: ['tek-4200a-pmu-rev-c', 'tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index']
       },
       switchMatrix: {
+        sourceRefs: ['tek-4200a-cviv-rev-e', 'tek-4200a-cviv-400v-appnote', 'tek-4200a-current-manual-index'],
         CVIV: {
           maximumVoltagePerSignalPathV: 210, maximumCurrentA: 1, independentSource: false,
           requiresImpedanceLimitedSource: true, forbidDirectMainsConnection: true,
