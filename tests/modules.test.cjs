@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),net=require
 const caps=require('../src/shared/hardware-capabilities.js');
 const protocol=require('../src/shared/kxci-protocol.js');
 const {createIdentityController}=require('../src/controller/identity.cjs');
-const options='SMU1,PMU1,CVU1,VPU1';
+const options='SMUPA1,PMU1RPM1-2,CVU1,VPU1';
 const instrumentInfo=[
 'slotno:1,name:SMU1,model:KISMU4200,serialno:SMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
 'slotno:2,name:PMU1,model:KIPMU4225,serialno:PMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
@@ -15,10 +15,11 @@ const remoteInfo=[
 'slotno:2,name:RPM1-1,model:KIRPM4225,serialno:RPM001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
 'slotno:2,name:RPM1-2,model:KIRPM4225,serialno:RPM002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026'
 ].join(',');
-test('OPT? is logical only; physical SMU ratings remain unknown until SystemUtil metadata is read',()=>{
+test('OPT? directly identifies SMU power class, PA and RPM categories before exact model metadata',()=>{
  const p=protocol.parseOptions(options);assert.equal(p.logicalModules.length,4);assert.equal(p.hardwareLimitsVerified,false);
- assert.equal(p.slots[0].type,null);assert.equal(p.slots[0].physicalIdentityVerified,false);
- assert.equal(caps.getSmuLimits(p.slots[0],20,0.01).known,false);
+ assert.equal(p.slots[0].type,'SMUPA');assert.equal(p.slots[0].powerClass,'medium');assert.equal(p.slots[0].preamplifier,true);
+ assert.equal(p.slots[1].type,'PMURPM');assert.equal(p.slots[1].rpmCount,2);
+ const limits=caps.getSmuLimits(p.slots[0],20,0.01);assert.equal(limits.known,true);assert.equal(limits.maxComplianceA,0.105);
  assert.throws(()=>protocol.parseOptions(''),/为空/);assert.throws(()=>protocol.parseOptions('SMU1,'.repeat(9)),/八个插槽/);
 });
 test('instrumentinfo and remotemoduleinfo identify physical SMU, PA, PMU, RPM, CVU and PGU modules',()=>{
