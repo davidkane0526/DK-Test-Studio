@@ -94,9 +94,13 @@
           cursor:'pointer'
         });
         select.addEventListener('click',()=>send({type:'workspace-select',workspaceId:id}));
-        select.addEventListener('dblclick',()=>{
-          const next=window.prompt('重命名工作区',name);
-          if(next!==null&&next.trim())send({type:'workspace-rename',workspaceId:id,name:next.trim().slice(0,48)});
+        select.addEventListener('dblclick',async()=>{
+          const next=await ctx.ui.dialogs.prompt({
+            title:'重命名工作区',message:'输入新的工作区名称',
+            input:{type:'text',label:'工作区名称',value:name,placeholder:'最多 48 个字符'}
+          });
+          if(typeof next==='string'&&next.trim())
+            send({type:'workspace-rename',workspaceId:id,name:next.trim().slice(0,48)});
         });
         const close=dom.create('button');
         close.type='button';close.textContent='×';
