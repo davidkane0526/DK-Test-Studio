@@ -212,6 +212,8 @@
         if(!j.cancelled){
           const last=await command(':ERROR:LAST:GET',true);
           const match=last.match(/\((-?\d+)\)/);
+          if(!match&& !/^\s*no\s+errors?\b/i.test(last))
+            throw Error('KXCI 错误查询响应异常：'+last.slice(0,140));
           if(match&&Number(match[1])!==0)
             throw Error('4200A KXCI 仪器错误：'+last.slice(0,140));
         }
