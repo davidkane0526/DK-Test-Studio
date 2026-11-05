@@ -215,11 +215,9 @@
                   <option value="pmu">4225-PMU</option>
                   <option value="pgu">4220-PGU</option>
                 </select></label>
-                <label id="waveform-load-control" hidden>输出负载<select id="waveform-load-mode">
-                  <option value="unknown">未知，按 50 Ω 限值保护</option>
-                  <option value="50ohm">50 Ω</option>
-                  <option value="highz">高阻抗（约 1 MΩ）</option>
-                </select></label>
+                <label id="waveform-load-control" hidden>最小预计总负载阻值（Ω）
+                  <input id="waveform-load-ohms" type="number" min="0.01" max="1000000000" step="any" value="50">
+                </label>
               </div>
               <label for="waveform-text" class="input-title">时间 (s)、电压 (V)，每行一组</label>
               <textarea id="waveform-text" spellcheck="false">0, 0
