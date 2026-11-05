@@ -397,12 +397,12 @@
   function getCvuCapabilities(variant, options = {}) {
     const mod = getModuleCapability('CVU'), key = String(variant || '').toUpperCase();
     const powerOptionRequested = typeof options === 'boolean' ? options : Boolean(options?.powerOptionRequested);
-    const powerOptionVerified = typeof options === 'object' && options?.powerOptionVerified === true;
+    const powerOptionVerified = typeof options === 'object' && options?.inventory?.hardwareLimitsVerified === true && Array.isArray(options?.inventory?.verifiedOptions) && options.inventory.verifiedOptions.includes('4200-CVU-PWR');
     if (!Object.hasOwn(mod.variants, key)) return Object.freeze({ known: false, variantRequired: true, common: mod.common, powerOption: null, powerOptionStatus: powerOptionRequested ? 'variant-and-option-identification-required' : 'not-identified', reason: 'KXCI *OPT? 只报告 CVU，不能区分 4210-CVU 与 4215-CVU；高压附件也必须单独确认' });
     return Object.freeze({
       known: true, variant: key, ...mod.variants[key],
       powerOption: powerOptionVerified ? mod.optionalPowerModule : null,
-      powerOptionStatus: powerOptionVerified ? 'verified' : powerOptionRequested ? 'requested-but-unverified' : 'not-identified',
+      powerOptionStatus: powerOptionVerified ? 'verified' : powerOptionRequested ? 'requested-but-not-verified-by-inventory' : 'not-identified',
       highVoltageBiasAllowed: powerOptionVerified
     });
   }
