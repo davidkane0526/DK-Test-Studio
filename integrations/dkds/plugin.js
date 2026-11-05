@@ -32,9 +32,10 @@
       if(json.length>64*1024*1024)throw Error('项目工作区数据超过限制');
       return JSON.parse(json);
     }
+    function hardwareProfile(){return {inventory:controller.status().inventory};}
     function plan(){
       const candidate=ui?ui.readPlan():storedPlan;
-      return planner.normalizePlan(candidate,{inventory:controller.status().inventory});
+      return planner.normalizePlan(candidate,hardwareProfile());
     }
     function endpoint(){return ui?ui.readConnection():{};}
     function notify(snapshot){
@@ -67,9 +68,9 @@
         return result;
       }catch(e){ui?.renderPlanError(String(e.message||e));throw e;}
     }
-    function exportPlan(){return interop.createPlanEnvelope(plan(),planner);}
+    function exportPlan(){return interop.createPlanEnvelope(plan(),planner,hardwareProfile());}
     function importPlan(envelope){
-      const restored=interop.readPlanEnvelope(envelope,planner);
+      const restored=interop.readPlanEnvelope(envelope,planner,hardwareProfile());
       storedPlan={...restored};ui?.restorePlan(restored);preview();ctx.project.capture();
       return restored;
     }
