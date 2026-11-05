@@ -26,7 +26,9 @@
       const type=simple?simple[1]:token.startsWith('PMU')?'PMU-variant':token===''?'empty':'unknown';
       const family=type.includes('SMU')?'SMU':type==='CVU'?'CVU':type==='VPU'?'PGU':
         type.startsWith('PMU')?'PMU':type==='VS'?'VS':type==='VM'?'VM':type;
-      return Object.freeze({slot:index+1,raw:token,type,family,
+      const powerClass=type.startsWith('HPSMU')?'high':type==='SMU'||type==='SMUPA'?'medium':'unknown';
+      const preamplifier=type==='SMUPA'||type==='HPSMUPA';
+      return Object.freeze({slot:index+1,raw:token,type,family,powerClass,preamplifier,
         channel:simple?Number(simple[2]):null,ratingsVerified:false});
     }));
     return Object.freeze({schema:'dkts.4200.modules.v1',raw,slots:modules,
