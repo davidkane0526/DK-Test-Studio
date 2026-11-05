@@ -77,7 +77,7 @@ test('parse KXCI user-mode TI status and preserve exact raw text',()=>{
 });
 test('physical identity, authorization and high voltage interlock gate real output',()=>{
   const controller=makeController();
-  const runner=createRunner({controller,execution:createExecutionCoordinator()});
+  const runner=createRunner({controller,execution:createExecutionCoordinator(),wait:ms=>new Promise(resolve=>setTimeout(resolve,ms))});
   assert.throws(()=>runner.start(program(),hardware,'wrong'),/必须确认/);
   const uncertain={inventory:{...inventory,physicalModelsVerified:false},capabilities};
   assert.equal(compileSweep(program(),uncertain).canExecute,false);
@@ -90,7 +90,7 @@ test('physical identity, authorization and high voltage interlock gate real outp
 });
 test('hardware TI responses, status and shutdown are preserved and sequenced',async()=>{
   const controller=makeController();
-  const runner=createRunner({controller,execution:createExecutionCoordinator()});
+  const runner=createRunner({controller,execution:createExecutionCoordinator(),wait:ms=>new Promise(resolve=>setTimeout(resolve,ms))});
   const initial=runner.start(program(),hardware,'CONFIRM_WIRING_AND_OUTPUT');
   assert.equal(initial.running,true);
   const result=await untilStopped(runner);
@@ -107,7 +107,7 @@ test('hardware TI responses, status and shutdown are preserved and sequenced',as
 });
 test('stop breaks host delay, then disables every driven SMU',async()=>{
   const controller=makeController();
-  const runner=createRunner({controller,execution:createExecutionCoordinator()});
+  const runner=createRunner({controller,execution:createExecutionCoordinator(),wait:ms=>new Promise(resolve=>setTimeout(resolve,ms))});
   const many=program({xSweep:{terminal:'drain',repeats:2,delayMs:15,
     segments:[{startV:0,stopV:1,stepV:0.01,rangeA:'auto'}]}});
   runner.start(many,hardware,'CONFIRM_WIRING_AND_OUTPUT');
@@ -122,7 +122,7 @@ test('stop breaks host delay, then disables every driven SMU',async()=>{
 test('a compliance status terminates and reports the instrument protection event',async()=>{
   const controller=makeController((command)=>command==='TI1'?'CAI+1.0000E-04':
     command===':ERROR:LAST:GET'?'No error (0)':'');
-  const runner=createRunner({controller,execution:createExecutionCoordinator()});
+  const runner=createRunner({controller,execution:createExecutionCoordinator(),wait:ms=>new Promise(resolve=>setTimeout(resolve,ms))});
   runner.start(program(),hardware,'CONFIRM_WIRING_AND_OUTPUT');
   const result=await untilStopped(runner);
   assert.equal(result.state,'failed');
