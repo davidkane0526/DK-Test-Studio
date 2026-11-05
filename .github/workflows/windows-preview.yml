@@ -14,7 +14,7 @@ env:
 jobs:
   windows:
     if: github.event.workflow_run.conclusion == 'success'
-    name: Windows Setup, Portable, and validated DKDS plugin
+    name: Windows Portable and validated DKDS plugin
     runs-on: windows-latest
     timeout-minutes: 55
     steps:
@@ -59,8 +59,8 @@ jobs:
         run: node compat/dkds/sdk/tools/dkds-plugin.js package dist/dkds-plugin dist/DK-Test-Studio-4200.dkplugin
       - name: Stamp offline bundled UI version
         run: node tools/stamp-native-ui.cjs
-      - name: Build Windows Setup and Portable
-        run: npx electron-builder --win nsis portable --x64 --publish never
+      - name: Build Windows Portable
+        run: npx electron-builder --win portable --x64 --publish never
       - name: Require custom embedded executable icon
         shell: pwsh
         run: |
@@ -73,13 +73,12 @@ jobs:
       - name: Require all Windows artifacts
         shell: pwsh
         run: |
-          $setup = @(Get-ChildItem dist -File -Filter '*Setup*.exe')
           $portable = @(Get-ChildItem dist -File -Filter '*Portable*.exe')
           $plugin = 'dist/DK-Test-Studio-4200.dkplugin'
-          if ($setup.Count -ne 1 -or $portable.Count -ne 1 -or !(Test-Path $plugin)) {
-            throw 'Missing or duplicate Windows or DKDS plugin release artifacts.'
+          if ($portable.Count -ne 1 -or !(Test-Path $plugin)) {
+            throw 'Missing or duplicate Windows Portable or DKDS plugin release artifacts.'
           }
-          foreach ($file in @($setup[0].FullName, $portable[0].FullName, $plugin)) {
+          foreach ($file in @($portable[0].FullName, $plugin)) {
             if ((Get-Item $file).Length -lt 1024) { throw "Truncated file: $file" }
             Write-Host "$file SHA256=$((Get-FileHash $file -Algorithm SHA256).Hash)"
           }
@@ -87,7 +86,6 @@ jobs:
         with:
           name: DKTS-Windows
           path: |
-            dist/*Setup*.exe
             dist/*Portable*.exe
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
@@ -284,17 +282,16 @@ jobs:
         with:
           name: DKTS-Hardware-Capability-Database
           path: release/capabilities
-      - name: Verify the six required release assets
+      - name: Verify the five required release assets
         shell: bash
         run: |
           set -euo pipefail
-          test "$(find release/windows -name '*Setup*.exe' | wc -l)" -eq 1
           test "$(find release/windows -name '*Portable*.exe' | wc -l)" -eq 1
           test "$(find release/plugin -name '*.dkplugin' | wc -l)" -eq 1
           test "$(find release/android -name '*.apk' | wc -l)" -eq 1
           test "$(find release/ui -name 'DKTS-UI-bundle.json' | wc -l)" -eq 1
           test "$(find release/capabilities -name 'DKTS-4200A-Hardware-Capability-Database-v1.json' | wc -l)" -eq 1
-          test "$(find release -type f | wc -l)" -eq 6
+          test "$(find release -type f | wc -l)" -eq 5
           find release -type f -print0 | xargs -0 -n1 sha256sum
       - name: Publish V0.3.12 a${{ github.event.workflow_run.run_number }} full package Release
         env:
@@ -316,11 +313,11 @@ jobs:
           Source commit: ${DKTS_BUILD_SHA}
           Matching UI hot update: ${hotfix_url}
 
-          Complete package: Windows Setup, Windows Portable, Android APK, DKDS plugin, UI hot-update bundle, and exportable 4200A hardware capability database. The full package version remains V${package_version}; the UI hot-update identifier advances independently as ${hotfix_id}.
+          Complete package: Windows Portable, Android APK, DKDS plugin, UI hot-update bundle, and exportable 4200A hardware capability database. The full package version remains V${package_version}; the UI hot-update identifier advances independently as ${hotfix_id}.
           EOF
           )"
           files=(release/windows/*.exe release/plugin/*.dkplugin release/android/*.apk release/ui/*.json release/capabilities/*.json)
-          test "${#files[@]}" -eq 6
+          test "${#files[@]}" -eq 5
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes "$notes"
@@ -330,12 +327,11 @@ jobs:
               --prerelease --latest=false
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort | tee release-assets.txt
-          test "$(wc -l < release-assets.txt)" -eq 6
+          test "$(wc -l < release-assets.txt)" -eq 5
           grep -qE '[.]apk$' release-assets.txt
           grep -qE '[.]dkplugin$' release-assets.txt
           grep -qE '^DKTS-UI-bundle[.]json$' release-assets.txt
           grep -qE '^DKTS-4200A-Hardware-Capability-Database-v1[.]json$' release-assets.txt
-          grep -qE 'Setup.*[.]exe$' release-assets.txt
           grep -qE 'Portable.*[.]exe$' release-assets.txt
           printf 'Verified full-platform Release: %s\n' "https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
-          printf '### Complete DK Test Studio Release\n\n**V%s %s**\n\nSix required assets verified.\n' "$package_version" "$hotfix_id" >> "$GITHUB_STEP_SUMMARY"
+          printf '### Complete DK Test Studio Release\n\n**V%s %s**\n\nFive required assets verified.\n' "$package_version" "$hotfix_id" >> "$GITHUB_STEP_SUMMARY"
