@@ -106,3 +106,26 @@ test('KXCI option parsing distinguishes RPM bindings and logical VS/VM roles', (
   assert.equal(p.slots[5].capabilityStatus, 'physical-variant-required');
   assert.equal(p.hardwareLimitsVerified, false);
 });
+
+test('exported module database includes dedicated safety policies for all non-SMU module families', () => {
+  const p = caps.DATABASE.safetyPolicies;
+  assert.equal(p.cvu.requiresExactVariantIdentification, true);
+  assert.equal(p.cvu.optionalPowerModule.unverifiedPowerOptionBlocksHighVoltageBias, true);
+  assert.equal(p.vsVm.VS.maximumSourceVoltageV, 20);
+  assert.equal(p.vsVm.VM.sourceOutputSupported, false);
+  assert.equal(p.accessories.PA.allowedHostFamily, 'SMU');
+  assert.equal(p.accessories.RPM.allowedHostFamily, 'PMU');
+  assert.equal(p.switchMatrix.CVIV.forbidDirectMainsConnection, true);
+  assert.equal(p.groundUnit.GNDU.doNotUseAsVoltageSource, true);
+  const unknownCvu = caps.getCvuCapabilities(null, { powerOptionRequested: true });
+  assert.equal(unknownCvu.known, false);
+  assert.equal(unknownCvu.powerOption, null);
+  const unverifiedPower = caps.getCvuCapabilities('4215-CVU', { powerOptionRequested: true });
+  assert.equal(unverifiedPower.powerOptionStatus, 'requested-but-unverified');
+  assert.equal(unverifiedPower.highVoltageBiasAllowed, false);
+  assert.equal(unverifiedPower.powerOption, null);
+  const verifiedPower = caps.getCvuCapabilities('4215-CVU', { powerOptionRequested: true, powerOptionVerified: true });
+  assert.equal(verifiedPower.powerOptionStatus, 'verified');
+  assert.equal(verifiedPower.highVoltageBiasAllowed, true);
+  assert.equal(verifiedPower.powerOption.differentialMaxV, 400);
+});
