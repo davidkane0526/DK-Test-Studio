@@ -57,9 +57,11 @@ test('KXCI module inspection sends only fixed read-only metadata commands and ca
   const cmd=bytes.toString('ascii');writes.push(cmd);
   if(cmd===protocol.IDN_REQUEST)socket.write('KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0');
   else if(cmd===protocol.OPTIONS_REQUEST)socket.write(options+'\0');
-  else if(cmd===protocol.UL_REQUEST||cmd===protocol.DE_REQUEST||cmd===protocol.INSTRUMENT_INFO_REQUEST||cmd===protocol.REMOTE_MODULE_INFO_REQUEST){
+  else if(cmd===protocol.UL_REQUEST||cmd===protocol.DE_REQUEST){
+   // KXCI UL/DE are write-only mode switches; the real instrument sends no reply.
+  }else if(cmd===protocol.INSTRUMENT_INFO_REQUEST||cmd===protocol.REMOTE_MODULE_INFO_REQUEST){
    if(cmd===protocol.INSTRUMENT_INFO_REQUEST)lastQuery='instrument';if(cmd===protocol.REMOTE_MODULE_INFO_REQUEST)lastQuery='remote';socket.write('OK\0');
-  }else if(cmd===protocol.GN_RESULT_REQUEST)socket.write((lastQuery==='instrument'?instrumentInfo:remoteInfo)+'\0');
+  }
   else assert.fail('Unexpected KXCI command '+cmd);
  }));
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const ctl=createIdentityController();
