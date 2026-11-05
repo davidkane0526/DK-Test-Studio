@@ -45,7 +45,7 @@ function makeController(onCommand){
     async measurementExchange(command,read){
       commands.push({command,read});
       return onCommand?await onCommand(command,read):
-        command.startsWith('TI')?'NAI+1.2500E-09':
+        /^TI[1-8]$/.test(command)?'N'+'ABCDEFGH'[Number(command.slice(2))-1]+'I+1.2500E-09':
           command===':ERROR:LAST:GET'?'No error (0)':'';
     }
   };
@@ -107,6 +107,10 @@ test('hardware TI responses, status and shutdown are preserved and sequenced',as
   assert.equal(controller.commands[0].command,'US');
   assert.equal(controller.commands[1].command,':ERROR:LAST:CLEAR');
   assert.equal(controller.commands.filter(x=>x.command==='TI1').length,12);
+  assert.equal(controller.commands.filter(x=>x.command==='TI2').length,12);
+  assert.equal(result.rows[0].gateCurrentA,1.25e-9);
+  assert.equal(result.rows[0].rawKxciResponses.gate,'NBI+1.2500E-09');
+  assert.equal(result.rows[0].measurementCompleteness,'complete');
   assert.deepEqual(controller.commands.slice(-2).map(x=>x.command),['DV2','DV1']);
   assert.equal(result.rows[6].gateVoltageV,.1);
 });
@@ -165,4 +169,24 @@ test('raw rows retain strictly increasing sequence and segment metadata',async()
   assert.deepEqual(result.rows.map(x=>x.sequence),
     Array.from({length:result.rows.length},(_,i)=>i+1));
   assert.equal(result.rows[8].pSegment,1);
+});
+
+test('gate compliance is independently detected even when drain current is normal',async()=>{
+  const ctl=makeController(command=>command==='TI1'?'NAI+1.0000E-09':
+    command==='TI2'?'CBI+1.0000E-04':
+    command===':ERROR:LAST:GET'?'No error (0)':'');
+  const runner=createRunner({controller:ctl,execution:createExecutionCoordinator(),
+    wait:ms=>new Promise(resolve=>setTimeout(resolve,ms))});
+  runner.start(program(),hardware,'CONFIRM_WIRING_AND_OUTPUT');
+  const result=await untilStopped(runner);
+  assert.equal(result.state,'failed');
+  assert.match(result.error,/gate.*Compliance/);
+  assert.equal(result.totalRows,1);
+  assert.equal(result.rows[0].drainCurrentA,1e-9);
+  assert.equal(result.rows[0].gateCurrentA,1e-4);
+  assert.equal(result.rows[0].measurementStatusByRole.drain,'N');
+  assert.equal(result.rows[0].measurementStatusByRole.gate,'C');
+  assert.equal(result.rows[0].complianceRole,'gate');
+  assert.equal(result.shutdown,'commands-sent');
+  assert.deepEqual(ctl.commands.slice(-2).map(x=>x.command),['DV2','DV1']);
 });
