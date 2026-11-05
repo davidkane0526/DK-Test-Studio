@@ -1844,7 +1844,7 @@ async function startKxciMeasurement(){
       }
       $('plan-status').textContent='实测 '+response.totalRows+' / '+response.totalPoints+
         ' 点'+(response.state==='stopping'?' · 正在停止':'');
-      finished=!response.running;
+      finished=!response.running&&measurementUi.cursor>=response.totalRows;
       if(finished){
         const failed=response.state==='failed';
         finishMeasurementRun(measurementUi.context,{
