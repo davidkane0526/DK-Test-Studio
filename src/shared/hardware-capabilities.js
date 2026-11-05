@@ -123,7 +123,7 @@
             '1e-5': { recommendedMinPulseWidthS: 8.36e-6, recommendedMinTransitionS: 360e-9, typical: true, measurementFrontEnd: 'RPM' },
             '1e-4': { recommendedMinPulseWidthS: 1.04e-6, recommendedMinTransitionS: 40e-9, typical: true, measurementFrontEnd: 'RPM' },
             '1e-3': { recommendedMinPulseWidthS: 370e-9, recommendedMinTransitionS: 30e-9, typical: true, measurementFrontEnd: 'RPM' },
-            '1e-2': { recommendedMinPulseWidthS: 160e-9, recommendedMinTransitionS: 20e-9, typical: true, measurementFrontEnd: 'RPM' },
+            '1e-2': { recommendedMinPulseWidthS: 160e-9, recommendedMinTransitionS: 20e-9, typical: true, measurementFrontEnd: 'PMU/RPM' },
             '2e-1': { recommendedMinPulseWidthS: 70e-9, recommendedMinTransitionS: 20e-9, typical: true, measurementFrontEnd: 'PMU' }
           },
           '40': {
@@ -150,7 +150,7 @@
           '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值小于10 V时为30 ns，大于10 V时为100 ns；恰为10 V时手册未明确', maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
         },
         measurement: {
-          currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-2, 1e-1, 8e-1] },
+          currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
           withRpmCurrentRangesA: { '10': [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
           
           minimumCurrentRangeA: 1e-7, currentMeasurementResolutionA: 2e-10,
