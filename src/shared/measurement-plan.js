@@ -16,12 +16,12 @@
     if(!Number.isSafeInteger(n))throw Error(label+' 必须是整数');
     return n;
   }
-  function detectedSmUModel(channel,inventory){
+  function detectedSmUClass(channel,inventory){
     const number=Number(channel??1);
     const slot=Array.isArray(inventory?.slots)
       ?inventory.slots.find(item=>item?.family==='SMU'&&item.channel===number):null;
-    if(slot?.powerClass==='high')return '4210-SMU';
-    if(slot?.powerClass==='medium')return '4200-SMU';
+    if(slot?.powerClass==='high')return 'high';
+    if(slot?.powerClass==='medium')return 'medium';
     return 'UNKNOWN';
   }
   function normalizePlan(input={},hardware={}){
@@ -35,7 +35,7 @@
     if(gateSmU&&(gateSmU===sourceSmU||gateSmU===measureSmU))
       throw Error('栅极 SMU 不得与源/测量 SMU 使用相同编号');
     // Never trust a model name supplied by the UI/imported plan. Resolve it only from the read-only *OPT? inventory.
-    const sourceModel=detectedSmUModel(sourceSmU,hardware.inventory);
+    const sourceModel=detectedSmUClass(sourceSmU,hardware.inventory);
     const maxAbsVoltage=Math.max(
       Math.abs(Number(input.gateBiasV??0)),Math.abs(Number(input.startV??-1)),
       Math.abs(Number(input.stopV??1)),Math.abs(Number(input.fixedV??0.1))
@@ -115,7 +115,7 @@
     }
     return Object.freeze({status,begin,run});
   }
-  const api=Object.freeze({normalizePlan,previewPlan,detectedSmUModel,createExecutionCoordinator});
+  const api=Object.freeze({normalizePlan,previewPlan,detectedSmUClass,createExecutionCoordinator});
     if(typeof window!=='undefined' && window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-plan',api);
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
