@@ -182,7 +182,7 @@
       const id='dkts-4200-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
       const artifact=ctx.data.model.createTable({
         id,name:String(result.name||'Keithley 4200A 原始测量'),
-        semanticType:'science.instrument.4200.raw',transient:false,
+        transient:false,
         metadata:{instrument:'Keithley 4200A',model:controller.status().identity?.model||'KI4200A',
           serial:controller.status().identity?.serial||'',measurementKind:String(result.kind||'unknown'),
           rawInstrumentData:true,processing:'none',dataAssignments:[]},
