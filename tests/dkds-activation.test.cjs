@@ -53,6 +53,7 @@ function prepare(){
   const ctx={
     services:{require(name){assert.equal(name,'tcp');return tcp;}},
     data:{model:{createTable(spec){return {...spec,kind:'data.table'};}},artifacts:{upsert(value){artifacts.push(value);return {changed:true};}}},
+    data:{model:{createTable(spec){return {...spec,kind:'data.table'};}},artifacts:{upsert(value){artifacts.push(value);return {changed:true};}}},
     modules:{require(name){assert(registry.has(name),'Missing '+name);return registry.get(name);}},
     status:{set(v){captured.status=v;}},
     workspace:{openPage(id){captured.openedPage=id;}},
@@ -87,6 +88,10 @@ test('DKDS plugin displays the exact standalone app in a sandboxed workbench',as
   assert.equal(v.statusSpec.label,'4200A 未连接');
   assert.equal(env.captured.manifest.window.title,undefined);
   assert.equal(env.captured.manifest.workspace.icon,undefined);
+  assert.equal(v.statusSpec.icon,'');
+  assert.equal(v.statusSpec.label,'4200A 未连接');
+  assert.equal(env.captured.manifest.window.title,undefined);
+  assert.equal(env.captured.manifest.workspace.icon,undefined);
   assert(v.composed.primary.mainNode);
   assert.equal(v.frame.attributes.sandbox,'allow-scripts allow-modals');
   assert.equal(v.workspaceRoot.kind,'layout');
@@ -107,8 +112,14 @@ test('DKDS plugin displays the exact standalone app in a sandboxed workbench',as
   assert.equal(v.artifacts.length,1);
   assert.equal(v.artifacts[0].metadata.rawInstrumentData,true);
   assert.equal(v.artifacts[0].columns[1].values[1],2e-9);
+  const published=v.capability.methods.publishMeasurement({xValues:[0,1],yValues:[1e-9,2e-9],xUnit:'V',yUnit:'A'});
+  assert.equal(published.rowCount,2);
+  assert.equal(v.artifacts.length,1);
+  assert.equal(v.artifacts[0].metadata.rawInstrumentData,true);
+  assert.equal(v.artifacts[0].columns[1].values[1],2e-9);
   installed.deactivate();
   assert(v.frame.removed);
+  assert.equal(v.statusItem.removed,true);
   assert.equal(v.statusItem.removed,true);
 });
 test('request bridge only permits read-only KXCI and same form plan validation',async()=>{
