@@ -45,13 +45,13 @@
     }
     if(route==='/api/plan/validate'){
       try{
-        const value=planner.previewPlan(payload,300);
+        const value=planner.previewPlan(payload,300,{inventory:controller.status().inventory});
         return {ok:true,plan:value.plan,firstPoints:value.firstPoints,truncated:value.truncated};
       }catch(e){return {ok:false,error:String(e.message||e)};}
     }
     if(route==='/api/waveform/validate'){
       try{
-        const value=waveform.parseWaveformText(payload.text);
+        const value=waveform.parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadMode:payload.loadMode||'unknown'});
         return {ok:true,count:value.points.length,durationS:value.durationS,
           minimumStepS:value.minimumStepS,maximumStepS:value.maximumStepS,
           executable:false,hardwareVerified:false,
