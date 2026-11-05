@@ -1,7 +1,7 @@
 {
   "id": "com.dkts.keithley-4200",
   "name": "DK Test Studio - Keithley 4200A",
-  "version": "0.6.16",
+  "version": "0.6.17",
   "apiVersion": "1.19.0",
   "entry": "plugin.js",
   "enabled": true,
@@ -45,6 +45,7 @@
     "hardware-capabilities.js",
     "kxci-protocol.js",
     "measurement-plan.js",
+    "kxci-measurement.js",
     "waveform.js",
     "identity-core.js",
     "interop.js",
