@@ -28,7 +28,7 @@
 Android UI 热更新采用与 Windows 相同的界面文件，同时识别 `DKTSNative` 原生宿主并启用独立的 Android 样式。对 targetSdk 35 的 Android 15+ 系统栏采用 CSS `safe-area-inset-*` 避让，兼顾竖屏两列测试卡片、横屏布局和更大的底部触控区域。**目前是代码和自动化测试覆盖，尚未在目标 Android 平板实机截图验收**。
 Android 使用本机 WebView 工作台、独立原生 Java TCP 网络桥接（可绑定 USB Ethernet / Wi-Fi Network）和与 Windows / DKDS 插件 **字节完全一致** 的 `src/shared/` 协议及测试规划核心。当前安全边界只允许固定身份、模块类别与物理模块元数据只读命令，不开放任意 KXCI 命令。
 
-CI 将通过独立 Android 构建任务生成 APK，并将其与 Windows Portable、DKDS `.dkplugin` 共同发布到同一次 GitHub 预览 Release。详情见 [Android 构建与网络说明](android/README.md)。
+CI 将通过独立 Android 构建任务生成 APK，并与 Windows Portable、DKDS `.dkplugin`、UI 热更新包及硬件能力数据库共同发布到同一次 GitHub 预览 Release。详情见 [Android 构建与网络说明](android/README.md)。
 
 ## 版本标识与原生图标
 
@@ -40,7 +40,7 @@ Windows 应用图标、任务栏、任务管理器、便携版 EXE，以及 Andr
 
 **每次向 `main` 推送任何更改，都执行全平台完整构建。热更新只是额外的快速体验渠道，不替代原生安装包。**
 
-1. `Native Shell Windows Android and DKDS Release` 在**每一次 `main` 提交**时运行，不限制修改路径，也不取消排队中的旧提交。只构建 Windows Portable、独立 Android APK、DKDS 插件以及 UI 更新资源。
+1. `Native Shell Windows Android and DKDS Release` 在**每一次 `main` 提交**时运行，不限制修改路径，也不取消排队中的旧提交。只构建 Windows Portable、独立 Android APK、DKDS 插件、UI 更新资源和硬件能力数据库。
 2. 五项资产全部通过测试和构建后，发布到唯一的 `dkts-preview-v<package version>-a<run number>` Release，并检查 **5/5** 资产完整性。即使后来有新提交，较早一次构建成功也仍应发布，不因 HEAD 已变化而拒绝。
 3. `Fast UI Hot Update` 同样在每次提交时运行，另行发布 `dkts-ui-<commit SHA>` 资源包；若该提交已不是最新 HEAD，则跳过*过时的热更新*，防止旧内容覆盖新版本，但对应的完整构建仍继续并发布。
 4. 已安装的独立 Windows 与 Android 软件启动时以及约每 3 分钟检查一次热更新，验证后从私有缓存刷新；离线继续运行已安装版本。
@@ -71,7 +71,7 @@ npm start
 npm run dist:win
 ~~~
 
-GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，并构建 Windows Portable、独立 Android APK、DKDS 插件与热更新资源，完成后统一发布到 GitHub Release。每次发布必须核对 5 个文件，未成功构建则不能声称 Release 已发布。测试通过不等于完成真实仪器验收。
+GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，并构建 Windows Portable、独立 Android APK、DKDS 插件、热更新资源与硬件能力数据库，完成后统一发布到 GitHub Release。每次发布必须核对 5 个文件，未成功构建则不能声称 Release 已发布。测试通过不等于完成真实仪器验收。
 
 ## 安全与控制边界
 
