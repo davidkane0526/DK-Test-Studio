@@ -4,6 +4,11 @@
   const INSTRUMENT_INFO_REQUEST='EX SystemUtil instrumentinfo(,4096,)\0';
   const REMOTE_MODULE_INFO_REQUEST='EX SystemUtil remotemoduleinfo(,4096,)\0';
   const GN_RESULT_REQUEST='GN result\0',DE_REQUEST='DE\0';
+  function getCapabilities(){
+    if(typeof window!=='undefined'&&window.DKTSHardwareCapabilities)return window.DKTSHardwareCapabilities;
+    if(typeof module!=='undefined'&&typeof require==='function')return require('./hardware-capabilities.js');
+    return null;
+  }
   function parseIdentity(input,expectedSerial=''){
     const raw=String(input||'').replace(/\0+$/g,'').trim(),parts=raw.split(',').map(x=>x.trim());
     if(parts[0]!=='KEITHLEY INSTRUMENTS'||parts[1]!=='KI4200A')throw Error('仪器身份不匹配：'+(raw||'空响应'));
