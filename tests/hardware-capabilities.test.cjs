@@ -178,4 +178,8 @@ test('every capability and safety-policy source reference resolves to an exporte
   for (const [name, module] of Object.entries(caps.DATABASE.modules)) {
     assert.ok(Array.isArray(module.sourceRefs) && module.sourceRefs.length, name + ' must cite its manufacturer source records');
   }
+  for (const [name, policy] of Object.entries(caps.DATABASE.safetyPolicies)) {
+    assert.ok((Array.isArray(policy.sourceRefs) && policy.sourceRefs.length) || typeof policy.policyBasis === 'string',
+      name + ' safety policy must cite manufacturer sources or state its software-policy basis');
+  }
 });
