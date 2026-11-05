@@ -352,7 +352,7 @@
       minSampleRateHz: minimumRequiredRateHz, maxSampleRateHz: hardwareMaxRateHz,
       selectedSampleRateHz: selectedRateHz, sampleIntervalS: 1 / selectedRateHz,
       maxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsExclusivePerChannel: mod.measurement.hardwareSampleCountUpperBoundExclusive,
-      interfaceMaxPointsPerChannel: interfaceMaxPoints, interfaceDataBufferCapacityPointsPerChannel: interfaceBufferCapacity, interfaceMaxGeneratedPointsPerChannel: interfaceMaxGeneratedPoints, kxciMaxSampleRateHz: kxciMaxRateHz,
+      interfaceMaxPointsPerChannel: interfaceMaxPoints, interfaceDataBufferCapacityPointsPerChannel: interfaceBufferCapacity, interfaceMaxGeneratedPointsPerChannel: interfaceMaxGeneratedPoints, kxciMaxSampleRateHz: kxciMaxRateHz, kxciBoundaryStatus: Math.ceil(selectedRateHz * duration - 1e-9) === interfaceMaxPoints ? 'exact-upper-bound-ambiguous' : (kxciCompatible ? 'within-published-range' : 'over-interface-limit'), kxciPointLimitNote: mod.measurement.kxciGeneratedPointBoundaryNote,
       hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz, kxciCompatible,
       interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 波形生成点数上限为每通道 65536 点（数据缓冲容量同为 65536 点；手册对等于上限的文字表述存在歧义）；PMU 硬件单次采集点数必须严格少于 1000000 点', interfaceLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus
     });
