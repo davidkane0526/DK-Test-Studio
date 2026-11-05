@@ -26,6 +26,17 @@ test('localhost API is read-only, origin guarded and waveform is not executable'
     const plan=await res.json();assert.equal(plan.ok,true);assert.equal(plan.executable,false);assert.equal(plan.minSegmentTimeS,2e-8);assert.equal(plan.minimumStepS,2e-8);
     const planResponse=await fetch(base+'/api/plan/validate',{method:'POST',headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},body:JSON.stringify({kind:'iv',sourceModel:'4200-SMU',measureModel:'4200-SMU',points:11,loops:2})});
     const smuPlan=await planResponse.json();assert.equal(smuPlan.ok,true);assert.equal(smuPlan.plan.executable,false);assert.equal(smuPlan.plan.totalPoints,42);
+    const cvuResponse=await fetch(base+'/api/cvu/validate',{method:'POST',
+      headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},
+      body:JSON.stringify({cvuModel:'4215-CVU',acDriveVrms:1,frequencyHz:10000000})});
+    assert.equal(cvuResponse.status,200);
+    const cvu=await cvuResponse.json();
+    assert.equal(cvu.ok,true);assert.equal(cvu.plan.modelKey,'4215-CVU');
+    assert.equal(cvu.plan.acDriveVrms,1);assert.equal(cvu.plan.executable,false);
+    const cvuRejected=await fetch(base+'/api/cvu/validate',{method:'POST',
+      headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},
+      body:JSON.stringify({cvuModel:'4210-CVU',acDriveVrms:1,frequencyHz:10000000})});
+    assert.equal(cvuRejected.status,400);
     const unknown=await fetch(base+'/api/output',{method:'POST',headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},body:'{}'});
     assert.equal(unknown.status,404);
   }finally{await app.close();}
