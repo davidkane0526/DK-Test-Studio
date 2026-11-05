@@ -899,7 +899,7 @@ function resetModeInputs(mode='iv'){
   $('waveform-text').value=$('waveform-text').defaultValue;
   $('waveform-info').textContent='输入波形仅作规划，不会输出到仪器';
   $('waveform-plot').replaceChildren();
-  $('plan-status').textContent='仅校验方案，尚未开放实机执行。';
+  $('plan-status').textContent='设置扫描参数并完成校验';
 }
 function rememberTabDraft(){
   const tab=getActiveWorkspace();
@@ -1911,10 +1911,10 @@ async function validatePlan(){
         ' 次'+(p.pSweep?' × Psweep '+p.pSweep.points+' 点':'')+
         ' × '+p.loops+' 轮 = '+p.totalPoints+
         ' 点 · '+(p.hardwareCapabilityStatus==='identified'?'模块范围已核验':'需识别实际模块')+
-        ' · 仅规划，不执行输出':
+        ' · 方案校验通过':
       'I–t 恒压读出 · '+p.totalPoints+' 点 · '+p.loops+' 轮 · SMU '+p.sourceSmU+
-        ' · 仅规划，不执行输出';
-    showStatusMessage('方案校验通过 · '+p.totalPoints+' 个规划点 · 不执行硬件输出','success');
+        ' · 仅规划';
+    showStatusMessage('方案校验通过 · '+p.totalPoints+' 个点','success');
   }catch(e){
     if(expectedKind===activeMode&&expectedTabId===getActiveWorkspace()?.id){
       status.textContent='方案校验失败：'+String(e.message||e).slice(0,120);
