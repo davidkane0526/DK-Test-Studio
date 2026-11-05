@@ -23,7 +23,7 @@
       { id: 'tek-4200a-cvu-rev-b', title: 'Model 4200A-SCS CVU User Manual', revision: '4200A-CVU-900-01 Rev. B', published: '2023-03', url: 'https://download.tek.com/manual/4200A-CVU-900-01B_March_2023.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-cviv-rev-e', title: 'Model 4200A-CVIV Multi-Switch User Manual', revision: '4200A-CVIV-900-01 Rev. E', published: '2020-12', url: 'https://www.tek.com/-/media/documents/4200a-cviv-900-01e_december2020.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-cviv-400v-appnote', title: 'Making Three-Terminal Capacitance-Voltage Measurements Up to 400 V Using the 4200A-CVIV Multi-Switch Bias Tee Capability', revision: '1KW-61529-1', published: '2020-12-15', url: 'https://download.tek.com/document/1KW-61529-1_Making_3-Terminal_C-V_Measurements_up_to_400V_4200A-CVIV_Application_Note_111320.pdf', authority: 'manufacturer' },
-      { id: 'tek-4200a-current-manual-index', title: 'Tektronix 4200A-SCS manuals and software download index', revision: 'Current index checked 2026-11-05', observedManualRevisions: { PMU: { partNumber: '4200A-PMU-900-01D', published: '2026-10-22', contentRetrieved: false }, KXCI: { partNumber: '4200A-KXCI-907-01F', published: '2026-10-09', contentRetrieved: false }, LPT: { partNumber: '4200A-LPT-907-01E', published: '2026-10-09', contentRetrieved: false }, Clarius: { partNumber: '4200A-914-01G', published: '2026-10-09', contentRetrieved: false } }, url: 'https://www.tek.com/en/support/datasheets-manuals-software-downloads?model=4200A-SCS', authority: 'manufacturer' },
+      { id: 'tek-4200a-current-manual-index', title: 'Tektronix 4200A-SCS manuals and software download index', revision: 'Current index checked 2026-11-05', observedManualRevisions: { PMU: { partNumber: '4200A-PMU-900-01D', published: '2026-10-22', contentRetrieved: false }, KXCI: { partNumber: '4200A-KXCI-907-01F', published: '2026-10-09', contentRetrieved: false }, LPT: { partNumber: '4200A-LPT-907-01E', published: '2026-10-09', contentRetrieved: false }, Clarius: { partNumber: '4200A-914-01G', published: '2026-10-09', contentRetrieved: false }, Setup: { partNumber: '4200A-908-01G', published: '2025-07-03', contentRetrieved: false }, CVIV: { partNumber: '4200A-CVIV-900-01F', published: '2025-04-30', contentRetrieved: false }, CVU: { partNumber: '4200A-CVU-900-01B', published: '2023-03-31', contentRetrieved: false } }, url: 'https://www.tek.com/en/support/datasheets-manuals-software-downloads?model=4200A-SCS', authority: 'manufacturer' },
       { id: 'tek-4200-cvu-pwr-rev-f', title: 'Model 4200-CVU-PWR Parts Package Instruction Sheet', revision: 'PA-977 Rev. F', published: '2023-06-21', url: 'https://www.tek.com/en/manual/model-4200-cvu-pwr-parts-package', authority: 'manufacturer' },
       { id: 'tek-4200-cvu-pwr-appnote', title: 'Using the 4200-CVU-PWR C-V Power Package for High Voltage and High Current C-V Measurements', revision: 'Application Note', published: '2020-04-06', url: 'https://download.tek.com/document/1KW606370MakingHighVoltageHighCurrentCV%20Measurements4200ASCS4200CVUPWRApplicationNote040620.pdf', authority: 'manufacturer' }
     ],
@@ -51,7 +51,7 @@
           complianceMinFractionOfRange: 0.1, rangeOverrangeFactor: 1.05
         },
         kxci: { maxListPoints: 4096, delayMinS: 0, delayMaxS: 6.553, itIntervalMinS: 0.01, itIntervalMaxS: 10 },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-setup-rev-f']
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-setup-rev-f', 'tek-4200a-current-manual-index']
       },
       SMUPA: {
         type: 'SMUPA', family: 'SMU', role: 'source-measure', verificationStatus: 'documented',
@@ -69,7 +69,7 @@
           complianceMinFractionOfRange: 0.1, rangeOverrangeFactor: 1.05
         },
         kxci: { maxListPoints: 4096, delayMinS: 0, delayMaxS: 6.553, itIntervalMinS: 0.01, itIntervalMaxS: 10 },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-setup-rev-f']
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-setup-rev-f', 'tek-4200a-current-manual-index']
       },
       HPSMU: {
         type: 'HPSMU', family: 'SMU', role: 'source-measure', verificationStatus: 'documented',
@@ -87,7 +87,7 @@
           complianceMinFractionOfRange: 0.1, rangeOverrangeFactor: 1.05
         },
         kxci: { maxListPoints: 4096, delayMinS: 0, delayMaxS: 6.553, itIntervalMinS: 0.01, itIntervalMaxS: 10 },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-setup-rev-f']
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-setup-rev-f', 'tek-4200a-current-manual-index']
       },
       HPSMUPA: {
         type: 'HPSMUPA', family: 'SMU', role: 'source-measure', verificationStatus: 'documented',
@@ -105,7 +105,7 @@
           complianceMinFractionOfRange: 0.1, rangeOverrangeFactor: 1.05
         },
         kxci: { maxListPoints: 4096, delayMinS: 0, delayMaxS: 6.553, itIntervalMinS: 0.01, itIntervalMaxS: 10 },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-setup-rev-f']
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-setup-rev-f', 'tek-4200a-current-manual-index']
       },
       PMU: {
         type: 'PMU', family: 'PMU', role: 'pulse-source-and-measure', verificationStatus: 'documented', modelAliases: ['4225-PMU'], channelsPerCard: 2,
@@ -137,7 +137,7 @@
           currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
           maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxKxciGeneratedPointsExclusive: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
         },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c', 'tek-4200a-current-manual-index']
       },
       PMURPM: {
         type: 'PMURPM', family: 'PMU', role: 'pulse-source-and-measure-with-rpm', verificationStatus: 'documented',
@@ -156,7 +156,7 @@
           minimumCurrentRangeA: 1e-7, currentMeasurementResolutionA: 2e-10,
           maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxKxciGeneratedPointsExclusive: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
         },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c', 'tek-4200a-current-manual-index']
       },
       VPU: {
         type: 'VPU', family: 'PGU', role: 'pulse-generator-source-only', verificationStatus: 'documented', modelAliases: ['4220-PGU'], channelsPerCard: 2,
@@ -167,7 +167,7 @@
         },
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
         segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 2e-8 }, kxciMinSegmentTimeS: { '10': 1e-8, '40': 5e-8 } },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c', 'tek-4200a-current-manual-index']
       },
       CVU: {
         type: 'CVU', family: 'CVU', role: 'capacitance-voltage-measurement', verificationStatus: 'family-documented-variant-dependent',
@@ -177,12 +177,12 @@
         },
         common: { frequencyHz: { min: 1000, max: 10000000 }, dcBiasV: { min: -30, max: 30 }, maxDcCurrentA: 0.01, maxMeasurementPoints: 4096 },
         optionalPowerModule: { name: '4200-CVU-PWR', differentialMaxV: 400, maxAbsBiasV: 200, maxDcCurrentAByBiasSmu: { mediumPowerSmu: 0.1, highPowerSmu: 0.3 }, requiresBiasSmu: true, biasSmuChannelsFor200V: 1, biasSmuChannelsFor400VDifferential: 2, requiresExplicitOptionIdentification: true, sourceRefs: ['tek-4200-cvu-pwr-rev-f','tek-4200-cvu-pwr-appnote'] },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-cvu-rev-b']
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-cvu-rev-b', 'tek-4200a-current-manual-index']
       },
-      VS: { type: 'VS', family: 'VS', role: 'voltage-source-only', verificationStatus: 'role-only', kxci: { maxSupportedVoltageV: 20, physicalSmuBindingRequired: true }, sourceRefs: ['tek-4200a-kxci-rev-e'] },
-      VM: { type: 'VM', family: 'VM', role: 'voltage-meter-only', verificationStatus: 'role-only', measurement: { nominalMaxVoltageV: 200, maxAbsVoltageV: 210, inputImpedanceOhm: 1e13, inputLeakageA: 30e-12 }, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e'] },
-      RPM: { type: 'RPM', family: 'RPM', role: 'low-current-measurement-accessory', verificationStatus: 'documented', measurement: { lowestCurrentRangeA: 1e-7, currentMeasurementResolutionA: 2e-10 }, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e'] },
-      PA: { type: 'PA', family: 'SMU-accessory', role: 'low-current-preamplifier', verificationStatus: 'documented', measurement: { lowestCurrentRangeA: 1e-12, currentMeasurementResolutionA: 1e-17 }, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e'] },
+      VS: { type: 'VS', family: 'VS', role: 'voltage-source-only', verificationStatus: 'role-only', kxci: { maxSupportedVoltageV: 20, physicalSmuBindingRequired: true }, sourceRefs: ['tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index'] },
+      VM: { type: 'VM', family: 'VM', role: 'voltage-meter-only', verificationStatus: 'role-only', measurement: { nominalMaxVoltageV: 200, maxAbsVoltageV: 210, inputImpedanceOhm: 1e13, inputLeakageA: 30e-12 }, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index'] },
+      RPM: { type: 'RPM', family: 'RPM', role: 'low-current-measurement-accessory', verificationStatus: 'documented', measurement: { lowestCurrentRangeA: 1e-7, currentMeasurementResolutionA: 2e-10 }, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index'] },
+      PA: { type: 'PA', family: 'SMU-accessory', role: 'low-current-preamplifier', verificationStatus: 'documented', measurement: { lowestCurrentRangeA: 1e-12, currentMeasurementResolutionA: 1e-17 }, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index'] },
       CVIV: {
         type: 'CVIV', family: 'switch-matrix', role: 'signal-routing-only', verificationStatus: 'documented',
         channels: 4, maxVoltageV: 210, maxCurrentA: 1, independentSource: false,
@@ -197,13 +197,13 @@
           waferLevelAllowed: false, requiresVerifiedBiasTeeConfiguration: true,
           note: '400 V 为器件端差分电压，由三个 SMU 按指定 Bias Tee 接法同步输出实现，不是 CVIV 单通道可直接输出 400 V。'
         },
-        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-cviv-rev-e', 'tek-4200a-cviv-400v-appnote']
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-cviv-rev-e', 'tek-4200a-cviv-400v-appnote', 'tek-4200a-current-manual-index']
       },
       GNDU: { type: 'GNDU', family: 'ground-unit', role: 'built-in-ground-unit', verificationStatus: 'documented', currentA: { dualMiniTriax: 2.6, bindingPosts: 9.5 }, independentSource: false, sourceRefs: ['tek-4200a-datasheet-2026'] }
     },
     safetyPolicies: {
-      unknownModule: { applyGuessedNumericLimit: false, allowNonExecutablePlanning: true, allowHardwareOutput: false, requiredAction: 'Identify the exact installed module or mapped channel before enabling output.' },
-      smu: { maximumSourceVoltageV: 210, voltageRangeOverrangePercent: 105, highVoltageNominalRangeV: 200, maximumOutputPowerWByPowerClass: { medium: 2.1, high: 21 }, applyVoltageDependentCompliancePowerLimit: true, interlockRequiredFor200VRange: true, interlockStatusAvailableThroughCurrentReadOnlyBridge: false, complianceMinimumA: { withoutPreamplifier: 1e-7, withPreamplifier: 1e-10 }, note: 'Reject a compliance request below the KXCI minimum instead of allowing KXCI to silently raise it.' },
+      unknownModule: { policyBasis: 'fail-closed software policy; no numeric hardware capability is inferred for unidentified modules', applyGuessedNumericLimit: false, allowNonExecutablePlanning: true, allowHardwareOutput: false, requiredAction: 'Identify the exact installed module or mapped channel before enabling output.' },
+      smu: { maximumSourceVoltageV: 210, voltageRangeOverrangePercent: 105, highVoltageNominalRangeV: 200, maximumOutputPowerWByPowerClass: { medium: 2.1, high: 21 }, applyVoltageDependentCompliancePowerLimit: true, interlockRequiredFor200VRange: true, interlockStatusAvailableThroughCurrentReadOnlyBridge: false, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-setup-rev-f', 'tek-4200a-current-manual-index'], complianceMinimumA: { withoutPreamplifier: 1e-7, withPreamplifier: 1e-10 }, note: 'Reject a compliance request below the KXCI minimum instead of allowing KXCI to silently raise it.' },
       pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciMinSegmentTimeSByRangeS: { PMU: { '10': 2e-8, '40': 5e-8 }, PGU: { '10': 1e-8, '40': 5e-8 } }, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000, currentKxciBufferPointsPerChannel: 65536, currentKxciGeneratedPointsExclusive: 65536, kxciInterfaceLimitsSourceRevision: '4200A-KXCI-907-01 Rev. E, March 2025', latestIndexListedKxciRevision: '4200A-KXCI-907-01F, 09 Oct 2026', latestKxciRevisionContentVerified: false, kxciInterfaceLimitsVerificationStatus: 'provisional-pending-rev-f-content-verification', sourceRefs: ['tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index'] },
       cvu: {
         requiresExactVariantIdentification: true,
@@ -211,6 +211,7 @@
         frequencyRangeHz: { min: 1000, max: 10000000 },
         maximumDcCurrentA: 0.01,
         maximumMeasurementPoints: 4096,
+        sourceRefs: ['tek-4200a-cvu-rev-b', 'tek-4200a-current-manual-index'],
         acDriveVrmsByVariant: { '4210-CVU': 0.1, '4215-CVU': 1 },
         optionalPowerModule: {
           name: '4200-CVU-PWR', requiresExplicitOptionIdentification: true,
@@ -222,11 +223,13 @@
       },
       vsVm: {
         VS: { logicalKxciRoleOnly: true, requiresPhysicalSmuBinding: true, maximumSourceVoltageV: 20, currentMeasurementSupported: false },
-        VM: { logicalKxciRoleOnly: true, maximumAbsoluteMeasurementVoltageV: 210, sourceOutputSupported: false, inputImpedanceOhm: 1e13 }
+        VM: { logicalKxciRoleOnly: true, maximumAbsoluteMeasurementVoltageV: 210, sourceOutputSupported: false, inputImpedanceOhm: 1e13 },
+        sourceRefs: ['tek-4200a-kxci-rev-e', 'tek-4200a-datasheet-2026', 'tek-4200a-current-manual-index']
       },
       accessories: {
         PA: { independentSource: false, allowedHostFamily: 'SMU', role: 'low-current-preamplifier', lowestCurrentRangeA: 1e-12 },
-        RPM: { independentSource: false, allowedHostFamily: 'PMU', role: 'remote-preamplifier-and-switch', requiresPMU: true, noIndependentPulseOutput: true }
+        RPM: { independentSource: false, allowedHostFamily: 'PMU', role: 'remote-preamplifier-and-switch', requiresPMU: true, noIndependentPulseOutput: true },
+        sourceRefs: ['tek-4200a-pmu-rev-c', 'tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index']
       },
       switchMatrix: {
         CVIV: {
@@ -238,6 +241,7 @@
             biasTSmuLoICvHiLo: { maximumDcBiasV: 200, maximumDcCurrentA: 1e-4 },
             biasTSmuAcGnd: { maximumDcBiasV: 200 }
           },
+          sourceRefs: ['tek-4200a-cviv-rev-e', 'tek-4200a-cviv-400v-appnote', 'tek-4200a-current-manual-index'],
           specialDifferentialMode: {
             maximumDifferentialVoltageV: 400, maximumAbsoluteVoltagePerPathV: 200,
             requiresThreeSynchronizedSmuChannels: true, packagedDevicesOnly: true,
@@ -248,11 +252,12 @@
       },
       groundUnit: {
         GNDU: { independentSource: false, currentA: { dualMiniTriax: 2.6, bindingPosts: 9.5 },
-          doNotUseAsVoltageSource: true, role: 'ground-return-only' }
+          doNotUseAsVoltageSource: true, role: 'ground-return-only' },
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-setup-rev-f']
       },
-      chassis: { maximumPowerW: 500, blockPlanIfCompletePowerBudgetExceeded: true, doNotAssumeUnknownModulesConsumeZeroPower: true },
-      dataProvenance: { callerSuppliedArraysAreRawInstrumentData: false, rawDataRequiresTrustedAcquisitionReceipt: true, currentBuildHasTrustedAcquisitionExecutor: false },
-      execution: { allOutputCommandsDisabled: true, allowedKxciCommands: ['*IDN?', '*OPT?', 'UL', 'EX SystemUtil instrumentinfo(,4096,)', 'GN result', 'EX SystemUtil remotemoduleinfo(,4096,)', 'GN result', 'DE'], requireSingleInstrumentLease: true, requireFailClosedOnDisconnect: true, requireEmergencyStop: true }
+      chassis: { maximumPowerW: 500, blockPlanIfCompletePowerBudgetExceeded: true, doNotAssumeUnknownModulesConsumeZeroPower: true, sourceRefs: ['tek-4200a-pmu-rev-c', 'tek-4200a-kxci-rev-e'] },
+      dataProvenance: { policyBasis: 'software data-integrity policy', callerSuppliedArraysAreRawInstrumentData: false, rawDataRequiresTrustedAcquisitionReceipt: true, currentBuildHasTrustedAcquisitionExecutor: false },
+      execution: { policyBasis: 'fail-closed execution policy; only documented read-only identity and inventory commands are enabled', sourceRefs: ['tek-4200a-kxci-rev-e'], allOutputCommandsDisabled: true, allowedKxciCommands: ['*IDN?', '*OPT?', 'UL', 'EX SystemUtil instrumentinfo(,4096,)', 'GN result', 'EX SystemUtil remotemoduleinfo(,4096,)', 'GN result', 'DE'], requireSingleInstrumentLease: true, requireFailClosedOnDisconnect: true, requireEmergencyStop: true }
     }
   };
   function deepFreeze(value) { if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value; for (const child of Object.values(value)) deepFreeze(child); return Object.freeze(value); }
