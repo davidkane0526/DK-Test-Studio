@@ -1235,7 +1235,8 @@
         "high": 210
       },
       "interlockRequiredFor200VRange": true,
-      "note": "Use the range table and power envelope together. Do not treat headline maximum voltage and current as a simultaneously available rectangular operating area. Compliance must be between 10% and 100% of the selected range."
+      "note": "Use the range table and power envelope together. Do not treat headline maximum voltage and current as a simultaneously available rectangular operating area. Compliance must be between 10% and 100% of the selected range.",
+      "rangeOverrangeFactor": 1.05
     },
     "pulse": {
       "loadDefinition": "minimum expected total resistance at the pulse output connector, including DUT and interconnect",
