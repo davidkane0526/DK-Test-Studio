@@ -53,7 +53,7 @@
       slot.rpmChannels==='unknown'||
       remotes.some(x=>x&&x.category==='PMU-REMOTE-PREAMPLIFIER-SWITCH'&&
         Number(x.pmuChannel)===id&&Number(x.rpmChannel)===Number(hardware.pmuChannel||1)));
-    return {...slot,offline:false,modelKey,preamplifier:preamp,rpm};
+    return {...slot,offline:false,modelKey,exactModelVerified:!!(slot.modelKey&&DB.modules[slot.modelKey]),preamplifier:preamp,rpm};
   }
   function smuClass(slot){
     const exact=DB.modules[slot.modelKey];
@@ -101,8 +101,10 @@
     if(gateSmU&&(gateSmU===sourceSmU||gateSmU===measureSmU))
       throw Error('栅极 SMU 不得与源/测量 SMU 使用相同编号');
     const source=slotFor('SMU',sourceSmU,hardware,'SMU');
+    const measure=measureSmU===sourceSmU?source:slotFor('SMU',measureSmU,hardware,'测量 SMU');
     const sourceMode=String(input.sourceMode||'voltage').toLowerCase();
     if(!['voltage','current'].includes(sourceMode))throw Error('SMU 源模式只能是 voltage 或 current');
+    if(sourceMode==='current'&&gateSmU)throw Error('电流源模式暂不支持独立栅极通道，请先使用电压源模式');
     const gate=gateSmU?slotFor('SMU',gateSmU,hardware,'栅极 SMU'):null;
     const gateBiasV=finite(input.gateBiasV??0,'栅极电压',-210,210);
     if(!gate&&Math.abs(gateBiasV)>EPS)throw Error('设置栅极偏置时必须选择独立的栅极 SMU');
@@ -137,7 +139,7 @@
         maxPowerW:bounds.maxPowerW,requiresInterlock,warnings:[
           source.offline?'未连接仪器，按中功率 SMU、无前置放大器进行保守预校验。连接后必须重新校验。':null,
           requiresInterlock&&hardware.interlockState==null?'该方案使用 200 V 量程；必须确认实体安全联锁已闭合。软件不能读取联锁状态。':null,
-          !source.modelKey?'*OPT? 只识别功率等级；精确型号尚未从 SystemUtil 确认。':null
+          !source.exactModelVerified?'*OPT? 只识别功率等级；精确型号尚未从 SystemUtil 确认。':null
         ].filter(Boolean),executable:false,hardwareVerified:false
       });
     }
@@ -151,7 +153,7 @@
     const selectedCurrentRangeA=currentRangeFor(source,maxAbsCurrentA);
     if(!selectedCurrentRangeA)throw Error('电流设定超出 SMU 当前可用量程');
     const requestedVoltage=finite(input.voltageComplianceV,'电压 Compliance (V)',0.0001,210);
-    const currentRange=(model.currentSourceRanges.find(x=>Number(x.rangeA)+EPS>=selectedCurrentRangeA)||
+    const currentRange=(model.currentSourceRanges.find(x=>Math.abs(Number(x.rangeA)-selectedCurrentRangeA)<=Math.max(1e-15,selectedCurrentRangeA*1e-9))||
       {maxComplianceV:210});
     const powerBound=maxAbsCurrentA>0?model.maxPowerW/maxAbsCurrentA:210;
     const maxVoltageComplianceV=Math.min(Number(currentRange.maxComplianceV),powerBound,210);
@@ -178,7 +180,7 @@
       sourceType==='pmu'?'PMU 卡':'PGU 卡',1,9);
     const channel=integer(sourceType==='pmu'?(options.pmuChannel??1):(options.pguChannel??1),
       '脉冲通道',1,2);
-    const slot=slotFor(family,card,hardware,family);
+    const slot=slotFor(family,card,{...hardware,pmuChannel:channel},family);
     return {...slot,selectedOutputChannel:channel};
   }
   function pulseTimingProfile(sourceType,rangeV,measureMode,useRPM,currentRangeA){
@@ -343,14 +345,22 @@
     const biasSource=String(input.biasSource||'internal');
     if(!['internal','external-smu','cvu-pwr'].includes(biasSource))throw Error('CVU DC Bias 来源无效');
     const dcBiasV=finite(input.dcBiasV??0,'CVU DC Bias (V)',
-      biasSource==='internal'?-30:-210,biasSource==='internal'?30:210);
+      biasSource==='internal'?-30:biasSource==='cvu-pwr'?-200:-210,biasSource==='internal'?30:biasSource==='cvu-pwr'?200:210);
+    const dcBiasCurrentLimitA=finite(input.dcBiasCurrentLimitA??0.001,'CVU DC Bias 电流限制 (A)',1e-9,
+      biasSource==='internal'?0.01:biasSource==='cvu-pwr'?0.3:1);
     if(biasSource==='cvu-pwr'&&Math.abs(dcBiasV)>200+EPS)throw Error('4200-CVU-PWR 的单端 DC Bias 不得超过 ±200 V');
-    if(biasSource==='external-smu'&&!hardware.inventory?.externalAccessories?.cviv&&hardware.connected)
-      throw Error('外部 SMU 偏置需要确认 4200A-CVIV 路径；当前仪器清单未确认 CVIV');
+    if(biasSource==='external-smu'){
+      if(hardware.connected&&!hardware.inventory?.externalAccessories?.cviv)
+        throw Error('外部 SMU 偏置需要确认 4200A-CVIV 路径；当前仪器清单未确认 CVIV');
+      const biasSmU=integer(input.biasSmU,'CVU 外部偏置 SMU',1,9);
+      const biasComplianceA=finite(input.biasComplianceA,'CVU 外部 SMU 电流 Compliance (A)',1e-12,1.05);
+      validateSmuPlan({kind:'it',sourceMode:'voltage',sourceSmU:biasSmU,measureSmU:biasSmU,
+        fixedV:dcBiasV,complianceA:biasComplianceA},hardware);
+    }
     if(biasSource==='cvu-pwr'&&!hardware.inventory?.externalAccessories?.cvuPower&&hardware.connected)
       throw Error('未确认安装 4200-CVU-PWR 高功率 C-V 选件');
     return Object.freeze({
-      cvuChannel,modelKey,frequencyHz,acDriveVrms,biasSource,dcBiasV,
+      cvuChannel,modelKey,frequencyHz,acDriveVrms,biasSource,dcBiasV,dcBiasCurrentLimitA,
       warnings:[slot?.offline?'未连接仪器，按 4210-CVU 的保守规格校验。':null,
         !slot?.modelKey&&modelKey==='4210-CVU'?'*OPT? 未区分 4210-CVU 与 4215-CVU，按 4210-CVU 100 mVrms 限制。':null].filter(Boolean),
       executable:false,hardwareVerified:false,safetyDatabaseVersion:DB.databaseVersion
