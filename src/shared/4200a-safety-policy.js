@@ -331,6 +331,7 @@
     const plan=validateSmuPlan({
       kind:'iv',sourceMode:'voltage',sourceSmU:options.sourceSmU??1,
       measureSmU:options.measureSmU??options.sourceSmU??1,
+      sourceModel:options.sourceModel,measureModel:options.measureModel,
       gateSmU:0,startV:Math.min(...voltages),stopV:Math.max(...voltages),
       complianceA:options.complianceA??1e-4
     },hardware);
