@@ -79,9 +79,10 @@ async function createAppServer(options={}){
           inventoryError:snapshot.inventoryError||''});
       }
       if(req.method==='GET'&&urlPath==='/api/capabilities/export'){
-        const data=JSON.stringify(safetyPolicy.getDatabase(),null,2)+'\n';
+        const database=safetyPolicy.getDatabase();
+        const data=JSON.stringify(database,null,2)+'\n';
         res.writeHead(200,{'Content-Type':'application/json; charset=utf-8',
-          'Content-Disposition':'attachment; filename="4200a-capabilities-safety-v1.2.0.json"',
+          'Content-Disposition':'attachment; filename="4200a-capabilities-safety-v'+database.databaseVersion+'.json"',
           'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
         return res.end(data);
       }
