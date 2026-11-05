@@ -309,7 +309,8 @@
       recommendation.measurementRangeA = current;
       recommendation.rpmEnabled = Boolean(withRpm);
       if (withRpm) {
-        recommendation.rpmTypicalTiming = rpmMod.rpmTypicalTiming?.[range]?.[String(current)] || null;
+        const rpmRangeTable = rpmMod.rpmTypicalTiming?.[range] || {};
+        recommendation.rpmTypicalTiming = Object.entries(rpmRangeTable).find(([key]) => Number(key) === current)?.[1] || null;
         recommendation.rpmTimingStatus = recommendation.rpmTypicalTiming ? 'published-typical' : 'not-published-for-current-range';
       }
     } else if (withRpm) recommendation.rpmTimingStatus = 'current-range-required';
