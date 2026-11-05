@@ -36,6 +36,7 @@ test('Segment Arb accepts the documented 40 s hardware segment while exposing th
   const w=validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,inventory});
   assert.equal(w.durationS,120);
   assert.equal(w.interfaceLimits.maxSegmentTimeS,1);
+  assert.equal(w.interfaceLimits.verificationStatus,'provisional-pending-rev-f-content-verification');
   assert.equal(w.interfaceLimits.segmentTimesCompatible,false);
   assert.equal(w.interfaceLimits.requiresAlternateBackend,true);
   assert.equal(w.executionCompatibility,'hardware-valid-kxci-limited');
