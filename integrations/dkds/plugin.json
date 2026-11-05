@@ -19,6 +19,7 @@
     "data.model",
     "data.artifacts",
     "ui.dom",
+    "ui.dialogs",
     "ui.activities",
     "ui.top-workspace",
     "ui.pages",
