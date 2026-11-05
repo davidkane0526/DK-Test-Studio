@@ -91,6 +91,13 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   assert.equal(capture.interfaceMaxGeneratedPointsPerChannel, 65536);
   assert.equal(capture.maxSampleRateHz, 999999);
   assert.equal(capture.kxciMaxSampleRateHz, 65536);
+  assert.equal(capture.clariusItmMaxPointsPerChannel, 4096);
+  assert.equal(capture.clariusUtmMaxPointsPerChannel, 65536);
+  assert.equal(capture.sampleCountFormula, 'measureWindowS × sampleRateHz × pulseCount × sweepPoints × stepPoints');
+  const multiPulsePlan = caps.getPmuCaptureBudget(1, 1e-3, null, { pulseCount: 50, sweepPoints: 20, stepPoints: 1 });
+  assert.equal(multiPulsePlan.totalMeasureDurationS, 1);
+  assert.equal(multiPulsePlan.measurementCount, 1000);
+  assert.equal(multiPulsePlan.sampleCountAtSelectedRate, 999999);
   assert.equal(capture.kxciCompatible, false);
   assert.equal(caps.getPmuCaptureBudget(1, null, 65535).kxciCompatible, true);
   assert.equal(caps.getPmuCaptureBudget(1, null, 65536).kxciCompatible, true);
