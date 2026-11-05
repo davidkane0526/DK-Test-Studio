@@ -8,6 +8,7 @@ const {normalizePlan,previewPlan,createExecutionCoordinator}=require('./controll
 const {createIdentityController,summarizeError}=require('./controller/identity.cjs');
 const {createUiUpdater}=require('./ui-update.cjs');
 const workspaceStorage=require('./workspace-storage.cjs');
+const capabilities=require('./shared/hardware-capabilities.js');
 
 const root=path.resolve(__dirname,'..');
 const assets=Object.freeze({
@@ -63,6 +64,8 @@ async function createAppServer(options={}){
       // Host validation avoids DNS rebinding of the localhost-only instrument gateway.
       if(host!==expected)return json(res,403,{error:'拒绝非本机请求'});
       const urlPath=new URL(req.url,'http://'+expected).pathname;
+      if(req.method==='GET'&&urlPath==='/api/hardware/capabilities')
+        return json(res,200,{ok:true,database:capabilities.exportDatabase()});
       if(req.method==='GET'&&urlPath==='/api/status')
         return json(res,200,{ok:true,...controller.status()});
       if(req.method==='GET'&&urlPath==='/api/ui/version')
@@ -79,7 +82,7 @@ async function createAppServer(options={}){
           'X-Content-Type-Options':'nosniff'});
         return res.end(bytes);
       }
-      if(req.method!=='POST'||!['/api/ui/check','/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect','/api/workspaces'].includes(urlPath))
+      if(req.method!=='POST'||!['/api/ui/check','/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect','/api/workspaces','/api/hardware/capabilities'].includes(urlPath))
         return json(res,404,{error:'接口不存在'});
       // No arbitrary command endpoint exists; this only sends the hardcoded KXCI IDN query.
       if(req.headers['x-dkts-request']!=='1'||!String(req.headers['content-type']||'').startsWith('application/json'))
@@ -106,11 +109,11 @@ async function createAppServer(options={}){
         catch(error){return json(res,400,{ok:false,error:summarizeError(error),...controller.status()});}
       }
       if(urlPath==='/api/plan/validate'){
-        const preview=previewPlan(payload,300,{inventory:controller.status().inventory});
+        const preview=previewPlan(payload,300,{inventory:controller.status().inventory,capabilities});
         return json(res,200,{ok:true,plan:preview.plan,firstPoints:preview.firstPoints,truncated:preview.truncated});
       }
       if(typeof payload.text!=='string')return json(res,400,{error:'波形应为文本'});
-      const plan=parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadOhms:payload.loadOhms});
+      const plan=parseWaveformText(payload.text,{...payload,sourceType:payload.sourceType||'smu',inventory:controller.status().inventory,capabilities});
       return json(res,200,{ok:true,count:plan.points.length,durationS:plan.durationS,
         minimumStepS:plan.minimumStepS,maximumStepS:plan.maximumStepS,
         sourceType:plan.sourceType,rangeV:plan.rangeV,loadOhms:plan.loadOhms,maxCurrentA:plan.maxCurrentA,maxVoltageV:plan.maxVoltageV,

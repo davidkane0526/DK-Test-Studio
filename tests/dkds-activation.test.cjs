@@ -36,7 +36,7 @@ function prepare(){
     }
   };
   vm.createContext(sandbox);
-  for(const file of ['kxci-protocol.js','measurement-plan.js','waveform.js',
+  for(const file of ['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','waveform.js',
     'identity-core.js','interop.js','standalone-shell.js','presentation.js','plugin.js']){
     vm.runInContext(fs.readFileSync(path.join(staged,file),'utf8'),sandbox,
       {filename:file,timeout:10000});
@@ -83,7 +83,7 @@ function prepare(){
 }
 test('DKDS plugin displays the exact standalone app in a sandboxed workbench',async()=>{
   const env=prepare(),installed=await env.captured.activate(env.ctx),v=env.view;
-  assert.equal(env.captured.manifest.version,'0.6.13');
+  assert.equal(env.captured.manifest.version,'0.6.14');
   assert.equal(v.activity.openMode,'window');
   assert.equal(v.top.activity,'dkts-keithley-4200');
   assert.equal(v.statusSpec.icon,'');
@@ -117,10 +117,13 @@ test('DKDS plugin displays the exact standalone app in a sandboxed workbench',as
   assert(!v.frame.srcdoc.includes('<script src="/app.js"'));
   assert.equal(v.capability.methods.validatePlan().kind,'iv');
   assert.equal(v.capability.methods.exportPlan().schema,'dkts.4200.interop.v1');
+  assert.equal(v.capability.methods.hardwareCapabilityDatabase().schema,'dkts.4200a.hardware-capabilities.v1');
   const published=v.capability.methods.publishMeasurement({xValues:[0,1],yValues:[1e-9,2e-9],xUnit:'V',yUnit:'A'});
   assert.equal(published.rowCount,2);
   assert.equal(v.artifacts.length,1);
-  assert.equal(v.artifacts[0].metadata.rawInstrumentData,true);
+  assert.equal(v.artifacts[0].metadata.rawInstrumentData,false);
+  assert.equal(v.artifacts[0].metadata.acquisitionVerified,false);
+  assert.equal(v.artifacts[0].provenance[0].type,'unverified-import');
   assert.equal(v.artifacts[0].semanticType,'science.transport.iv');
   assert.equal(v.artifacts[0].columns[0].key,'Vd');
   assert.equal(v.artifacts[0].columns[1].key,'Id');

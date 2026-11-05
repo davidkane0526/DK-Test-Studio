@@ -13,7 +13,7 @@
     return n;
   }
   function positive(input, label) {
-    if (input === undefined || input === null || String(input).trim() === '') throw Error(label + ' 不能为空';
+    if (input === undefined || input === null || String(input).trim() === '') throw Error(label + ' 不能为空');
     const n = Number(input);
     if (!Number.isFinite(n) || n <= 0) throw Error(label + ' 必须是大于 0 的有限数值');
     return n;

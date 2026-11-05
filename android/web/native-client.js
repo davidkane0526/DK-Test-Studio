@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const registry=window.DKDSPluginModules;
+  const capabilities=registry.require('dkts-capabilities');
   const protocol=registry.require('dkts-kxci');
   const domain=registry.require('dkts-identity-core');
   const planner=registry.require('dkts-plan');
@@ -33,6 +34,7 @@
   });
   const controller=domain.createIdentityController(tcp,protocol);
   async function post(route,payload={}){
+    if(route==='/api/hardware/capabilities')return {ok:true,database:capabilities.exportDatabase()};
     if(route==='/api/workspaces')return saveWorkspace(payload.workspace);
     if(route==='/api/connect'){
       try{return {ok:true,...await controller.connect(payload)};}
@@ -45,17 +47,20 @@
     }
     if(route==='/api/plan/validate'){
       try{
-        const value=planner.previewPlan(payload,300,{inventory:controller.status().inventory});
+        const value=planner.previewPlan(payload,300,{inventory:controller.status().inventory,capabilities});
         return {ok:true,plan:value.plan,firstPoints:value.firstPoints,truncated:value.truncated};
       }catch(e){return {ok:false,error:String(e.message||e)};}
     }
     if(route==='/api/waveform/validate'){
       try{
-        const value=waveform.parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadOhms:payload.loadOhms});
+        const value=waveform.parseWaveformText(payload.text,{...payload,sourceType:payload.sourceType||'smu',inventory:controller.status().inventory,capabilities});
         return {ok:true,count:value.points.length,durationS:value.durationS,
           minimumStepS:value.minimumStepS,maximumStepS:value.maximumStepS,
-          sourceType:value.sourceType,rangeV:value.rangeV,loadOhms:value.loadOhms,maxCurrentA:value.maxCurrentA,maxVoltageV:value.maxVoltageV,
-          executable:false,hardwareVerified:false,
+          sourceType:value.sourceType,waveformMode:value.waveformMode,timingStatus:value.timingStatus,
+          rangeV:value.rangeV,loadOhms:value.loadOhms,maxCurrentA:value.maxCurrentA,maxVoltageV:value.maxVoltageV,
+          moduleType:value.moduleType,moduleDetected:value.moduleDetected,powerBudget:value.powerBudget,
+          captureBudget:value.captureBudget,pulseCurrentRangesA:value.pulseCurrentRangesA,
+          capabilityDatabaseVersion:value.capabilityDatabaseVersion,executable:false,hardwareVerified:false,
           preview:value.points.length<=300?value.points:
             value.points.filter((_,i)=>i%Math.ceil(value.points.length/300)===0)};
       }catch(e){return {ok:false,error:String(e.message||e)};}

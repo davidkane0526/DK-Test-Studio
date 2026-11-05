@@ -9,6 +9,8 @@ test('localhost API is read-only, origin guarded and waveform is not executable'
     const base=app.url.slice(0,-1);
     const home=await fetch(base+'/');assert.equal(home.status,200);
     assert.match(await home.text(),/DK Test Studio/);
+    const database=await (await fetch(base+'/api/hardware/capabilities')).json();
+    assert.equal(database.database.schema,'dkts.4200a.hardware-capabilities.v1');
     const status=await (await fetch(base+'/api/status')).json();
     assert.equal(status.phase,'disconnected');
     const invalid=await fetch(base+'/api/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
