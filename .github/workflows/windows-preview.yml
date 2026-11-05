@@ -112,6 +112,9 @@ jobs:
         with:
           node-version: '22'
       - name: Install pinned scientific renderer
+        # Linux jobs only need D3 and JS; avoid downloading the full Electron binary.
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: npm install --no-audit --no-fund
       - name: Test shared Android/Windows/DKDS core
         run: npm test
@@ -241,6 +244,9 @@ jobs:
         with:
           node-version: '22'
       - name: Install pinned scientific renderer
+        # Linux jobs only need D3 and JS; avoid downloading the full Electron binary.
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: npm install --no-audit --no-fund
       - name: Check complete frontend resources
         run: npm test
