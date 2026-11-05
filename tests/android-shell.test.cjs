@@ -18,6 +18,7 @@ test('Android APK includes independent native launcher and byte-identical shared
   assert.doesNotMatch(manifest,/DK Data Studio/);
   const bridge=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
   assert.match(bridge,/isReadOnlyKxciRequest\(request\)/);
+  assert.match(bridge,/noReply && !\(Arrays\.equals\(request, UL\) \|\| Arrays\.equals\(request, DE\)\)/);
 });
 test('Android host exercises the exact shared identity controller via native TCP adapter',async()=>{
   const writes=[];
@@ -45,16 +46,21 @@ test('Android host exercises the exact shared identity controller via native TCP
       const command=Buffer.from(request.payload.base64,'base64').toString('hex');
       writes.push(command);
       const responses={
-        [commands.idn]:'KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0',
-        [commands.opt]:'SMUPA1,PMU3RPM1,CVU1\0',
-        [commands.ul]:'OK\0',[commands.de]:'OK\0',
-        [commands.instrument]:'OK\0',[commands.remote]:'OK\0',
-        [commands.gn]:(lastQuery==='instrument'?instrumentInfo:remoteInfo)+'\0'
+        [commands.idn]:'KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\\0',
+        [commands.opt]:'SMUPA1,PMU3RPM1,CVU1\\0',
+        [commands.instrument]:'OK\\0',[commands.remote]:'OK\\0',
+        [commands.gn]:(lastQuery==='instrument'?instrumentInfo:remoteInfo)+'\\0'
       };
       if(command===commands.instrument)lastQuery='instrument';
       if(command===commands.remote)lastQuery='remote';
-      assert(Object.hasOwn(responses,command),'Unexpected KXCI request '+command);
-      value={base64:Buffer.from(responses[command]).toString('base64')};
+      let response='';
+      if(command===commands.ul||command===commands.de){
+        assert.equal(request.payload.noReply,true,'KXCI UL/DE must be sent as write-only commands');
+      }else{
+        assert(Object.hasOwn(responses,command),'Unexpected KXCI request '+command);
+        response=responses[command];
+      }
+      value={base64:Buffer.from(response).toString('base64')};
     }else if(request.op==='close'){
       session=null;value={closed:true};
     }else assert.fail('Unexpected native operation '+request.op);
