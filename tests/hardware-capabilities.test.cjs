@@ -11,6 +11,13 @@ test('SMU module limits use the identified module and selected voltage range', (
   const high = caps.getSmuLimits({ type: 'HPSMU', family: 'SMU' }, 20, 1);
   assert.equal(high.maxComplianceA, 1.05);
   assert.equal(high.availableCurrentRangesA.at(-1), 1);
+  const mediumAt210 = caps.getSmuLimits({ type: 'SMU', family: 'SMU' }, 210, 0.01);
+  assert.equal(mediumAt210.maxComplianceA, 0.01);
+  assert.equal(mediumAt210.availableCurrentRangesA.at(-1), 0.01);
+  assert.throws(() => caps.getSmuLimits({ type: 'SMU', family: 'SMU' }, 210, 0.0101), /理论上限/);
+  const highAt21 = caps.getSmuLimits({ type: 'HPSMU', family: 'SMU' }, 21, 1);
+  assert.equal(highAt21.maxComplianceA, 1);
+  assert.throws(() => caps.getSmuLimits({ type: 'HPSMU', family: 'SMU' }, 21, 1.01), /理论上限/);
   const unknown = caps.getSmuLimits({ type: 'SMU', family: 'SMU', physicalIdentityVerified: false }, 20, 0.01);
   assert.equal(unknown.known, false);
   assert.equal(unknown.maxComplianceA, null);
@@ -31,13 +38,31 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   assert.equal(pm10.minSegmentS, 2e-8);
   assert.equal(pm40.minSegmentS, 5e-8);
   assert.equal(pm40.maxSegments, 2048);
+  assert.equal(pm40.maxSegmentS, 40);
+  assert.equal(pm40.kxciMaxSegmentS, 1);
   assert.equal(pm40.timeResolutionS, 1e-8);
   assert.equal(pm40.maxSegmentsPerCommand, 128);
   assert.equal(pm40.maxSequenceLoops, 1e12);
   const pmuTiming = caps.getPulseTimingRecommendation(10, 0.01, true);
-  assert.equal(pmuTiming.periodMinS, 60e-9);
+  assert.equal(pmuTiming.periodMinS, 120e-9);
+  assert.equal(pmuTiming.pulseWidthMinS, 60e-9);
+  assert.equal(pmuTiming.transitionMinS, 20e-9);
+  assert.equal(pmuTiming.kxciInterfaceTiming.periodMinS, 60e-9);
   const pguTiming = caps.getPulseTimingRecommendation(10, null, false, 'pgu');
   assert.equal(pguTiming.periodMinS, 20e-9);
+  assert.equal(pguTiming.kxciInterfaceTiming.periodMinS, 20e-9);
+  const pgu40Low = caps.getPulseTimingRecommendation(40, null, false, 'pgu', false, 5);
+  const pgu40High = caps.getPulseTimingRecommendation(40, null, false, 'pgu', false, 20);
+  assert.equal(pgu40Low.periodMinS, 100e-9);
+  assert.equal(pgu40Low.transitionMinS, 30e-9);
+  assert.equal(pgu40High.transitionMinS, 100e-9);
+  assert.throws(() => caps.getPulseTimingRecommendation(10, null, true, 'pgu'), /不具备电流测量/);
+  const capture = caps.getPmuCaptureBudget(1, null);
+  assert.equal(capture.maxPointsPerChannel, 1000000);
+  assert.equal(capture.interfaceMaxPointsPerChannel, 65536);
+  assert.equal(capture.maxSampleRateHz, 1000000);
+  assert.equal(capture.kxciMaxSampleRateHz, 65536);
+  assert.equal(capture.kxciCompatible, false);
 });
 test('chassis power is calculated from KXCI inventory and active test channels', () => {
   const inventory = { slots: [
