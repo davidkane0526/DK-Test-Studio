@@ -2,7 +2,7 @@
   'use strict';
   const DATABASE = {
     schema: 'dkts.4200a.hardware-capabilities.v1',
-    databaseVersion: '1.6.0',
+    databaseVersion: '1.7.0',
     generatedAt: '2026-11-05',
     instrument: { family: 'Keithley 4200A-SCS', maxChassisPowerW: 500, kxciInventorySlots: 8, maxKxciSmuChannelNumber: 9 },
     inventoryDiscovery: {
