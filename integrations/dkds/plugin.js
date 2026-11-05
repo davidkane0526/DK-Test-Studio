@@ -97,6 +97,7 @@
           if(route==='/api/capabilities')return {status:200,data:{ok:true,database:safety.getDatabase(),
             inventory:controller.status().inventory,connected:controller.status().phase==='connected',
             inventoryError:controller.status().inventoryError||''}};
+          if(route==='/api/capabilities/export')return {status:200,data:{ok:true,database:safety.getDatabase()}};
           if(route==='/api/ui/version')return {status:200,data:{version:'bundled',status:'disabled'}};
           if(route==='/api/workspaces')return {status:200,data:{ok:true,workspace:savedWorkspace}};
         }
