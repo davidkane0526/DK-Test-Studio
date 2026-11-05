@@ -182,12 +182,12 @@
             </div>
       <form id="plan-form" class="plan-form">
         <input type="hidden" name="kind" id="test-kind" value="iv">
-        <label class="iv-only">起始电压 (V)<input type="number" step="any" name="startV" value="-1"></label>
-        <label class="iv-only">终止电压 (V)<input type="number" step="any" name="stopV" value="1"></label>
-        <label class="it-only" hidden>固定偏置 (V)<input type="number" step="any" name="fixedV" value="0.1"></label>
+        <label class="iv-only">起始电压 (V)<input type="number" step="any" name="startV" value="-1" min="-210" max="210"></label>
+        <label class="iv-only">终止电压 (V)<input type="number" step="any" name="stopV" value="1" min="-210" max="210"></label>
+        <label class="it-only" hidden>固定偏置 (V)<input type="number" step="any" name="fixedV" value="0.1" min="-210" max="210"></label>
         <label>每循环点数<input type="number" min="2" max="100000" name="points" value="101"></label>
         <label>循环次数<input type="number" min="1" max="10000" name="loops" value="3"></label>
-        <label>规划电流限值 (A)<input type="number" step="any" name="complianceA" value="0.0001"></label>
+        <label>规划电流限值 (A，未识别模块时上限 10.5 mA)<input type="number" step="any" name="complianceA" value="0.0001" min="0.000000000001" max="0.0105"></label>
         <details class="span-two settings">
           <summary>高级测试设置（通道与速度）</summary>
           <div class="advanced-grid">
@@ -199,7 +199,7 @@
             <label>源 SMU<input type="number" name="sourceSmU" value="1" min="1" max="9"></label>
             <label>测量 SMU<input type="number" name="measureSmU" value="1" min="1" max="9"></label>
             <label>栅极 SMU（0 不用）<input type="number" name="gateSmU" value="0" min="0" max="9"></label>
-            <label>栅极偏置 (V)<input type="number" name="gateBiasV" value="0" step="any"></label>
+            <label>栅极偏置 (V)<input type="number" name="gateBiasV" value="0" step="any" min="-210" max="210"></label>
           </div>
         </details>
       </form>
