@@ -28,7 +28,7 @@
     const durationS = normalized[normalized.length - 1].timeS - normalized[0].timeS;
     let maxVoltageV = 210, maxCurrentA = null, rangeV = null, loadOhms = null;
     let waveformMode = '', timingStatus = '', moduleDetected = false, moduleType = null;
-    let powerBudget = { known: false, reason: '未计算' }, captureBudget = null, pulseCurrentRangesA = null, timingRecommendation = null;
+    let powerBudget = { known: false, reason: '未计算' }, captureBudget = null, pulseCurrentRangesA = null, timingRecommendation = null, interfaceLimits = null;
     if (sourceType === 'smu') {
       const channel = Number(options.channel ?? 1);
       const slot = Array.isArray(options.inventory?.slots) ? options.inventory.slots.find(item => item?.channel === channel) || null : null;
@@ -54,6 +54,8 @@
       const limits = caps.getPulseOutputLimits(sourceType, rangeV, loadOhms);
       maxVoltageV = limits.maxVoltageV; maxCurrentA = limits.maxCurrentA;
       const arb = caps.getSegmentArbLimits(sourceType, rangeV), segmentCount = normalized.length - 1;
+      const kxciSegmentCompatible = steps.every(step => step <= arb.kxciMaxSegmentS + 1e-12);
+      interfaceLimits = Object.freeze({ transport: 'KXCI', maxSegmentTimeS: arb.kxciMaxSegmentS, maxSegmentsPerCommand: arb.maxSegmentsPerCommand, segmentTimesCompatible: kxciSegmentCompatible, requiresAlternateBackend: !kxciSegmentCompatible });
       if (segmentCount < arb.minSegments) throw Error('4200A Segment Arb 每个序列至少需要 ' + arb.minSegments + ' 个分段');
       if (segmentCount > arb.maxSegments) throw Error('4200A Segment Arb 每通道最多支持 ' + arb.maxSegments + ' 个分段');
       for (let i = 0; i < steps.length; i++) {
@@ -78,18 +80,17 @@
         const rpm = Boolean(card?.rpmCount || card?.rpmChannels?.length);
         pulseCurrentRangesA = caps.getPmuCurrentRanges(rangeV, rpm);
         if (options.measurementRangeA !== undefined && options.measurementRangeA !== null && !pulseCurrentRangesA.some(value => closeEnough(value, Number(options.measurementRangeA)))) throw Error('当前 PMU/RPM 模块在所选电压档不支持该电流测量量程');
-        if (options.measureWindowS !== undefined && options.measureWindowS !== null) captureBudget = caps.getPmuCaptureBudget(durationS, options.measureWindowS, options.sampleRateHz);
-        else if (options.sampleRateHz !== undefined && options.sampleRateHz !== null) captureBudget = caps.getPmuCaptureBudget(durationS, null, options.sampleRateHz);
-        else captureBudget = { minSampleRateHz: 1e3, maxSampleRateHz: Math.min(2e8, 65536 / durationS), maxPointsPerChannel: 65536, hardwareMaxSampleRateHz: 2e8, status: 'measurement-window-not-specified' };
+        captureBudget = caps.getPmuCaptureBudget(durationS, options.measureWindowS, options.sampleRateHz);
         if (options.measurementRangeA !== undefined && options.measurementRangeA !== null && !rpm) {
-          try { timingRecommendation = caps.getPulseTimingRecommendation(rangeV, options.measurementRangeA, true); } catch { timingRecommendation = null; }
+          try { timingRecommendation = caps.getPulseTimingRecommendation(rangeV, options.measurementRangeA, true, 'pmu', false, Math.max(...normalized.map(point => Math.abs(point.voltageV)))); } catch { timingRecommendation = null; }
         }
       }
     }
     return Object.freeze({
       schema: 'dk-test-studio.waveform.v2', points: normalized, durationS, minimumStepS, maximumStepS,
       sourceType, waveformMode, timingStatus, rangeV, loadOhms, maxCurrentA, maxVoltageV,
-      moduleType, moduleDetected, powerBudget, captureBudget, pulseCurrentRangesA, timingRecommendation,
+      moduleType, moduleDetected, powerBudget, captureBudget, pulseCurrentRangesA, timingRecommendation, interfaceLimits,
+      executionCompatibility: interfaceLimits?.requiresAlternateBackend ? 'hardware-valid-kxci-limited' : 'hardware-plan-only',
       executable: false, hardwareVerified: false, provenance: 'user-defined-plan', capabilityDatabaseVersion: caps.DATABASE.databaseVersion
     });
   }
