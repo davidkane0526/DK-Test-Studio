@@ -160,6 +160,7 @@ async function loadCapabilities(){
     const db=data.database;
     $('capability-db-version').textContent='v'+db.databaseVersion+' · '+Object.keys(db.modules).length+' 类模块';
     applyPlanInputBounds();
+    updateOfflineModelControls();
     updateWaveformControls();
     return data;
   }catch(error){
@@ -185,11 +186,13 @@ async function exportCapabilities(){
     showStatusMessage('数据库导出失败：'+String(error.message||error).slice(0,110),'error');
   }
 }
-function resolveUiSmu(channel){
+function resolveUiSmu(channel,modelHint){
   const inventory=capabilityState?.inventory;
   if(!inventory){
     if(capabilityState?.connected)return null;
-    return {powerClass:'medium',preamplifier:false};
+    const model=capabilityState?.database?.modules?.[modelHint];
+    if(!model||model.category!=='SMU')return null;
+    return {powerClass:model.powerClass,preamplifier:false};
   }
   const slot=inventory.slots?.find(x=>x.family==='SMU'&&Number(x.channel)===Number(channel));
   if(!slot)return null;
@@ -201,9 +204,9 @@ function resolveUiSmu(channel){
     x.category==='SMU-PREAMPLIFIER'&&Number(x.channel)===Number(channel));
   return {powerClass,preamplifier};
 }
-function smuUiComplianceBounds(channel,absVoltage){
+function smuUiComplianceBounds(channel,absVoltage,modelHint){
   const db=capabilityState?.database;if(!db)return null;
-  const slot=resolveUiSmu(channel);if(!slot)return null;
+  const slot=resolveUiSmu(channel,modelHint);if(!slot)return null;
   const rangeV=absVoltage<=0.21?0.2:absVoltage<=2.1?2:absVoltage<=21?20:200;
   const rule=db.rules.smu;
   const maxByRange=Number(rule.voltageSourceMaxCurrentAByPowerClassAndRange[slot.powerClass][String(rangeV)]);
@@ -227,8 +230,10 @@ function applyPlanInputBounds(){
     Math.abs(Number(planForm.elements.namedItem('fixedV')?.value||0))
   );
   const gateVoltage=Math.abs(Number(planForm.elements.namedItem('gateBiasV')?.value||0));
-  const source=smuUiComplianceBounds(sourceChannel,sourceVoltage);
-  const gate=gateChannel?smuUiComplianceBounds(gateChannel,gateVoltage):null;
+  const sourceModel=planForm.elements.namedItem('sourceModel')?.value;
+  const gateModel=planForm.elements.namedItem('gateModel')?.value;
+  const source=smuUiComplianceBounds(sourceChannel,sourceVoltage,sourceModel);
+  const gate=gateChannel?smuUiComplianceBounds(gateChannel,gateVoltage,gateModel):null;
   const input=planForm.elements.namedItem('complianceA');
   if(!input)return;
   if(!source||(gateChannel&&!gate)){
@@ -238,6 +243,11 @@ function applyPlanInputBounds(){
   input.disabled=false;input.setCustomValidity('');
   input.min=String(Math.max(source.min,gate?.min||0));
   input.max=String(Math.min(source.max,gate?.max??Infinity));
+}
+function updateOfflineModelControls(){
+  const offline=!!capabilityState&&!capabilityState.connected&&!capabilityState.inventory;
+  for(const id of ['source-model-control','measure-model-control','gate-model-control'])
+    $(id).hidden=!offline;
 }
 function updateWaveformControls(){
   const sourceType=$('waveform-source-type').value;
@@ -255,12 +265,14 @@ function updateWaveformControls(){
   $('waveform-measure-window-control').hidden=!isPmu||measureMode==='none';
   if(isPgu)$('waveform-measure-mode').value='none';
   if(!capabilityState?.database)return;
-  const db=capabilityState.database,range=String(Number($('waveform-range-v').value));
+  const db=capabilityState.database,requestedRange=Number($('waveform-range-v').value);
   if(isPmu){
     const card=Number($('waveform-card').value||1),channel=Number($('waveform-channel').value||1);
     const slot=capabilityState.inventory?.slots?.find(x=>x.family==='PMU'&&Number(x.channel)===card);
     const rpm=!!(slot&&(slot.rpm===true||slot.rpmChannels==='unknown'||slot.rpmChannels?.includes(channel))||
       capabilityState.inventory?.remoteModules?.some(x=>x.category==='PMU-REMOTE-PREAMPLIFIER-SWITCH'&&Number(x.pmuChannel)===card&&Number(x.rpmChannel)===channel));
+    const effectiveRange=rpm?10:requestedRange;
+    const range=String(effectiveRange);
     const allowed=(rpm?db.modules['4225-RPM'].currentMeasureRangesA:db.modules['4225-PMU'].currentMeasureRangesA)[range+'V']||[];
     const select=$('waveform-current-range'),previous=select.value;
     select.replaceChildren();
@@ -274,11 +286,13 @@ function updateWaveformControls(){
     const selected=select.value?Number(select.value):allowed.at(-1);
     const timingTable=rpm?db.modules['4225-PMU'].timing.currentMeasureWithRpm:db.modules['4225-PMU'].timing.currentMeasureNoRpm;
     const profile=timingTable[range+'V']?.[String(selected)];
-    const minWindow=profile?.minMeasureWindowS||0;
+    const recommendedWindow=profile?.minMeasureWindowS||0;
+    const hardwareWindow=db.modules['4225-PMU'].sampling.minimumMeasureWindowS||db.modules['4225-PMU'].sampling.nominalSampleIntervalS;
     const windowInput=$('waveform-measure-window');
-    windowInput.min=String(minWindow*1e9||1);
-    windowInput.placeholder=minWindow?'最小 '+(minWindow*1e9)+' ns':'该量程暂无公开时序数据';
-    $('waveform-dut-current').max=String(db.rules.pulse.instrumentCurrentCeilingAByRange[String(rpm?10:range)]);
+    windowInput.min=String(hardwareWindow*1e9);
+    windowInput.placeholder='硬件下限 '+(hardwareWindow*1e9)+' ns'+
+      (recommendedWindow?'；典型推荐 '+(recommendedWindow*1e9)+' ns':'；无典型时序建议');
+    $('waveform-dut-current').max=String(db.rules.pulse.instrumentCurrentCeilingAByRange[String(effectiveRange)]);
   }
 }
 
@@ -286,7 +300,7 @@ function fields(){
   const f=new FormData(form);return Object.fromEntries(f.entries());
 }
 function renderStatus(value){
-  if(capabilityState){capabilityState.inventory=value.inventory||null;capabilityState.connected=value.phase==='connected';capabilityState.inventoryError=value.inventoryError||'';}
+  if(capabilityState){capabilityState.inventory=value.inventory||null;capabilityState.connected=value.phase==='connected';capabilityState.inventoryError=value.inventoryError||'';updateOfflineModelControls();}
   state=value.phase||'disconnected';
   const connected=state==='connected';
   const label=connected?'连接成功':state==='connecting'?'正在连接…':state==='error'?'连接失败':'未连接';
@@ -596,6 +610,9 @@ function waveformOptions(){
   if(sourceType==='smu'){
     options.sourceSmU=Number(planValues.sourceSmU||1);
     options.measureSmU=Number(planValues.measureSmU||options.sourceSmU);
+    options.sourceModel=planValues.sourceModel||undefined;
+    options.measureModel=planValues.measureModel||undefined;
+    options.gateModel=planValues.gateModel||undefined;
     options.complianceA=Number(planValues.complianceA);
     options.sourceDelayS=Number($('waveform-smu-delay').value)/1000;
     options.integrationTimeS=Number($('waveform-smu-integration').value)/1000;
@@ -628,12 +645,13 @@ async function validateWave(){
       :' · '+r.rangeV+' V 档 · 负载 '+r.loadOhms+' Ω · 输出限流 '+(r.effectiveCurrentLimitA*1000).toFixed(3)+' mA';
     const measureLabel=r.measureMode&&r.measureMode!=='none'
       ?' · '+r.measureMode+' 测量 · ADC量程 '+(r.currentMeasureRangeA===null?'—':r.currentMeasureRangeA)+' A · 窗口 '+(r.measureWindowS*1e9).toFixed(1)+' ns':'';
-    const timingLabel=r.minSegmentTimeS?' · Segment ARB '+r.segmentCount+' 段 · 最短 '+(r.minSegmentTimeS*1e9).toFixed(1)+' ns':'';
+    const timingLabel=r.minSegmentTimeS?' · Segment ARB 硬件段长 '+(r.minSegmentTimeS*1e9).toFixed(1)+' ns–'+r.maxSegmentTimeS+' s · 时间分辨率 '+(r.timeResolutionS*1e9).toFixed(0)+' ns':'';
+    const warningLabel=r.warnings?.length?' · 提示：'+r.warnings.join('；'):'';
     info.textContent=sourceLabel+' · 电压边界 ±'+r.maxVoltageV.toFixed(3)+' V'+loadLabel+measureLabel+timingLabel+
-      ' · '+r.points.length+' 点 · 总时长 '+r.durationS+' s · 仅规划';
+      ' · '+r.count+' 点 · 总时长 '+r.durationS+' s · 仅规划'+warningLabel;
 
     drawWave(r.preview);
-    showStatusMessage('波形校验通过 · '+r.count+' 个规划点（无硬件输出）','success');
+    showStatusMessage('波形校验通过 · '+r.count+' 个规划点（无硬件输出）'+(r.warnings?.length?' · 有性能建议':'') ,'success');
   }catch(error){
     if(expectedTabId!==getActiveWorkspace()?.id||expectedMode!==activeMode)return;
     info.textContent='校验失败：'+String(error.message||error).slice(0,120);
@@ -1506,6 +1524,8 @@ dialog.addEventListener('click',event=>{
 });
 $('validate-plan').addEventListener('click',validatePlan);
 $('export-capabilities').addEventListener('click',exportCapabilities);
+for(const id of ['sourceModel','measureModel','gateModel'])
+  planForm.elements.namedItem(id)?.addEventListener('change',applyPlanInputBounds);
 for(const id of ['waveform-source-type','waveform-range-v','waveform-measure-mode',
   'waveform-current-range','waveform-card','waveform-channel'])
   $(id).addEventListener('change',updateWaveformControls);
