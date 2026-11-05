@@ -240,6 +240,7 @@ async function connectInstrument(){
     let result=await post('/api/connect',fields());
     if(result.phase==='connected')result=await post('/api/modules/inspect');
     latestStatus=result;
+    if(typeof portUi!=='undefined')portUi.syncTerminals();
   }catch(error){
     latestStatus={phase:'error',summary:'本地连接服务异常',diagnostic:String(error)};
   }finally{
@@ -519,8 +520,8 @@ async function validateWave(){
 const TEST_MODES=Object.freeze({
   iv:{title:'SMU I–V 扫描',x:'Voltage (V)',xColumn:'电压 (V)',ready:true},
   it:{title:'SMU I–t 恒压读出',x:'Time (s)',xColumn:'时间 (s)',ready:true},
-  transfer:{title:'转移特性',x:'Gate voltage (V)',xColumn:'栅极电压 (V)'},
-  output:{title:'输出特性',x:'Drain voltage (V)',xColumn:'漏极电压 (V)'},
+  transfer:{title:'转移特性',x:'Gate voltage (V)',xColumn:'栅极电压 (V)',ready:true},
+  output:{title:'输出特性',x:'Drain voltage (V)',xColumn:'漏极电压 (V)',ready:true},
   pund:{title:'PMU / PUND',x:'Time (s)',xColumn:'时间 (s)'},
   retention:{title:'Retention',x:'Time (s)',xColumn:'时间 (s)'},
   endurance:{title:'Endurance',x:'Cycle',xColumn:'循环次数'},
@@ -849,6 +850,7 @@ function applyWorkspaceSnapshot(snapshot){
     ?tab.activeMode:null;
   if(activeMode)restoreTabDraft(activeMode);
   else resetModeInputs('iv');
+  if(typeof portUi!=='undefined')portUi.syncTerminals();
   renderTestSelection();
 }
 async function loadWorkspaceState(){
@@ -906,12 +908,17 @@ function rememberTabDraft(){
     if(!control.name)continue;
     formValues[control.name]=control.value;
   }
-  workspaceStore.saveDraft(tab.id,activeMode,{formValues,waveform:$('waveform-text').value});
+  workspaceStore.saveDraft(tab.id,activeMode,{
+    formValues,waveform:$('waveform-text').value,
+    sweepProgram:['iv','transfer','output'].includes(activeMode)?
+      portUi.snapshotScan():null
+  });
 }
 function restoreTabDraft(mode){
   resetModeInputs(mode);
   const tab=getActiveWorkspace();
   const draft=tab?workspaceStore.getDraft(tab.id,mode):null;
+  if(['iv','transfer','output'].includes(mode))portUi.restoreScan(draft?.sweepProgram,mode);
   if(!draft)return;
   for(const control of planForm.elements){
     if(control.name&&Object.hasOwn(draft.formValues||{},control.name))
@@ -1263,6 +1270,8 @@ function selectMeasurementHistory(tabId,mode,runId){
 function currentParameterSnapshot(){
   return {
     form:Object.fromEntries(new FormData(planForm).entries()),
+    terminals:workspaceStore.getTerminalConfig(),
+    sweepProgram:['iv','transfer','output'].includes(activeMode)?portUi.snapshotScan():null,
     waveform:$('waveform-text').value
   };
 }
@@ -1696,9 +1705,11 @@ function renderTestSelection(){
   activeMode=tab?.activeMode||null;
   const mode=activeMode?TEST_MODES[activeMode]:null;
   const isEditable=Boolean(mode?.ready);
+  const isScan=['iv','transfer','output'].includes(activeMode);
   const isWaveform=Boolean(mode?.planner);
   const active=Boolean(tab&&mode);
   $('test-library').hidden=active;
+  $('terminal-profiles').hidden=active;
   detail.hidden=!active;
   detail.inert=!active;
   detail.setAttribute('aria-hidden',String(!active));
@@ -1715,7 +1726,8 @@ function renderTestSelection(){
   measurementPlot.selectTest(activeMode,rows);
   renderMeasurementData(rows,activeMode);
   renderMeasurementHistory(tab,activeMode);
-  $('plan-form').hidden=!isEditable;
+  $('plan-form').hidden=!isEditable||isScan;
+  $('sweep-configuration').hidden=!isScan;
   $('plan-status').hidden=!isEditable;
   $('validate-plan').hidden=!isEditable;
   $('waveform-editor').hidden=!isWaveform;
@@ -1726,7 +1738,8 @@ function renderTestSelection(){
     const it=activeMode==='it';
     document.querySelectorAll('.iv-only').forEach(node=>node.hidden=it);
     document.querySelectorAll('.it-only').forEach(node=>node.hidden=!it);
-    $('parameters-title').textContent='SMU 测试参数';
+    $('parameters-title').textContent=isScan?'Xsweep / Psweep 扫描参数':'SMU I–t 测试参数';
+    if(isScan)portUi.setMode(activeMode);
     void validatePlan();
   }else if(isWaveform){
     $('parameters-title').textContent='任意波形方案';
@@ -1768,13 +1781,29 @@ async function validatePlan(){
   const status=$('plan-status');
   const expectedKind=activeMode,expectedTabId=getActiveWorkspace()?.id;
   try{
-    const payload=Object.fromEntries(new FormData(planForm).entries());
+    const isScan=['iv','transfer','output'].includes(activeMode);
+    const payload=isScan?{kind:activeMode,sweepProgram:portUi.snapshotScan()}:
+      Object.fromEntries(new FormData(planForm).entries());
+    if(!isScan){
+      const terminals=workspaceStore.getTerminalConfig();
+      const drive=/^SMU([1-9])$/.exec(terminals.drain);
+      const gate=/^SMU([1-9])$/.exec(terminals.gate);
+      if(!drive)throw Error('I–t 漏极必须选择 SMU 电压源/电流测量通道');
+      payload.sourceSmU=drive[1];payload.measureSmU=drive[1];
+      payload.gateSmU=gate?gate[1]:0;
+    }
     const r=await post('/api/plan/validate',payload);
     if(expectedKind!==activeMode||expectedTabId!==getActiveWorkspace()?.id)return;
     if(!r.ok)throw Error(r.error||'参数校验失败');
     const p=r.plan;
-    status.textContent=(p.kind==='iv'?'I–V 扫描':'I–t 恒压读出')+' · '+p.totalPoints+
-      ' 个规划点 · '+p.loops+' 循环 · SMU '+p.sourceSmU+' · 不执行硬件输出';
+    status.textContent=isScan?
+      'Xsweep '+p.xSweep.points+' 点 × '+p.xSweep.repeats+
+        ' 次'+(p.pSweep?' × Psweep '+p.pSweep.points+' 点':'')+
+        ' × '+p.loops+' 轮 = '+p.totalPoints+
+        ' 点 · '+(p.hardwareCapabilityStatus==='identified'?'模块范围已核验':'需识别实际模块')+
+        ' · 仅规划，不执行输出':
+      'I–t 恒压读出 · '+p.totalPoints+' 点 · '+p.loops+' 轮 · SMU '+p.sourceSmU+
+        ' · 仅规划，不执行输出';
     showStatusMessage('方案校验通过 · '+p.totalPoints+' 个规划点 · 不执行硬件输出','success');
   }catch(e){
     if(expectedKind===activeMode&&expectedTabId===getActiveWorkspace()?.id){
