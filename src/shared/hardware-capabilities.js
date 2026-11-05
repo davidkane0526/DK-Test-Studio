@@ -284,29 +284,23 @@
   }
   function getPulseTimingRecommendation(rangeV, measurementRangeA, withMeasurement = true, source = 'pmu', withRpm = false, peakVoltageV = null) {
     const key = String(source || 'pmu').toLowerCase() === 'pgu' ? 'VPU' : 'PMU';
-    const mod = getModuleCapability(key), range = String(Number(rangeV));
-    const mode = withMeasurement ? 'withMeasurement' : 'sourceOnly';
+    const mod = getModuleCapability(key), rpmMod = withRpm ? getModuleCapability('PMURPM') : null;
+    const range = String(Number(rangeV)), mode = withMeasurement ? 'withMeasurement' : 'sourceOnly';
     const timing = mod.pulseTiming?.[range]?.[mode];
     if (!timing) throw Error('没有该模块/电压档/测量模式的硬件脉冲时序规格');
     if (key === 'VPU' && withMeasurement) throw Error('4220-PGU/VPU 不具备电流测量功能');
+    if (withRpm && (key !== 'PMU' || !withMeasurement)) throw Error('4225-RPM 只适用于 PMU 电流测量模式');
     const peakAbs = peakVoltageV === null || peakVoltageV === undefined ? null : Math.abs(Number(peakVoltageV));
     if (peakAbs !== null && !Number.isFinite(peakAbs)) throw Error('脉冲峰值电压无效');
-    let transitionMinS = timing.transitionMinS;
-    let transitionSelection = 'fixed';
+    let transitionMinS = timing.transitionMinS, transitionSelection = 'fixed';
     if (timing.transitionMinSAbove10V !== undefined) {
-      if (peakAbs === null) {
-        transitionMinS = null;
-        transitionSelection = 'requires-output-amplitude';
-      } else {
-        transitionMinS = peakAbs > 10 ? timing.transitionMinSAbove10V : timing.transitionMinS;
-        transitionSelection = peakAbs > 10 ? 'above-10V' : 'at-or-below-10V';
-      }
+      if (peakAbs === null) { transitionMinS = null; transitionSelection = 'requires-output-amplitude'; }
+      else { transitionMinS = peakAbs > 10 ? timing.transitionMinSAbove10V : timing.transitionMinS; transitionSelection = peakAbs > 10 ? 'above-10V' : 'at-or-below-10V'; }
     }
     const recommendation = {
       ...timing, transitionMinS, transitionSelection, peakAbsVoltageV: peakAbs,
       source: 'tek-4200a-datasheet-2026', measurementEnabled: Boolean(withMeasurement),
-      hardwareSpecification: true,
-      kxciInterfaceTiming: mod.kxciPulseTiming?.[range] || null,
+      hardwareSpecification: true, kxciInterfaceTiming: mod.kxciPulseTiming?.[range] || null,
       kxciInterfaceSource: mod.kxciPulseTiming ? 'tek-4200a-kxci-rev-e' : null
     };
     if (measurementRangeA !== undefined && measurementRangeA !== null) {
@@ -314,7 +308,12 @@
       if (key !== 'PMU' || !getPmuCurrentRanges(Number(rangeV), Boolean(withRpm)).some(x => Math.abs(x - current) <= Math.max(1e-15, current * 1e-9))) throw Error('所选 PMU 电流量程与该电压档/前端模块不匹配');
       recommendation.measurementRangeA = current;
       recommendation.rpmEnabled = Boolean(withRpm);
-    }
+      if (withRpm) {
+        recommendation.rpmTypicalTiming = rpmMod.rpmTypicalTiming?.[range]?.[String(current)] || null;
+        recommendation.rpmTimingStatus = recommendation.rpmTypicalTiming ? 'published-typical' : 'not-published-for-current-range';
+      }
+    } else if (withRpm) recommendation.rpmTimingStatus = 'current-range-required';
+    if (!withMeasurement && measurementRangeA !== undefined && measurementRangeA !== null) throw Error('纯源模式不能设置电流测量量程');
     return Object.freeze(recommendation);
   }
   function calculateChassisPower({ inventory, activeSmuChannels = [], activePulseChannels = [] } = {}) {
