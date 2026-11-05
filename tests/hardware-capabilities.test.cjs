@@ -45,6 +45,7 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   assert.equal(pm40.kxciMaxSegmentS, 1);
   assert.equal(pm40.timeResolutionS, 1e-8);
   assert.equal(pm40.maxSegmentsPerCommand, 128);
+  assert.equal(pm40.kxciMaxArrayValuesPerCommand, 128);
   assert.equal(pm40.maxSequenceLoops, 1e12);
   const pmuTiming = caps.getPulseTimingRecommendation(10, 0.01, true);
   assert.equal(pmuTiming.periodMinS, 120e-9);
