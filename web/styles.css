@@ -1724,3 +1724,22 @@ body.dkts-android-shell .dkts-numeric-input.dkts-numeric-active{
 @media(prefers-color-scheme:dark){
   .sweep-terminal-row{border-color:#415064}
 }
+
+
+/* DKDS-aligned instrument input sizing: compact desktop and touch-safe mobile. */
+:root{--dkts-control-h:36px}
+.terminal-profiles :is(.port-panel-controls label,.port-preset-bar label),
+.parameters-panel :is(.plan-form label,.sweep-configuration label){font-size:11px;line-height:15px}
+.terminal-profiles :is(input,select,.dkts-select-trigger),
+.parameters-panel :is(.plan-form input,.plan-form select,
+.sweep-configuration input:not([type="checkbox"]),.sweep-configuration select,
+.sweep-configuration .dkts-select-trigger){font-size:12px!important}
+.heading-terminal-ports :is(select,.dkts-select-trigger){height:var(--dkts-control-h);min-height:var(--dkts-control-h)}
+@media(max-width:800px){
+:root{--dkts-control-h:44px}
+.terminal-profiles :is(.port-panel-controls label,.port-preset-bar label),
+.parameters-panel :is(.plan-form label,.sweep-configuration label){font-size:12px!important;line-height:17px}
+.terminal-profiles :is(input,select,.dkts-select-trigger),
+.parameters-panel :is(input:not([type="checkbox"]),select,.dkts-select-trigger){font-size:13px!important}
+.heading-terminal-ports :is(select,.dkts-select-trigger){height:44px;min-height:44px;font-size:12px!important}
+}
