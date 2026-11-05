@@ -34,7 +34,7 @@
     }
     function plan(){
       const candidate=ui?ui.readPlan():storedPlan;
-      return planner.normalizePlan(candidate);
+      return planner.normalizePlan(candidate,{inventory:controller.status().inventory});
     }
     function endpoint(){return ui?ui.readConnection():{};}
     function notify(snapshot){
@@ -62,7 +62,7 @@
     }
     function preview(){
       try{
-        const result=planner.previewPlan(plan());
+        const result=planner.previewPlan(plan(),300,{inventory:controller.status().inventory});
         ui?.renderPlan(result);
         return result;
       }catch(e){ui?.renderPlanError(String(e.message||e));throw e;}
