@@ -113,6 +113,7 @@ async function createAppServer(options={}){
       const plan=parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadMode:payload.loadMode||'unknown'});
       return json(res,200,{ok:true,count:plan.points.length,durationS:plan.durationS,
         minimumStepS:plan.minimumStepS,maximumStepS:plan.maximumStepS,
+        sourceType:plan.sourceType,loadMode:plan.loadMode,maxVoltageV:plan.maxVoltageV,
         executable:false,hardwareVerified:false,
         preview:plan.points.length<=300?plan.points:plan.points.filter((_,i)=>i%Math.ceil(plan.points.length/300)===0)});
     }catch(error){
