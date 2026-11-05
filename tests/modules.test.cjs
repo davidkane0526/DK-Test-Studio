@@ -9,7 +9,10 @@ test('KXCI module inventory is read-only and does not assert rated hardware limi
   const inventory=parseOptions('SMU1,HPSMUPA2,PMURPM3,CVU1,VPU1,VS1,VM1,\0');
   assert.equal(inventory.slots.length,8);
   assert.deepEqual(inventory.knownModules.map(m=>m.family),['SMU','SMU','PMU','CVU','PGU','VS','VM']);
+  assert.equal(inventory.slots[0].powerClass,'medium');
   assert.equal(inventory.slots[1].channel,2);
+  assert.equal(inventory.slots[1].powerClass,'high');
+  assert.equal(inventory.slots[1].preamplifier,true);
   assert.equal(inventory.hardwareLimitsVerified,false);
   assert.throws(()=>parseOptions(''),/为空/);
   assert.throws(()=>parseOptions('SMU1,'.repeat(9)),/八个插槽/);

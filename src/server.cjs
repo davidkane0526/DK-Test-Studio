@@ -106,13 +106,14 @@ async function createAppServer(options={}){
         catch(error){return json(res,400,{ok:false,error:summarizeError(error),...controller.status()});}
       }
       if(urlPath==='/api/plan/validate'){
-        const preview=previewPlan(payload,300);
+        const preview=previewPlan(payload,300,{inventory:controller.status().inventory});
         return json(res,200,{ok:true,plan:preview.plan,firstPoints:preview.firstPoints,truncated:preview.truncated});
       }
       if(typeof payload.text!=='string')return json(res,400,{error:'波形应为文本'});
-      const plan=parseWaveformText(payload.text);
+      const plan=parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadOhms:payload.loadOhms});
       return json(res,200,{ok:true,count:plan.points.length,durationS:plan.durationS,
         minimumStepS:plan.minimumStepS,maximumStepS:plan.maximumStepS,
+        sourceType:plan.sourceType,rangeV:plan.rangeV,loadOhms:plan.loadOhms,maxCurrentA:plan.maxCurrentA,maxVoltageV:plan.maxVoltageV,
         executable:false,hardwareVerified:false,
         preview:plan.points.length<=300?plan.points:plan.points.filter((_,i)=>i%Math.ceil(plan.points.length/300)===0)});
     }catch(error){

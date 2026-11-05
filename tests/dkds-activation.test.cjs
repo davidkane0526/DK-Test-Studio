@@ -11,11 +11,14 @@ function prepare(){
     textContent:'',value:'',className:'',
     setAttribute(key,value){this.attributes[key]=value;},
     appendChild(n){this.children.push(n);return n;},
+    append(...nodes){this.children.push(...nodes);},
+    replaceChildren(...nodes){this.children=nodes;},
+    addEventListener(name,handler){this.events??={};this.events[name]=handler;},
     remove(){this.removed=true;},
     querySelector(){return null;},
     contentWindow:kind==='iframe'?{sent:[],postMessage(m){this.sent.push(m);}}:undefined
   });
-  let composed,activity,top,slice,capability,transmit=0,frame,workspaceRoot,workspaceSpec;
+  let composed,activity,top,slice,capability,transmit=0,frame,workspaceRoot,workspaceSpec,statusItem,statusSpec;const artifacts=[];
   const units={
     page:{create:()=>({element:unit('page')})},
     layout:{create(parent,spec={}){const node=unit('layout');node.className=spec.className||'';if(parent)parent.appendChild(node);return node;}},
@@ -52,6 +55,7 @@ function prepare(){
   };
   const ctx={
     services:{require(name){assert.equal(name,'tcp');return tcp;}},
+    data:{model:{createTable(spec){return {...spec,kind:'data.table'};}},artifacts:{upsert(value){artifacts.push(value);return {changed:true};}}},
     modules:{require(name){assert(registry.has(name),'Missing '+name);return registry.get(name);}},
     status:{set(v){captured.status=v;}},
     workspace:{openPage(id){captured.openedPage=id;}},
@@ -63,7 +67,8 @@ function prepare(){
       unitTemplates:units,
       activities:{add(spec){activity=spec;}},
       pages:{add(spec){return spec;}},
-      topWorkspace:{register(spec){top=spec;}}
+      topWorkspace:{register(spec){top=spec;}},
+      statusBar:{add(spec){statusSpec=spec;statusItem={value:{...spec},update(patch){Object.assign(this.value,patch);},remove(){this.removed=true;}};return statusItem;}}
     },
     project:{
       registerSlice(id,v){assert.equal(id,'dkts-keithley-4200');slice=v;},
@@ -74,14 +79,30 @@ function prepare(){
     }}
   };
   return {captured,registry,listeners,ctx,
-    get view(){return {composed,activity,top,slice,capability,frame,transmit,workspaceRoot,workspaceSpec};}};
+    get view(){return {composed,activity,top,slice,capability,frame,transmit,workspaceRoot,workspaceSpec,statusItem,statusSpec,artifacts};}};
 }
 test('DKDS plugin displays the exact standalone app in a sandboxed workbench',async()=>{
   const env=prepare(),installed=await env.captured.activate(env.ctx),v=env.view;
-  assert.equal(env.captured.manifest.version,'0.6.12');
+  assert.equal(env.captured.manifest.version,'0.6.13');
   assert.equal(v.activity.openMode,'window');
   assert.equal(v.top.activity,'dkts-keithley-4200');
+  assert.equal(v.statusSpec.icon,'');
+  assert.equal(v.statusSpec.label,'4200A 未连接');
+  assert.equal(env.captured.manifest.window.title,undefined);
+  assert.equal(env.captured.manifest.workspace.icon,undefined);
   assert(v.composed.primary.mainNode);
+  const incoming=(type,extra={})=>env.listeners.get('message')({
+    source:v.frame.contentWindow,
+    data:{channel:'dkts-standalone-workbench-v1',session:'a'.repeat(32),type,...extra}
+  });
+  incoming('ready');
+  incoming('workspace-state',{workspace:{tabs:[{id:'w1',name:'器件 A',activeMode:'iv'}],activeTabId:'w1'}});
+  const hostTabs=v.composed.primary.mainNode.children[0];
+  assert.equal(hostTabs.className,'dkts-host-workspace-tabs');
+  assert.equal(hostTabs.children.length,2,'One workspace tab and one add button belong to DKDS chrome');
+  assert.equal(hostTabs.children[0].children[0].textContent,'器件 A');
+  hostTabs.children[0].children[0].events.click();
+  assert(v.frame.contentWindow.sent.some(message=>message.type==='workspace-select'&&message.workspaceId==='w1'));
   assert.equal(v.frame.attributes.sandbox,'allow-scripts allow-modals');
   assert.equal(v.workspaceRoot.kind,'layout');
   assert.equal(v.workspaceSpec.activity,'dkts-keithley-4200');
@@ -96,8 +117,17 @@ test('DKDS plugin displays the exact standalone app in a sandboxed workbench',as
   assert(!v.frame.srcdoc.includes('<script src="/app.js"'));
   assert.equal(v.capability.methods.validatePlan().kind,'iv');
   assert.equal(v.capability.methods.exportPlan().schema,'dkts.4200.interop.v1');
+  const published=v.capability.methods.publishMeasurement({xValues:[0,1],yValues:[1e-9,2e-9],xUnit:'V',yUnit:'A'});
+  assert.equal(published.rowCount,2);
+  assert.equal(v.artifacts.length,1);
+  assert.equal(v.artifacts[0].metadata.rawInstrumentData,true);
+  assert.equal(v.artifacts[0].semanticType,'science.transport.iv');
+  assert.equal(v.artifacts[0].columns[0].key,'Vd');
+  assert.equal(v.artifacts[0].columns[1].key,'Id');
+  assert.equal(v.artifacts[0].columns[1].values[1],2e-9);
   installed.deactivate();
   assert(v.frame.removed);
+  assert.equal(v.statusItem.removed,true);
 });
 test('request bridge only permits read-only KXCI and same form plan validation',async()=>{
   const env=prepare(),installed=await env.captured.activate(env.ctx),v=env.view;

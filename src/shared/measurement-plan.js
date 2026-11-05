@@ -1,6 +1,9 @@
 (() => {
   'use strict';
   // Hardware-independent, NON-EXECUTABLE SMU test planning.
+  // Keithley 4200A SMU absolute source-voltage capability is ±210 V
+  // (105% overrange of the nominal 200 V range). This is a planning ceiling,
+  // not permission to use every voltage/current combination.
   // Deliberately contains no KXCI write or instrument output command.
   function finite(input,label,min,max){
     if(input===undefined||input===null||String(input).trim()==='')throw Error(label+' 不能为空');
@@ -13,7 +16,15 @@
     if(!Number.isSafeInteger(n))throw Error(label+' 必须是整数');
     return n;
   }
-  function normalizePlan(input={}){
+  function detectedSmUClass(channel,inventory){
+    const number=Number(channel??1);
+    const slot=Array.isArray(inventory?.slots)
+      ?inventory.slots.find(item=>item?.family==='SMU'&&item.channel===number):null;
+    if(slot?.powerClass==='high')return 'high';
+    if(slot?.powerClass==='medium')return 'medium';
+    return 'UNKNOWN';
+  }
+  function normalizePlan(input={},hardware={}){
     const kind=String(input.kind||'iv');
     if(!['iv','it'].includes(kind))throw Error('该测试方式尚未进入安全执行计划');
     const loops=count(input.loops??1,'循环次数',1,10000);
@@ -23,28 +34,47 @@
     const gateSmU=count(input.gateSmU??0,'栅极 SMU（0 为不使用）',0,9);
     if(gateSmU&&(gateSmU===sourceSmU||gateSmU===measureSmU))
       throw Error('栅极 SMU 不得与源/测量 SMU 使用相同编号');
-    const complianceA=finite(input.complianceA??1e-4,'电流限值',1e-12,1);
+    // Never trust a model name supplied by the UI/imported plan. Resolve each sourcing channel only from read-only *OPT? inventory.
+    const sourceModel=detectedSmUClass(sourceSmU,hardware.inventory);
+    const gateModel=gateSmU?detectedSmUClass(gateSmU,hardware.inventory):null;
+    const sourceMaxAbsVoltage=kind==='iv'
+      ?Math.max(Math.abs(Number(input.startV??-1)),Math.abs(Number(input.stopV??1)))
+      :Math.abs(Number(input.fixedV??0.1));
+    const gateMaxAbsVoltage=Math.abs(Number(input.gateBiasV??0));
+    if(!gateSmU&&gateMaxAbsVoltage>0)
+      throw Error('设置栅极偏置时必须选择独立的栅极 SMU');
+    function channelCompliance(powerClass,voltage){
+      if(powerClass==='UNKNOWN')return 0.0105;
+      const highVoltage=voltage>21;
+      const highPower=powerClass==='high';
+      return highVoltage?(highPower?0.105:0.0105):(highPower?1.05:0.105);
+    }
+    const sourceMaxComplianceA=channelCompliance(sourceModel,sourceMaxAbsVoltage);
+    const gateMaxComplianceA=gateSmU?channelCompliance(gateModel,gateMaxAbsVoltage):Infinity;
+    const maxComplianceA=Math.min(sourceMaxComplianceA,gateMaxComplianceA);
+    const maxAbsVoltage=Math.max(sourceMaxAbsVoltage,gateMaxAbsVoltage);
+    const complianceA=finite(input.complianceA??1e-4,'电流限值',1e-12,maxComplianceA);
     const direction=String(input.direction||'roundtrip');
     if(!['forward','reverse','roundtrip'].includes(direction))throw Error('不支持的扫描方向');
     const delayMs=finite(input.delayMs??20,'扫描点间延迟',0,60000);
     const intervalMs=finite(input.intervalMs??100,'I–t 规划采样间隔',0.000001,3600000);
-    const gateBiasV=finite(input.gateBiasV??0,'栅极电压',-200,200);
-    const startV=finite(input.startV??-1,'扫描起始电压',-200,200);
-    const stopV=finite(input.stopV??1,'扫描结束电压',-200,200);
-    const fixedV=finite(input.fixedV??0.1,'固定偏置',-200,200);
+    const gateBiasV=finite(input.gateBiasV??0,'栅极电压',-210,210);
+    const startV=finite(input.startV??-1,'扫描起始电压',-210,210);
+    const stopV=finite(input.stopV??1,'扫描结束电压',-210,210);
+    const fixedV=finite(input.fixedV??0.1,'固定偏置',-210,210);
     const pointsPerCycle=kind==='iv'&&direction==='roundtrip'?points*2-1:points;
     const totalPoints=loops*pointsPerCycle;
     if(totalPoints>250000)throw Error('预计采样点超过 250000，请减少循环或点数');
     return Object.freeze({
       schema:'dk-test-studio.smu-plan.v1',kind,loops,points,direction,
-      sourceSmU,measureSmU,gateSmU,gateBiasV,complianceA,
+      sourceSmU,measureSmU,gateSmU,sourceModel,gateModel,sourceMaxAbsVoltageV:sourceMaxAbsVoltage,gateMaxAbsVoltageV:gateMaxAbsVoltage,maxAbsVoltageV:maxAbsVoltage,sourceMaxComplianceA,gateMaxComplianceA,maxComplianceA,gateBiasV,complianceA,
       delayMs,intervalMs,startV,stopV,fixedV,pointsPerCycle,totalPoints,
       executable:false,hardwareVerified:false,
-      provenance:'user-test-plan',safetyNote:'仅校验测试参数，未核验实际插槽、限值和可执行指令'
+      provenance:'user-test-plan',safetyNote:'已分别按源/栅极 SMU 模块类别与电压档计算电流边界，并取更严格值；仍需核验工作象限和模块额定值，禁止据此直接执行'
     });
   }
-  function previewPlan(plan,limit=300){
-    const p=normalizePlan(plan);
+  function previewPlan(plan,limit=300,hardware={}){
+    const p=normalizePlan(plan,hardware);
     const max=Math.min(p.totalPoints,Math.max(2,Math.trunc(limit)));
     const rows=[];
     for(let index=0;index<max;index++){
@@ -94,7 +124,7 @@
     }
     return Object.freeze({status,begin,run});
   }
-  const api=Object.freeze({normalizePlan,previewPlan,createExecutionCoordinator});
+  const api=Object.freeze({normalizePlan,previewPlan,detectedSmUClass,createExecutionCoordinator});
     if(typeof window!=='undefined' && window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-plan',api);
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();

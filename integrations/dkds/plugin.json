@@ -1,7 +1,7 @@
 {
   "id": "com.dkts.keithley-4200",
   "name": "DK Test Studio - Keithley 4200A",
-  "version": "0.6.12",
+  "version": "0.6.13",
   "apiVersion": "1.19.0",
   "entry": "plugin.js",
   "enabled": true,
@@ -16,11 +16,15 @@
     "project",
     "workspace",
     "capabilities",
+    "data.model",
+    "data.artifacts",
     "ui.dom",
+    "ui.dialogs",
     "ui.activities",
     "ui.top-workspace",
     "ui.pages",
-    "ui.unit-templates"
+    "ui.unit-templates",
+    "ui.status-bar"
   ],
   "capabilities": [
     "instrument.dkts-keithley-4200",
@@ -49,13 +53,10 @@
   ],
   "workspace": {
     "role": "top",
-    "activity": "dkts-keithley-4200",
-    "icon": "K",
-    "title": "Keithley 4200A"
+    "activity": "dkts-keithley-4200"
   },
   "window": {
     "activity": "dkts-keithley-4200",
-    "title": "DK Test Studio - Keithley 4200A",
     "width": 1280,
     "height": 820,
     "minWidth": 800,

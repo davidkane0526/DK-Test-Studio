@@ -25,7 +25,9 @@ test('Chromium scrollbar uses thin rounded transparent style without arrow butto
 test('two frequent selects are progressively enhanced without changing form inputs',()=>{
   assert.match(html,/<select name="networkMode">/);
   assert.match(html,/<select name="direction">/);
-  assert.equal((html.match(/<select /g)||[]).length,2);
+  assert.equal((html.match(/<select /g)||[]).length,4);
+  assert.match(html,/<select id="waveform-source-type">/);
+  assert.match(html,/<select id="waveform-range-v">/);
   assert.match(app, /function enhanceWorkspaceSelects\(\)/);
   assert.match(app,/document\.querySelectorAll\('select:not\(\[multiple\]\)'\)/);
   assert.match(app,/source\.hidden=true/);

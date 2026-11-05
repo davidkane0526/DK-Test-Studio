@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.6.12","apiVersion":"1.19.0","entry":"plugin.js","enabled":true,"order":82,"description":"DK Test Studio shared standalone UI, DKDS-owned transport and project integration","pluginType":"developer","requiresCore":["runtime","status","services","modules","project","workspace","capabilities","ui.dom","ui.activities","ui.top-workspace","ui.pages","ui.unit-templates"],"capabilities":["instrument.dkts-keithley-4200","network.tcp-client","ui.page","ui.top-workspace","ui.plugin-workspace"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"scripts":["kxci-protocol.js","measurement-plan.js","waveform.js","identity-core.js","interop.js","standalone-shell.js","presentation.js","plugin.js"],"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"K","title":"Keithley 4200A"},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio - Keithley 4200A","width":1280,"height":820,"minWidth":800,"minHeight":620,"dependencies":[],"prewarm":false,"reuse":true,"persistence":"project"}};
+  const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.6.13","apiVersion":"1.19.0","entry":"plugin.js","enabled":true,"order":82,"description":"DK Test Studio shared standalone UI, DKDS-owned transport and project integration","pluginType":"developer","requiresCore":["runtime","status","services","modules","project","workspace","capabilities","data.model","data.artifacts","ui.dom","ui.dialogs","ui.activities","ui.top-workspace","ui.pages","ui.unit-templates","ui.status-bar"],"capabilities":["instrument.dkts-keithley-4200","network.tcp-client","ui.page","ui.top-workspace","ui.plugin-workspace"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"scripts":["kxci-protocol.js","measurement-plan.js","waveform.js","identity-core.js","interop.js","standalone-shell.js","presentation.js","plugin.js"],"workspace":{"role":"top","activity":"dkts-keithley-4200"},"window":{"activity":"dkts-keithley-4200","width":1280,"height":820,"minWidth":800,"minHeight":620,"dependencies":[],"prewarm":false,"reuse":true,"persistence":"project"}};
   DKDSPlugins.define(manifest,async ctx=>{
     const modules=ctx.modules;
     const protocol=modules.require('dkts-kxci');
@@ -13,6 +13,12 @@
     // Both applications inject their own transport; only one shared domain state machine exists.
     const controller=domain.createIdentityController(ctx.services.require('tcp'),protocol);
     let ui=null,storedPlan={},disposed=false,savedWorkspace=null;
+    const statusItem=ctx.ui.statusBar.add({
+      id:'dkts-4200a',side:'right',order:42,icon:'',label:'4200A 未连接',
+      state:'stopped',className:'compact dkts-4200a-status',
+      title:'Keithley 4200A 连接状态',
+      onClick:()=>ctx.workspace.openPage('dktsKeithley4200Page')
+    });
     const EMPTY_WORKSPACE=()=>({
       schema:'dkts.workspace.v2',activeTabId:null,tabSerial:0,idSerial:0,tabs:[],archivedTabs:[]
     });
@@ -26,13 +32,20 @@
       if(json.length>64*1024*1024)throw Error('项目工作区数据超过限制');
       return JSON.parse(json);
     }
+    function hardwareProfile(){return {inventory:controller.status().inventory};}
     function plan(){
       const candidate=ui?ui.readPlan():storedPlan;
-      return planner.normalizePlan(candidate);
+      return planner.normalizePlan(candidate,hardwareProfile());
     }
     function endpoint(){return ui?ui.readConnection():{};}
     function notify(snapshot){
       ui?.renderConnection(snapshot);
+      const connected=snapshot.phase==='connected';
+      statusItem.update({
+        label:connected?'4200A 已连接':snapshot.phase==='connecting'?'4200A 连接中':'4200A 未连接',
+        state:connected?'ready':snapshot.phase==='error'?'error':snapshot.phase==='connecting'?'starting':'stopped',
+        title:String(snapshot.summary||'Keithley 4200A 连接状态')
+      });
       ctx.status.set('4200A：'+String(snapshot.summary||'未连接'));
       return snapshot;
     }
@@ -50,14 +63,14 @@
     }
     function preview(){
       try{
-        const result=planner.previewPlan(plan());
+        const result=planner.previewPlan(plan(),300,{inventory:controller.status().inventory});
         ui?.renderPlan(result);
         return result;
       }catch(e){ui?.renderPlanError(String(e.message||e));throw e;}
     }
-    function exportPlan(){return interop.createPlanEnvelope(plan(),planner);}
+    function exportPlan(){return interop.createPlanEnvelope(plan(),planner,hardwareProfile());}
     function importPlan(envelope){
-      const restored=interop.readPlanEnvelope(envelope,planner);
+      const restored=interop.readPlanEnvelope(envelope,planner,hardwareProfile());
       storedPlan={...restored};ui?.restorePlan(restored);preview();ctx.project.capture();
       return restored;
     }
@@ -66,19 +79,19 @@
       // The shared standalone UI automatically probes its own bridge on load.
       // Do not create an additional connection behind the user's active tab.
     }
-    ctx.ui.activities.add({id:'dkts-keithley-4200',label:'4200A',contextLabel:'DK Test Studio',icon:'K',
+    ctx.ui.activities.add({id:'dkts-keithley-4200',label:'4200A',contextLabel:'',
       order:82,primary:true,openMode:'window',
       description:'共用 DK Test Studio 测试核心；只读仪器连接和方案校验',
       onActivate:()=>{ctx.workspace.openPage('dktsKeithley4200Page');onOpen();}});
     const page=ctx.ui.pages.add({id:'dkts-keithley-4200-page',pageId:'dktsKeithley4200Page',
-      activity:'dkts-keithley-4200',label:'4200A',title:'DK Test Studio - 4200A',
+      activity:'dkts-keithley-4200',label:'4200A',title:'',
       toolbar:false,html:'',onOpen});
     const shell=modules.require('standalone-shell');
     async function handleUiRequest({method,route,payload={}}){
       try{
         if(method==='GET'){
           if(route==='/api/status')return {status:200,data:{ok:true,...controller.status()}};
-          if(route==='/api/app/version')return {status:200,data:{version:'0.3.10'}};
+          if(route==='/api/app/version')return {status:200,data:{version:'0.3.11'}};
           if(route==='/api/ui/version')return {status:200,data:{version:'bundled',status:'disabled'}};
           if(route==='/api/workspaces')return {status:200,data:{ok:true,workspace:savedWorkspace}};
         }
@@ -111,11 +124,12 @@
           }
           if(route==='/api/waveform/validate'){
             if(typeof payload.text!=='string')return {status:400,data:{error:'波形应为文本'}};
-            const wave=waveform.parseWaveformText(payload.text);
+            const wave=waveform.parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadOhms:payload.loadOhms});
             const interval=Math.max(1,Math.ceil(wave.points.length/300));
             return {status:200,data:{ok:true,count:wave.points.length,
               durationS:wave.durationS,minimumStepS:wave.minimumStepS,
-              maximumStepS:wave.maximumStepS,executable:false,hardwareVerified:false,
+              maximumStepS:wave.maximumStepS,sourceType:wave.sourceType,rangeV:wave.rangeV,loadOhms:wave.loadOhms,
+              maxCurrentA:wave.maxCurrentA,maxVoltageV:wave.maxVoltageV,executable:false,hardwareVerified:false,
               preview:wave.points.length<=300?wave.points:
                 wave.points.filter((_,i)=>i%interval===0)}};
           }
@@ -140,7 +154,7 @@
     });
     // The mobile drawer only displays the activity when TOP Workspace is registered.
     ctx.ui.topWorkspace.register({
-      id:'dkts-keithley-4200',activity:'dkts-keithley-4200',label:'4200A',icon:'K',
+      id:'dkts-keithley-4200',activity:'dkts-keithley-4200',label:'4200A',
       layout:{mode:'native',root:{selector:'#dktsKeithley4200Page .dkds-plugin-workspace'},
       primary:{id:'main',label:'4200A',role:'analysis-primary',
         presentationRole:'utility-primary',priority:100,collapsible:false},prime:[],sub:[]}
@@ -159,6 +173,37 @@
       },
       reset:()=>{storedPlan={};savedWorkspace=null;ui?.restoreWorkspace(EMPTY_WORKSPACE());}
     });
+    function publishMeasurement(result={}){
+      if(!ctx.data?.model?.createTable||!ctx.data?.artifacts?.upsert)
+        throw Error('DKDS Artifact 数据中心接口不可用');
+      const x=Array.from(result.xValues||[]),y=Array.from(result.yValues||[]);
+      if(x.length<2||x.length!==y.length||x.length>1000000)
+        throw Error('原始测量数据必须包含等长的 X/Y 数组，且为 2 至 1000000 个点');
+      if(!x.every(Number.isFinite)||!y.every(Number.isFinite))
+        throw Error('原始测量数据包含非有限数值');
+      const id='dkts-4200-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
+      const measurementKind=String(result.kind||'iv').toLowerCase();
+      const isIV=measurementKind==='iv';
+      const xKey=String(result.xKey||(isIV?'Vd':'Time'));
+      const yKey=String(result.yKey||(isIV?'Id':'Current'));
+      const artifact=ctx.data.model.createTable({
+        id,name:String(result.name||'Keithley 4200A 原始测量'),
+        ...(isIV?{semanticType:'science.transport.iv'}:{}),transient:false,
+        metadata:{instrument:'Keithley 4200A',model:controller.status().identity?.model||'KI4200A',
+          serial:controller.status().identity?.serial||'',measurementKind,
+          rawInstrumentData:true,processing:'none',dataAssignments:[]},
+        columns:[
+          {key:xKey,name:String(result.xName||xKey),unit:String(result.xUnit||''),role:'x',values:x},
+          {key:yKey,name:String(result.yName||yKey),unit:String(result.yUnit||''),role:'y',values:y}
+        ],
+        provenance:[{type:'acquisition',label:'Keithley 4200A 原始仪器数据',
+          producer:'com.dkts.keithley-4200',operation:'instrument-acquisition',
+          source:{model:controller.status().identity?.model||'KI4200A',
+            serial:controller.status().identity?.serial||''}}]
+      });
+      ctx.data.artifacts.upsert(artifact);
+      return {id:artifact.id,kind:artifact.kind,rowCount:x.length};
+    }
     ctx.capabilities.register('instrument.dkts-keithley-4200',{
       kind:'instrument.connection',title:'DK Test Studio 4200A KXCI',
       remote:false,
@@ -172,14 +217,16 @@
         connect,identify:connect,disconnect,inspectModules:()=>controller.inspectModules(),
         executionStatus:()=>execution.status(),
         validatePlan:()=>plan(),previewPlan:()=>planner.previewPlan(plan()),
-        validateWaveform:points=>waveform.validateWaveform(points),
-        parseWaveformText:text=>waveform.parseWaveformText(text),
+        validateWaveform:(points,options)=>waveform.validateWaveform(points,options),
+        publishMeasurement,
+        parseWaveformText:(text,options)=>waveform.parseWaveformText(text,options),
         exportPlan,importPlan
       }
     });
     try{preview();}catch{}
     return {deactivate(){
       disposed=true;
+      statusItem.remove?.();
       ui?.dispose?.();ui=null;
       void controller.dispose();
     }};

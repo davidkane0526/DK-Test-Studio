@@ -26,7 +26,7 @@
   <div class="titlebar-brand">
     <span class="titlebar-logo" aria-hidden="true">DK</span>
     <strong>DK Test Studio</strong>
-    <button type="button" id="native-version-badge" class="native-version-badge" aria-expanded="false" aria-controls="ui-version-badge" aria-label="检查 UI 热更新">V0.3.10</button>
+    <button type="button" id="native-version-badge" class="native-version-badge" aria-expanded="false" aria-controls="ui-version-badge" aria-label="检查 UI 热更新">V0.3.11</button>
     <div id="ui-version-badge" class="ui-version-badge" role="status" aria-live="polite" hidden>
       <strong id="ui-version-text">a0</strong>
       <span id="ui-update-state">正在检查 UI 热更新…</span>
@@ -182,12 +182,12 @@
             </div>
       <form id="plan-form" class="plan-form">
         <input type="hidden" name="kind" id="test-kind" value="iv">
-        <label class="iv-only">起始电压 (V)<input type="number" step="any" name="startV" value="-1"></label>
-        <label class="iv-only">终止电压 (V)<input type="number" step="any" name="stopV" value="1"></label>
-        <label class="it-only" hidden>固定偏置 (V)<input type="number" step="any" name="fixedV" value="0.1"></label>
+        <label class="iv-only">起始电压 (V)<input type="number" step="any" name="startV" value="-1" min="-210" max="210"></label>
+        <label class="iv-only">终止电压 (V)<input type="number" step="any" name="stopV" value="1" min="-210" max="210"></label>
+        <label class="it-only" hidden>固定偏置 (V)<input type="number" step="any" name="fixedV" value="0.1" min="-210" max="210"></label>
         <label>每循环点数<input type="number" min="2" max="100000" name="points" value="101"></label>
         <label>循环次数<input type="number" min="1" max="10000" name="loops" value="3"></label>
-        <label>规划电流限值 (A)<input type="number" step="any" name="complianceA" value="0.0001"></label>
+        <label>规划电流限值 (A，按已识别 SMU 与电压档校验)<input type="number" step="any" name="complianceA" value="0.0001" min="0.000000000001" max="1.05"></label>
         <details class="span-two settings">
           <summary>高级测试设置（通道与速度）</summary>
           <div class="advanced-grid">
@@ -199,7 +199,7 @@
             <label>源 SMU<input type="number" name="sourceSmU" value="1" min="1" max="9"></label>
             <label>测量 SMU<input type="number" name="measureSmU" value="1" min="1" max="9"></label>
             <label>栅极 SMU（0 不用）<input type="number" name="gateSmU" value="0" min="0" max="9"></label>
-            <label>栅极偏置 (V)<input type="number" name="gateBiasV" value="0" step="any"></label>
+            <label>栅极偏置 (V)<input type="number" name="gateBiasV" value="0" step="any" min="-210" max="210"></label>
           </div>
         </details>
       </form>
@@ -209,6 +209,23 @@
               <p id="pending-description">参数配置及仪器指令尚未接入。</p>
             </div>
             <div id="waveform-editor" hidden>
+              <div class="advanced-grid waveform-options">
+                <label>输出模块<select id="waveform-source-type">
+                  <option value="smu">SMU（直流源测量）</option>
+                  <option value="pmu">4225-PMU</option>
+                  <option value="pgu">4220-PGU</option>
+                </select></label>
+                <label id="waveform-load-control" hidden>最小预计总负载阻值（Ω）
+                  <input id="waveform-load-ohms" type="number" min="0.01" max="1000000000" step="any" value="50">
+                </label>
+                <label id="waveform-range-control" hidden>PMU/PGU 输出量程
+                  <select id="waveform-range-v">
+                    <option value="10">10 V 档</option>
+                    <option value="40">40 V 档</option>
+                  </select>
+                </label>
+
+              </div>
               <label for="waveform-text" class="input-title">时间 (s)、电压 (V)，每行一组</label>
               <textarea id="waveform-text" spellcheck="false">0, 0
 0.001, 1

@@ -12,6 +12,9 @@
   const emit=payload=>window.parent.postMessage({
     channel:'dkts-standalone-workbench-v1',session,...payload
   },'*');
+  window.DKTSHostBridge=Object.freeze({
+    publishWorkspace:workspace=>emit({type:'workspace-state',workspace})
+  });
   window.fetch=async (input,init={})=>{
     const route=typeof input==='string'?input:input?.url;
     const method=String(init.method||'GET').toUpperCase();
@@ -70,7 +73,15 @@
       if(!task)return;
       window.clearTimeout(task.timeout);pending.delete(data.ticket);
       task.resolve({status:data.status,data:data.data});
-    }else if(data.type==='restore-plan')restore(data.plan);
+    }else if(data.type==='workspace-select')
+      window.DKTSWorkspaceHost?.activate?.(String(data.workspaceId||''));
+    else if(data.type==='workspace-close')
+      window.DKTSWorkspaceHost?.close?.(String(data.workspaceId||''));
+    else if(data.type==='workspace-create')
+      window.DKTSWorkspaceHost?.create?.();
+    else if(data.type==='workspace-rename')
+      window.DKTSWorkspaceHost?.rename?.(String(data.workspaceId||''),String(data.name||''));
+    else if(data.type==='restore-plan')restore(data.plan);
     else if(data.type==='restore-workspace'&&window.DKTSWorkspaceState?.restore)
       window.DKTSWorkspaceState.restore(data.workspace);
     else if(data.type==='status'&&typeof window.renderStatus==='function')
@@ -82,6 +93,7 @@
     document.documentElement.dataset.dkdsHost='mobile';
   }
   document.addEventListener('DOMContentLoaded',()=>{
+    document.body.classList.add('dkds-plugin-host');
     ready=true;
     emit({type:'ready'});
     publishDraft(false,'initial');

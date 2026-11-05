@@ -1,5 +1,5 @@
 name: Fast UI Hot Update
-run-name: DK Test Studio V0.3.10 a${{ github.run_number }} · UI
+run-name: DK Test Studio V0.3.11 a${{ github.run_number }} · UI
 on:
   push:
     branches: [main]
@@ -8,7 +8,7 @@ permissions:
   contents: write
 jobs:
   ui-update:
-    name: Build and publish V0.3.10 a${{ github.run_number }} UI hot update
+    name: Build and publish V0.3.11 a${{ github.run_number }} UI hot update
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -72,7 +72,7 @@ jobs:
           UI hot-update ID: $HOTFIX_ID
           Commit: $GITHUB_SHA
 
-          This Release contains the UI-only hot-update bundle and DKDS plugin. Installed DKTS applications check and apply this UI update only; they do not offer a full APK/EXE upgrade. A separate full Windows + Android package Release is built from this exact commit and uses the same V$PACKAGE_VERSION $HOTFIX_ID identity. Users who want the complete package can download it from GitHub Releases."
+          This Release contains the UI-only hot-update bundle and DKDS plugin. The UI hot update does not replace the native Android bridge or the standalone desktop server. This commit changes both native paths, so Windows and Android users need the matching full V$PACKAGE_VERSION $HOTFIX_ID package to activate the complete hardware-specific validation. DKDS users can install the updated external plugin through DKDS Plugin Manager. Installed DKTS applications still do not prompt for a full-package upgrade; the complete package is available as a separate GitHub Release."
           files=(dist/DKTS-UI-bundle.json dist/DK-Test-Studio-4200.dkplugin)
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber

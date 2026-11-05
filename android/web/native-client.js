@@ -45,15 +45,16 @@
     }
     if(route==='/api/plan/validate'){
       try{
-        const value=planner.previewPlan(payload,300);
+        const value=planner.previewPlan(payload,300,{inventory:controller.status().inventory});
         return {ok:true,plan:value.plan,firstPoints:value.firstPoints,truncated:value.truncated};
       }catch(e){return {ok:false,error:String(e.message||e)};}
     }
     if(route==='/api/waveform/validate'){
       try{
-        const value=waveform.parseWaveformText(payload.text);
+        const value=waveform.parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadOhms:payload.loadOhms});
         return {ok:true,count:value.points.length,durationS:value.durationS,
           minimumStepS:value.minimumStepS,maximumStepS:value.maximumStepS,
+          sourceType:value.sourceType,rangeV:value.rangeV,loadOhms:value.loadOhms,maxCurrentA:value.maxCurrentA,maxVoltageV:value.maxVoltageV,
           executable:false,hardwareVerified:false,
           preview:value.points.length<=300?value.points:
             value.points.filter((_,i)=>i%Math.ceil(value.points.length/300)===0)};
