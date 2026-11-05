@@ -3,7 +3,7 @@
   const database={
   "schema": "dkts.4200a.capability-safety",
   "schemaVersion": 2,
-  "databaseVersion": "1.1.0",
+  "databaseVersion": "1.2.0",
   "target": {
     "manufacturer": "Keithley Instruments / Tektronix",
     "family": "4200A-SCS",
@@ -35,7 +35,7 @@
         "description": "Runtime interlocks, output-off state, abort behavior, wiring/fixture checks and hardware acceptance. These cannot be inferred from this database alone."
       }
     ],
-    "unknownDataPolicy": "Never infer a higher capability from missing or ambiguous inventory. For offline planning only, use medium-power SMU without preamplifier assumptions. A connected inventory that does not contain the selected channel, or contains an unknown token, blocks that channel's plan.",
+    "unknownDataPolicy": "Use the exact capability data for the identified module or the identified hardware class. Never silently substitute a lower-rated model. When offline, require an explicit model selection for model-dependent SMU/CVU planning; fixed PMU/PGU families may use their own family specification. When connected, unresolved or missing inventory blocks that channel. All offline plans remain non-executable until revalidated against the live instrument.",
     "executionStatus": "planning-only; no output commands are enabled by this database",
     "humanSafety": {
       "shockHazardThresholds": {
@@ -306,8 +306,7 @@
         "byCurrentRange": [
           {
             "rangeA": 0.1,
-            "maxF": 0.00001,
-            "evidence": "conservative due summary/table discrepancy"
+            "maxF": 0.0001
           },
           {
             "minCurrentA": 1e-7,
@@ -327,11 +326,12 @@
             "requiresPreamplifier": true
           }
         ],
-        "note": "The 2025 datasheet table and ordering-summary wording differ for the 4201-SMU at 100 mA. DKTS uses the stricter 10 µF value pending a revision/errata check."
+        "note": "Official maximum load capacitance: 100 µF on the 100 mA range; 10 µF on 100 nA–10 mA ranges; 10 µF on 1 nA–10 nA preamplifier ranges; 1 µF on 1 pA–100 pA preamplifier ranges."
       },
       "evidence": [
         "datasheet2025",
-        "setup2025"
+        "setup2025",
+        "stableLowCurrent2019"
       ]
     },
     "4210-SMU": {
@@ -531,7 +531,8 @@
       },
       "evidence": [
         "datasheet2025",
-        "setup2025"
+        "setup2025",
+        "stableLowCurrent2019"
       ]
     },
     "4200-PA": {
@@ -593,7 +594,9 @@
         "nominalSampleIntervalS": 5e-9,
         "maxSamplesPerChannel": 1000000,
         "adcBits": 14,
-        "source": "datasheet2025"
+        "source": "datasheet2025",
+        "minimumMeasureWindowS": 5e-9,
+        "minimumMeasureWindowSource": "one ADC sample interval at the documented 200 MS/s maximum rate"
       },
       "waveform": {
         "segmentArb": {
@@ -613,7 +616,8 @@
             "measurementWindow",
             "measurementType"
           ],
-          "source": "datasheet2025"
+          "source": "datasheet2025",
+          "minSegments": 1
         },
         "fullArb": {
           "supported": true,
@@ -649,7 +653,9 @@
             "all input arrays in a sequence must have same length",
             "segment transitions must be seamless: previous stopV equals next startV"
           ],
-          "source": "segmentArbAppNote2025"
+          "source": "segmentArbAppNote2025",
+          "role": "reference-example-only; not a hardware capability limit",
+          "notEnforced": true
         }
       },
       "timing": {
@@ -796,7 +802,8 @@
           }
         },
         "timingResolutionS": 1e-8
-      }
+      },
+      "timingPolicy": "The timing tables are typical/recommended measurement-performance guidance, not absolute Segment ARB hardware minimums. Do not reject a hardware-valid 20 ns segment solely because a recommended pulse width or settling value is longer. Enforce the hardware segment range and the PMU sample interval only."
     },
     "4225-RPM": {
       "category": "PMU-REMOTE-PREAMPLIFIER-SWITCH",
@@ -877,7 +884,8 @@
             "stopV",
             "durationS"
           ],
-          "source": "datasheet2025"
+          "source": "datasheet2025",
+          "minSegments": 1
         },
         "fullArb": {
           "supported": true,
@@ -911,7 +919,9 @@
             "all input arrays in a sequence must have same length",
             "segment transitions must be seamless"
           ],
-          "source": "segmentArbAppNote2025"
+          "source": "segmentArbAppNote2025",
+          "role": "reference-example-only; not a hardware capability limit",
+          "notEnforced": true
         }
       },
       "evidence": [
@@ -1171,9 +1181,9 @@
   "rules": {
     "inventory": {
       "unknownToken": "block selected channel use",
-      "missingInventory": "allow planning only with conservative medium-power SMU/no-PA profile; mark hardwareVerified=false",
-      "exactSmuModelUnknown": "use class limits; never assume 4201/4211 high-capacitance model-specific behavior",
-      "cvuModelUnknown": "use 4210-CVU intersection limits (100 mV RMS AC maximum) until exact 4215-CVU is confirmed",
+      "missingInventory": "require explicit SMU/CVU model selection for offline planning; never substitute a lower-rated model; PMU/PGU may use their exact family specification for offline planning; mark hardwareVerified=false",
+      "exactSmuModelUnknown": "use the exact *OPT? hardware class rating when it is identified (SMU=medium, HPSMU=high); do not reduce the electrical limits; keep model-specific load-capacitance behavior unavailable until the exact model is identified",
+      "cvuModelUnknown": "do not silently substitute 4210-CVU limits; require exact SystemUtil model identification when connected, or explicit 4210-CVU/4215-CVU selection for offline planning",
       "externalAccessories": "CVIV, CVU-PWR and GNDU physical configuration must be verified separately; do not infer from *OPT?",
       "detailedQueries": "instrumentinfo and remotemoduleinfo are read-only SystemUtil KULT queries; integrate with UL/EX/GN/US sequence and always restore US in finally."
     },
@@ -1228,7 +1238,8 @@
         "high": 210
       },
       "interlockRequiredFor200VRange": true,
-      "note": "Use the range table and power envelope together. Do not treat headline maximum voltage and current as a simultaneously available rectangular operating area. Compliance must be between 10% and 100% of the selected range."
+      "note": "Use the range table and power envelope together. Do not treat headline maximum voltage and current as a simultaneously available rectangular operating area. Compliance must be between 10% and 100% of the selected range.",
+      "rangeOverrangeFactor": 1.05
     },
     "pulse": {
       "loadDefinition": "minimum expected total resistance at the pulse output connector, including DUT and interconnect",
@@ -1254,7 +1265,8 @@
           "timeResolutionS": 1e-8,
           "maxSegments": 2048,
           "maxSequences": 512,
-          "maxLoopsLibrary": 1000000000000
+          "maxLoopsLibrary": 1000000000000,
+          "minSegments": 1
         },
         "clariusExampleProfile": {
           "minSegments": 3,
@@ -1268,11 +1280,15 @@
           },
           "maxSegments": 2048,
           "maxSequences": 512,
-          "maxLoops": 1000000000
+          "maxLoops": 1000000000,
+          "role": "reference-example-only; not a hardware capability limit",
+          "notEnforced": true
         },
-        "enforceProfile": "clariusExampleProfile until DKTS direct KXCI library path is verified",
+        "enforceProfile": "hardware",
         "continuityRequired": true,
-        "channelSegmentDurationsMustMatch": true
+        "channelSegmentDurationsMustMatch": true,
+        "note": "The software enforces the published Segment ARB hardware range (20 ns to 40 s per segment, 10 ns resolution). Clarius example-library values are examples, not instrument limits.",
+        "timingPolicy": "Hard validation uses only published Segment ARB hardware limits (20 ns to 40 s per segment and 10 ns resolution). Typical/recommended PMU pulse width, transition and settling figures are displayed as performance guidance and warnings, not used to reduce the hardware timing range."
       },
       "fullArb": {
         "allowed": false,
@@ -1387,15 +1403,17 @@
       "revision": "checked 2026-11-05",
       "url": "https://www.tek.com/en/support/datasheets-manuals-software-downloads?series=Keithley+4200A-SCS+Parameter+Analyzer",
       "sections": [
-        "Datasheet 1KW-60780-7 updated 2026-03-12",
-        "Setup and Maintenance Manual 4200A-908-01 Rev.G updated 2025-07-03",
-        "KXCI Remote Control Programming 4200A-KXCI-907-01 Rev.E updated 2025-04-30",
-        "CVIV manual 4200A-CVIV-900-01 Rev.F updated 2025-04-30",
-        "Pulse Card Manual 4200A-PMU-900-01 Rev.C updated 2024-06-07",
-        "CVU manual 4200A-CVU-900-01 Rev.B updated 2023-03-31",
-        "SMU manual 4200A-SMU-900-01 Rev.A updated 2020-12-15"
+        "4200A-SCS datasheet 1KW-60780-7, latest official catalog listing dated 2026-10-22",
+        "4200A-PMU-900-01D Rev.D manual listing dated 2026-10-22 (direct manual page) and Rev.C dated 2024-06-07 (support-catalog listing); revision discrepancy requires verification",
+        "4200A-LPT-907-01E dated 2026-10-09",
+        "4200A-KXCI-907-01F dated 2026-10-09",
+        "4200A-914-01G Clarius manual dated 2026-10-09",
+        "4200A-908-01G Setup and Maintenance manual dated 2025-07-03",
+        "4200A-CVIV-900-01F dated 2025-04-30",
+        "4200A-CVU-900-01B dated 2023-03-31",
+        "4200A-SMU-900-01A dated 2020-12-15"
       ],
-      "note": "Catalog snapshot only. Numeric extraction in this database is explicitly linked to the accessible 2025 datasheet and application note pending a full diff against the 2026 datasheet."
+      "note": "Official catalog snapshot only. Numeric data still require a revision-by-revision comparison against the latest downloadable 2026 datasheet/manual files. Search result and catalog page disagree on the pulse-manual revision (Rev.D vs Rev.C); do not claim the 2026 Rev.D numeric content has been verified until its PDF is obtained."
     },
     {
       "id": "datasheet2025",
@@ -1413,7 +1431,7 @@
         "RPM",
         "Ground Unit"
       ],
-      "note": "Detailed numeric baseline extracted from this official 2025 datasheet. Official catalog now lists a 2026-03-12 edition; perform a revision diff before treating the values as latest."
+      "note": "Accessible official numerical baseline. The official support catalog lists a later 1KW-60780-7 release dated 2026-10-22; this database's numeric extraction has not yet been diffed against that later revision."
     },
     {
       "id": "setup2025",
@@ -1533,6 +1551,46 @@
         "Clarius Segment ARB library tests",
         "Appendix A: time per segment, number of segments, sequences, channel limits, loop count and transition constraints"
       ]
+    },
+    {
+      "id": "datasheet2026Catalog",
+      "title": "Tektronix official 4200A-SCS Parameter Analyzer Datasheet catalog entry",
+      "document": "1KW-60780-7",
+      "revision": "listed 2026-10-22",
+      "url": "https://www.tek.com/en/support/datasheets-manuals-software-downloads?model=4200A-SCS",
+      "sections": [
+        "Latest datasheet listing and revision date"
+      ],
+      "note": "Catalog confirms a newer 2026 release but does not expose the downloadable PDF URL or numeric table in the accessible page extract. Numeric values must be diffed against the PDF before the database is marked fully current."
+    },
+    {
+      "id": "pulseManual2026Catalog",
+      "title": "Tektronix official Model 4200A-SCS Pulse Card (PGU and PMU) User Manual catalog entry",
+      "document": "4200A-PMU-900-01D Rev.D per official manual detail page; Rev.C per support catalog",
+      "revision": "2026-10-22 (detail page listing; catalog discrepancy)",
+      "url": "https://www.tek.com/en/manual/parametric-analyzer/model-4200a-scs-pulse-card-pgu-and-pmu-users-manual-4200a-scs-parameter-analyzer",
+      "sections": [
+        "4220-PGU",
+        "4225-PMU",
+        "4225-RPM",
+        "Segment ARB",
+        "measurement timing"
+      ],
+      "note": "The official detail-page search result identifies Rev.D dated 2026-10-22, while the support catalog page currently lists Rev.C dated 2024-06-07. Obtain and diff the Rev.D PDF before updating numeric tables."
+    },
+    {
+      "id": "stableLowCurrent2019",
+      "title": "Making Stable Low Current Measurements with High Test Connection Capacitance Using the 4201-SMU and 4211-SMU",
+      "document": "Tektronix application note",
+      "revision": "official online application note; accessed 2026-11-05",
+      "url": "https://www.tek.com/en/documents/application-note/making-stable-low-current-measurements-high-test-connection-capacitance",
+      "sections": [
+        "4201-SMU and 4211-SMU maximum load capacitance",
+        "100 mA–1 A ranges: 100 µF",
+        "100 nA–10 mA ranges: 10 µF",
+        "4200-PA low-current ranges"
+      ],
+      "note": "Used to resolve the 4201-SMU 100 mA load-capacitance value; use the published 100 µF rating rather than a reduced 10 µF value."
     }
   ],
   "limitations": [
@@ -1546,13 +1604,7 @@
     "Full-ARB numeric limits are not included; DKTS must block that mode until verified from the current official manual.",
     "SMU point timing is an SDM cycle and depends on source delay, measurement integration, range, settling and auto-ranging."
   ],
-  "reviewStatus": {
-    "status": "reviewable-baseline",
-    "latestCatalogChecked": "2026-11-05",
-    "numericBaseline": "2025-03-20 official datasheet plus official application notes and manuals",
-    "latestRevisionGap": "The official support catalog lists a newer 2026-03-12 datasheet and 2025 Rev.G setup manual. The newer datasheet PDF content has not yet been extracted and diffed; do not claim this baseline is identical to the newest revision.",
-    "policyRule": "Unknown or conflicting ratings are recorded as null/blocked or use the stricter published value. Never infer a higher capability."
-  }
+  "reviewStatus": "partial; hardware limits in the accessible official 2025 datasheet and documented manuals are recorded; later 2026 document revisions are catalogued but not yet fully diffed"
 };
   if(typeof window!=='undefined')window.DKTS4200ACapabilities=database;
   if(typeof module!=='undefined'&&module.exports)module.exports=database;
