@@ -187,8 +187,8 @@
     if (!Number.isFinite(absV)) throw Error('SMU 电压不是有限数值');
     const range = mod.electrical.voltageRanges.filter(item => absV <= item.maxAbsV + 1e-12).sort((a,b) => a.maxAbsV - b.maxAbsV)[0];
     if (!range) throw Error('SMU 电压超过该模块 ±' + mod.electrical.maxSourceVoltageV + ' V 理论边界');
-    const powerLimitedComplianceA = absV > 0 ? mod.electrical.ratedMaxPowerW / absV : Infinity;
-    const maxComplianceA = Math.min(range.maxComplianceA, powerLimitedComplianceA);
+    const powerLimitedComplianceA = absV > 0 ? mod.electrical.ratedMaxPowerW / absV : null;
+    const maxComplianceA = Math.min(range.maxComplianceA, powerLimitedComplianceA ?? Infinity);
     const result = {
       known: true, moduleType: mod.type, powerClass: mod.powerClass, preamplifier: mod.preamplifier,
       voltageRangeNominalV: range.nominalV, maxAbsVoltageV: range.maxAbsV, maxComplianceA,
