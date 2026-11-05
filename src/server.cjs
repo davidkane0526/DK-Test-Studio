@@ -110,10 +110,10 @@ async function createAppServer(options={}){
         return json(res,200,{ok:true,plan:preview.plan,firstPoints:preview.firstPoints,truncated:preview.truncated});
       }
       if(typeof payload.text!=='string')return json(res,400,{error:'波形应为文本'});
-      const plan=parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadMode:payload.loadMode||'unknown'});
+      const plan=parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadOhms:payload.loadOhms});
       return json(res,200,{ok:true,count:plan.points.length,durationS:plan.durationS,
         minimumStepS:plan.minimumStepS,maximumStepS:plan.maximumStepS,
-        sourceType:plan.sourceType,loadMode:plan.loadMode,maxVoltageV:plan.maxVoltageV,
+        sourceType:plan.sourceType,loadOhms:plan.loadOhms,maxCurrentA:plan.maxCurrentA,maxVoltageV:plan.maxVoltageV,
         executable:false,hardwareVerified:false,
         preview:plan.points.length<=300?plan.points:plan.points.filter((_,i)=>i%Math.ceil(plan.points.length/300)===0)});
     }catch(error){
