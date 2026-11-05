@@ -29,7 +29,7 @@
 
 1. 下载并妥善保存私有签名包 `DKTS-Android-Signing-Kit.zip`（不要放入 Git、公共网盘或 Release），解压。
 2. 在自己的 Windows 电脑上使用 `Upload-DKTS-Signing.ps1`，脚本通过已授权的 `gh` 登录上传两个 Secrets。使用前请检查脚本源码：
-   `powershell -ExecutionPolicy Bypass -File .\\Upload-DKTS-Signing.ps1`
+   `powershell -ExecutionPolicy Bypass -File .\Upload-DKTS-Signing.ps1`
 3. 或到仓库 **Settings → Secrets and variables → Actions → New repository secret** 分别设置：
    - `DKTS_ANDROID_KEYSTORE_B64`：签名包内 .p12 文件内容的 Base64（不是文件路径）
    - `DKTS_ANDROID_SIGNING_PASSWORD`：签名包内密码
