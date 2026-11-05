@@ -532,6 +532,8 @@ function createWorkspaceStore(options = {}) {
   const changed=()=>{if(typeof options.onChange==='function')options.onChange();};
   let activeTabId=null;
   let tabSerial=0,idSerial=0;
+  let terminalConfig={source:'None',drain:'SMU1',gate:'None'};
+  let terminalProfiles=Object.create(null);
   const idFactory=typeof options.idFactory==='function'?options.idFactory:null;
   function clone(value){
     if(value===undefined)return undefined;
@@ -615,6 +617,31 @@ function createWorkspaceStore(options = {}) {
     const tab=findTab(id);if(!tab)return false;
     tab.activeMode=mode==null?null:requiredText(mode,'test mode');changed();return true;
   }
+  const validTerminal=value=>value==='None'||/^(?:SMU|VS|VM|PMU|VPU)[1-9](?:-[12])?$/.test(String(value));
+  function setTerminalConfig(next){
+    if(!next||typeof next!=='object')throw Error('端口配置格式无效');
+    const chosen={},used=new Set();
+    for(const role of ['source','drain','gate']){
+      const name=String(next[role]??'None');
+      if(!validTerminal(name))throw Error(role+' 端口不存在于允许的 4200A 逻辑通道格式中');
+      if(name!=='None'&&used.has(name))throw Error('同一个仪器通道不能重复分配给两个电极');
+      used.add(name);chosen[role]=name;
+    }
+    terminalConfig=chosen;changed();return clone(terminalConfig);
+  }
+  function getTerminalConfig(){return clone(terminalConfig);}
+  function saveTerminalProfile(name){
+    const label=requiredText(name,'端口配置名称').slice(0,48);
+    if(Object.keys(terminalProfiles).length>=100&&!Object.hasOwn(terminalProfiles,label))
+      throw Error('最多可保存 100 套端口配置');
+    terminalProfiles[label]=clone(terminalConfig);changed();return label;
+  }
+  function listTerminalProfiles(){return Object.keys(terminalProfiles).sort();}
+  function loadTerminalProfile(name){
+    const value=terminalProfiles[String(name??'')];
+    if(!value)throw Error('未找到指定端口配置');
+    return setTerminalConfig(value);
+  }
   function saveDraft(id,mode,draft){
     const tab=findTab(id),key=requiredText(mode,'test mode');
     if(!tab)return false;
@@ -691,7 +718,9 @@ function createWorkspaceStore(options = {}) {
       schema:'dkts.workspace.v2',
       activeTabId,tabSerial,idSerial,
       tabs:tabs.map(tab=>clone(tab)),
-      archivedTabs:archivedTabs.map(tab=>clone(tab))
+      archivedTabs:archivedTabs.map(tab=>clone(tab)),
+      terminalConfig:clone(terminalConfig),
+      terminalProfiles:clone(terminalProfiles)
     };
   }
   function restore(saved){
@@ -735,7 +764,33 @@ function createWorkspaceStore(options = {}) {
     for(const item of saved.tabs)next.push(restoreItem(item,false));
     if(!legacy)for(const item of saved.archivedTabs)
       archived.push(restoreItem(item,true));
+    const nextTerminalConfig=saved.terminalConfig||{source:'None',drain:'SMU1',gate:'None'};
+    const validatedProfiles=Object.create(null);
+    const values=[...Object.entries(saved.terminalProfiles||{})];
+    if(values.length>100)throw Error('端口配置数量超出限制');
+    for(const [name,terminal] of values){
+      if(!name||name.length>48||!terminal||typeof terminal!=='object'||Array.isArray(terminal))
+        throw Error('保存的端口配置格式无效');
+      const taken=new Set(),copy={};
+      for(const role of ['source','drain','gate']){
+        const value=String(terminal[role]??'None');
+        if(!validTerminal(value)||(value!=='None'&&taken.has(value)))
+          throw Error('保存的端口配置包含冲突或无效通道');
+        taken.add(value);copy[role]=value;
+      }
+      validatedProfiles[name]=copy;
+    }
+    const initial=new Set();
+    const checked={};
+    for(const role of ['source','drain','gate']){
+      const value=String(nextTerminalConfig[role]??'None');
+      if(!validTerminal(value)||(value!=='None'&&initial.has(value)))
+        throw Error('当前端口配置包含冲突');
+      initial.add(value);checked[role]=value;
+    }
     // Commit only after every open and archived entry has passed validation.
+    terminalProfiles=validatedProfiles;
+    terminalConfig=checked;
     tabs.splice(0,tabs.length,...next);
     archivedTabs.splice(0,archivedTabs.length,...archived);
     activeTabId=next.some(tab=>tab.id===saved.activeTabId)
@@ -750,6 +805,7 @@ function createWorkspaceStore(options = {}) {
     createTab,listTabs,listArchivedTabs,getTab,getActiveTab,activateTab,closeTab,
     reopenTab,deleteArchivedTab,renameTab,
     setMode,saveDraft,getDraft,getHistory,getData,recordRun,updateRun,
+    setTerminalConfig,getTerminalConfig,saveTerminalProfile,listTerminalProfiles,loadTerminalProfile,
     appendRunRows,selectRun,getActiveRunId,snapshot,restore
   });
 }
