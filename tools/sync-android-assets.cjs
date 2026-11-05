@@ -7,6 +7,8 @@ const root=path.resolve(__dirname,'..');
 const destination=path.join(root,'android/app/src/main/assets');
 const scripts=[
   'android/bootstrap.js',
+  'shared/4200a-capabilities-data.js',
+  'shared/4200a-safety-policy.js',
   'shared/kxci-protocol.js',
   'shared/measurement-plan.js',
   'shared/waveform.js',
@@ -33,7 +35,7 @@ function syncAssets(){
   }
   for(const file of ['app.js','styles.css'])
     fs.copyFileSync(path.join(root,'web',file),path.join(destination,file));
-  for(const file of ['kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'])
+  for(const file of ['4200a-capabilities-data.js','4200a-safety-policy.js','kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'])
     fs.copyFileSync(path.join(root,'src/shared',file),path.join(destination,'shared',file));
   for(const file of ['bootstrap.js','native-client.js'])
     fs.copyFileSync(path.join(root,'android/web',file),path.join(destination,'android',file));
