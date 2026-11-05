@@ -53,17 +53,25 @@ test('VS and VM logical channels inherit their physical SMU class and attached P
 });
 test('KXCI module inspection sends only fixed read-only metadata commands and caches results',async()=>{
  const writes=[];let lastQuery='';
- const server=net.createServer(socket=>socket.on('data',bytes=>{
-  const cmd=bytes.toString('ascii');writes.push(cmd);
-  if(cmd===protocol.IDN_REQUEST)socket.write('KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0');
-  else if(cmd===protocol.OPTIONS_REQUEST)socket.write(options+'\0');
-  else if(cmd===protocol.UL_REQUEST||cmd===protocol.DE_REQUEST){
-   // KXCI UL/DE are write-only mode switches; the real instrument sends no reply.
-  }else if(cmd===protocol.INSTRUMENT_INFO_REQUEST||cmd===protocol.REMOTE_MODULE_INFO_REQUEST){
-   if(cmd===protocol.INSTRUMENT_INFO_REQUEST)lastQuery='instrument';if(cmd===protocol.REMOTE_MODULE_INFO_REQUEST)lastQuery='remote';socket.write('OK\0');
-  }
-  else assert.fail('Unexpected KXCI command '+cmd);
- }));
+ const server=net.createServer(socket=>{
+  let pending='';
+  socket.on('data',bytes=>{
+   pending+=bytes.toString('ascii');
+   while(pending.includes('\0')){
+    const end=pending.indexOf('\0');
+    const cmd=pending.slice(0,end+1);pending=pending.slice(end+1);
+    writes.push(cmd);
+    if(cmd===protocol.IDN_REQUEST)socket.write('KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0');
+    else if(cmd===protocol.OPTIONS_REQUEST)socket.write(options+'\0');
+    else if(cmd===protocol.UL_REQUEST||cmd===protocol.DE_REQUEST){
+     // KXCI UL/DE are write-only mode switches; the real instrument sends no reply.
+    }else if(cmd===protocol.INSTRUMENT_INFO_REQUEST||cmd===protocol.REMOTE_MODULE_INFO_REQUEST){
+     if(cmd===protocol.INSTRUMENT_INFO_REQUEST)lastQuery='instrument';if(cmd===protocol.REMOTE_MODULE_INFO_REQUEST)lastQuery='remote';socket.write('OK\0');
+    }else if(cmd===protocol.GN_RESULT_REQUEST)socket.write((lastQuery==='instrument'?instrumentInfo:remoteInfo)+'\0');
+    else assert.fail('Unexpected KXCI command '+cmd);
+   }
+  });
+ });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const ctl=createIdentityController();
  try{
   const cfg={host:'127.0.0.1',port:server.address().port};assert.equal((await ctl.connect(cfg)).phase,'connected');
