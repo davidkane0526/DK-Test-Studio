@@ -6,7 +6,7 @@
 2. 宿主适配而非平台耦合：独立版在 Node/Electron 中使用 TCP；插件版使用 `ctx.services.require('tcp')`、`ctx.ui.*`、`ctx.project`、`ctx.capabilities`。共享领域模块不直接依赖 Electron、DOM、React Native 或 DKDS Core。
 3. 插件必须作为独立外部插件安装，禁止覆盖 DKDS 内置的 `com.dkds.keithley-4200`。独立插件 ID 为 `com.dkts.keithley-4200`，工作区和项目切片均为 `dkts-keithley-4200`，能力为 `instrument.dkts-keithley-4200`，Plugin API 为 `1.19.0`，当前开发插件版本 `0.6.14`。保留 `dkts.4200.interop.v1` 交换格式及旧 `com.dkds.keithley-4200` 方案导入兼容；旧项目中的 `plan.mode` 在导入时转成新的 `plan.kind`，不擅自更改实验参数。DKDS 原有项目切片不自动覆盖或迁移。
 4. 稳定的方案交换格式：`dkts.4200.interop.v1`。导出和导入都强制 `executable:false` 与 `hardwareVerified:false`，不允许通过导入配置触发硬件动作。未来新增数据格式必须版本化，并保留原始仪器数据、派生数据及仿真数据的独立来源标识。
-5. 统一的仪器安全边界：目前真实设备只发送 `*IDN?` 加 NUL；SMU/PMU 产生电压的执行层不开放。未来任何输出必须统一通过同一硬件能力验证、状态机、限流、紧急停止与故障关闭流程，不能为 DKDS 插件增加旁路。
+5. 统一的仪器安全边界：目前真实设备只发送固定只读命令：`*IDN?`、`*OPT?`，以及 `UL` 模式下的 `EX SystemUtil instrumentinfo(,4096,)`、`GN result`、`EX SystemUtil remotemoduleinfo(,4096,)`、`GN result`，最后以 `DE` 恢复 KXCI 系统模式。Android 原生桥接只允许这些精确字节序列；SMU/PMU 产生电压的执行层不开放。未来任何输出必须统一通过同一硬件能力验证、状态机、限流、紧急停止与故障关闭流程，不能为 DKDS 插件增加旁路。
 6. 同一仪器只能有一个控制者：当前两个应用都是独立 TCP 客户端，严禁同时连接同一台 4200A 进行操作。实时互联需要未来统一的仪器 Broker，包括会话租约、用户鉴权、独占锁、失联停止和日志审计。
 7. 发布前兼容性验证：每次修改 shared core 均运行 Windows/Ubuntu Node 测试、模拟 DKDS 插件激活测试、DK Data Studio SDK 1.19 验证与官方 `.dkplugin` 打包；SDK 通过不能代替真实 DKDS 中的插件安装与设备验收。
 
@@ -22,8 +22,8 @@ GitHub Actions 的 `DKDS Plugin API 1.19 compatibility` 任务会从 DK Data Stu
 - 4225-PMU 与 4220-PGU 波形规划边界按所选 10 V/40 V 量程及 DUT+互连总负载阻值计算。按 4200A 数据表的 50 Ω 源阻抗，`Vmax = Vrange × Rload / (50 Ω + Rload)`，`Imax = Vrange / (50 Ω + Rload)`。例如 40 V 档、50 Ω 负载时，最大输出约 20 V/400 mA；10 V 档、50 Ω 负载时约 5 V/100 mA。未填写有效负载阻值时拒绝校验。
 - SMU 电流限值按每个输出通道的 *OPT?* 中/高功率类别及其独立电压档分别计算：中功率 SMU（SMU/SMUPA）在 200 V 档不超过 10.5 mA、20 V 档不超过 105 mA；高功率 SMU（HPSMU/HPSMUPA）在 200 V 档不超过 105 mA、20 V 档不超过 1.05 A。若同时启用栅极 SMU，源通道与栅极通道分别计算并采用更严格的电流边界。*OPT?* 只报告中/高功率类别，不据此猜测具体 4200/4201/4210/4211 型号。未知模块不再套用猜测的 10.5 mA 数值。未知通道的电流上限保持 null，方案可用于非执行规划，但在模块识别前不能执行输出。
 - 所有数值校验只生成不可执行方案。硬件执行前仍必须依据真实插槽、模块型号、工作象限、所选电流档位和设备 interlock 重新验证；目前没有开放 SMU/PMU 输出命令。
-- 4200A 能力数据唯一来源为 src/shared/hardware-capabilities.js。运行 npm run hardware:export 可生成 DKTS-4200A-Hardware-Capability-Database-v1.json，并作为完整 Release 的独立资产发布。
-- *OPT? 解析区分 SMU/SMUPA/HPSMU/HPSMUPA、PMU/PMURPM、VPU/PGU、CVU、VS 和 VM。VS/VM 是 KXCI 逻辑角色，不冒充物理模块。CVU 型号变体未从 *OPT? 中识别时，不擅自选择 4210-CVU 或 4215-CVU 的专属规格。
+- 4200A 能力数据唯一来源为 `src/shared/hardware-capabilities.js`。运行 `npm run hardware:export` 可生成 `DKTS-4200A-Hardware-Capability-Database-v1.json`，并作为完整 Release 的独立资产发布。数据库同时记录 *OPT? 类别、SystemUtil 物理模块识别规则、参数边界、来源手册和安全策略。
+- `*OPT?` 中的 `HPSMUPA`、`PMU1RPM1-2` 等类别直接用于选择数据库额定值；具体 4200/4201/4210/4211 型号及校准信息由 `instrumentinfo` 补充。CVU 变体必须由物理型号确认，不擅自选择 4210-CVU 或 4215-CVU 的专属 AC 驱动规格。
 - PMU/PGU Segment Arb 按模块和 10 V/40 V 档分别校验最小分段时间、10 ns 时间分辨率、每序列最少 3 段及每通道最多 2048 段。PMU 采集校验同时考虑 200 MSa/s、KXCI 每通道 65536 点缓冲区和测量窗口。
 - 机箱功耗按 KXCI 手册的 500 W 公式计算；模块清单或活动通道不完整时，功耗状态标记为未知，不将未知模块功耗视为零。
 - 数据中心发布接口收到调用方传入的数组时标记为未验证导入数据，不再自动标记为原始仪器采集数据。只有未来真实采集执行器提供可信采集凭证后，才允许标记 rawInstrumentData:true。
