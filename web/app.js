@@ -178,9 +178,8 @@ async function loadCapabilities(){
 }
 async function exportCapabilities(){
   try{
-    const payload=await apiGet('/api/capabilities/export');
-    const database=payload.database||payload;
-    if(!database.databaseVersion||!database.modules)throw Error('导出文件内容不完整');
+    const database=capabilityState?.database;
+    if(!database?.databaseVersion||!database.modules)throw Error('能力数据库尚未加载，无法导出');
     if(window.DKTSClient&&typeof window.DKTSClient.saveCapabilityDatabase==='function'){
       const saved=await window.DKTSClient.saveCapabilityDatabase(database);
       showStatusMessage('已生成 '+saved.filename+'，请在系统分享面板中保存或发送','success');
