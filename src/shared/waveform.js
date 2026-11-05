@@ -41,7 +41,14 @@
       waveformMode = 'smu-voltage-list'; timingStatus = 'measurement-and-settling-dependent';
       if (normalized.some(point => Math.abs(point.voltageV) > maxVoltageV + 1e-12)) throw Error('电压超出 ' + (slot?.family === 'VS' ? 'VS ±20 V' : 'SMU ±210 V') + ' 规划范围');
       if (slot?.family === 'SMU') maxCurrentA = caps.getSmuLimits(slot, Math.max(...normalized.map(point => Math.abs(point.voltageV)))).maxComplianceA;
-      powerBudget = caps.calculateChassisPower({ inventory: options.inventory, activeSmuChannels: [channel, Number(options.measureSmU ?? channel)] });
+      const activeSmuChannels = [{ channel, family: slot?.family || 'SMU' }];
+      if (options.measureSmU !== undefined && options.measureSmU !== null) {
+        const measureChannel = Number(options.measureSmU);
+        const measureSlot = Array.isArray(options.inventory?.slots) ? options.inventory.slots.find(item => item?.family === 'SMU' && item.channel === measureChannel) : null;
+        if (!measureSlot) throw Error('指定的电流测量 SMU 通道未在 *OPT? 中识别');
+        activeSmuChannels.push({ channel: measureChannel, family: 'SMU' });
+      }
+      powerBudget = caps.calculateChassisPower({ inventory: options.inventory, activeSmuChannels });
     } else {
       rangeV = Number(options.rangeV ?? 10); loadOhms = Number(options.loadOhms);
       const limits = caps.getPulseOutputLimits(sourceType, rangeV, loadOhms);
