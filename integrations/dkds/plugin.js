@@ -90,7 +90,7 @@
       try{
         if(method==='GET'){
           if(route==='/api/status')return {status:200,data:{ok:true,...controller.status()}};
-          if(route==='/api/app/version')return {status:200,data:{version:'0.3.10'}};
+          if(route==='/api/app/version')return {status:200,data:{version:'0.3.11'}};
           if(route==='/api/ui/version')return {status:200,data:{version:'bundled',status:'disabled'}};
           if(route==='/api/workspaces')return {status:200,data:{ok:true,workspace:savedWorkspace}};
         }
