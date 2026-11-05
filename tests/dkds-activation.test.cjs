@@ -121,6 +121,9 @@ test('DKDS plugin displays the exact standalone app in a sandboxed workbench',as
   assert.equal(published.rowCount,2);
   assert.equal(v.artifacts.length,1);
   assert.equal(v.artifacts[0].metadata.rawInstrumentData,true);
+  assert.equal(v.artifacts[0].semanticType,'science.transport.iv');
+  assert.equal(v.artifacts[0].columns[0].key,'Vd');
+  assert.equal(v.artifacts[0].columns[1].key,'Id');
   assert.equal(v.artifacts[0].columns[1].values[1],2e-9);
   installed.deactivate();
   assert(v.frame.removed);
