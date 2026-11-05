@@ -174,11 +174,15 @@
     const startV=finite(input.startV,label+' 起点',-210,210);
     const stopV=finite(input.stopV,label+' 终点',-210,210);
     const stepV=finite(input.stepV,label+' 步长',-420,420);
+    const rangeA=String(input.rangeA??'auto').toLowerCase();
+    if(rangeA!=='auto'&&!SCIENTIFIC_RANGES.some(v=>
+      Math.abs(v-Number(rangeA))<=v*1e-12))
+      throw Error(label+' 电流档位必须为 4200A 支持的离散硬件档位');
     const delta=stopV-startV;
     if(delta===0){
       if(stepV!==0)throw Error(label+' 起止相同必须使用 0 步长');
       return Object.freeze({startV,stopV,stepV,points:1,
-        rangeA:String(input.rangeA??'auto').toLowerCase(),
+        rangeA,
         delayMs:input.delayMs==null||input.delayMs===''?null:
           finite(input.delayMs,label+' 点间延迟',0,6553)});
     }
@@ -191,7 +195,7 @@
     // Per-command KXCI list capacity, not a guessed hardware voltage limit.
     if(nearest+1>4096)throw Error(label+' 超过 KXCI 单段 4096 点，请拆分扫描段');
     return Object.freeze({startV,stopV,stepV,points:nearest+1,
-      rangeA:String(input.rangeA??'auto').toLowerCase(),
+      rangeA,
       delayMs:input.delayMs==null||input.delayMs===''?null:
         finite(input.delayMs,label+' 点间延迟',0,6553)});
   }
@@ -277,6 +281,8 @@
         throw Error(role+' 的电流保护模式无效');
       const rangeA=String(entry.rangeA??'1e-6').toLowerCase();
       const complianceA=positive(entry.complianceA??1e-4,role+' 电流保护值');
+      if(complianceA>1.05+1e-15)
+        throw Error(role+' 电流保护值超过 4200A 高功率 SMU 的理论上限 1.05 A');
       if(rangeMode!=='auto'&&!SCIENTIFIC_RANGES.some(v=>String(v)===String(Number(rangeA))))
         throw Error(role+' 固定量程/自动量程下限必须为原厂支持的离散档位');
       portSettings[role]=Object.freeze({rangeMode,complianceMode,rangeA,complianceA});
@@ -288,37 +294,66 @@
       slotForRole[role]=slot;
       if(!configured||!slot)continue;
       const ownAxis=x.terminal===role?x:p?.terminal===role?p:null;
-      const voltageMax=ownAxis
-        ?Math.max(...ownAxis.segments.flatMap(z=>[Math.abs(z.startV),Math.abs(z.stopV)]))
-        :Math.abs(fixedVoltages[role]);
-      const lim=caps?.getSourceLimits?.(slot,voltageMax);
-      if(lim?.known===true){
-        if(voltageMax>lim.maxAbsVoltageV+1e-12)throw Error(role+' 电压超出实装模块能力');
+      // Validate independently for each voltage segment. A 2 V / 100 mA
+      // segment must not inherit the 200 V / 10.5 mA envelope of a later
+      // segment on the same SMU.
+      const segmentRanges=ownAxis?ownAxis.segments:[
+        {startV:fixedVoltages[role],stopV:fixedVoltages[role],rangeA:'auto'}];
+      const checkedSegments=[];
+      for(const [i,segment] of segmentRanges.entries()){
+        const segmentMaxVoltageV=Math.max(Math.abs(segment.startV),
+          Math.abs(segment.stopV));
+        const lim=caps?.getSourceLimits?.(slot,segmentMaxVoltageV);
+        if(lim?.known!==true){
+          checkedSegments.push(Object.freeze({segment:i+1,known:false}));
+          continue;
+        }
+        if(segmentMaxVoltageV>lim.maxAbsVoltageV+1e-12)
+          throw Error(role+' 第 '+(i+1)+' 段电压超出实装模块能力');
         const supported=lim.availableCurrentRangesA||[];
         function ensureRange(value,label){
           if(!supported.some(v=>Math.abs(v-value)<=Math.max(v,value)*1e-10))
-            throw Error(label+' 不受已识别模块支持');
+            throw Error(label+' 不受已识别模块在当前电压段支持');
         }
-        if(rangeMode!=='auto')ensureRange(Number(rangeA),role+' 电流测量档位');
-        const segmentRanges=ownAxis?ownAxis.segments:[{rangeA:'auto'}];
-        for(const [i,segment] of segmentRanges.entries()){
-          const specific=segment.rangeA!=='auto'?Number(segment.rangeA):null;
-          if(specific!=null)ensureRange(specific,role+' 第 '+(i+1)+' 段电流档位');
-          const range=specific ?? (rangeMode==='fixed'?Number(rangeA):null);
-          const limit=complianceMode==='custom'?complianceA:(range??complianceA);
-          const checked=caps.getSourceLimits(slot,voltageMax,limit);
-          if(range){
-            const fraction=caps.DATABASE.modules[checked.moduleType].electrical.complianceMinFractionOfRange;
-            const factor=caps.DATABASE.modules[checked.moduleType].electrical.rangeOverrangeFactor;
-            if(limit<range*fraction-1e-15||limit>range*factor+1e-15)
-              throw Error(role+' 第 '+(i+1)+' 段电流保护值 '+formatCurrentRange(limit)+
-                ' A 与固定档位 '+formatCurrentRange(range)+' A 不匹配');
-          }
+        if(rangeMode!=='auto')
+          ensureRange(Number(rangeA),role+' 电流量程/自动下限');
+        const specific=segment.rangeA!=='auto'?Number(segment.rangeA):null;
+        if(specific!==null)
+          ensureRange(specific,role+' 第 '+(i+1)+' 段电流档位');
+        const selectedRange=specific??(rangeMode==='fixed'?Number(rangeA):null);
+        const limit=complianceMode==='custom'?complianceA:
+          (selectedRange??complianceA);
+        const checked=caps.getSourceLimits(slot,segmentMaxVoltageV,limit);
+        if(selectedRange!==null){
+          const electrical=caps.DATABASE.modules[checked.moduleType].electrical;
+          const fraction=electrical.complianceMinFractionOfRange;
+          const factor=electrical.rangeOverrangeFactor;
+          if(limit<selectedRange*fraction-1e-15||
+             limit>selectedRange*factor+1e-15)
+            throw Error(role+' 第 '+(i+1)+' 段电流保护值 '+formatCurrentRange(limit)+
+              ' A 与固定档位 '+formatCurrentRange(selectedRange)+' A 不匹配');
         }
-        limitsByRole[role]=Object.freeze({known:true,moduleType:lim.moduleType,
-          maxComplianceA:lim.maxComplianceA,minComplianceA:lim.minComplianceA,
-          currentRangesA:[...supported]});
-      }else limitsByRole[role]=Object.freeze({known:false});
+        checkedSegments.push(Object.freeze({
+          segment:i+1,known:true,maxAbsVoltageV:segmentMaxVoltageV,
+          maxComplianceA:checked.maxComplianceA,
+          minComplianceA:checked.minComplianceA,
+          currentRangesA:[...supported],selectedRangeA:selectedRange,
+          requestedComplianceA:limit
+        }));
+      }
+      if(checkedSegments.every(segment=>segment.known)){
+        limitsByRole[role]=Object.freeze({
+          known:true,moduleType:slot.type,
+          // Summary is the intersection; each segment retains its own
+          // higher capability in segmentLimits for hardware command planning.
+          maxComplianceA:Math.min(...checkedSegments.map(z=>z.maxComplianceA)),
+          minComplianceA:Math.max(...checkedSegments.map(z=>z.minComplianceA)),
+          currentRangesA:[...new Set(checkedSegments.flatMap(z=>z.currentRangesA))],
+          segmentLimits:checkedSegments
+        });
+      }else limitsByRole[role]=Object.freeze({
+        known:false,segmentLimits:checkedSegments
+      });
     }
     const roles=DC_ROLES.filter(role=>!['None','GNDU'].includes(terminalChannels[role]));
     const powerBudget=caps?.calculateChassisPower?.({
