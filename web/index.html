@@ -26,7 +26,7 @@
   <div class="titlebar-brand">
     <span class="titlebar-logo" aria-hidden="true">DK</span>
     <strong>DK Test Studio</strong>
-    <button type="button" id="native-version-badge" class="native-version-badge" aria-expanded="false" aria-controls="ui-version-badge" aria-label="检查 UI 热更新">V0.3.11</button>
+    <button type="button" id="native-version-badge" class="native-version-badge" aria-expanded="false" aria-controls="ui-version-badge" aria-label="检查 UI 热更新">V0.3.12</button>
     <div id="ui-version-badge" class="ui-version-badge" role="status" aria-live="polite" hidden>
       <strong id="ui-version-text">a0</strong>
       <span id="ui-update-state">正在检查 UI 热更新…</span>
@@ -109,6 +109,11 @@
       </form>
     </details>
     <p id="connection-hint" class="subtle">默认自动连接，无需手动操作。更改设置后点击重新连接。</p>
+    <div class="connection-detail capability-database-detail">
+      <div><span>安全数据库</span><strong id="capability-db-version">加载中…</strong></div>
+      <div><span>数据库说明</span><strong>所有量程与安全规则由共享 JSON 数据库驱动</strong></div>
+    </div>
+    <button type="button" id="export-capabilities" class="small-action">导出 4200A 模块能力与安全策略 JSON</button>
   </div>
   <div class="dialog-actions">
     <button id="disconnect-instrument" type="button">断开连接</button>
@@ -187,7 +192,7 @@
         <label class="it-only" hidden>固定偏置 (V)<input type="number" step="any" name="fixedV" value="0.1" min="-210" max="210"></label>
         <label>每循环点数<input type="number" min="2" max="100000" name="points" value="101"></label>
         <label>循环次数<input type="number" min="1" max="10000" name="loops" value="3"></label>
-        <label>规划电流限值 (A，按已识别 SMU 与电压档校验)<input type="number" step="any" name="complianceA" value="0.0001" min="0.000000000001" max="1.05"></label>
+        <label>规划电流限值 (A，按已识别 SMU 与电压档校验)<input type="number" step="any" name="complianceA" value="0.0001" min="0.00000001" max="0.105"></label>
         <details class="span-two settings">
           <summary>高级测试设置（通道与速度）</summary>
           <div class="advanced-grid">
@@ -215,8 +220,8 @@
                   <option value="pmu">4225-PMU</option>
                   <option value="pgu">4220-PGU</option>
                 </select></label>
-                <label id="waveform-load-control" hidden>最小预计总负载阻值（Ω）
-                  <input id="waveform-load-ohms" type="number" min="0.01" max="1000000000" step="any" value="50">
+                <label id="waveform-load-control" hidden>最小预计总负载阻值（DUT + 互连，Ω）
+                  <input id="waveform-load-ohms" type="number" min="0.000001" max="1000000000" step="any" placeholder="必须填写最小总负载阻值">
                 </label>
                 <label id="waveform-range-control" hidden>PMU/PGU 输出量程
                   <select id="waveform-range-v">
@@ -224,7 +229,45 @@
                     <option value="40">40 V 档</option>
                   </select>
                 </label>
-
+                <label id="waveform-dut-current-control" hidden>DUT 允许最大电流（A）
+                  <input id="waveform-dut-current" type="number" min="0.000000000001" max="0.8" step="any" placeholder="必须填写 DUT 电流上限">
+                </label>
+                <label id="waveform-measure-mode-control" hidden>PMU 测量方式
+                  <select id="waveform-measure-mode">
+                    <option value="current">测量电流</option>
+                    <option value="both">同步测量电压与电流</option>
+                    <option value="voltage">测量电压</option>
+                    <option value="none">仅输出，不测量</option>
+                  </select>
+                </label>
+                <label id="waveform-current-range-control" hidden>PMU 电流测量量程（A）
+                  <select id="waveform-current-range">
+                    <option value="">自动选择最高可用量程</option>
+                    <option value="0.0000001">100 nA</option>
+                    <option value="0.000001">1 µA</option>
+                    <option value="0.00001">10 µA</option>
+                    <option value="0.0001">100 µA</option>
+                    <option value="0.001">1 mA</option>
+                    <option value="0.01">10 mA</option>
+                    <option value="0.2">200 mA</option>
+                    <option value="0.8">800 mA</option>
+                  </select>
+                </label>
+                <label id="waveform-measure-window-control" hidden>PMU 测量窗口（ns，留空使用量程推荐值）
+                  <input id="waveform-measure-window" type="number" min="1" max="1000000000" step="any" placeholder="自动采用数据库推荐最小值">
+                </label>
+                <label id="waveform-smu-delay-control">SMU 源延迟（ms）
+                  <input id="waveform-smu-delay" type="number" min="0" max="60000" step="any" value="20">
+                </label>
+                <label id="waveform-smu-integration-control">SMU 测量积分时间（ms）
+                  <input id="waveform-smu-integration" type="number" min="0.001" max="60000" step="any" value="20">
+                </label>
+                <label id="waveform-card-control" hidden>模块编号（KXCI）
+                  <input id="waveform-card" type="number" min="1" max="9" step="1" value="1">
+                </label>
+                <label id="waveform-channel-control" hidden>输出通道
+                  <select id="waveform-channel"><option value="1">CH1</option><option value="2">CH2</option></select>
+                </label>
               </div>
               <label for="waveform-text" class="input-title">时间 (s)、电压 (V)，每行一组</label>
               <textarea id="waveform-text" spellcheck="false">0, 0
