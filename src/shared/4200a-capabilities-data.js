@@ -221,7 +221,7 @@
       "hasPreamplifier": false,
       "loadCapacitance": {
         "maxF": 1e-8,
-        "qualification": "4200-SMU/4210-SMU base model; use conservative 10 nF limit"
+        "qualification": "Published base-model maximum load capacitance: 10 nF across the listed current ranges."
       },
       "evidence": [
         "datasheet2025",
@@ -415,7 +415,7 @@
       "hasPreamplifier": false,
       "loadCapacitance": {
         "maxF": 1e-8,
-        "qualification": "4200-SMU/4210-SMU base model; use conservative 10 nF limit"
+        "qualification": "Published base-model maximum load capacitance: 10 nF across the listed current ranges."
       },
       "evidence": [
         "datasheet2025",
