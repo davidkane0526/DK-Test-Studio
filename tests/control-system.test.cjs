@@ -27,7 +27,7 @@ test('two frequent selects are progressively enhanced without changing form inpu
   assert.match(html,/<select name="direction">/);
   assert.equal((html.match(/<select /g)||[]).length,4);
   assert.match(html,/<select id="waveform-source-type">/);
-  assert.match(html,/<select id="waveform-load-mode">/);
+  assert.match(html,/<select id="waveform-range-v">/);
   assert.match(app, /function enhanceWorkspaceSelects\(\)/);
   assert.match(app,/document\.querySelectorAll\('select:not\(\[multiple\]\)'\)/);
   assert.match(app,/source\.hidden=true/);
