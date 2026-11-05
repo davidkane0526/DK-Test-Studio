@@ -39,6 +39,13 @@ test('Segment Arb accepts the documented 40 s hardware segment while exposing th
   assert.equal(w.executable,false);
   assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:40.00000001,voltageV:1},{timeS:80.00000002,voltageV:0},{timeS:120.00000003,voltageV:1}],{sourceType:'pmu',loadOhms:50,rangeV:10,inventory}),/分段时间/);
 });
+test('KXCI Segment Arb arrays over 128 values are planned for command chunking, not rejected',()=>{
+  const points=Array.from({length:130},(_,i)=>({timeS:i*20e-9,voltageV:0}));
+  const w=validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,inventory});
+  assert.equal(w.interfaceLimits.requiresCommandChunking,true);
+  assert.equal(w.interfaceLimits.requiresAlternateBackend,false);
+  assert.equal(w.interfaceLimits.maxSegmentsPerCommand,128);
+});
 test('PGU source-only uses its own 10 V minimum segment time and cannot capture current',()=>{
   const points=[{timeS:0,voltageV:0},{timeS:1e-8,voltageV:1},{timeS:2e-8,voltageV:0},{timeS:3e-8,voltageV:1}];
   const w=validateWaveform(points,{sourceType:'pgu',loadOhms:50,rangeV:10,inventory:pguInventory});
