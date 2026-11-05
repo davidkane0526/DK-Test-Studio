@@ -158,8 +158,9 @@
         (slot.family==='CVU'&&Boolean(variant))||
         (['VS','VM'].includes(slot.family)&&Boolean(physicalType))
       );
+      const channel=slot.family==='PMU'&&slot.channel==null?Number(record?.name?.match(/^PMU([1-9])$/i)?.[1]||0)||null:slot.channel;
       const enriched=Object.freeze({
-        ...slot,type,physicalType,basePhysicalType,physicalModel:record?.model||null,
+        ...slot,channel,cardIndex:['PMU','PGU'].includes(slot.family)?channel:slot.cardIndex,type,physicalType,basePhysicalType,physicalModel:record?.model||null,
         physicalName:record?.name||null,physicalSerialNo:record?.serialNo||null,
         hardwareVersion:record?.hardwareVersion||'',firmwareVersion:record?.firmwareVersion||'',
         calibrationDate:record?.calibrationDate||'',calibrationDueDate:record?.calibrationDueDate||'',
