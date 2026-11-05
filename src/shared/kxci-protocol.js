@@ -73,14 +73,17 @@
   }
   function parseInstrumentInfo(value){return parseKultRecords(value,'instrumentinfo',false);}
   function parseRemoteModuleInfo(value){return parseKultRecords(value,'remotemoduleinfo',true);}
-  function expectedInstrumentName(family,name){
+  function expectedInstrumentName(family,name,channel=null){
     const n=String(name||'').toUpperCase();
-    if(['SMU','VS','VM'].includes(family))return /^(SMU|HPSMU|SMUPA|HPSMUPA)\d+$/.test(n);
-    if(family==='PMU')return /^PMU\d+$/.test(n);
-    if(family==='PGU')return /^(VPU|PGU)\d+$/.test(n);
-    if(family==='CVU')return /^CVU\d+$/.test(n);
-    if(family==='CVIV')return /^CVIV\d+$/.test(n);
-    return false;
+    let m=null;
+    if(['SMU','VS','VM'].includes(family))m=/^(SMU|HPSMU|SMUPA|HPSMUPA)(\d+)$/.exec(n);
+    else if(family==='PMU')m=/^PMU(\d+)$/.exec(n);
+    else if(family==='PGU')m=/^(VPU|PGU)(\d+)$/.exec(n);
+    else if(family==='CVU')m=/^CVU(\d+)$/.exec(n);
+    else if(family==='CVIV')m=/^CVIV(\d+)$/.exec(n);
+    if(!m)return false;
+    const number=Number(m[m.length-1]);
+    return channel==null||number===Number(channel);
   }
   function modelSmUClass(model){
     const m=String(model||'').toUpperCase();
