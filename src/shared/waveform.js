@@ -94,7 +94,7 @@
             ? Number(options.measureWindowS) * pulseCount * sweepPoints * stepPoints
             : null;
         if (totalMeasureDurationS === null) throw Error('PMU 电流采集必须提供总测量窗口累计时长，或提供测量窗口及脉冲数、扫描点数和步进点数；不能用输出波形总时长代替测量时长');
-        captureBudget = caps.getPmuCaptureBudget(totalMeasureDurationS, options.measureWindowS, options.sampleRateHz, { pulseCount, sweepPoints, stepPoints });
+        captureBudget = caps.getPmuCaptureBudget(totalMeasureDurationS, options.measureWindowS, options.sampleRateHz, { pulseCount, sweepPoints, stepPoints, totalMeasureDurationSource: options.totalMeasureDurationS !== undefined && options.totalMeasureDurationS !== null ? 'explicit-total-measure-duration' : 'measure-window-times-pulse-sweep-step-counts' });
         if (options.measurementRangeA !== undefined && options.measurementRangeA !== null) {
           try { timingRecommendation = caps.getPulseTimingRecommendation(rangeV, options.measurementRangeA, true, 'pmu', rpm, Math.max(...normalized.map(point => Math.abs(point.voltageV)))); } catch { timingRecommendation = null; }
         }
