@@ -20,7 +20,13 @@ test('planning rejects invalid limits, missing values, and channel conflicts',()
   assert.throws(()=>normalizePlan({kind:'pund'}),/尚未/);
   assert.throws(()=>normalizePlan({startV:211}),/规划范围/);
   assert.equal(normalizePlan({startV:210,stopV:-210}).startV,210);
-  assert.throws(()=>normalizePlan({complianceA:1.051}),/规划范围/);
+  assert.throws(()=>normalizePlan({startV:1000}),/规划范围/);
+  assert.throws(()=>normalizePlan({complianceA:0.011}),/规划范围/,
+    'Unknown SMU identity must use the conservative 10.5 mA ceiling');
+  assert.equal(normalizePlan({sourceModel:'4200-SMU',startV:200,stopV:200,complianceA:0.0105}).maxComplianceA,0.0105);
+  assert.equal(normalizePlan({sourceModel:'4210-SMU',startV:200,stopV:200,complianceA:0.1}).maxComplianceA,0.105);
+  assert.equal(normalizePlan({sourceModel:'4210-SMU',startV:20,stopV:20,complianceA:1}).maxComplianceA,1.05);
+  assert.throws(()=>normalizePlan({sourceModel:'mystery-smu'}),/未识别/);
   assert.throws(()=>normalizePlan({points:0}),/规划范围/);
   assert.throws(()=>normalizePlan({gateSmU:1,sourceSmU:1}),/不得/);
   assert.throws(()=>normalizePlan({complianceA:''}),/不能为空/);
