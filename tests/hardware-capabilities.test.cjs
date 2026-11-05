@@ -60,10 +60,10 @@ test('chassis power is calculated from KXCI inventory and active test channels',
 });
 test('KXCI option parsing distinguishes RPM bindings and logical VS/VM roles', () => {
   const p = protocol.parseOptions('SMU1,HPSMUPA2,PMU1RPM1-2,VPU1,CVU1,VS1,VM1');
-  assert.equal(p.knownModules.length, 7);
+  assert.equal(p.knownModules.length, 4);
   assert.equal(p.slots[2].type, 'PMURPM');
   assert.equal(p.slots[2].rpmCount, 2);
   assert.equal(p.slots[3].family, 'PGU');
-  assert.equal(p.slots[5].capabilityStatus, 'role-only');
+  assert.equal(p.slots[5].capabilityStatus, 'physical-variant-required');
   assert.equal(p.hardwareLimitsVerified, false);
 });
