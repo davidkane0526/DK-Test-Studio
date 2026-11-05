@@ -28,23 +28,23 @@
 Android UI 热更新采用与 Windows 相同的界面文件，同时识别 `DKTSNative` 原生宿主并启用独立的 Android 样式。对 targetSdk 35 的 Android 15+ 系统栏采用 CSS `safe-area-inset-*` 避让，兼顾竖屏两列测试卡片、横屏布局和更大的底部触控区域。**目前是代码和自动化测试覆盖，尚未在目标 Android 平板实机截图验收**。
 Android 使用本机 WebView 工作台、独立原生 Java TCP 网络桥接（可绑定 USB Ethernet / Wi-Fi Network）和与 Windows / DKDS 插件 **字节完全一致** 的 `src/shared/` 协议及测试规划核心。当前安全边界只允许固定身份、模块类别与物理模块元数据只读命令，不开放任意 KXCI 命令。
 
-CI 将通过独立 Android 构建任务生成 APK，并将其与 Windows Setup、Portable、DKDS `.dkplugin` 共同发布到同一次 GitHub 预览 Release。详情见 [Android 构建与网络说明](android/README.md)。
+CI 将通过独立 Android 构建任务生成 APK，并将其与 Windows Portable、DKDS `.dkplugin` 共同发布到同一次 GitHub 预览 Release。详情见 [Android 构建与网络说明](android/README.md)。
 
 ## 版本标识与原生图标
 
 软件标题右侧会显示独立的 **UI 资源版本**（`UI <Git commit 前8位>`），鼠标悬停可查看完整 40 位提交号。每次 GitHub 热更新包生成时，在 Windows 和 Android 的 HTML 中嵌入相同的 Git SHA；刷新页面后同步显示新版本。离线内置界面标为“UI 内置版”。`UI` 版本与原生安装包版本是两条独立版本线，不应混为一谈。
 
-Windows 应用图标、任务栏、任务管理器、安装包 EXE，以及 Android 启动图标来自同一套 **DK Test Studio 原生图标源**。通过 `npm run icons:build` 用无外部依赖的矢量几何绘制器生成多分辨率 `build/icon.ico`、Electron 窗口图标和 Android 各密度 `mipmap` 图标。Windows 启动时设置 `AppUserModelID`，打包时将同一图标嵌入安装版与便携版 EXE。这些属于原生资源，必须在首次切换时重新构建安装包；之后普通 UI 修改不影响图标，也无需重新构建。
+Windows 应用图标、任务栏、任务管理器、便携版 EXE，以及 Android 启动图标来自同一套 **DK Test Studio 原生图标源**。通过 `npm run icons:build` 用无外部依赖的矢量几何绘制器生成多分辨率 `build/icon.ico`、Electron 窗口图标和 Android 各密度 `mipmap` 图标。Windows 启动时设置 `AppUserModelID`，打包时将同一图标嵌入便携版 EXE。这些属于原生资源，必须在首次切换时重新构建安装包；之后普通 UI 修改不影响图标，也无需重新构建。
 
 ## 界面热更新（快速开发模式）
 
 **每次向 `main` 推送任何更改，都执行全平台完整构建。热更新只是额外的快速体验渠道，不替代原生安装包。**
 
-1. `Native Shell Windows Android and DKDS Release` 在**每一次 `main` 提交**时运行，不限制修改路径，也不取消排队中的旧提交。分别构建 Windows Setup、Windows Portable、独立 Android APK、DKDS 插件以及 UI 更新资源。
-2. 六项资产全部通过测试和构建后，发布到唯一的 `dkts-preview-v<package version>-a<run number>` Release，并检查 **6/6** 资产完整性。即使后来有新提交，较早一次构建成功也仍应发布，不因 HEAD 已变化而拒绝。
+1. `Native Shell Windows Android and DKDS Release` 在**每一次 `main` 提交**时运行，不限制修改路径，也不取消排队中的旧提交。只构建 Windows Portable、独立 Android APK、DKDS 插件以及 UI 更新资源。
+2. 五项资产全部通过测试和构建后，发布到唯一的 `dkts-preview-v<package version>-a<run number>` Release，并检查 **5/5** 资产完整性。即使后来有新提交，较早一次构建成功也仍应发布，不因 HEAD 已变化而拒绝。
 3. `Fast UI Hot Update` 同样在每次提交时运行，另行发布 `dkts-ui-<commit SHA>` 资源包；若该提交已不是最新 HEAD，则跳过*过时的热更新*，防止旧内容覆盖新版本，但对应的完整构建仍继续并发布。
 4. 已安装的独立 Windows 与 Android 软件启动时以及约每 3 分钟检查一次热更新，验证后从私有缓存刷新；离线继续运行已安装版本。
-5. Release 必须分别提供 Windows 安装版、Windows 便携版、独立 Android APK、DKDS 插件和轻量 UI 更新资源。汇报开发结果时同时附上实际发布并验证的 Release 链接；不可用 Actions 地址冒充已完成的 Release。
+5. Release 必须分别提供 Windows Portable、独立 Android APK、DKDS 插件、UI 更新资源和硬件能力数据库。汇报开发结果时同时附上实际发布并验证的 Release 链接；不可用 Actions 地址冒充已完成的 Release。
 
 **第一次必须安装一次具有热更新能力的新壳**：首次支持热更新的四文件原生版是 [dkts-preview-41591728008](https://github.com/davidkane0526/DK-Test-Studio/releases/tag/dkts-preview-41591728008)。旧版不具备自动拉取资源包能力。Android 当前是调试签名 APK，如签名不同可能需要卸载旧预览版。
 
@@ -71,7 +71,7 @@ npm start
 npm run dist:win
 ~~~
 
-GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，并构建 Windows Setup/Portable、独立 Android APK、DKDS 插件与热更新资源，完成后统一发布到 GitHub Release。每次发布必须核对 6 个文件，未成功构建则不能声称 Release 已发布。测试通过不等于完成真实仪器验收。
+GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，并构建 Windows Portable、独立 Android APK、DKDS 插件与热更新资源，完成后统一发布到 GitHub Release。每次发布必须核对 5 个文件，未成功构建则不能声称 Release 已发布。测试通过不等于完成真实仪器验收。
 
 ## 安全与控制边界
 
@@ -87,7 +87,7 @@ GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，
 
 标题栏中 UI 版本右侧保留固定分隔线。标签页代表独立工作区或样品上下文，不再以测试方式作为标签唯一标识。每个工作区使用独立 ID 和可编辑名称，允许多个工作区选择相同测试方式；同一工作区内也可以切换 I–V、I–t 等测试方式。参数草稿、测试历史和原始采样数据均按“工作区 ID → 测试方式 → 测试运行”隔离。桌面端双击标签重命名，Android 长按标签重命名。切换工作区或测试方式不会覆盖其他历史和数据；关闭工作区只清理该工作区的会话状态。各标签的关闭按钮使用 SVG 居中绘制，避免文字 × 受字体基线影响产生偏移。
 
-独立 Android APK 默认隐藏系统顶部状态栏的时间、蓝牙、Wi-Fi 等图标，保留底部系统导航手势/导航栏。标题栏在隐藏系统栏后上移至屏幕顶端，使用较紧凑高度。沉浸式模式的原生状态栏修改需要安装新 APK，仅靠热更新无法生效。Windows/Android 完整构建均在打包前嵌入本次 Git SHA，离线启动也显示 UI 版本；每次完整提交仍发布全部六项资产。
+独立 Android APK 默认隐藏系统顶部状态栏的时间、蓝牙、Wi-Fi 等图标，保留底部系统导航手势/导航栏。标题栏在隐藏系统栏后上移至屏幕顶端，使用较紧凑高度。沉浸式模式的原生状态栏修改需要安装新 APK，仅靠热更新无法生效。Windows/Android 完整构建均在打包前嵌入本次 Git SHA，离线启动也显示 UI 版本；每次完整提交仍发布全部五项资产。
 
 ## 双版本号
 
@@ -138,7 +138,7 @@ Android v0.2.4 开始采用固定签名的 `assembleRelease` APK。GitHub Action
 
 Android 绘图区允许普通单指页面滚动；双指缩放操作由 DKTS 宿主适配 DKDS 的 relayout API；可拖动的工具条使用 DKDS 自有手柄及触控拖拽实现。工具按钮换成轻量 SVG 图标，工具条半透明度、阴影和悬停效果已统一。去掉原生版本按钮和其父元素的 `title`，避免 Windows 上出现黑边系统 Tooltip。
 
-因为本次引入新的绘图运行时，UI 热更新资源需要 `minShell:2`。v0.2.6 及更老的安装包不会加载不兼容的新图表界面；请先安装 v0.2.7。桌面端优先使用 Portable EXE，安装版仅保留兼容构建。
+因为本次引入新的绘图运行时，UI 热更新资源需要 `minShell:2`。v0.2.6 及更老的安装包不会加载不兼容的新图表界面；请先安装 v0.2.7。桌面端只发布 Portable EXE，不发布 Setup 安装版。
 
 
 ## v0.3.0 工作区标签、历史与 Android 手势
@@ -168,4 +168,4 @@ Windows 便携版使用 Electron userData 目录的 workspace-state.json，写�
 - 上述 KXCI 接口数值来自可下载并核对内容的 Rev. E 手册。Tektronix 当前支持索引已列出 Rev. F（2026-10-09），但当前可访问的手册详情页仍返回 Rev. E，因此 Rev. E 接口边界在数据库中标为待 Rev. F 正文复核，不作为硬件能力上限。
 - 加入 4200A 500 W 机箱功耗模型。只有完整识别安装模块和活动通道时才给出确定预算。
 - 当前版本只允许固定的 *IDN?、*OPT? 和 SystemUtil 物理模块元数据只读查询，不开放任意 KXCI 指令或 SMU/PMU/PGU 输出。调用方提供的 X/Y 数组不会被误标记为原始仪器数据。
-- 完整发布资产为 Windows Setup、Windows Portable、Android APK、DKDS 插件、UI 热更新包及硬件能力数据库，共 6 项。
+- 完整发布资产为 Windows Portable、Android APK、DKDS 插件、UI 热更新包及硬件能力数据库，共 5 项。
