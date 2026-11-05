@@ -32,11 +32,11 @@ test('planning rejects invalid limits, missing values, and channel conflicts',()
   assert.equal(normalizePlan({startV:210,stopV:-210},medium).startV,210);
   assert.throws(()=>normalizePlan({startV:1000},medium),/规划范围/);
   assert.throws(()=>normalizePlan({complianceA:''},medium),/不能为空/);
-  assert.throws(()=>normalizePlan({startV:200,stopV:200,complianceA:0.0106},medium),/规划范围/);
+  assert.throws(()=>normalizePlan({startV:200,stopV:200,complianceA:0.0106},medium),/必须在/);
   assert.equal(normalizePlan({startV:200,stopV:200,complianceA:0.0105},medium).maxComplianceA,0.0105);
   assert.equal(normalizePlan({startV:200,stopV:200,complianceA:0.1},high).maxComplianceA,0.105);
   assert.equal(normalizePlan({startV:20,stopV:20,complianceA:1},high).maxComplianceA,1.05);
-  assert.throws(()=>normalizePlan({points:0},medium),/规划范围/);
+  assert.throws(()=>normalizePlan({points:0},medium),/必须在/);
   assert.throws(()=>normalizePlan({gateSmU:1,sourceSmU:1},medium),/不得/);
   assert.throws(()=>normalizePlan({gateBiasV:10,gateSmU:0},medium),/必须选择独立的栅极 SMU/);
 });
