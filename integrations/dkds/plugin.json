@@ -16,14 +16,14 @@
     "project",
     "workspace",
     "capabilities",
+    "data.model",
+    "data.artifacts",
     "ui.dom",
     "ui.activities",
     "ui.top-workspace",
     "ui.pages",
     "ui.unit-templates",
-    "ui.status-bar",
-    "data.model",
-    "data.artifacts"
+    "ui.status-bar"
   ],
   "capabilities": [
     "instrument.dkts-keithley-4200",
