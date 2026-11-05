@@ -74,6 +74,8 @@ test('PMU current capture exposes ranges and enforces acquisition buffer',()=>{
   assert.equal(w.captureBudget.sampleCountAtSelectedRate,4);
   assert.equal(w.captureBudget.clariusItmMaxPointsPerChannel,4096);
   assert.equal(w.captureBudget.clariusUtmMaxPointsPerChannel,65536);
+  assert.equal(w.captureBudget.clariusItmCompatible,true);
+  assert.equal(w.captureBudget.clariusUtmCompatible,true);
   assert.throws(()=>validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measureWindowS:1e-9,inventory}),/采样率范围/);
 });
 test('PMU planning enforces fewer than one million hardware samples and up to 65536 KXCI-generated points with an explicitly flagged endpoint',()=>{
@@ -85,6 +87,8 @@ test('PMU planning enforces fewer than one million hardware samples and up to 65
   assert.equal(w.captureBudget.totalMeasureDurationS,1);
   assert.equal(w.captureBudget.measurementCount,1000);
   assert.equal(w.captureBudget.sampleCountAtSelectedRate,999999);
+  assert.equal(w.captureBudget.clariusItmCompatible,false);
+  assert.equal(w.captureBudget.clariusUtmCompatible,false);
   assert.equal(w.captureBudget.kxciCompatible,false);
   assert.equal(w.interfaceLimits.capturePointsCompatible,false);
   assert.equal(w.interfaceLimits.requiresAlternateBackend,true);
