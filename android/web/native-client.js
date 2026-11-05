@@ -34,7 +34,7 @@
     close:async data=>{const reply=await native('close',data);return reply.closed===true;}
   });
   const controller=domain.createIdentityController(tcp,protocol);
-  const runner=kxciMeasurement.createRunner({controller,execution:planner.createExecutionCoordinator()});
+  const runner=kxciMeasurement.createRunner({controller,execution:planner.createExecutionCoordinator(),wait:ms=>new Promise(resolve=>window.setTimeout(resolve,ms))});
   async function post(route,payload={}){
     if(route==='/api/hardware/capabilities')return {ok:true,database:capabilities.exportDatabase()};
     if(route==='/api/workspaces')return saveWorkspace(payload.workspace);
