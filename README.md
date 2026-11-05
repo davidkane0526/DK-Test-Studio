@@ -10,7 +10,7 @@
 - 真实仪器只发送固定只读查询：`*IDN?`、`*OPT?`，以及 KXCI `UL` 模式下的 `SystemUtil instrumentinfo`、`remotemoduleinfo` 和 `GN result`，最后以 `DE` 恢复系统模式。**没有 SMU/PMU 输出、扫描或原生文件导出**。
 - 连接后读取 KXCI `*OPT?` 中的 SMU 中/高功率类别、PA、PMU/RPM、PGU、CVU、VS、VM 配置，并通过 SystemUtil 查询物理型号、序列号和校准信息。能力数据库据已识别模块类别计算理论限值；未知或冲突项保持未知。**外部 DUT、线缆和接线状态仍需现场确认**。
 - **测试方式采用真正两级界面**：首页只显示测试类型卡片，点击后整页隐藏选择区，切换到独立测试工作区，仅保留测试名称与返回入口。参数栏右上角使用图标按钮收起，收起后可从数据标题旁的展开图标恢复；左上角返回使用单独箭头图标。参数区采用可一键收起的紧凑侧栏，数据读取、图表与原始数据表尽可能使用整页宽高。桌面端无固定顶部状态栏，绘图区随剩余垂直空间扩展。桌面四列、窄屏至少两列，DKDS 插件同样使用二级页面与返回导航。I–V/I–t 的参数规划可用，任意波形可校验输入，其余测试只显示待开发配置占位。**实测读数和实测绘图均保持空白，绝不以模拟曲线冒充仪器数据。**
-- SMU I–V 与 I–t 的独立测试方案编辑、循环次数/通道/规划电流限值配置、扫描点序列预览（仅规划，不发送输出）。共享硬件能力数据库覆盖 SMU/PA、PMU/RPM、PGU、CVU、VS/VM、CVIV 和 GNDU，并可导出 JSON 供外部审查。
+- SMU I–V 与 I–t 的独立测试方案编辑、循环次数/通道/规划电流限值配置、扫描点序列预览（仅规划，不发送输出）。共享硬件能力数据库覆盖 SMU/PA、PMU/RPM、PGU、CVU、VS/VM、CVIV 和 GNDU，并可通过 `npm run hardware:export` 导出为 `DKTS-4200A-Hardware-Capability-Database-v1.json` 供外部审查。
 - 可粘贴两列时间(s)、电压(V)，做严格递增检查、纯软件方案验证和本机波形预览。**预览不是仪器测量，也不证明硬件能执行该时间尺度**。
 - 自动化测试含伪 4200A TCP 服务、身份校验、KXCI 模块类别/物理型号交叉核验、HTTP 安全边界、任意波形规划。
 
@@ -41,7 +41,7 @@ Windows 应用图标、任务栏、任务管理器、安装包 EXE，以及 Andr
 **每次向 `main` 推送任何更改，都执行全平台完整构建。热更新只是额外的快速体验渠道，不替代原生安装包。**
 
 1. `Native Shell Windows Android and DKDS Release` 在**每一次 `main` 提交**时运行，不限制修改路径，也不取消排队中的旧提交。分别构建 Windows Setup、Windows Portable、独立 Android APK、DKDS 插件以及 UI 更新资源。
-2. 六项资产全部通过测试和构建后，发布到唯一的 `dkts-preview-<GitHub Actions run ID>` Release，并检查 **6/6** 资产完整性。即使后来有新提交，较早一次构建成功也仍应发布，不因 HEAD 已变化而拒绝。
+2. 六项资产全部通过测试和构建后，发布到唯一的 `dkts-preview-v<package version>-a<run number>` Release，并检查 **6/6** 资产完整性。即使后来有新提交，较早一次构建成功也仍应发布，不因 HEAD 已变化而拒绝。
 3. `Fast UI Hot Update` 同样在每次提交时运行，另行发布 `dkts-ui-<commit SHA>` 资源包；若该提交已不是最新 HEAD，则跳过*过时的热更新*，防止旧内容覆盖新版本，但对应的完整构建仍继续并发布。
 4. 已安装的独立 Windows 与 Android 软件启动时以及约每 3 分钟检查一次热更新，验证后从私有缓存刷新；离线继续运行已安装版本。
 5. Release 必须分别提供 Windows 安装版、Windows 便携版、独立 Android APK、DKDS 插件和轻量 UI 更新资源。汇报开发结果时同时附上实际发布并验证的 Release 链接；不可用 Actions 地址冒充已完成的 Release。
@@ -164,5 +164,5 @@ Windows 便携版使用 Electron userData 目录的 workspace-state.json，写�
 - 已识别 SMU 按模块功率类别和电压档计算电流限值；未知模块不再套用默认 10.5 mA。未知限值保持未定义，允许方案预览，但禁止真实输出。
 - PMU/PGU 按负载线计算最大输出电压/电流，并分别校验 Segment Arb 的最小时间、10 ns 分辨率和分段数量。PMU 电流采集按采样率及 KXCI 65536 点缓冲区核算。
 - 加入 4200A 500 W 机箱功耗模型。只有完整识别安装模块和活动通道时才给出确定预算。
-- 当前版本仍只允许 *IDN?、*OPT? 只读查询，不开放 SMU/PMU/PGU 输出。调用方提供的 X/Y 数组不会被误标记为原始仪器数据。
+- 当前版本只允许固定的 *IDN?、*OPT? 和 SystemUtil 物理模块元数据只读查询，不开放任意 KXCI 指令或 SMU/PMU/PGU 输出。调用方提供的 X/Y 数组不会被误标记为原始仪器数据。
 - 完整发布资产为 Windows Setup、Windows Portable、Android APK、DKDS 插件、UI 热更新包及硬件能力数据库，共 6 项。
