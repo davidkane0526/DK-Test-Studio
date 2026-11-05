@@ -219,6 +219,10 @@
     if(['None','GNDU'].includes(terminalChannels[x.terminal])||
        (p&&['None','GNDU'].includes(terminalChannels[p.terminal])))
       throw Error('扫描电极必须分配能输出电压的仪器通道');
+    // For DC drain-current characterization, a VS-only/VM channel cannot
+    // provide the current measurement. The drain must be a true SMU.
+    if(!/^SMU[1-9]$/.test(terminalChannels.drain))
+      throw Error('I–V、转移特性和输出特性必须为漏极分配可测量电流的 SMU 通道');
     const loops=count(program.loops??1,'整体循环次数',1,10000);
     const totalPoints=x.points*x.repeats*(p?p.points*p.repeats:1)*loops;
     if(!Number.isSafeInteger(totalPoints))throw Error('总规划点数超过安全整数范围');

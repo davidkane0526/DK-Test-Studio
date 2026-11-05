@@ -1510,6 +1510,11 @@ const portUi=(()=>{
       if(!row)continue;
       const config=workspaceStore.getTerminalConfig();
       row.querySelector('strong').textContent=ROLE_NAMES[role]+' · '+config[role];
+      const unavailable=['None','GNDU'].includes(config[role]);
+      for(const field of row.querySelectorAll('input,select')){
+        field.disabled=unavailable;
+      }
+      row.title=unavailable?'当前电极未使用可测量电流的 SMU 通道':'本端口独立设置电流测量范围与保护值';
     }
   }
   function makeSegment(axis,initial={}){
@@ -1637,9 +1642,13 @@ const portUi=(()=>{
       const row=scan.querySelector('.sweep-terminal-row[data-role="'+role+'"]');
       if(!row)continue;
       const mode=row.querySelector('[data-port-setting="rangeMode"]').value;
-      row.querySelector('[data-port-setting="rangeA"]').disabled=mode==='auto';
+      const config=workspaceStore.getTerminalConfig();
+      const unused=['None','GNDU'].includes(config[role]);
+      row.querySelector('[data-port-setting="rangeMode"]').disabled=unused;
+      row.querySelector('[data-port-setting="complianceMode"]').disabled=unused;
+      row.querySelector('[data-port-setting="rangeA"]').disabled=unused||mode==='auto';
       const custom=row.querySelector('[data-port-setting="complianceMode"]').value==='custom';
-      row.querySelector('[data-port-setting="complianceA"]').disabled=!custom;
+      row.querySelector('[data-port-setting="complianceA"]').disabled=unused||!custom;
     }
   }
   function snapshotScan(){
