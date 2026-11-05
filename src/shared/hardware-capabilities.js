@@ -128,6 +128,7 @@
       },
       VPU: {
         type: 'VPU', family: 'PGU', role: 'pulse-generator-source-only', verificationStatus: 'documented', modelAliases: ['4220-PGU'], channelsPerCard: 2,
+        kxciPulseTiming: { '10': { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 1e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
         segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, timeResolutionS: 1e-8, maxSegmentTimeS: 1, minSegmentTimeS: { '10': 1e-8, '40': 5e-8 } },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e']
@@ -239,8 +240,7 @@
     if (!Number.isFinite(selectedRateHz) || selectedRateHz < minimumRequiredRateHz || selectedRateHz > maximumRateHz) throw Error('PMU 采样率必须在 ' + minimumRequiredRateHz + ' 至 ' + maximumRateHz + ' Sa/s 之间');
     return Object.freeze({ minSampleRateHz: minimumRequiredRateHz, maxSampleRateHz: maximumRateHz, selectedSampleRateHz: selectedRateHz, sampleIntervalS: 1 / selectedRateHz, maxPointsPerChannel: mod.measurement.maxKxciBufferPointsPerChannel, hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz });
   }
-  function getPulseTimingRecommendation(rangeV, measurementRangeA, withMeasurement = true) {
-    const source = arguments.length > 3 ? arguments[3] : 'pmu';
+  function getPulseTimingRecommendation(rangeV, measurementRangeA, withMeasurement = true, source = 'pmu') {
     const key = String(source || 'pmu').toLowerCase() === 'pgu' ? 'VPU' : 'PMU';
     const mod = getModuleCapability(key), range = String(Number(rangeV));
     const timing = mod.kxciPulseTiming?.[range];
