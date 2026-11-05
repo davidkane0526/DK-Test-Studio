@@ -117,8 +117,12 @@
               rawInstrumentData:true,acquisitionVerified:true,
               origin:'4200A-KXCI-user-TI',sampleCount:rows.length,
               measuredCurrentUnit:'A',xIsProgrammedSetpoint:true,
-              rawKxciResponses:rows.map(r=>r.rawKxciResponse),
+              rawKxciResponses:rows.map(r=>r.rawKxciResponses||{drain:r.rawKxciResponse}),
               measurementStatus:rows.map(r=>r.measurementStatus),
+              measurementStatusByRole:rows.map(r=>r.measurementStatusByRole||{}),
+              measurementCompleteness:rows.map(r=>r.measurementCompleteness||'partial'),
+              complianceRole:rows.map(r=>r.complianceRole||null),
+              sequentialTiSampling:true,
               sourceBiasV:rows.map(r=>r.sourceVoltageV),
               gateBiasV:rows.map(r=>r.gateVoltageV),
               instrumentModel:identity?.model||null,serial:identity?.serial||null,
@@ -129,6 +133,12 @@
                 values:rows.map(r=>r.drainVoltageV)},
               {key:'Id',name:'漏极实测电流',unit:'A',role:'y',
                 values:rows.map(r=>r.currentA)},
+              ...(rows.every(r=>Number.isFinite(r.gateCurrentA))?[{
+                key:'Ig',name:'栅极实测电流',unit:'A',role:'aux',
+                values:rows.map(r=>r.gateCurrentA)}]:[]),
+              ...(rows.every(r=>Number.isFinite(r.sourceCurrentA))?[{
+                key:'Is',name:'源极实测电流',unit:'A',role:'aux',
+                values:rows.map(r=>r.sourceCurrentA)}]:[]),
               {key:'Time',name:'采集时间',unit:'s',role:'aux',
                 values:rows.map(r=>r.timeS)}
             ],
