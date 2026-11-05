@@ -16,10 +16,10 @@ test('waveform rejects duplicate/reverse time and out-of-plan voltage',()=>{
   assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:211}]),/规划范围/);
   assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:41}],{sourceType:'pmu',loadOhms:1000000,rangeV:40}),/规划范围/);
   assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:21}],{sourceType:'pmu',loadOhms:50,rangeV:40}),/规划范围/);
-  const fiftyOhm=validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:20}],{sourceType:'pmu',loadOhms:50});
+  const fiftyOhm=validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:20}],{sourceType:'pmu',loadOhms:50,rangeV:40});
   assert.equal(fiftyOhm.maxVoltageV,20);
   assert.equal(fiftyOhm.maxCurrentA,0.4);
-  const highZ=validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:39.99}],{sourceType:'pmu',loadOhms:1000000});
+  const highZ=validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:39.99}],{sourceType:'pmu',loadOhms:1000000,rangeV:40});
   assert(highZ.maxVoltageV>39.99);
   assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:0.8}],{sourceType:'pgu',loadOhms:1,rangeV:40}),/规划范围/);
   assert.equal(parseWaveformText('0 0\n1 0.78',{sourceType:'pgu',loadOhms:1,rangeV:40}).maxVoltageV<0.8,true);
