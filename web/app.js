@@ -618,7 +618,7 @@ function createWorkspaceStore(options = {}) {
     const tab=findTab(id);if(!tab)return false;
     tab.activeMode=mode==null?null:requiredText(mode,'test mode');changed();return true;
   }
-  const validTerminal=value=>value==='None'||/^(?:SMU|VS|VM|PMU|VPU)[1-9](?:-[12])?$/.test(String(value));
+  const validTerminal=value=>value==='None'||value==='GNDU'||/^(?:(?:SMU|VS|VM)[1-9]|(?:PMU|VPU)[1-9](?:-[12])?)$/.test(String(value));
   function setTerminalConfig(next){
     if(!next||typeof next!=='object')throw Error('端口配置格式无效');
     const chosen={},used=new Set();
