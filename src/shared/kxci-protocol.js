@@ -75,7 +75,7 @@
   function parseRemoteModuleInfo(value){return parseKultRecords(value,'remotemoduleinfo',true);}
   function expectedInstrumentName(family,name){
     const n=String(name||'').toUpperCase();
-    if(['SMU','VS','VM'].includes(family))return /^SMU\d+$/.test(n);
+    if(['SMU','VS','VM'].includes(family))return /^(SMU|HPSMU|SMUPA|HPSMUPA)\d+$/.test(n);
     if(family==='PMU')return /^PMU\d+$/.test(n);
     if(family==='PGU')return /^(VPU|PGU)\d+$/.test(n);
     if(family==='CVU')return /^CVU\d+$/.test(n);
