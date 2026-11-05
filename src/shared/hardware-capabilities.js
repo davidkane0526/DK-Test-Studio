@@ -2,15 +2,27 @@
   'use strict';
   const DATABASE = {
     schema: 'dkts.4200a.hardware-capabilities.v1',
-    databaseVersion: '1.0.0',
+    databaseVersion: '1.1.0',
     generatedAt: '2026-11-05',
-    instrument: { family: 'Keithley 4200A-SCS', maxChassisPowerW: 500, kxciInventorySlots: 8, maxSmuChannels: 9 },
+    instrument: { family: 'Keithley 4200A-SCS', maxChassisPowerW: 500, kxciInventorySlots: 8, maxKxciSmuChannelNumber: 9 },
+    inventoryDiscovery: {
+      logicalInventoryCommand: '*OPT?',
+      physicalCardInfoSequence: ['UL','EX SystemUtil instrumentinfo(,4096,)','GN result','DE'],
+      remoteModuleInfoSequence: ['UL','EX SystemUtil remotemoduleinfo(,4096,)','GN result','DE'],
+      notes: [
+        '*OPT? reports the KXCI category: medium/high-power SMU, PA presence, PMU/RPM channel assignment, VPU/PGU, CVU, VS, and VM. It does not distinguish 4200/4201 or 4210/4211 model variants.',
+        'SystemUtil instrumentinfo returns physical card model, serial, hardware/firmware versions, and calibration dates.',
+        'SystemUtil remotemoduleinfo returns the attached 4200-PA and 4225-RPM physical identities.'
+      ]
+    },
     sources: [
       { id: 'tek-4200a-datasheet-2026', title: '4200A-SCS Parameter Analyzer Technical Data', revision: '1KW-60780-7', published: '2026-10-22', url: 'https://www.tek.com.cn/datasheet/4200a-scs-parameter-analyzer', authority: 'manufacturer' },
       { id: 'tek-4200a-kxci-rev-e', title: 'Model 4200A-SCS KXCI Remote Control Programming', revision: '4200A-KXCI-907-01 Rev. E', published: '2025-03', url: 'https://download.tek.com/manual/4200A-KXCI-907-01E_March2025.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-setup-rev-f', title: 'Model 4200A-SCS Setup and Maintenance', revision: '4200A-908-01 Rev. F', published: '2025-03', url: 'https://download.tek.com/manual/4200A-908-01F_Setup_Maint_March_2025.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-cvu-rev-b', title: 'Model 4200A-SCS CVU User Manual', revision: '4200A-CVU-900-01 Rev. B', published: '2023-03', url: 'https://download.tek.com/manual/4200A-CVU-900-01B_March_2023.pdf', authority: 'manufacturer' },
-      { id: 'tek-4200a-current-manual-index', title: 'Tektronix 4200A-SCS manuals and software download index', revision: 'Current index checked 2026-11-05', url: 'https://www.tek.com/en/support/datasheets-manuals-software-downloads?model=4200A-SCS', authority: 'manufacturer' }
+      { id: 'tek-4200a-current-manual-index', title: 'Tektronix 4200A-SCS manuals and software download index', revision: 'Current index checked 2026-11-05', url: 'https://www.tek.com/en/support/datasheets-manuals-software-downloads?model=4200A-SCS', authority: 'manufacturer' },
+      { id: 'tek-4200-cvu-pwr-rev-f', title: 'Model 4200-CVU-PWR Parts Package Instruction Sheet', revision: 'PA-977 Rev. F', published: '2023-06-21', url: 'https://www.tek.com/en/manual/model-4200-cvu-pwr-parts-package', authority: 'manufacturer' },
+      { id: 'tek-4200-cvu-pwr-appnote', title: 'Using the 4200-CVU-PWR C-V Power Package for High Voltage and High Current C-V Measurements', revision: 'Application Note', published: '2020-04-06', url: 'https://download.tek.com/document/1KW606370MakingHighVoltageHighCurrentCV%20Measurements4200ASCS4200CVUPWRApplicationNote040620.pdf', authority: 'manufacturer' }
     ],
     chassisPower: {
       maximumW: 500, formula: 'Ptotal = Pidle + Ptest',
@@ -136,11 +148,11 @@
       CVU: {
         type: 'CVU', family: 'CVU', role: 'capacitance-voltage-measurement', verificationStatus: 'family-documented-variant-dependent',
         variants: {
-          '4210-CVU': { frequencyHz: { min: 1000, max: 10000000 }, frequencyStepsHz: [1000, 10000, 100000, 1000000], acDriveVrms: { min: 0.01, max: 0.1 }, dcBiasV: { min: -30, max: 30 }, maxDcCurrentA: 0.01, maxMeasurementPoints: 4096, sourceImpedanceOhm: 100 },
+          '4210-CVU': { frequencyHz: { min: 1000, max: 10000000 }, frequencyResolutionHz: 1000, acDriveVrms: { min: 0.01, max: 0.1 }, dcBiasV: { min: -30, max: 30 }, maxDcCurrentA: 0.01, maxMeasurementPoints: 4096, sourceImpedanceOhm: 100 },
           '4215-CVU': { frequencyHz: { min: 1000, max: 10000000 }, frequencyResolutionHz: 1000, acDriveVrms: { min: 0.01, max: 1 }, dcBiasV: { min: -30, max: 30 }, maxDcCurrentA: 0.01, maxMeasurementPoints: 4096, sourceImpedanceOhm: 100 }
         },
         common: { frequencyHz: { min: 1000, max: 10000000 }, dcBiasV: { min: -30, max: 30 }, maxDcCurrentA: 0.01, maxMeasurementPoints: 4096 },
-        optionalPowerModule: { name: '4200-CVU-PWR', differentialMaxV: 400, maxAbsTerminalV: 200, maxDcCurrentA: 0.3, requiresExplicitOptionIdentification: true },
+        optionalPowerModule: { name: '4200-CVU-PWR', differentialMaxV: 400, maxAbsBiasV: 200, maxDcCurrentAByBiasSmu: { mediumPowerSmu: 0.1, highPowerSmu: 0.3 }, requiresBiasSmu: true, biasSmuChannelsFor200V: 1, biasSmuChannelsFor400VDifferential: 2, requiresExplicitOptionIdentification: true, sourceRefs: ['tek-4200-cvu-pwr-rev-f','tek-4200-cvu-pwr-appnote'] },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-cvu-rev-b']
       },
       VS: { type: 'VS', family: 'VS', role: 'voltage-source-only', verificationStatus: 'role-only', kxci: { maxSupportedVoltageV: 20, physicalSmuBindingRequired: true }, sourceRefs: ['tek-4200a-kxci-rev-e'] },
@@ -156,7 +168,7 @@
       pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8 },
       chassis: { maximumPowerW: 500, blockPlanIfCompletePowerBudgetExceeded: true, doNotAssumeUnknownModulesConsumeZeroPower: true },
       dataProvenance: { callerSuppliedArraysAreRawInstrumentData: false, rawDataRequiresTrustedAcquisitionReceipt: true, currentBuildHasTrustedAcquisitionExecutor: false },
-      execution: { allOutputCommandsDisabled: true, allowedKxciCommands: ['*IDN?', '*OPT?'], requireSingleInstrumentLease: true, requireFailClosedOnDisconnect: true, requireEmergencyStop: true }
+      execution: { allOutputCommandsDisabled: true, allowedKxciCommands: ['*IDN?', '*OPT?', 'UL', 'EX SystemUtil instrumentinfo(,4096,)', 'GN result', 'EX SystemUtil remotemoduleinfo(,4096,)', 'GN result', 'DE'], requireSingleInstrumentLease: true, requireFailClosedOnDisconnect: true, requireEmergencyStop: true }
     }
   };
   function deepFreeze(value) { if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value; for (const child of Object.values(value)) deepFreeze(child); return Object.freeze(value); }
@@ -164,7 +176,7 @@
   function getModuleCapability(type) { return DATABASE.modules[String(type || '').toUpperCase()] || null; }
   function getSmuLimits(slot, voltageV, requestedComplianceA) {
     if (!slot || slot.family !== 'SMU') return { known: false, reason: 'SMU channel not identified' };
-    const physicalType = slot.physicalType || (slot.physicalIdentityVerified === false ? null : slot.type);
+    const physicalType = slot.physicalType || (slot.ratingsVerified === true ? slot.type : (slot.physicalIdentityVerified === false ? null : slot.type));
     const mod = getModuleCapability(physicalType);
     if (!mod || mod.family !== 'SMU' || !mod.electrical) return { known: false, moduleType: physicalType || null, maxAbsVoltageV: 210, maxComplianceA: null, minComplianceA: null, reason: '物理 SMU 型号尚未由 instrumentinfo 确认，不能猜测中功率/高功率额定值' };
     const absV = Math.abs(Number(voltageV));
