@@ -17,11 +17,30 @@
   }
   function parseSlot(token,index){
     const raw=String(token||'').trim().toUpperCase();
-    if(!raw)return Object.freeze({slot:index+1,raw:'',logicalType:'EMPTY',type:'empty',physicalType:null,family:'empty',channel:null,physicalIdentityVerified:false,ratingsVerified:false,powerClass:'unknown',preamplifier:null,rpmCount:0,rpmChannels:[]});
-    const m=/^(SMU|PMU|CVU|VPU|VS|VM|CVIV)([1-9])$/.exec(raw);
-    if(!m)return Object.freeze({slot:index+1,raw,logicalType:null,type:null,physicalType:null,family:'unknown',channel:null,physicalIdentityVerified:false,ratingsVerified:false,powerClass:'unknown',preamplifier:null,rpmCount:null,rpmChannels:[]});
-    const logicalType=m[1],channel=Number(m[2]),family=logicalType==='VPU'?'PGU':logicalType;
-    return Object.freeze({slot:index+1,raw,logicalType,type:null,physicalType:null,family,channel,cardIndex:['PMU','VPU'].includes(logicalType)?channel:null,physicalIdentityVerified:false,ratingsVerified:false,powerClass:'unknown',preamplifier:['SMU','VS','VM'].includes(logicalType)?null:false,rpmCount:logicalType==='PMU'?null:0,rpmChannels:[],capabilityStatus:'physical-model-not-inspected'});
+    const empty={slot:index+1,raw:'',logicalType:'EMPTY',type:'empty',physicalType:null,family:'empty',channel:null,physicalIdentityVerified:false,ratingsVerified:false,powerClass:'unknown',preamplifier:null,rpmCount:0,rpmChannels:[]};
+    if(!raw)return Object.freeze(empty);
+    let type=null,logicalType=null,family=null,channel=null,rpmCount=0,rpmChannels=[],preamplifier=false;
+    let m;
+    if((m=/^(HPSMUPA|SMUPA|HPSMU|SMU)([1-9])$/.exec(raw))){
+      type=m[1];logicalType=type;family='SMU';channel=Number(m[2]);preamplifier=type.endsWith('PA');
+    }else if((m=/^PMU([1-9])(?:RPM(1-2|1|2))?$/.exec(raw))){
+      logicalType='PMU';type=m[2]?'PMURPM':'PMU';family='PMU';channel=Number(m[1]);rpmCount=m[2]?(m[2]==='1-2'?2:1):0;rpmChannels=m[2]==='1-2'?[1,2]:m[2]?[Number(m[2])]:[];
+    }else if((m=/^PMURPM([1-9])?$/.exec(raw))){
+      logicalType='PMURPM';type='PMURPM';family='PMU';channel=m[1]?Number(m[1]):null;rpmCount=1;
+    }else if((m=/^(CVU|VPU|VS|VM|CVIV)([1-9])$/.exec(raw))){
+      logicalType=m[1];type=m[1];family=type==='VPU'?'PGU':type;channel=Number(m[2]);
+    }else{
+      return Object.freeze({slot:index+1,raw,logicalType:null,type:null,physicalType:null,family:'unknown',channel:null,physicalIdentityVerified:false,ratingsVerified:false,powerClass:'unknown',preamplifier:null,rpmCount:null,rpmChannels:[],capabilityStatus:'unrecognized-kxci-option'});
+    }
+    const cap=getCapabilities()?.getModuleCapability(type);
+    const powerClass=cap?.powerClass||'unknown';
+    const ratingsVerified=['SMU','SMUPA','HPSMU','HPSMUPA','PMU','PMURPM','VPU'].includes(type);
+    return Object.freeze({
+      slot:index+1,raw,logicalType,type,physicalType:null,family,channel,
+      cardIndex:['PMU','VPU'].includes(logicalType)||family==='PMU'||family==='PGU'?channel:null,
+      physicalIdentityVerified:false,ratingsVerified,powerClass,preamplifier,
+      rpmCount,rpmChannels,capabilityStatus:ratingsVerified?'kxci-rating-class-identified':'physical-variant-required'
+    });
   }
   function parseOptions(value){
     const raw=String(value??'').replace(/\0+$/g,'').trim();
@@ -31,7 +50,15 @@
     const slots=Object.freeze(parts.map((part,index)=>parseSlot(part,index)));
     const logicalModules=slots.filter(x=>x.family!=='empty'&&x.family!=='unknown');
     const unknownModules=slots.filter(x=>x.family==='unknown');
-    return Object.freeze({schema:'dkts.4200.modules.v3',raw,slots,logicalModules,knownModules:[],unknownModules,unverifiedModules:logicalModules.slice(),pmuCards:logicalModules.filter(x=>x.family==='PMU').length,pguCards:logicalModules.filter(x=>x.family==='PGU').length,rpmModules:null,hardwareLimitsVerified:false,instrumentInfoStatus:'not-read',remoteModuleInfoStatus:'not-read'});
+    const unverifiedModules=logicalModules.filter(x=>!x.ratingsVerified);
+    const knownModules=logicalModules.filter(x=>x.ratingsVerified);
+    const hardwareLimitsVerified=logicalModules.length>0&&unknownModules.length===0&&unverifiedModules.length===0;
+    return Object.freeze({
+      schema:'dkts.4200.modules.v3',raw,slots,logicalModules,knownModules,unknownModules,unverifiedModules,
+      pmuCards:logicalModules.filter(x=>x.family==='PMU').length,pguCards:logicalModules.filter(x=>x.family==='PGU').length,
+      rpmModules:logicalModules.filter(x=>x.family==='PMU').reduce((sum,x)=>sum+(x.rpmCount||0),0),
+      hardwareLimitsVerified,physicalModelsVerified:false,instrumentInfoStatus:'not-read',remoteModuleInfoStatus:'not-read'
+    });
   }
   function parseKultRecords(value,label,allowEmpty=false){
     const raw=String(value??'').replace(/\0/g,'').trim();
@@ -55,55 +82,118 @@
     if(family==='CVIV')return /^CVIV\d+$/.test(n);
     return false;
   }
-  function identifyPhysicalType(slot,record,remoteRecords){
-    const model=String(record.model||'').toUpperCase(),attached=remoteRecords.filter(x=>x.slotNo===slot.slot),unknownRemote=[];
-    let type=null,basePhysicalType=null,variant=null,preamplifier=false,rpmChannels=[];
-    if(['SMU','VS','VM'].includes(slot.family)){
-      if(/4200|4201/.test(model))basePhysicalType='SMU';else if(/4210|4211/.test(model))basePhysicalType='HPSMU';
-      const pa=attached.filter(x=>/^PA\d+$/i.test(x.name)),bad=pa.filter(x=>!/4200/.test(String(x.model||'')));
-      if(bad.length)unknownRemote.push(...bad);
-      preamplifier=pa.length>0&&bad.length===0;
-      if(basePhysicalType)type=basePhysicalType+(preamplifier?'PA':'');
-      for(const x of attached)if(!/^PA\d+$/i.test(x.name))unknownRemote.push(x);
-    }else if(slot.family==='PMU'){
-      if(/4225/.test(model)&&/PMU/i.test(record.name))type='PMU';
-      const rpm=attached.filter(x=>/^RPM\d+-[12]$/i.test(x.name)),bad=rpm.filter(x=>!/4225/.test(String(x.model||'')));
-      if(bad.length)unknownRemote.push(...bad);
-      rpmChannels=[...new Set(rpm.filter(x=>/4225/.test(String(x.model||''))).map(x=>Number(x.name.split('-').pop())).filter(Number.isInteger))].sort((a,b)=>a-b);
-      if(type&&rpmChannels.length)type='PMURPM';
-      for(const x of attached)if(!/^RPM\d+-[12]$/i.test(x.name))unknownRemote.push(x);
-    }else if(slot.family==='PGU'){
-      if(/4220/.test(model)&&/(VPU|PGU)/i.test(record.name))type='VPU';
-      for(const x of attached)unknownRemote.push(x);
-    }else if(slot.family==='CVU'){
-      if(/4210/.test(model)&&/CVU/i.test(record.name)){type='CVU';variant='4210-CVU';}
-      else if(/4215/.test(model)&&/CVU/i.test(record.name)){type='CVU';variant='4215-CVU';}
-      for(const x of attached)unknownRemote.push(x);
-    }else if(slot.family==='CVIV'){
-      if(/CVIV/i.test(model))type='CVIV';
-      for(const x of attached)unknownRemote.push(x);
-    }else for(const x of attached)unknownRemote.push(x);
-    return {type,basePhysicalType,variant,preamplifier,rpmChannels,unknownRemote};
+  function modelSmUClass(model){
+    const m=String(model||'').toUpperCase();
+    if(/4200|4201/.test(m))return 'SMU';
+    if(/4210|4211/.test(m))return 'HPSMU';
+    return null;
   }
   function parseHardwareInventory(optionsValue,instrumentInfoValue,remoteModuleInfoValue){
-    const logical=parseOptions(optionsValue),instruments=parseInstrumentInfo(instrumentInfoValue),remote=parseRemoteModuleInfo(remoteModuleInfoValue),used=new Set();
-    const unverifiedModules=logical.unverifiedModules.filter(x=>x.family==='unknown'),unknownModules=[...logical.unknownModules];
+    const logical=parseOptions(optionsValue),instruments=parseInstrumentInfo(instrumentInfoValue),remote=parseRemoteModuleInfo(remoteModuleInfoValue);
+    const used=new Set(),unknownModules=[...logical.unknownModules],unverifiedModules=[];
     const slots=logical.slots.map(slot=>{
       if(slot.family==='empty'||slot.family==='unknown')return slot;
       const record=instruments.find(x=>x.slotNo===slot.slot&&expectedInstrumentName(slot.family,x.name));
-      if(!record){const unresolved=Object.freeze({...slot,physicalIdentityVerified:false,ratingsVerified:false,capabilityStatus:'physical-card-not-matched',reason:'instrumentinfo 未返回与 KXCI 插槽/逻辑通道对应的物理卡'});unverifiedModules.push(unresolved);unknownModules.push(unresolved);return unresolved;}
-      used.add(record);
-      const found=identifyPhysicalType(slot,record,remote),cap=found.type&&getCapabilities()?.getModuleCapability(found.type),variantKnown=slot.family!=='CVU'||Boolean(found.variant),verified=Boolean(cap&&variantKnown&&!found.unknownRemote.length);
-      const rpmChannels=found.rpmChannels||[];
-      const enriched=Object.freeze({...slot,type:found.type,physicalType:found.type,basePhysicalType:found.basePhysicalType,physicalModel:record.model,physicalName:record.name,physicalSerialNo:record.serialNo,hardwareVersion:record.hardwareVersion,firmwareVersion:record.firmwareVersion,calibrationDate:record.calibrationDate,calibrationDueDate:record.calibrationDueDate,variant:found.variant,physicalIdentityVerified:Boolean(found.type),powerClass:cap?.powerClass||'unknown',preamplifier:found.preamplifier,rpmCount:rpmChannels.length,rpmChannels,ratingsVerified:verified,capabilityStatus:verified?'documented':found.type?'variant-or-remote-module-unverified':'physical-model-unrecognized'});
-      if(!verified)unverifiedModules.push(enriched);
-      for(const x of found.unknownRemote)unknownModules.push(Object.freeze({family:'remote',slot:slot.slot,...x}));
+      const attached=remote.filter(x=>x.slotNo===slot.slot);
+      const paRecords=attached.filter(x=>/^PA\d+$/i.test(x.name));
+      const rpmRecords=attached.filter(x=>/^RPM\d+-[12]$/i.test(x.name));
+      let type=slot.type,physicalType=null,basePhysicalType=null,variant=null,preamplifier=slot.preamplifier,rpmChannels=slot.rpmChannels||[],rpmCount=slot.rpmCount||0;
+      let mismatch=false,reason='';
+      if(record){
+        used.add(record);
+        const model=String(record.model||'').toUpperCase();
+        if(['SMU','VS','VM'].includes(slot.family)){
+          basePhysicalType=modelSmUClass(model);
+          if(slot.family==='SMU'&&basePhysicalType){
+            const expected=basePhysicalType+(slot.preamplifier?'PA':'');
+            if(expected!==slot.type){mismatch=true;reason='*OPT? SMU 功率/PA 类别与 instrumentinfo 型号不一致';}
+            else physicalType=expected;
+          }else if(['VS','VM'].includes(slot.family)&&basePhysicalType){
+            const remotePa=paRecords.some(x=>/4200/.test(x.model));
+            const badPa=paRecords.some(x=>!/4200/.test(x.model));
+            if(badPa||remotePa!==paRecords.length>0){mismatch=true;reason='VS/VM 的 PA 物理信息不一致';}
+            else{preamplifier=remotePa;physicalType=basePhysicalType+(remotePa?'PA':'');}
+          }else{mismatch=true;reason='instrumentinfo 中的 SMU 物理型号无法识别';}
+        }else if(slot.family==='PMU'){
+          if(!/4225/.test(model)){mismatch=true;reason='*OPT? PMU 类别与 instrumentinfo 型号不一致';}
+          else physicalType=slot.type;
+        }else if(slot.family==='PGU'){
+          if(!/4220/.test(model)){mismatch=true;reason='*OPT? VPU/PGU 类别与 instrumentinfo 型号不一致';}
+          else physicalType='VPU';
+        }else if(slot.family==='CVU'){
+          if(/4210/.test(model)){variant='4210-CVU';physicalType='CVU';}
+          else if(/4215/.test(model)){variant='4215-CVU';physicalType='CVU';}
+          else{mismatch=true;reason='CVU 物理型号无法区分 4210-CVU 与 4215-CVU';}
+        }else if(slot.family==='CVIV'){
+          if(/CVIV/i.test(model))physicalType='CVIV';else{mismatch=true;reason='CVIV 物理型号无法识别';}
+        }
+      }else{
+        // *OPT? already supplies the electrical SMU/PMU/PGU class; exact
+        // physical model and calibration identity remain unavailable.
+        if(['SMU','PMU','PGU'].includes(slot.family))physicalType=slot.type;
+        else if(slot.family==='CVU'||slot.family==='VS'||slot.family==='VM'){mismatch=true;reason='缺少物理型号，不能确认 CVU 变体或 VS/VM 底层 SMU';}
+      }
+      if(slot.family==='SMU'&&record){
+        const remotePa=paRecords.length>0,badPa=paRecords.some(x=>!/4200/.test(x.model));
+        if(badPa||remotePa!==Boolean(slot.preamplifier)){mismatch=true;reason='*OPT? 的 PA 类别与 remotemoduleinfo 不一致';}
+        preamplifier=remotePa;
+      }
+      if(slot.family==='PMU'){
+        const remoteChannels=rpmRecords.filter(x=>/4225/.test(x.model)).map(x=>Number(x.name.split('-').pop())).filter(Number.isInteger).sort((a,b)=>a-b);
+        const badRpm=rpmRecords.some(x=>!/4225/.test(x.model));
+        if(badRpm||remoteChannels.length!==rpmCount||(rpmChannels.length&&remoteChannels.join(',')!==rpmChannels.join(','))){mismatch=true;reason='*OPT? 的 RPM 通道类别与 remotemoduleinfo 不一致';}
+        rpmChannels=remoteChannels.length?remoteChannels:rpmChannels;
+        rpmCount=remoteChannels.length||rpmCount;
+        if(rpmCount)type='PMURPM';
+      }
+      for(const item of attached){
+        const known=slot.family==='SMU'?/^PA\d+$/i.test(item.name):slot.family==='PMU'?/^RPM\d+-[12]$/i.test(item.name):false;
+        if(!known){unknownModules.push(Object.freeze({family:'remote',slot:slot.slot,...item}));mismatch=true;reason='发现未识别的远程模块';}
+      }
+      if(mismatch){type=null;physicalType=null;}
+      const cap=type?getCapabilities()?.getModuleCapability(type):null;
+      const ratingsVerified=!mismatch&&Boolean(cap)&&(
+        ['SMU','SMUPA','HPSMU','HPSMUPA','PMU','PMURPM','VPU'].includes(type)||
+        (slot.family==='CVU'&&Boolean(variant))
+      );
+      const enriched=Object.freeze({
+        ...slot,type,physicalType,basePhysicalType,physicalModel:record?.model||null,
+        physicalName:record?.name||null,physicalSerialNo:record?.serialNo||null,
+        hardwareVersion:record?.hardwareVersion||'',firmwareVersion:record?.firmwareVersion||'',
+        calibrationDate:record?.calibrationDate||'',calibrationDueDate:record?.calibrationDueDate||'',
+        physicalIdentityVerified:Boolean(record&&!mismatch),modelIdentityVerified:Boolean(record&&!mismatch),
+        variant,preamplifier,rpmCount,rpmChannels,ratingsVerified,
+        powerClass:cap?.powerClass||slot.powerClass||'unknown',
+        capabilityStatus:mismatch?'kxci-and-physical-inventory-mismatch':ratingsVerified?'documented':'physical-variant-required',
+        inventoryReason:reason
+      });
+      if(!ratingsVerified)unverifiedModules.push(enriched);
       return enriched;
     });
-    const attachedModules=instruments.filter(x=>!used.has(x)),rpmModules=remote.filter(x=>/^RPM\d+-[12]$/i.test(x.name)).length;
-    const knownModules=slots.filter(x=>x.family!=='empty'&&x.family!=='unknown'&&x.physicalIdentityVerified);
-    const hardwareLimitsVerified=knownModules.length>0&&unknownModules.length===0&&unverifiedModules.length===0;
-    return Object.freeze({schema:'dkts.4200.modules.v3',raw:logical.raw,slots:Object.freeze(slots),logicalModules:Object.freeze(slots.filter(x=>x.family!=='empty'&&x.family!=='unknown')),knownModules:Object.freeze(knownModules),unknownModules:Object.freeze(unknownModules),unverifiedModules:Object.freeze(unverifiedModules),attachedModules,instrumentInfoRecords:instruments,remoteModuleInfoRecords:remote,pmuCards:slots.filter(x=>x.family==='PMU').length,pguCards:slots.filter(x=>x.family==='PGU').length,rpmModules,hardwareLimitsVerified,instrumentInfoStatus:'verified',remoteModuleInfoStatus:'verified'});
+    const attachedModules=[];
+    for(const record of instruments.filter(x=>!used.has(x))){
+      if(/^CVIV\d+$/i.test(record.name)&&/CVIV/i.test(record.model)){
+        const cap=getCapabilities()?.getModuleCapability('CVIV');
+        attachedModules.push(Object.freeze({...record,type:'CVIV',family:'CVIV',physicalIdentityVerified:true,ratingsVerified:Boolean(cap),capabilityStatus:cap?'documented':'unverified'}));
+      }else{
+        const item=Object.freeze({...record,type:null,family:'unknown',physicalIdentityVerified:false,ratingsVerified:false,capabilityStatus:'unrecognized-attached-instrument'});
+        attachedModules.push(item);unknownModules.push(item);
+      }
+    }
+    const rpmModules=remote.filter(x=>/^RPM\d+-[12]$/i.test(x.name)).length;
+    const knownModules=slots.filter(x=>x.ratingsVerified).concat(attachedModules.filter(x=>x.ratingsVerified));
+    const logicalModules=slots.filter(x=>x.family!=='empty'&&x.family!=='unknown');
+    const hardwareLimitsVerified=logicalModules.length>0&&unknownModules.length===0&&unverifiedModules.length===0;
+    const physicalModelsVerified=logicalModules.every(x=>x.physicalIdentityVerified)&&attachedModules.every(x=>x.physicalIdentityVerified);
+    return Object.freeze({
+      schema:'dkts.4200.modules.v3',raw:logical.raw,slots:Object.freeze(slots),
+      logicalModules:Object.freeze(logicalModules),knownModules:Object.freeze(knownModules),
+      unknownModules:Object.freeze(unknownModules),unverifiedModules:Object.freeze(unverifiedModules),
+      attachedModules:Object.freeze(attachedModules),instrumentInfoRecords:instruments,remoteModuleInfoRecords:remote,
+      pmuCards:slots.filter(x=>x.family==='PMU').length,pguCards:slots.filter(x=>x.family==='PGU').length,
+      rpmModules,hardwareLimitsVerified,physicalModelsVerified,
+      instrumentInfoStatus:'verified',remoteModuleInfoStatus:'verified'
+    });
   }
   const api=Object.freeze({IDN_REQUEST,OPTIONS_REQUEST,UL_REQUEST,INSTRUMENT_INFO_REQUEST,REMOTE_MODULE_INFO_REQUEST,GN_RESULT_REQUEST,DE_REQUEST,parseIdentity,parseOptions,parseInstrumentInfo,parseRemoteModuleInfo,parseHardwareInventory});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-kxci',api);
