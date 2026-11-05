@@ -80,8 +80,7 @@
         }
       })();inventoryPending=request;try{return await request;}finally{if(inventoryPending===request)inventoryPending=null;}
     }
-    // Internal measurement-only path. The UI never receives a raw TCP or KXCI
-    // command endpoint; the runner uses this only after hardware gate checks.
+    // Internal measurement-only path. UI receives no raw-command endpoint.
     async function measurementExchange(text,expectReply=false){
       if(phase!=='connected'||!connection||!identity||inventoryPending||
          inventory?.physicalModelsVerified!==true||
@@ -89,30 +88,9 @@
         throw Error('仪器及物理模块尚未完成身份核验');
       const cmd=String(text||'');
       const n='(?:0|[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[Ee][+-]?\\d+)?)';
-      const dv=new RegExp('^DV([1-9]),0,('+n+'),('+n+')await inventoryPending.catch(()=>{});if(pending)await pending.catch(()=>{});await closeCurrent();phase='disconnected';diagnostic='';settings=null;return status();}
-    async function dispose(){await disconnect();tcp.closeAll?.();}
-    return Object.freeze({connect,inspectModules,disconnect,status,dispose,measurementExchange});
-  }
-  const api=Object.freeze({createIdentityController,normalizeSettings,summarizeError});
-  if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-identity-core',api);
-  if(typeof module!=='undefined'&&module.exports)module.exports=api;
-})();).exec(cmd);
-      const ri=new RegExp('^RI ([1-9]),('+n+'),('+n+')await inventoryPending.catch(()=>{});if(pending)await pending.catch(()=>{});await closeCurrent();phase='disconnected';diagnostic='';settings=null;return status();}
-    async function dispose(){await disconnect();tcp.closeAll?.();}
-    return Object.freeze({connect,inspectModules,disconnect,status,dispose});
-  }
-  const api=Object.freeze({createIdentityController,normalizeSettings,summarizeError});
-  if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-identity-core',api);
-  if(typeof module!=='undefined'&&module.exports)module.exports=api;
-})();).exec(cmd);
-      const rg=new RegExp('^RG ([1-9]),('+n+')await inventoryPending.catch(()=>{});if(pending)await pending.catch(()=>{});await closeCurrent();phase='disconnected';diagnostic='';settings=null;return status();}
-    async function dispose(){await disconnect();tcp.closeAll?.();}
-    return Object.freeze({connect,inspectModules,disconnect,status,dispose});
-  }
-  const api=Object.freeze({createIdentityController,normalizeSettings,summarizeError});
-  if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-identity-core',api);
-  if(typeof module!=='undefined'&&module.exports)module.exports=api;
-})();).exec(cmd);
+      const dv=new RegExp('^DV([1-9]),0,('+n+'),('+n+')$').exec(cmd);
+      const ri=new RegExp('^RI ([1-9]),('+n+'),('+n+')$').exec(cmd);
+      const rg=new RegExp('^RG ([1-9]),('+n+')$').exec(cmd);
       if(dv&&!(Math.abs(Number(dv[2]))<=210&&Number(dv[3])>0&&Number(dv[3])<=1.05))
         throw Error('KXCI DV 指令值越过绝对硬件边界');
       if(ri&&!(Number(ri[2])>0&&Number(ri[2])<=1&&Number(ri[3])>0&&Number(ri[3])<=1.05))
@@ -135,7 +113,7 @@
     }
     async function disconnect(){if(inventoryPending)await inventoryPending.catch(()=>{});if(pending)await pending.catch(()=>{});await closeCurrent();phase='disconnected';diagnostic='';settings=null;return status();}
     async function dispose(){await disconnect();tcp.closeAll?.();}
-    return Object.freeze({connect,inspectModules,disconnect,status,dispose});
+    return Object.freeze({connect,inspectModules,disconnect,status,dispose,measurementExchange});
   }
   const api=Object.freeze({createIdentityController,normalizeSettings,summarizeError});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-identity-core',api);
