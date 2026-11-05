@@ -1334,6 +1334,363 @@ window.DKTSMeasurementPlot=Object.freeze({
   get renderer(){return measurementPlot.renderer;}
 });
 
+
+/* Terminal allocation and LabExpress-style nested sweep parameters.
+ * Only instrument-discovered channels can become hardware-verified. */
+const portUi=(()=>{
+  const ROLES=['source','drain','gate'];
+  const ROLE_NAMES={source:'源极',drain:'漏极',gate:'栅极'};
+  const CURRENT_RANGES=[1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,1e-6,
+    1e-5,1e-4,1e-3,1e-2,1e-1,1];
+  const scientific=n=>Number(n).toExponential(0).replace('e+','e');
+  const scan=$('sweep-configuration');
+  let settingUp=false;
+  const home=Object.fromEntries(ROLES.map(role=>[role,$('home-terminal-'+role)]));
+  const header=Object.fromEntries(ROLES.map(role=>[role,$('header-terminal-'+role)]));
+  function inventory(){
+    const slots=latestStatus.inventory?.slots;
+    return Array.isArray(slots)?slots:null;
+  }
+  function choices(){
+    const slots=inventory();
+    const names=new Map([['None','None（未分配）']]);
+    if(!slots){
+      for(let i=1;i<=9;i++)names.set('SMU'+i,'SMU'+i+' · 待识别');
+      for(let i=1;i<=2;i++){
+        for(let ch=1;ch<=2;ch++){
+          names.set('PMU'+i+'-'+ch,'PMU'+i+' CH'+ch+' · 待识别');
+          names.set('VPU'+i+'-'+ch,'PGU'+i+' CH'+ch+' · 待识别');
+        }
+      }
+      names.set('GNDU','GNDU · 接地回路（须确认接线）');
+    }else{
+      names.set('GNDU','GNDU · 接地回路（须确认接线）');
+      for(const slot of slots){
+        if(!slot||!Number.isInteger(slot.channel))continue;
+        if(['SMU','VS','VM'].includes(slot.family)){
+          const id=slot.family+slot.channel;
+          names.set(id,id+' · '+(slot.physicalModel||slot.type||'待核实'));
+        }else if(['PMU','PGU'].includes(slot.family)){
+          const family=slot.family==='PGU'?'VPU':'PMU';
+          for(let channel=1;channel<=2;channel++){
+            const id=family+slot.channel+'-'+channel;
+            names.set(id,(family==='VPU'?'PGU':'PMU')+slot.channel+' CH'+channel+
+              ' · '+(slot.physicalModel||'待核实'));
+          }
+        }
+      }
+    }
+    return names;
+  }
+  function setSelectOptions(select,wanted,items){
+    const current=String(wanted||'None');
+    select.replaceChildren();
+    const map=new Map(items);
+    if(!map.has(current))map.set(current,current+' · 未识别（不可执行）');
+    for(const [id,label] of map){
+      const opt=document.createElement('option');
+      opt.value=id;opt.textContent=label;
+      if(id===current&&!items.has(id))opt.dataset.unverified='true';
+      select.append(opt);
+    }
+    select.value=current;
+    select.dispatchEvent(new Event('change',{bubbles:false}));
+  }
+  function syncTerminals(){
+    settingUp=true;
+    try{
+      const config=workspaceStore.getTerminalConfig(),items=choices();
+      for(const role of ROLES)
+        for(const node of [home[role],header[role]])
+          setSelectOptions(node,config[role],items);
+      $('terminal-inventory-state').textContent=inventory()
+        ?'已获取模块清单 · '+(latestStatus.inventory?.physicalModelsVerified?'物理型号已核验':'部分型号待核验')
+        :'仪器未识别 · 仅允许离线配置';
+      const select=$('terminal-preset-select'),chosen=select.value;
+      select.replaceChildren();
+      const placeholder=document.createElement('option');
+      placeholder.value='';placeholder.textContent='选择已保存配置';
+      select.append(placeholder);
+      for(const name of workspaceStore.listTerminalProfiles()){
+        const option=document.createElement('option');
+        option.value=name;option.textContent=name;select.append(option);
+      }
+      select.value=chosen&&workspaceStore.listTerminalProfiles().includes(chosen)?chosen:'';
+    }finally{settingUp=false;}
+    syncCurrentRangeMenus();
+  }
+  function onTerminalChange(event){
+    if(settingUp)return;
+    const role=event.currentTarget.dataset.terminalRole,value=event.currentTarget.value;
+    try{
+      const config=workspaceStore.getTerminalConfig();
+      config[role]=value;
+      workspaceStore.setTerminalConfig(config);
+      $('terminal-profile-status').textContent=ROLE_NAMES[role]+'已分配至 '+value+'。请在测试前确认实物接线。';
+    }catch(error){
+      $('terminal-profile-status').textContent=String(error.message||error);
+    }
+    syncTerminals();
+    if(activeMode&&['iv','transfer','output'].includes(activeMode))
+      $('plan-status').textContent='端口配置已更改，请重新校验';
+    rememberTabDraft();
+  }
+  ROLES.forEach(role=>{
+    home[role].addEventListener('change',onTerminalChange);
+    header[role].addEventListener('change',onTerminalChange);
+  });
+  $('terminal-preset-save').addEventListener('click',()=>{
+    try{
+      const name=workspaceStore.saveTerminalProfile($('terminal-preset-name').value);
+      syncTerminals();
+      $('terminal-preset-select').value=name;
+      $('terminal-profile-status').textContent='已保存“'+name+'”端口配置';
+    }catch(error){$('terminal-profile-status').textContent=String(error.message||error);}
+  });
+  $('terminal-preset-load').addEventListener('click',()=>{
+    try{
+      const name=$('terminal-preset-select').value;
+      workspaceStore.loadTerminalProfile(name);
+      syncTerminals();
+      $('terminal-profile-status').textContent='已加载“'+name+'”，请核对实物接线';
+    }catch(error){$('terminal-profile-status').textContent=String(error.message||error);}
+  });
+  const axisFields={
+    x:{body:$('xsweep-segments'),add:$('xsweep-add'),terminal:$('xsweep-terminal'),
+      delay:$('xsweep-delay'),repeats:$('xsweep-repeats')},
+    p:{body:$('psweep-segments'),add:$('psweep-add'),terminal:$('psweep-terminal'),
+      delay:$('psweep-delay'),repeats:$('psweep-repeats')}
+  };
+  function rangesForRole(role){
+    const port=workspaceStore.getTerminalConfig()[role]||'None';
+    const match=/^(SMU|VS)([1-9])$/.exec(port);
+    const slot=match?inventory()?.find(item=>item.channel===Number(match[2])&&item.family===match[1]):null;
+    if(!slot||slot.family!=='SMU')return CURRENT_RANGES;
+    const low=slot.preamplifier?1e-12:1e-7;
+    const high=slot.powerClass==='high'?1:1e-1;
+    return CURRENT_RANGES.filter(value=>value>=low&&value<=high);
+  }
+  function rangeOptions(select,role,allowAuto=true){
+    const last=select.value;
+    select.replaceChildren();
+    if(allowAuto){
+      const opt=new Option('Auto（继承端口设置）','auto');
+      select.append(opt);
+    }
+    for(const value of rangesForRole(role))select.append(new Option(scientific(value),scientific(value)));
+    if(last&&!Array.from(select.options).some(option=>option.value===last)){
+      const unverified=new Option(last+' · 当前模块未确认',last);
+      unverified.disabled=false;
+      select.append(unverified);
+    }
+    select.value=last&&Array.from(select.options).some(option=>option.value===last)?
+      last:(allowAuto?'auto':'1e-6');
+  }
+  function rangeInputs(){
+    return [...scan.querySelectorAll('select[data-current-range]')];
+  }
+  function syncCurrentRangeMenus(){
+    for(const select of rangeInputs()){
+      const role=select.dataset.currentRange==='segment'?
+        axisFields[select.closest('tbody')?.id==='psweep-segments'?'p':'x'].terminal.value:
+        select.closest('.sweep-terminal-row')?.dataset.role;
+      if(role)rangeOptions(select,role,select.dataset.currentRange==='segment');
+    }
+    for(const role of ROLES){
+      const row=scan.querySelector('.sweep-terminal-row[data-role="'+role+'"]');
+      if(!row)continue;
+      const config=workspaceStore.getTerminalConfig();
+      row.querySelector('strong').textContent=ROLE_NAMES[role]+' · '+config[role];
+    }
+  }
+  function makeSegment(axis,initial={}){
+    const parent=axisFields[axis].body;
+    const row=document.createElement('tr');
+    row.className='sweep-segment';
+    row.innerHTML='<td class="segment-number"></td>'+
+      '<td><input data-sweep-field="startV" type="number" min="-210" max="210" step="any" aria-label="起始电压"></td>'+
+      '<td><input data-sweep-field="stopV" type="number" min="-210" max="210" step="any" aria-label="结束电压"></td>'+
+      '<td><input data-sweep-field="stepV" type="number" min="-420" max="420" step="any" aria-label="扫描步长"></td>'+
+      '<td><select data-sweep-field="rangeA" data-current-range="segment" aria-label="电流档位"></select></td>'+
+      '<td><input data-sweep-field="delayMs" type="number" min="0" max="6553" step="any" placeholder="继承" aria-label="本段延迟"></td>'+
+      '<td><button type="button" class="remove-segment" aria-label="删除扫描段">×</button></td>';
+    parent.append(row);
+    const defaults={startV:0,stopV:1,stepV:.1,rangeA:'auto',delayMs:''};
+    const values={...defaults,...initial};
+    for(const [key,value] of Object.entries(values)){
+      const field=row.querySelector('[data-sweep-field="'+key+'"]');
+      if(field&&key!=='rangeA')field.value=value==null?'':String(value);
+    }
+    const select=row.querySelector('[data-current-range="segment"]');
+    rangeOptions(select,axisFields[axis].terminal.value,true);
+    if(values.rangeA!=='auto'){
+      const wanted=scientific(Number(values.rangeA));
+      if(![...select.options].some(opt=>opt.value===wanted))select.add(new Option(wanted+' · 待验证',wanted));
+      select.value=wanted;
+    }
+    const numberRows=()=>[...parent.children].forEach((element,i)=>{
+      element.querySelector('.segment-number').textContent=String(i+1);
+      element.querySelector('.remove-segment').disabled=parent.children.length===1;
+    });
+    row.querySelector('.remove-segment').addEventListener('click',()=>{
+      if(parent.children.length<=1)return;
+      row.remove();numberRows();rememberTabDraft();
+    });
+    numberRows();
+    window.DKTSNumericKeypad?.bindNew?.(row);
+    return row;
+  }
+  function segments(axis){
+    return [...axisFields[axis].body.querySelectorAll('.sweep-segment')].map(row=>{
+      const result={};
+      for(const field of row.querySelectorAll('[data-sweep-field]'))
+        result[field.dataset.sweepField]=field.value;
+      if(result.delayMs==='')delete result.delayMs;
+      return result;
+    });
+  }
+  function clearSegments(axis,items){
+    axisFields[axis].body.replaceChildren();
+    for(const item of items)makeSegment(axis,item);
+  }
+  const defaultScan=mode=>({
+    kind:mode,loops:1,
+    xSweep:{terminal:mode==='transfer'?'gate':'drain',delayMs:20,repeats:1,
+      segments:[{startV:0,stopV:2,stepV:.1,rangeA:'auto'}]},
+    pSweep:{enabled:false,terminal:mode==='transfer'?'drain':'gate',delayMs:20,repeats:1,
+      segments:[{startV:0,stopV:1,stepV:.1,rangeA:'auto'}]},
+    portSettings:Object.fromEntries(ROLES.map(role=>[role,{
+      rangeMode:'auto',rangeA:'1e-6',complianceMode:'follow-range',complianceA:'1e-4'}])),
+    fixedVoltages:{source:0,drain:0,gate:0}
+  });
+  function updatePsweep(){
+    const on=$('psweep-enabled').checked;
+    $('psweep-fields').hidden=!on;
+    $('psweep-off-note').hidden=on;
+    for(const field of ['psweep-terminal','psweep-delay','psweep-repeats','psweep-add'])
+      $(field).disabled=!on;
+  }
+  function initTerminalRows(){
+    const target=$('sweep-terminal-settings');
+    target.replaceChildren();
+    for(const role of ROLES){
+      const row=document.createElement('div');
+      row.className='sweep-terminal-row';row.dataset.role=role;
+      row.innerHTML='<strong></strong>'+
+        '<label>测量量程<select data-port-setting="rangeMode">'+
+          '<option value="auto">Auto</option><option value="fixed">Fixed</option>'+
+          '<option value="limited-auto">Limited Auto</option></select></label>'+
+        '<label>档位 / 自动下限 (A)<select data-current-range="port" data-port-setting="rangeA"></select></label>'+
+        '<label>电流保护<select data-port-setting="complianceMode">'+
+          '<option value="follow-range">跟随档位</option><option value="custom">自定义数值</option></select></label>'+
+        '<label>保护值 (A)<input type="number" step="any" min="1e-12" max="1.05" value="1e-4" data-port-setting="complianceA"></label>';
+      target.append(row);
+      rangeOptions(row.querySelector('[data-port-setting="rangeA"]'),role,false);
+    }
+  }
+  function restoreScan(saved,mode){
+    settingUp=true;
+    try{
+      const plan=saved&&typeof saved==='object'?saved:defaultScan(mode);
+      $('sweep-global-loops').value=plan.loops??1;
+      for(const key of ['x','p']){
+        const axis=key==='x'?plan.xSweep:plan.pSweep;
+        const fallback=key==='x'?defaultScan(mode).xSweep:defaultScan(mode).pSweep;
+        axisFields[key].terminal.value=axis?.terminal||fallback.terminal;
+        axisFields[key].delay.value=axis?.delayMs??fallback.delayMs;
+        axisFields[key].repeats.value=axis?.repeats??fallback.repeats;
+        clearSegments(key,axis?.segments?.length?axis.segments:fallback.segments);
+      }
+      $('psweep-enabled').checked=plan.pSweep?.enabled===true;
+      updatePsweep();
+      for(const role of ROLES){
+        const row=scan.querySelector('.sweep-terminal-row[data-role="'+role+'"]');
+        const values={...defaultScan(mode).portSettings[role],...(plan.portSettings?.[role]||{})};
+        for(const field of row.querySelectorAll('[data-port-setting]')){
+          const name=field.dataset.portSetting;
+          field.value=String(values[name]??'');
+        }
+        $('fixed-'+role).value=plan.fixedVoltages?.[role]??0;
+      }
+      syncCurrentRangeMenus();
+      updateFixedRoles();
+    }finally{settingUp=false;}
+  }
+  function updateFixedRoles(){
+    const active=new Set([axisFields.x.terminal.value]);
+    if($('psweep-enabled').checked)active.add(axisFields.p.terminal.value);
+    for(const role of ROLES){
+      $('fixed-'+role).disabled=active.has(role);
+      $('fixed-'+role).closest('label').title=active.has(role)?
+        '该端口由 Xsweep/Psweep 直接控制':'固定偏置电压';
+    }
+    for(const role of ROLES){
+      const row=scan.querySelector('.sweep-terminal-row[data-role="'+role+'"]');
+      if(!row)continue;
+      const mode=row.querySelector('[data-port-setting="rangeMode"]').value;
+      row.querySelector('[data-port-setting="rangeA"]').disabled=mode==='auto';
+      const custom=row.querySelector('[data-port-setting="complianceMode"]').value==='custom';
+      row.querySelector('[data-port-setting="complianceA"]').disabled=!custom;
+    }
+  }
+  function snapshotScan(){
+    const ports={};
+    for(const role of ROLES){
+      const row=scan.querySelector('.sweep-terminal-row[data-role="'+role+'"]');
+      const settings={};
+      for(const field of row.querySelectorAll('[data-port-setting]'))
+        settings[field.dataset.portSetting]=field.value;
+      ports[role]=settings;
+    }
+    return {
+      kind:activeMode||'iv',loops:$('sweep-global-loops').value,
+      terminals:workspaceStore.getTerminalConfig(),
+      xSweep:{
+        terminal:axisFields.x.terminal.value,
+        repeats:axisFields.x.repeats.value,delayMs:axisFields.x.delay.value,
+        segments:segments('x')
+      },
+      pSweep:{
+        enabled:$('psweep-enabled').checked,
+        terminal:axisFields.p.terminal.value,
+        repeats:axisFields.p.repeats.value,delayMs:axisFields.p.delay.value,
+        segments:segments('p')
+      },
+      fixedVoltages:Object.fromEntries(ROLES.map(role=>[role,$('fixed-'+role).value])),
+      portSettings:ports
+    };
+  }
+  initTerminalRows();
+  ROLES.forEach(role=>{home[role].value='None';header[role].value='None';});
+  for(const axis of ['x','p']){
+    axisFields[axis].add.addEventListener('click',()=>{makeSegment(axis);rememberTabDraft();});
+    axisFields[axis].terminal.addEventListener('change',()=>{
+      syncCurrentRangeMenus();updateFixedRoles();rememberTabDraft();
+    });
+  }
+  $('psweep-enabled').addEventListener('change',()=>{updatePsweep();updateFixedRoles();rememberTabDraft();});
+  scan.addEventListener('input',event=>{
+    if(settingUp)return;
+    updateFixedRoles();rememberTabDraft();
+    $('plan-status').textContent='扫描设置已修改，请重新校验';
+  });
+  scan.addEventListener('change',event=>{
+    if(settingUp)return;
+    updateFixedRoles();rememberTabDraft();
+  });
+  restoreScan(null,'iv');
+  syncTerminals();
+  return Object.freeze({
+    syncTerminals,restoreScan,snapshotScan,
+    setMode(mode){if(!['iv','transfer','output'].includes(mode))return;
+      if(mode==='transfer'&&axisFields.x.terminal.value==='drain'&&
+         !workspaceStore.getDraft(getActiveWorkspace()?.id||'',mode))
+        axisFields.x.terminal.value='gate';
+      syncCurrentRangeMenus();updateFixedRoles();
+    }
+  });
+})();
+
 function renderTestSelection(){
   const tab=getActiveWorkspace();
   activeMode=tab?.activeMode||null;
