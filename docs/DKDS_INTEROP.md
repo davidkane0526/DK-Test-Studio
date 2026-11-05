@@ -24,7 +24,7 @@ GitHub Actions 的 `DKDS Plugin API 1.19 compatibility` 任务会从 DK Data Stu
 - 所有数值校验只生成不可执行方案。硬件执行前仍必须依据真实插槽、模块型号、工作象限、所选电流档位和设备 interlock 重新验证；目前没有开放 SMU/PMU 输出命令。
 - 4200A 能力数据唯一来源为 `src/shared/hardware-capabilities.js`。运行 `npm run hardware:export` 可生成 `DKTS-4200A-Hardware-Capability-Database-v1.json`，并作为完整 Release 的独立资产发布。数据库同时记录 *OPT? 类别、SystemUtil 物理模块识别规则、参数边界、来源手册和安全策略。
 - `*OPT?` 中的 `HPSMUPA`、`PMU1RPM1-2` 等类别直接用于选择数据库额定值；具体 4200/4201/4210/4211 型号及校准信息由 `instrumentinfo` 补充。CVU 变体必须由物理型号确认，不擅自选择 4210-CVU 或 4215-CVU 的专属 AC 驱动规格。
-- PMU/PGU Segment Arb 按模块和 10 V/40 V 档分别校验最小分段时间、10 ns 时间分辨率、每序列最少 3 段及每通道最多 2048 段。PMU 采集校验同时考虑 200 MSa/s、KXCI 每通道 65536 点缓冲区和测量窗口。
+- PMU/PGU 的硬件规划上限为 Segment Arb 每段 20 ns 至 40 s、每通道最多 2048 段、每通道最多 512 个序列、序列循环上限 10^12，分段时间分辨率 10 ns。PMU 硬件采集上限为 200 MSa/s、每个 A/D 每次测试最多 1,000,000 点。
 - 机箱功耗按 KXCI 手册的 500 W 公式计算；模块清单或活动通道不完整时，功耗状态标记为未知，不将未知模块功耗视为零。
 - 数据中心发布接口收到调用方传入的数组时标记为未验证导入数据，不再自动标记为原始仪器采集数据。只有未来真实采集执行器提供可信采集凭证后，才允许标记 rawInstrumentData:true。
 
