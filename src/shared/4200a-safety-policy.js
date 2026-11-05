@@ -364,7 +364,7 @@
     const cvuChannel=integer(input.cvuChannel??1,'CVU 通道',1,9);
     const slot=slotFor('CVU',cvuChannel,hardware,'CVU',input.cvuModel);
     const modelKey=slot.modelKey;
-    if(!modelKey||!DB.modules[modelKey])throw Error('未识别到 CVU 的确切型号，不能用较低规格型号代替');
+    if(!modelKey||!DB.modules[modelKey])throw Error('未识别到 CVU 的确切型号，不能用其他型号的参数代替');
     const model=DB.modules[modelKey];
     const acDriveVrms=finite(input.acDriveVrms??0.05,'CVU AC 激励 (Vrms)',model.acDriveVrms.min,model.acDriveVrms.max);
     const frequencyHz=finite(input.frequencyHz??100000,'CVU 测试频率 (Hz)',model.frequencyHz.min,model.frequencyHz.max);
@@ -380,25 +380,67 @@
     if(!frequencyValid)throw Error(modelKey+' 不支持该频率步进');
     const biasSource=String(input.biasSource||'internal');
     if(!['internal','external-smu','cvu-pwr'].includes(biasSource))throw Error('CVU DC Bias 来源无效');
-    const dcBiasV=finite(input.dcBiasV??0,'CVU DC Bias (V)',
-      biasSource==='internal'?-30:biasSource==='cvu-pwr'?-200:-210,biasSource==='internal'?30:biasSource==='cvu-pwr'?200:210);
-    const dcBiasCurrentLimitA=finite(input.dcBiasCurrentLimitA??0.001,'CVU DC Bias 电流限制 (A)',1e-9,
-      biasSource==='internal'?0.01:biasSource==='cvu-pwr'?0.3:1);
-    if(biasSource==='cvu-pwr'&&Math.abs(dcBiasV)>200+EPS)throw Error('4200-CVU-PWR 的单端 DC Bias 不得超过 ±200 V');
-    if(biasSource==='external-smu'){
+    const dcBiasMode=String(input.dcBiasMode||'single-ended');
+    if(!['single-ended','differential'].includes(dcBiasMode))throw Error('CVU DC Bias 模式必须是 single-ended 或 differential');
+    if(biasSource==='external-smu'&&dcBiasMode==='differential')
+      throw Error('当前外部偏置方案使用单个 SMU，只支持单端偏置；差分偏置需要双 SMU 配置，DKTS 尚未开放该方案');
+    let biasLimitV=0,dcBiasCurrentLimitA=0.001,biasPlan=null,cvivMode=null,biasSmU=null,biasComplianceA=null;
+    const accessoryWarnings=[];
+    if(biasSource==='internal'){
+      const limits=dcBiasMode==='differential'?model.internalDcBiasDifferentialV:model.internalDcBiasV;
+      if(!limits)throw Error(modelKey+' 的数据库未记录该偏置模式的额定范围');
+      biasLimitV=Math.max(Math.abs(limits.min),Math.abs(limits.max));
+      dcBiasCurrentLimitA=finite(input.dcBiasCurrentLimitA??0.001,'CVU 内置偏置电流限制 (A)',1e-9,model.dcBiasMaxCurrentA);
+    }else if(biasSource==='cvu-pwr'){
+      const accessory=DB.modules['4200-CVU-PWR'];
+      const limits=dcBiasMode==='differential'?accessory.dcBiasV.differentialMax:accessory.dcBiasV.singleEndedMax;
+      biasLimitV=Number(limits);
+      if(!Number.isFinite(biasLimitV)||biasLimitV<=0)throw Error('4200-CVU-PWR 数据库缺少所选偏置模式的额定值');
+      if(hardware.connected&&!hardware.inventory?.externalAccessories?.cvuPower)
+        throw Error('当前仪器清单未确认安装 4200-CVU-PWR，不能按其高压能力校验');
+      if(!hardware.connected&&input.cvuPowerInstalled!==true)
+        throw Error('离线规划使用 CVU-PWR 高压能力时，必须明确确认已安装 4200-CVU-PWR');
+      dcBiasCurrentLimitA=finite(input.dcBiasCurrentLimitA??0.001,'CVU-PWR 偏置电流限制 (A)',1e-9,accessory.maxDcCurrentA);
+      if(!hardware.connected)accessoryWarnings.push('离线规划已明确选择 4200-CVU-PWR；连接后必须确认实际选件。');
+    }else{
+      const cviv=DB.modules['4200A-CVIV'];
+      biasLimitV=Number(model.externalSmuDcBiasV.max);
       if(hardware.connected&&!hardware.inventory?.externalAccessories?.cviv)
-        throw Error('外部 SMU 偏置需要确认 4200A-CVIV 路径；当前仪器清单未确认 CVIV');
-      const biasSmU=integer(input.biasSmU,'CVU 外部偏置 SMU',1,9);
-      const biasComplianceA=finite(input.biasComplianceA,'CVU 外部 SMU 电流 Compliance (A)',1e-12,1.05);
-      validateSmuPlan({kind:'it',sourceMode:'voltage',sourceSmU:biasSmU,measureSmU:biasSmU,
+        throw Error('当前仪器清单未确认 4200A-CVIV，不能启用外部 SMU 偏置');
+      if(!hardware.connected&&input.cvivInstalled!==true)
+        throw Error('离线规划使用外部 SMU 偏置时，必须明确确认已安装 4200A-CVIV');
+      if(input.cvivGroundBonded!==true)
+        throw Error('使用 4200A-CVIV 前必须确认两条随附接地线均已连接保护地');
+      if(input.cvivChannelBlockersInstalled!==true)
+        throw Error('使用 4200A-CVIV 前必须确认未使用的 SMU 输入端已安装通道堵头');
+      cvivMode=String(input.cvivMode||'');
+      if(!Object.prototype.hasOwnProperty.call(cviv.biasTee.maxComplianceAByMode,cvivMode))
+        throw Error('必须明确选择 CVIV Bias-Tee 模式（lowCurrent 或 cvMode）');
+      const cvivComplianceMax=Math.min(
+        Number(cviv.biasTee.maxComplianceAByMode[cvivMode]),Number(cviv.currentRatingA)
+      );
+      biasSmU=integer(input.biasSmU,'CVU 外部偏置 SMU',1,9);
+      biasComplianceA=finite(input.biasComplianceA??Math.min(0.001,cvivComplianceMax),
+        'CVU 外部 SMU 电流 Compliance (A)',1e-12,cvivComplianceMax);
+      dcBiasCurrentLimitA=biasComplianceA;
+      if(!hardware.connected)accessoryWarnings.push('离线规划按 CVIV '+cvivMode+' 模式及其公开电流额定值校验；接入仪器后必须复核实际接线。');
+      biasPlan=validateSmuPlan({kind:'it',sourceMode:'voltage',sourceSmU:biasSmU,measureSmU:biasSmU,
         sourceModel:input.biasModel,measureModel:input.biasModel,
-        fixedV:dcBiasV,complianceA:biasComplianceA},hardware);
+        fixedV:finite(input.dcBiasV??0,'CVU DC Bias (V)',-biasLimitV,biasLimitV),
+        complianceA:biasComplianceA},hardware);
     }
-    if(biasSource==='cvu-pwr'&&!hardware.inventory?.externalAccessories?.cvuPower&&hardware.connected)
-      throw Error('未确认安装 4200-CVU-PWR 高功率 C-V 选件');
+    const dcBiasV=finite(input.dcBiasV??0,'CVU DC Bias (V)',-biasLimitV,biasLimitV);
+    if(biasSource==='external-smu'&&Math.abs(dcBiasV)>Number(model.externalSmuDcBiasV.max)+EPS)
+      throw Error('外部 SMU 单端偏置不得超过该 CVU 规格的 ±'+model.externalSmuDcBiasV.max+' V');
     return Object.freeze({
-      cvuChannel,modelKey,frequencyHz,acDriveVrms,biasSource,dcBiasV,dcBiasCurrentLimitA,
-      warnings:[slot.offline?'离线规划按明确选择的 '+modelKey+' 官方规格校验；连接后必须重新读取实际 CVU 型号。':null].filter(Boolean),
+      cvuChannel,modelKey,frequencyHz,acDriveVrms,biasSource,dcBiasMode,dcBiasV,
+      dcBiasCurrentLimitA,biasSmU,biasComplianceA,cvivMode,
+      biasRequiresInterlock:biasSource==='external-smu'?!!biasPlan?.requiresInterlock:false,
+      warnings:[
+        slot.offline?'离线规划按明确选择的 '+modelKey+' 官方规格校验；连接后必须重新读取实际 CVU 型号。':null,
+        ...accessoryWarnings,
+        ...(biasPlan?.warnings||[])
+      ].filter(Boolean),
       executable:false,hardwareVerified:false,safetyDatabaseVersion:DB.databaseVersion
     });
   }
