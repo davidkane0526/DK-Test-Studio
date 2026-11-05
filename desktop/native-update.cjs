@@ -13,7 +13,7 @@ const {pipeline}=require('node:stream/promises');
 const {Transform}=require('node:stream');
 const githubLimit=require('../src/github-rate-limit.cjs');
 const RELEASES='https://api.github.com/repos/davidkane0526/DK-Test-Studio/releases?per_page=20';
-const PREVIEW=/^dkts-preview-\d+$/;
+const PREVIEW=/^dkts-preview-v(\d+\.\d+\.\d+)-a\d+$/;
 const PORTABLE=/^DK-Test-Studio-Portable-(\d+\.\d+\.\d+)-x64\.exe$/;
 const LIMIT=180*1024*1024;
 function trusted(url){
@@ -70,11 +70,13 @@ function newer(a,b){
 function pickRelease(releases,currentVersion){
   let best=null;
   for(const release of releases){
-    if(!PREVIEW.test(String(release.tag_name||''))||release.draft)continue;
+    const tag=PREVIEW.exec(String(release.tag_name||''));
+    if(!tag||release.draft)continue;
     const assets=Array.isArray(release.assets)?release.assets:[];
     const portable=assets.filter(a=>PORTABLE.test(String(a.name||'')));
     for(const asset of portable){
-      const match=PORTABLE.exec(asset.name);if(!match||!newer(match[1],currentVersion))continue;
+      const match=PORTABLE.exec(asset.name);
+      if(!match||match[1]!==tag[1]||!newer(match[1],currentVersion))continue;
       const expected='https://github.com/davidkane0526/DK-Test-Studio/releases/download/'+release.tag_name+'/';
       if(!String(asset.browser_download_url||'').startsWith(expected))continue;
       if(!/^sha256:[a-f0-9]{64}$/i.test(String(asset.digest||'')))continue;

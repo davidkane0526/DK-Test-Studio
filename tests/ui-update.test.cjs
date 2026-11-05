@@ -123,7 +123,9 @@ test('replayed or force-reset Git HEAD is rejected by the fast-forward check',as
     assert.equal((await updater.updateOnce()).updated,false);
     assert.equal(updater.state().version,'bundled');
     assert.equal(updater.state().status,'blocked');
-    assert.equal(github.requests.length,3);
+    assert.equal(github.requests.length,4);
+    assert(github.requests.findIndex(url=>url.includes('/releases/download/'))<
+      github.requests.findIndex(url=>url.includes('/compare/')));
   }finally{updater.stop();fs.rmSync(dir,{recursive:true,force:true});}
 });
 

@@ -15,12 +15,12 @@ test('semver compare works without lexical mis-ordering',()=>{
 test('portable updater selects only original GitHub releases with a SHA-256 digest',()=>{
   const asset=(v,sha=true)=>({
     name:'DK-Test-Studio-Portable-'+v+'-x64.exe',
-    browser_download_url:'https://github.com/davidkane0526/DK-Test-Studio/releases/download/dkts-preview-123/DK-Test-Studio-Portable-'+v+'-x64.exe',
+    browser_download_url:'https://github.com/davidkane0526/DK-Test-Studio/releases/download/dkts-preview-v0.2.9-a123/DK-Test-Studio-Portable-'+v+'-x64.exe',
     size:90000000,digest:sha?'sha256:'+'a'.repeat(64):''
   });
   const releases=[
-    {tag_name:'dkts-preview-999',draft:true,assets:[asset('8.0.0')]},
-    {tag_name:'dkts-preview-123',assets:[asset('0.2.7'),asset('0.2.9'),asset('0.3.0',false)]},
+    {tag_name:'dkts-preview-v8.0.0-a999',draft:true,assets:[asset('8.0.0')]},
+    {tag_name:'dkts-preview-v0.2.9-a123',assets:[asset('0.2.7'),asset('0.2.9'),asset('0.3.0',false)]},
     {tag_name:'dkts-ui-999',assets:[asset('9.9.9')]}
   ];
   const result=pickRelease(releases,'0.2.8');
@@ -28,6 +28,7 @@ test('portable updater selects only original GitHub releases with a SHA-256 dige
   assert.equal(result.size,90000000);
   assert.equal(result.digest,'a'.repeat(64));
   assert.equal(pickRelease(releases,'0.2.10'),null);
+  assert.equal(pickRelease([{tag_name:'dkts-preview-123',assets:[asset('0.2.9')]}],'0.2.8'),null,'Old release tags are not accepted');
   assert.equal(trusted(new URL('http://github.com/a')),false);
   assert.equal(trusted(new URL('https://fakegithubusercontent.com/x')),false);
 });
@@ -44,9 +45,11 @@ test('scientific toolbar shrinks to 80 percent and uses lightweight strokes',()=
   assert.match(css,/stroke-width:1\.3!important/);
   assert.match(css,/\.dkds-scientific-nav-drag svg/);
 });
-test('the installed app offers only UI hot updates; full packages are GitHub-only',()=>{
-  assert.doesNotMatch(html,/native-app-update-state|native-app-update-action/);
-  assert.doesNotMatch(app,/nativeAppApi|checkNativeAppUpdate|installAppUpdate/);
+test('version panel offers APK upgrade only when UI-only updating is insufficient',()=>{
+  assert.match(html,/id="native-app-update-btn"[^>]*hidden/);
+  assert.match(app,/if\(result.status==='native-required'\)/);
+  assert.match(app,/await inspectNativeAppUpdate\(\)/);
+  assert.match(app,/window\.DKTSClient\.installAppUpdate\(\)/);
   assert.match(app,/if\(opening\)void checkUiUpdateNow\(\)/);
   assert.match(html,/id="native-version-badge"/);
   assert.match(html,/id="ui-version-badge"[^>]*hidden/);
