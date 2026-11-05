@@ -54,7 +54,7 @@ test('KXCI Segment Arb arrays over 128 values are planned for command chunking, 
 test('PGU source-only uses its own 10 V minimum segment time and cannot capture current',()=>{
   const points=[{timeS:0,voltageV:0},{timeS:2e-8,voltageV:1},{timeS:4e-8,voltageV:0},{timeS:6e-8,voltageV:1}];
   const tenNs=validateWaveform([{timeS:0,voltageV:0},{timeS:10e-9,voltageV:1},{timeS:20e-9,voltageV:0},{timeS:30e-9,voltageV:1}],{sourceType:'pgu',loadOhms:50,rangeV:10,inventory:pguInventory});
-  assert.equal(tenNs.minimumStepS,10e-9);
+  assert.ok(Math.abs(tenNs.minimumStepS-10e-9)<1e-20);
   assert.equal(tenNs.interfaceLimits.segmentTimesCompatible,true);
   assert.match(tenNs.interfaceLimits.hardwareMinSegmentNote,/PGU 10 V.*10 ns/);
   const w=validateWaveform(points,{sourceType:'pgu',loadOhms:50,rangeV:10,inventory:pguInventory});
