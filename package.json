@@ -1,6 +1,6 @@
 {
   "name": "dk-test-studio",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "private": true,
   "description": "Standalone Keithley 4200A research test control workspace",
   "main": "desktop/main.cjs",
@@ -12,7 +12,8 @@
     "dist:win": "node tools/prepare-dkds-plot-vendor.cjs && node tools/generate-app-icons.cjs && electron-builder --win nsis portable",
     "plugin:build": "node tools/build-dkds-plugin.cjs",
     "icons:build": "node tools/generate-app-icons.cjs",
-    "prepare:plot-vendor": "node tools/prepare-dkds-plot-vendor.cjs"
+    "prepare:plot-vendor": "node tools/prepare-dkds-plot-vendor.cjs",
+    "hardware:export": "node tools/export-hardware-capabilities.cjs"
   },
   "engines": {
     "node": ">=20.0.0"
