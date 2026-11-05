@@ -646,9 +646,12 @@ async function validateWave(){
     const measureLabel=r.measureMode&&r.measureMode!=='none'
       ?' · '+r.measureMode+' 测量 · ADC量程 '+(r.currentMeasureRangeA===null?'—':r.currentMeasureRangeA)+' A · 窗口 '+(r.measureWindowS*1e9).toFixed(1)+' ns':'';
     const timingLabel=r.minSegmentTimeS?' · Segment ARB 硬件段长 '+(r.minSegmentTimeS*1e9).toFixed(1)+' ns–'+r.maxSegmentTimeS+' s · 时间分辨率 '+(r.timeResolutionS*1e9).toFixed(0)+' ns':'';
+    const rec=r.timingRecommendations;
+    const recommendationLabel=rec?' · 典型建议（非硬件下限）：脉宽 '+(rec.minimumPulseWidthS*1e9).toFixed(0)+
+      ' ns、测量窗 '+(rec.minimumMeasureWindowS*1e9).toFixed(0)+' ns、转换 '+(rec.minimumTransitionTimeS*1e9).toFixed(0)+' ns':'';
     const warningLabel=r.warnings?.length?' · 提示：'+r.warnings.join('；'):'';
     info.textContent=sourceLabel+' · 电压边界 ±'+r.maxVoltageV.toFixed(3)+' V'+loadLabel+measureLabel+timingLabel+
-      ' · '+r.count+' 点 · 总时长 '+r.durationS+' s · 仅规划'+warningLabel;
+      recommendationLabel+' · '+r.count+' 点 · 总时长 '+r.durationS+' s · 仅规划'+warningLabel;
 
     drawWave(r.preview);
     showStatusMessage('波形校验通过 · '+r.count+' 个规划点（无硬件输出）'+(r.warnings?.length?' · 有性能建议':'') ,'success');
