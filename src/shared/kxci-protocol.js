@@ -147,7 +147,7 @@
         if(rpmCount)type='PMURPM';
       }
       for(const item of attached){
-        const known=slot.family==='SMU'?/^PA\d+$/i.test(item.name):slot.family==='PMU'?/^RPM\d+-[12]$/i.test(item.name):false;
+        const known=['SMU','VS','VM'].includes(slot.family)?/^PA\d+$/i.test(item.name):slot.family==='PMU'?/^RPM\d+-[12]$/i.test(item.name):false;
         if(!known){unknownModules.push(Object.freeze({family:'remote',slot:slot.slot,...item}));mismatch=true;reason='发现未识别的远程模块';}
       }
       if(mismatch){type=null;physicalType=null;}
