@@ -1,5 +1,5 @@
 name: Native Shell Windows Android and DKDS Release
-run-name: DK Test Studio V0.3.10 a${{ github.event.workflow_run.run_number }} · Full Package
+run-name: DK Test Studio V0.3.11 a${{ github.event.workflow_run.run_number }} · Full Package
 on:
   workflow_run:
     workflows: ["Fast UI Hot Update"]
@@ -225,7 +225,7 @@ jobs:
 
   ui-bundle:
     if: github.event.workflow_run.conclusion == 'success'
-    name: Build V0.3.10 a${{ github.event.workflow_run.run_number }} UI update resources
+    name: Build V0.3.11 a${{ github.event.workflow_run.run_number }} UI update resources
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -248,7 +248,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Publish V0.3.10 a${{ github.event.workflow_run.run_number }} full GitHub Release
+    name: Publish V0.3.11 a${{ github.event.workflow_run.run_number }} full GitHub Release
     needs: [windows, android, ui-bundle]
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
@@ -284,7 +284,7 @@ jobs:
           test "$(find release/ui -name 'DKTS-UI-bundle.json' | wc -l)" -eq 1
           test "$(find release -type f | wc -l)" -eq 5
           find release -type f -print0 | xargs -0 -n1 sha256sum
-      - name: Publish V0.3.10 a${{ github.event.workflow_run.run_number }} full package Release
+      - name: Publish V0.3.11 a${{ github.event.workflow_run.run_number }} full package Release
         env:
           GH_TOKEN: ${{ github.token }}
           DKTS_BUILD_SHA: ${{ env.DKTS_BUILD_SHA }}
