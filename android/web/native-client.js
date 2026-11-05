@@ -5,6 +5,7 @@
   const domain=registry.require('dkts-identity-core');
   const planner=registry.require('dkts-plan');
   const waveform=registry.require('dkts-waveform');
+  const safety=registry.require('dkts-safety-policy');
   const requests=new Map();
   let sequence=0;
   window.DKTSNativeBridgeResolve=serialized=>{
@@ -32,6 +33,19 @@
     close:async data=>{const reply=await native('close',data);return reply.closed===true;}
   });
   const controller=domain.createIdentityController(tcp,protocol);
+  function hardwareProfile(){
+    const snapshot=controller.status();
+    return {inventory:snapshot.inventory,connected:snapshot.phase==='connected',interlockState:null};
+  }
+  async function get(route){
+    const snapshot=controller.status();
+    if(route==='/api/capabilities')return {ok:true,database:safety.getDatabase(),
+      inventory:snapshot.inventory,connected:snapshot.phase==='connected',
+      inventoryError:snapshot.inventoryError||''};
+    if(route==='/api/capabilities/export')return {ok:true,database:safety.getDatabase()};
+    if(route==='/api/status')return snapshot;
+    throw Error('未授权的本机读取接口：'+route);
+  }
   async function post(route,payload={}){
     if(route==='/api/workspaces')return saveWorkspace(payload.workspace);
     if(route==='/api/connect'){
@@ -45,16 +59,27 @@
     }
     if(route==='/api/plan/validate'){
       try{
-        const value=planner.previewPlan(payload,300,{inventory:controller.status().inventory});
+        const value=planner.previewPlan(payload,300,hardwareProfile());
         return {ok:true,plan:value.plan,firstPoints:value.firstPoints,truncated:value.truncated};
       }catch(e){return {ok:false,error:String(e.message||e)};}
     }
+    if(route==='/api/cvu/validate'){
+      try{return {ok:true,plan:safety.validateCvuPlan(payload,hardwareProfile())};}
+      catch(e){return {ok:false,error:String(e.message||e)};}
+    }
     if(route==='/api/waveform/validate'){
       try{
-        const value=waveform.parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadOhms:payload.loadOhms});
+        const value=waveform.parseWaveformText(payload.text,{...payload,hardware:hardwareProfile()});
         return {ok:true,count:value.points.length,durationS:value.durationS,
           minimumStepS:value.minimumStepS,maximumStepS:value.maximumStepS,
-          sourceType:value.sourceType,rangeV:value.rangeV,loadOhms:value.loadOhms,maxCurrentA:value.maxCurrentA,maxVoltageV:value.maxVoltageV,
+          sourceType:value.sourceType,requestedRangeV:value.requestedRangeV,
+          rangeV:value.rangeV,loadOhms:value.loadOhms,maxCurrentA:value.maxCurrentA,
+          availableCurrentA:value.availableCurrentA,maxVoltageV:value.maxVoltageV,
+          effectiveCurrentLimitA:value.effectiveCurrentLimitA,measureMode:value.measureMode,
+          currentMeasureRangeA:value.currentMeasureRangeA,measureWindowS:value.measureWindowS,
+          minSegmentTimeS:value.minSegmentTimeS,maxSegmentTimeS:value.maxSegmentTimeS,
+          timeResolutionS:value.timeResolutionS,sampleIntervalS:value.sampleIntervalS,
+          timingRecommendations:value.timingRecommendations,warnings:value.warnings,
           executable:false,hardwareVerified:false,
           preview:value.points.length<=300?value.points:
             value.points.filter((_,i)=>i%Math.ceil(value.points.length/300)===0)};
@@ -114,7 +139,7 @@
   }
 
   window.DKTSClient=Object.freeze({
-    post,loadWorkspace,status:()=>Promise.resolve(controller.status()),
+    get,post,loadWorkspace,status:()=>Promise.resolve(controller.status()),
     nativeVersion:async()=>String((await native('version')).version||''),
     checkUiUpdate:async()=>native('ui-check'),
     uiUpdateStatus:async()=>native('ui-status'),
