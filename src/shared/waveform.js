@@ -80,7 +80,21 @@
         const rpm = Boolean(card?.rpmCount || card?.rpmChannels?.length);
         pulseCurrentRangesA = caps.getPmuCurrentRanges(rangeV, rpm);
         if (options.measurementRangeA !== undefined && options.measurementRangeA !== null && !pulseCurrentRangesA.some(value => closeEnough(value, Number(options.measurementRangeA)))) throw Error('当前 PMU/RPM 模块在所选电压档不支持该电流测量量程');
-        captureBudget = caps.getPmuCaptureBudget(durationS, options.measureWindowS, options.sampleRateHz);
+        const positiveCount = (value, label) => {
+          const count = Number(value ?? 1);
+          if (!Number.isSafeInteger(count) || count < 1) throw Error(label + ' 必须是大于 0 的安全整数');
+          return count;
+        };
+        const pulseCount = positiveCount(options.pulseCount, 'PMU 脉冲数');
+        const sweepPoints = positiveCount(options.sweepPoints, 'PMU 扫描点数');
+        const stepPoints = positiveCount(options.stepPoints, 'PMU 步进点数');
+        const totalMeasureDurationS = options.totalMeasureDurationS !== undefined && options.totalMeasureDurationS !== null
+          ? Number(options.totalMeasureDurationS)
+          : options.measureWindowS !== undefined && options.measureWindowS !== null
+            ? Number(options.measureWindowS) * pulseCount * sweepPoints * stepPoints
+            : null;
+        if (totalMeasureDurationS === null) throw Error('PMU 电流采集必须提供总测量窗口累计时长，或提供测量窗口及脉冲数、扫描点数和步进点数；不能用输出波形总时长代替测量时长');
+        captureBudget = caps.getPmuCaptureBudget(totalMeasureDurationS, options.measureWindowS, options.sampleRateHz, { pulseCount, sweepPoints, stepPoints });
         if (options.measurementRangeA !== undefined && options.measurementRangeA !== null) {
           try { timingRecommendation = caps.getPulseTimingRecommendation(rangeV, options.measurementRangeA, true, 'pmu', rpm, Math.max(...normalized.map(point => Math.abs(point.voltageV)))); } catch { timingRecommendation = null; }
         }
