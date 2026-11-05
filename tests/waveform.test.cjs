@@ -18,7 +18,7 @@ test('waveform rejects duplicate/reverse time and out-of-plan voltage',()=>{
   assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:21}],{sourceType:'pmu'}),/±20 V/);
   assert.equal(validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:20}],{sourceType:'pmu'}).maxVoltageV,20);
   assert.equal(validateWaveform([{timeS:0,voltageV:0},{timeS:1,voltageV:40}],{sourceType:'pmu',loadMode:'highz'}).maxVoltageV,40);
-  assert.equal(parseWaveformText('0 0\\n1 40',{sourceType:'pgu',loadMode:'highz'}).maxVoltageV,40);
-  assert.throws(()=>parseWaveformText('0 0\\n1 21',{sourceType:'pgu'}),/±20 V/);
+  assert.equal(parseWaveformText('0 0\n1 40',{sourceType:'pgu',loadMode:'highz'}).maxVoltageV,40);
+  assert.throws(()=>parseWaveformText('0 0\n1 21',{sourceType:'pgu'}),/±20 V/);
   assert.throws(()=>parseWaveformText('0 0'),/至少需要 2 个/);
 });
