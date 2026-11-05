@@ -43,10 +43,14 @@ test('Android workspace bridge saves v2 archives and can still save legacy v1 st
 
 test('native and frontend report separately installed program and UI resource versions',()=>{
   const js=read('web/app.js'),native=read('android/app/src/main/java/studio/dk/test/NativeAppUpdateManager.java');
-  assert.match(js,/界面 '\+bundled/);
-  assert.match(js,/注意：这不会升级 APK 程序版本/);
+  assert.match(js,/meta\[name="dkts-ui-release"\]/);
+  assert.match(js,/if\(hasRelease\)nativeBadge\.textContent='v'\+release/);
+  assert.match(js,/界面热更新已验证，正在刷新；安装包版本保持不变，无需重新安装/);
+  assert.match(js,/nativePackageVersion/);
+  assert.match(js,/安装包 v/);
   assert.match(js,/安装完成后重新打开软件/);
   assert.match(js,/完整程序更新/);
+  assert.match(js,/可选完整升级/);
   assert.match(js,/重新打开安装界面/);
   assert.match(native,/put\("installedVersion",installedVersion\(\)\)/);
   assert.match(native,/if\("installer"\.equals\(state\)\)/);

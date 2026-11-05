@@ -112,7 +112,7 @@ function nativeUpdateDisplay(result){
     downloading:packageLabel+' · 正在下载完整程序更新：'+Math.max(0,Math.min(100,Number(result.progress)||0))+'%',
     ready:packageLabel+' · 完整程序更新包已验证，可选安装',
     permission:packageLabel+' · 请在系统设置中允许安装，返回后继续',
-    installer:packageLabel+' · 已下载 APK。需在 Android 系统安装界面确认，未确认前安装包版本不变。',
+    installer:packageLabel+' · 已下载 APK。需在 Android 系统安装界面确认，安装完成后重新打开软件；未确认前安装包版本不变。',
     restarting:packageLabel+' · 正在替换完整程序；重新启动后安装包版本才会改变。',
     unsupported:packageLabel+' · 当前模式不支持程序内安装',
     error:packageLabel+' · 完整程序更新失败：'+error
