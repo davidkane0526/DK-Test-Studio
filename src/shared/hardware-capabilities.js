@@ -286,9 +286,9 @@
     const key = String(source || 'pmu').toLowerCase() === 'pgu' ? 'VPU' : 'PMU';
     const mod = getModuleCapability(key), rpmMod = withRpm ? getModuleCapability('PMURPM') : null;
     const range = String(Number(rangeV)), mode = withMeasurement ? 'withMeasurement' : 'sourceOnly';
+    if (key === 'VPU' && withMeasurement) throw Error('4220-PGU/VPU 不具备电流测量功能');
     const timing = mod.pulseTiming?.[range]?.[mode];
     if (!timing) throw Error('没有该模块/电压档/测量模式的硬件脉冲时序规格');
-    if (key === 'VPU' && withMeasurement) throw Error('4220-PGU/VPU 不具备电流测量功能');
     if (withRpm && (key !== 'PMU' || !withMeasurement)) throw Error('4225-RPM 只适用于 PMU 电流测量模式');
     const peakAbs = peakVoltageV === null || peakVoltageV === undefined ? null : Math.abs(Number(peakVoltageV));
     if (peakAbs !== null && !Number.isFinite(peakAbs)) throw Error('脉冲峰值电压无效');
