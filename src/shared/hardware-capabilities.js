@@ -2,7 +2,7 @@
   'use strict';
   const DATABASE = {
     schema: 'dkts.4200a.hardware-capabilities.v1',
-    databaseVersion: '1.5.0',
+    databaseVersion: '1.5.1',
     generatedAt: '2026-11-05',
     instrument: { family: 'Keithley 4200A-SCS', maxChassisPowerW: 500, kxciInventorySlots: 8, maxKxciSmuChannelNumber: 9 },
     inventoryDiscovery: {
@@ -23,7 +23,7 @@
       { id: 'tek-4200a-cvu-rev-b', title: 'Model 4200A-SCS CVU User Manual', revision: '4200A-CVU-900-01 Rev. B', published: '2023-03', url: 'https://download.tek.com/manual/4200A-CVU-900-01B_March_2023.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-cviv-rev-e', title: 'Model 4200A-CVIV Multi-Switch User Manual', revision: '4200A-CVIV-900-01 Rev. E', published: '2020-12', url: 'https://www.tek.com/-/media/documents/4200a-cviv-900-01e_december2020.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-cviv-400v-appnote', title: 'Making Three-Terminal Capacitance-Voltage Measurements Up to 400 V Using the 4200A-CVIV Multi-Switch Bias Tee Capability', revision: '1KW-61529-1', published: '2020-12-15', url: 'https://download.tek.com/document/1KW-61529-1_Making_3-Terminal_C-V_Measurements_up_to_400V_4200A-CVIV_Application_Note_111320.pdf', authority: 'manufacturer' },
-      { id: 'tek-4200a-current-manual-index', title: 'Tektronix 4200A-SCS manuals and software download index', revision: 'Current index checked 2026-11-05', url: 'https://www.tek.com/en/support/datasheets-manuals-software-downloads?model=4200A-SCS', authority: 'manufacturer' },
+      { id: 'tek-4200a-current-manual-index', title: 'Tektronix 4200A-SCS manuals and software download index', revision: 'Current index checked 2026-11-05', observedManualRevisions: { PMU: { partNumber: '4200A-PMU-900-01D', published: '2026-10-22', contentRetrieved: false }, KXCI: { partNumber: '4200A-KXCI-907-01F', published: '2026-10-09', contentRetrieved: false }, LPT: { partNumber: '4200A-LPT-907-01E', published: '2026-10-09', contentRetrieved: false }, Clarius: { partNumber: '4200A-914-01G', published: '2026-10-09', contentRetrieved: false } }, url: 'https://www.tek.com/en/support/datasheets-manuals-software-downloads?model=4200A-SCS', authority: 'manufacturer' },
       { id: 'tek-4200-cvu-pwr-rev-f', title: 'Model 4200-CVU-PWR Parts Package Instruction Sheet', revision: 'PA-977 Rev. F', published: '2023-06-21', url: 'https://www.tek.com/en/manual/model-4200-cvu-pwr-parts-package', authority: 'manufacturer' },
       { id: 'tek-4200-cvu-pwr-appnote', title: 'Using the 4200-CVU-PWR C-V Power Package for High Voltage and High Current C-V Measurements', revision: 'Application Note', published: '2020-04-06', url: 'https://download.tek.com/document/1KW606370MakingHighVoltageHighCurrentCV%20Measurements4200ASCS4200CVUPWRApplicationNote040620.pdf', authority: 'manufacturer' }
     ],
@@ -202,7 +202,7 @@
     safetyPolicies: {
       unknownModule: { applyGuessedNumericLimit: false, allowNonExecutablePlanning: true, allowHardwareOutput: false, requiredAction: 'Identify the exact installed module or mapped channel before enabling output.' },
       smu: { maximumSourceVoltageV: 210, voltageRangeOverrangePercent: 105, highVoltageNominalRangeV: 200, maximumOutputPowerWByPowerClass: { medium: 2.1, high: 21 }, applyVoltageDependentCompliancePowerLimit: true, interlockRequiredFor200VRange: true, interlockStatusAvailableThroughCurrentReadOnlyBridge: false, complianceMinimumA: { withoutPreamplifier: 1e-7, withPreamplifier: 1e-10 }, note: 'Reject a compliance request below the KXCI minimum instead of allowing KXCI to silently raise it.' },
-      pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 1000000, currentKxciBufferPointsPerChannel: 65536 },
+      pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciMinSegmentTimeSByRangeS: { PMU: { '10': 2e-8, '40': 5e-8 }, PGU: { '10': 1e-8, '40': 5e-8 } }, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 1000000, currentKxciBufferPointsPerChannel: 65536, kxciInterfaceLimitsSourceRevision: '4200A-KXCI-907-01 Rev. E, March 2025', latestIndexListedKxciRevision: '4200A-KXCI-907-01F, 09 Oct 2026', latestKxciRevisionContentVerified: false, kxciInterfaceLimitsVerificationStatus: 'provisional-pending-rev-f-content-verification' },
       cvu: {
         requiresExactVariantIdentification: true,
         baseDcBiasRangeV: { min: -30, max: 30 },
@@ -311,7 +311,7 @@
     const key = String(sourceType || '').toLowerCase() === 'pgu' ? 'VPU' : 'PMU';
     const mod = getModuleCapability(key), range = Number(rangeV);
     if (!mod.output.rangesV.includes(range)) throw Error('PMU/PGU 输出量程只能选择 10 V 或 40 V');
-    return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.maxSegmentsPerCommand || 128, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, kxciMinSegmentS: mod.segmentArb.kxciMinSegmentTimeS?.[String(range)] ?? mod.segmentArb.minSegmentTimeS[String(range)], kxciMaxSegmentS: mod.segmentArb.kxciMaxSegmentTimeS || 1, timeResolutionS: mod.segmentArb.timeResolutionS });
+    return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.maxSegmentsPerCommand || 128, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, kxciMinSegmentS: mod.segmentArb.kxciMinSegmentTimeS?.[String(range)] ?? mod.segmentArb.minSegmentTimeS[String(range)], kxciMaxSegmentS: mod.segmentArb.kxciMaxSegmentTimeS || 1, kxciLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus, timeResolutionS: mod.segmentArb.timeResolutionS });
   }
   function getPmuCurrentRanges(rangeV, withRpm = false) {
     const mod = getModuleCapability(withRpm ? 'PMURPM' : 'PMU');
@@ -344,7 +344,7 @@
       maxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsPerChannel: hardwareMaxPoints,
       interfaceMaxPointsPerChannel: interfaceMaxPoints, kxciMaxSampleRateHz: kxciMaxRateHz,
       hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz, kxciCompatible,
-      interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 数据缓冲上限为每通道 65536 点；硬件采集上限为每通道 1000000 点'
+      interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 数据缓冲上限为每通道 65536 点；硬件采集上限为每通道 1000000 点', interfaceLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus
     });
   }
   function getPulseTimingRecommendation(rangeV, measurementRangeA, withMeasurement = true, source = 'pmu', withRpm = false, peakVoltageV = null) {
