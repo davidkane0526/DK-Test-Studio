@@ -950,6 +950,11 @@ function renderWorkspaceTabs(){
   }
   revealActiveWorkspace(nav,activeId);
   updateArchivedWorkspaceCount();
+  window.DKTSHostBridge?.publishWorkspace?.({
+    tabs:workspaces.map(tab=>({id:tab.id,name:tab.name,activeMode:tab.activeMode||null})),
+    activeTabId:activeId,
+    archivedCount:workspaceStore.listArchivedTabs().length
+  });
 }
 function createWorkspaceTab(){
   rememberTabDraft();
@@ -987,6 +992,16 @@ function closeWorkspaceTab(tabId){
   }
   showStatusMessage('已归档「'+tab.name+'」 · 可从标题栏的归档入口恢复');
 }
+window.DKTSWorkspaceHost=Object.freeze({
+  activate:id=>activateWorkspaceTab(id),
+  close:id=>closeWorkspaceTab(id),
+  create:()=>createWorkspaceTab(),
+  rename:(id,name)=>{
+    const changed=workspaceStore.renameTab(id,name);
+    if(changed)renderWorkspaceTabs();
+    return changed;
+  }
+});
 function updateArchivedWorkspaceCount(){
   const count=workspaceStore.listArchivedTabs().length;
   $('archive-count').textContent=String(count);
