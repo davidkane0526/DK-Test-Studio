@@ -15,6 +15,7 @@ const copy={
   'hardware-capabilities.js':'src/shared/hardware-capabilities.js',
   'kxci-protocol.js':'src/shared/kxci-protocol.js',
   'measurement-plan.js':'src/shared/measurement-plan.js',
+  'kxci-measurement.js':'src/shared/kxci-measurement.js',
   'waveform.js':'src/shared/waveform.js',
   'identity-core.js':'src/shared/identity-core.js',
   'interop.js':'src/shared/interop.js',
@@ -43,7 +44,7 @@ function adaptPluginSource(name,data){
     const marker="const PLUGIN_ID='"+ORIGINAL_OWNER+"';";
     if(!data.includes(marker))throw Error('Interop owner marker missing');
     data=data.replace(marker,"const PLUGIN_ID='"+EXTERNAL_OWNER+"';");
-  }else if(['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'].includes(name)){
+  }else if(['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','kxci-measurement.js','waveform.js','identity-core.js'].includes(name)){
     const marker="'"+ORIGINAL_OWNER+"'";
     if(!data.includes(marker))throw Error('Shared module registration owner missing: '+name);
     data=data.replace(marker,"'"+EXTERNAL_OWNER+"'");
