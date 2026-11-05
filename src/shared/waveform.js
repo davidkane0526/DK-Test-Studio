@@ -86,11 +86,16 @@
         }
       }
     }
+    const resolvedInterfaceLimits = interfaceLimits ? Object.freeze({
+      ...interfaceLimits,
+      capturePointsCompatible: captureBudget?.kxciCompatible !== false,
+      requiresAlternateBackend: interfaceLimits.requiresAlternateBackend || captureBudget?.kxciCompatible === false
+    }) : null;
     return Object.freeze({
       schema: 'dk-test-studio.waveform.v2', points: normalized, durationS, minimumStepS, maximumStepS,
       sourceType, waveformMode, timingStatus, rangeV, loadOhms, maxCurrentA, maxVoltageV,
-      moduleType, moduleDetected, powerBudget, captureBudget, pulseCurrentRangesA, timingRecommendation, interfaceLimits,
-      executionCompatibility: interfaceLimits?.requiresAlternateBackend ? 'hardware-valid-kxci-limited' : 'hardware-plan-only',
+      moduleType, moduleDetected, powerBudget, captureBudget, pulseCurrentRangesA, timingRecommendation, interfaceLimits: resolvedInterfaceLimits,
+      executionCompatibility: resolvedInterfaceLimits?.requiresAlternateBackend ? 'hardware-valid-kxci-limited' : 'hardware-plan-only',
       executable: false, hardwareVerified: false, provenance: 'user-defined-plan', capabilityDatabaseVersion: caps.DATABASE.databaseVersion
     });
   }
