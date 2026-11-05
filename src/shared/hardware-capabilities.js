@@ -145,7 +145,7 @@
         measurement: {
           currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-2, 1e-1, 8e-1] },
           withRpmCurrentRangesA: { '10': [1e-7, 1e-3, 1e-2, 1e-1], '40': [1e-3, 1e-2] },
-          withRpmCurrentRangesA: { '10': [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
+          
           minimumCurrentRangeA: 1e-7, currentMeasurementResolutionA: 2e-10,
           maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
         },
