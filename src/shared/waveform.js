@@ -55,7 +55,7 @@
       maxVoltageV = limits.maxVoltageV; maxCurrentA = limits.maxCurrentA;
       const arb = caps.getSegmentArbLimits(sourceType, rangeV), segmentCount = normalized.length - 1;
       const kxciSegmentCompatible = steps.every(step => step >= arb.kxciMinSegmentS - 1e-15 && step <= arb.kxciMaxSegmentS + 1e-12);
-      interfaceLimits = Object.freeze({ transport: 'KXCI', minSegmentTimeS: arb.kxciMinSegmentS, maxSegmentTimeS: arb.kxciMaxSegmentS, hardwareMinSegmentNote: arb.hardwareMinSegmentNote || null, maxSegmentsPerCommand: arb.maxSegmentsPerCommand, requiresCommandChunking: segmentCount > arb.maxSegmentsPerCommand, segmentTimesCompatible: kxciSegmentCompatible, verificationStatus: arb.kxciLimitVerificationStatus, requiresAlternateBackend: !kxciSegmentCompatible });
+      interfaceLimits = Object.freeze({ transport: 'KXCI', minSegmentTimeS: arb.kxciMinSegmentS, maxSegmentTimeS: arb.kxciMaxSegmentS, hardwareMinSegmentNote: arb.hardwareMinSegmentNote || null, maxSegmentsPerCommand: arb.maxSegmentsPerCommand, kxciMaxArrayValuesPerCommand: arb.kxciMaxArrayValuesPerCommand || arb.maxSegmentsPerCommand, requiresCommandChunking: segmentCount > arb.maxSegmentsPerCommand, segmentTimesCompatible: kxciSegmentCompatible, verificationStatus: arb.kxciLimitVerificationStatus, requiresAlternateBackend: !kxciSegmentCompatible });
       if (segmentCount < arb.minSegments) throw Error('4200A Segment Arb 每个序列至少需要 ' + arb.minSegments + ' 个分段');
       if (segmentCount > arb.maxSegments) throw Error('4200A Segment Arb 每通道最多支持 ' + arb.maxSegments + ' 个分段');
       for (let i = 0; i < steps.length; i++) {
