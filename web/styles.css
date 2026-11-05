@@ -1501,3 +1501,95 @@ body.dkts-android-shell .dkts-numeric-input.dkts-numeric-active{
 
 .dkds-plugin-host #workspace-tabs,
 .dkds-plugin-host #tab-home{display:none!important;}
+
+
+/* DKTS terminals + multi-segment scan layout. Scoped so DKDS chart styles stay intact. */
+.terminal-profiles{margin-bottom:12px;padding:16px 20px!important}
+.port-panel-heading,.port-preset-bar,.sweep-main-line,.sweep-axis-heading,
+.sweep-terminal-heading,.sweep-fixed-heading{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap
+}
+.port-panel-heading{justify-content:space-between;margin-bottom:12px}
+.port-panel-heading h2{margin:0;font-size:15px;font-weight:730}
+.port-panel-heading .hint{margin:3px 0 0;font-size:10px;line-height:1.5}
+.terminal-inventory-state{font-size:10px;color:#7184a0}
+.port-panel-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.port-panel-controls label,.port-preset-bar label{font-size:10px;gap:4px}
+.port-panel-controls select,.port-preset-bar select,.port-preset-bar input{font-size:12px;padding:7px 9px}
+.port-preset-bar{margin-top:10px}
+.port-preset-bar label{min-width:120px;flex:1 1 130px}
+.port-preset-bar button{padding:7px 10px;font-size:11px}
+#terminal-profile-status{font-size:10px;margin:7px 0 0;color:#8190a6}
+.heading-terminal-ports{display:flex;align-items:flex-end;gap:6px;min-width:0}
+.heading-terminal-ports label{font-size:9px;gap:2px;min-width:72px;color:var(--dkts-chrome-text,#647791)}
+.heading-terminal-ports select{padding:5px 6px;min-width:74px;font-size:11px;border-radius:6px}
+.run-actions-divider{font-size:17px;color:#a3b2c5;font-weight:300;margin:0 2px;user-select:none}
+.sweep-configuration{display:flex;flex-direction:column;gap:13px;margin:0}
+.sweep-configuration[hidden]{display:none!important}
+.sweep-main-line{padding:2px 0}
+.sweep-main-line strong{font-size:13px}
+.sweep-main-line label{display:flex;align-items:center;gap:7px;font-size:11px}
+.sweep-main-line input{width:75px;padding:6px}
+.sweep-detail-tip{font-size:10px;color:#7a8ca6;flex:1 1 190px;line-height:1.45}
+.sweep-axis-card{border:1px solid #dce5f1;border-radius:10px;overflow:hidden;background:var(--dkts-card-bg,#fff)}
+.sweep-axis-heading{padding:9px 10px;background:rgba(105,137,177,.055);border-bottom:1px solid #e0e7f0;gap:8px}
+.sweep-axis-heading>strong{font-size:13px;margin-right:auto;white-space:nowrap}
+.sweep-axis-heading small{font-size:10px;font-weight:500;color:#7d8fa6}
+.sweep-axis-heading label{display:flex;align-items:center;gap:5px;font-size:10px}
+.sweep-axis-heading select,.sweep-axis-heading input{width:auto;max-width:86px;min-width:60px;padding:5px 7px;font-size:11px}
+.sweep-axis-heading .sweep-add-row{font-size:10px;padding:6px 8px;margin-left:auto}
+.psweep-enable{margin-right:auto}
+.psweep-enable input{width:14px;height:14px;accent-color:#3869a9}
+.sweep-table-scroll{overflow-x:auto;max-width:100%;overscroll-behavior-x:contain}
+.sweep-segment-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px;min-width:400px}
+.sweep-segment-table th{font-weight:600;color:#72849d;background:rgba(124,148,180,.05);font-size:9px}
+.sweep-segment-table th,.sweep-segment-table td{padding:5px 4px;text-align:left;border-bottom:1px solid #e9eef5;white-space:nowrap}
+.sweep-segment-table th:first-child{width:25px}
+.sweep-segment-table th:last-child{width:28px}
+.sweep-segment-table tr:last-child td{border-bottom:0}
+.sweep-segment-table input,.sweep-segment-table select{
+  width:100%;min-width:0;padding:6px 5px;border-radius:5px;font-size:11px;
+  font-variant-numeric:tabular-nums
+}
+.sweep-segment-table select{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.sweep-segment-table .remove-segment{width:24px;height:26px;min-width:0;padding:2px;border:0;background:transparent;color:#8394aa}
+#psweep-off-note{margin:8px 11px!important;font-size:10px}
+.sweep-terminal-heading,.sweep-fixed-heading{justify-content:space-between}
+.sweep-terminal-heading strong,.sweep-fixed-heading strong{font-size:12px}
+.sweep-terminal-heading span,.sweep-fixed-heading span{font-size:10px;color:#8292a9}
+.sweep-terminal-settings{display:flex;flex-direction:column;gap:6px}
+.sweep-terminal-row{display:grid;grid-template-columns:66px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:end}
+.sweep-terminal-row>strong{font-size:11px;padding:0 0 9px}
+.sweep-terminal-row label{min-width:0;font-size:9px;gap:3px}
+.sweep-terminal-row select,.sweep-terminal-row input{padding:6px 5px;font-size:10px}
+.sweep-terminal-row select{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.sweep-fixed-voltages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.sweep-fixed-voltages label{font-size:10px;gap:3px}
+.sweep-fixed-voltages input{padding:6px 7px;font-size:11px}
+.sweep-readonly-notice{font-size:10px;color:#7a8ca2;margin:2px 0 0!important}
+.dkts-scientific-plot svg .dkds-d3-axis-title{
+  font-size:10px!important;font-weight:500!important;letter-spacing:0!important;
+  font-family:Segoe UI Variable Text,Microsoft YaHei UI,Segoe UI,sans-serif!important
+}
+.dkts-scientific-plot svg .dkds-d3-axis text{font-size:10px}
+@media(max-width:980px){
+  .heading-terminal-ports{gap:3px}
+  .heading-terminal-ports label{min-width:58px}
+  .heading-terminal-ports select{min-width:58px;padding:4px;font-size:10px}
+  .detail-heading{flex-wrap:wrap;row-gap:7px}
+  .detail-run-actions{flex-wrap:wrap}
+  .sweep-terminal-row{grid-template-columns:50px repeat(3,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  .terminal-profiles{padding:12px!important}
+  .port-panel-controls{gap:5px}
+  .port-panel-controls label{font-size:9px}
+  .port-panel-controls select{font-size:10px;padding:6px 5px}
+  .port-preset-bar{gap:6px}
+  .sweep-axis-heading{gap:7px}
+  .sweep-axis-heading>strong{flex:1 1 100%}
+  .sweep-terminal-row{grid-template-columns:100%;gap:4px;border-bottom:1px solid #e4ebf4;padding-bottom:8px}
+  .sweep-terminal-row>strong{padding:0}
+  .sweep-terminal-row label{font-size:10px}
+  .sweep-fixed-voltages{gap:5px}
+}
