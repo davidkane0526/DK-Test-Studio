@@ -28,7 +28,7 @@ test('planning rejects invalid limits, missing values, and channel conflicts',()
   assert.equal(normalizePlan({startV:200,stopV:200,complianceA:0.0105},medium).maxComplianceA,0.0105);
   assert.equal(normalizePlan({startV:200,stopV:200,complianceA:0.1},high).maxComplianceA,0.105);
   assert.equal(normalizePlan({startV:20,stopV:20,complianceA:1},high).maxComplianceA,1.05);
-  assert.equal(normalizePlan({sourceModel:'4210-SMU',startV:20,stopV:20,complianceA:0.0001}).maxComplianceA,0.0105,
+  assert.equal(normalizePlan({sourceModel:'high',startV:20,stopV:20,complianceA:0.0001}).maxComplianceA,0.0105,
     'A user-supplied model name must never override the read-only module inventory');
   assert.throws(()=>normalizePlan({startV:200,stopV:200,complianceA:0.0106}),/规划范围/);
   assert.throws(()=>normalizePlan({points:0}),/规划范围/);
