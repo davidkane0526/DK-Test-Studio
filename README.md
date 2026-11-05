@@ -160,7 +160,7 @@ Windows 便携版使用 Electron userData 目录的 workspace-state.json，写�
 ## v0.3.12：4200A 硬件能力数据库与安全策略
 
 - 共享能力数据库覆盖 SMU、SMUPA、HPSMU、HPSMUPA、4225-PMU、4225-RPM、4220-PGU/VPU、CVU、VS、VM、CVIV 和 GNDU。
-- 安全策略同时覆盖 CVU 型号与 4200-CVU-PWR 附件识别、VS/VM 逻辑通道绑定、PA/RPM 宿主模块依赖、CVIV 高压开关矩阵和 GNDU 接地电流边界。
+- 安全策略同时覆盖 CVU 型号与 4200-CVU-PWR 附件识别、VS/VM 逻辑通道绑定、PA/RPM 宿主模块依赖、CVIV 高压开关矩阵和 GNDU 接地电流边界。CVIV 特殊 400 V 差分模式要求三个 SMU 同步、指定 Bias Tee 接法且仅限封装器件，不允许用于晶圆级器件。
 - 运行 npm run hardware:export 可导出 DKTS-4200A-Hardware-Capability-Database-v1.json。每次完整 GitHub Release 同时发布该 JSON，包含模块能力、数值边界、安全策略、数据来源和未确认项目，便于外部审查。
 - 已识别 SMU 按物理功率类别、实际源电压和额定输出功率计算电流限值（中功率 2.1 W、高功率 21 W），未知模块不套用默认电流值。
 - PMU/PGU 规划按硬件规格校验：Segment Arb 每段 20 ns 至 40 s、每通道最多 2048 段、每通道最多 512 个序列、序列循环上限 10^12，时间分辨率 10 ns。PMU 硬件采集最高 200 MSa/s，每个 A/D 每次测试最多 1,000,000 点。
