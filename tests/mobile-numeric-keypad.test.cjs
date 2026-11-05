@@ -13,6 +13,11 @@ const until=js.indexOf('\nfunction installAndroidNumericKeypad(){',from);
 assert(from>=0&&until>from);
 const edit=vm.runInNewContext('('+js.slice(from,until)+')');
 const asPlain=result=>JSON.parse(JSON.stringify(result));
+const clampStart=js.indexOf('function clampNumericKeypad(');
+const clampEnd=js.indexOf('\nfunction installAndroidNumericKeypad(){',clampStart);
+assert(clampStart>=0&&clampEnd>clampStart,'pure keypad clamping helper is required');
+const clamp=vm.runInNewContext('('+js.slice(clampStart,clampEnd).trim()+')');
+
 
 test('nine-grid digits replace the initial selection and preserve a caret',()=>{
   assert.deepEqual(asPlain(edit('101',0,3,'7',false)),
@@ -79,4 +84,53 @@ test('keyboard overlays only Android content, stays above native status and resp
   const native=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
   assert.match(native,/keypad:!!document\.querySelector/);
   assert.match(native,/numericField:document\.querySelector/);
+});
+
+
+test('numeric editor selection is virtual; Android never selects native input text',()=>{
+  const start=js.indexOf('function installAndroidNumericKeypad(){');
+  const end=js.indexOf('\ninstallAndroidNumericKeypad();',start);
+  assert(start>=0&&end>start);
+  const implementation=js.slice(start,end);
+  assert.match(implementation,/selection=\{start:0,end:control\.value\.length\}/);
+  assert.match(implementation,/numericKeyEdit\(before,selection\.start,selection\.end,key/);
+  assert.doesNotMatch(implementation,/\bcontrol\.setSelectionRange\(/);
+  assert.doesNotMatch(implementation,/\bcontrol\.focus\(/);
+  assert.doesNotMatch(implementation,/\bcontrol\.select\(/);
+  assert.match(implementation,/control\.classList\.add\('dkts-numeric-active'\)/);
+  assert.match(implementation,/control\.classList\.remove\('dkts-numeric-active'\)/);
+  assert.match(implementation,/control\.addEventListener\('touchstart'/);
+  assert.match(implementation,/event\.cancelable\)event\.preventDefault\(\)/);
+  assert.match(implementation,/control\.addEventListener\('contextmenu',event=>event\.preventDefault\(\)\)/);
+  assert.match(implementation,/control\.addEventListener\('selectstart',event=>event\.preventDefault\(\)\)/);
+  assert.match(css,/\.dkts-numeric-input\[readonly\]\{[\s\S]*?-webkit-user-select:none!important/);
+  assert.match(css,/\.dkts-numeric-input\.dkts-numeric-active\{[\s\S]*?box-shadow:/);
+  assert.match(css,/caret-color:transparent!important/);
+});
+
+test('floating keypad drag handle uses pointer capture and persists its position',()=>{
+  assert.match(html,/id="dkts-keypad-drag-handle"/);
+  assert.match(html,/class="dkts-keypad-grip"/);
+  assert.match(css,/\.dkts-keypad-head\{[\s\S]*?touch-action:none/);
+  assert.match(css,/\.dkts-keypad-head\.is-dragging/);
+  assert.match(js,/dragHandle\.setPointerCapture\?\.\(event\.pointerId\)/);
+  assert.match(js,/dragHandle\.addEventListener\('pointermove'/);
+  assert.match(js,/dragHandle\.addEventListener\('pointercancel',endDrag\)/);
+  assert.match(js,/dragHandle\.addEventListener\('lostpointercapture',endDrag\)/);
+  assert.match(js,/rememberedPosition=position/);
+  assert.match(js,/if\(rememberedPosition\)placeKeypad\(/);
+  assert.match(js,/window\.addEventListener\('resize'/);
+});
+
+test('drag bounds honor viewport, title bar, navigation bar and a small screen',()=>{
+  const p=asPlain(clamp(-500,-200,320,280,400,800,44,42));
+  assert.deepEqual(p,{left:6,top:50});
+  const q=asPlain(clamp(999,999,320,280,400,800,44,42));
+  assert.deepEqual(q,{left:74,top:472});
+  const tiny=asPlain(clamp(40,500,400,320,350,420,44,42));
+  assert(tiny.left>=6&&Number.isFinite(tiny.top));
+  assert(tiny.top>=6);
+  assert(tiny.top<=420);
+  const allowed=asPlain(clamp(10,160,320,280,400,800,44,42));
+  assert.deepEqual(allowed,{left:10,top:160});
 });

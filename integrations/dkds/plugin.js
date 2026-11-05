@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.6.11","apiVersion":"1.19.0","entry":"plugin.js","enabled":true,"order":82,"description":"DK Test Studio shared standalone UI, DKDS-owned transport and project integration","pluginType":"developer","requiresCore":["runtime","status","services","modules","project","workspace","capabilities","ui.dom","ui.activities","ui.top-workspace","ui.pages","ui.unit-templates"],"capabilities":["instrument.dkts-keithley-4200","network.tcp-client","ui.page","ui.top-workspace","ui.plugin-workspace"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"scripts":["kxci-protocol.js","measurement-plan.js","waveform.js","identity-core.js","interop.js","standalone-shell.js","presentation.js","plugin.js"],"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"K","title":"Keithley 4200A"},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio - Keithley 4200A","width":1280,"height":820,"minWidth":800,"minHeight":620,"dependencies":[],"prewarm":false,"reuse":true,"persistence":"project"}};
+  const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.6.12","apiVersion":"1.19.0","entry":"plugin.js","enabled":true,"order":82,"description":"DK Test Studio shared standalone UI, DKDS-owned transport and project integration","pluginType":"developer","requiresCore":["runtime","status","services","modules","project","workspace","capabilities","ui.dom","ui.activities","ui.top-workspace","ui.pages","ui.unit-templates"],"capabilities":["instrument.dkts-keithley-4200","network.tcp-client","ui.page","ui.top-workspace","ui.plugin-workspace"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"scripts":["kxci-protocol.js","measurement-plan.js","waveform.js","identity-core.js","interop.js","standalone-shell.js","presentation.js","plugin.js"],"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"K","title":"Keithley 4200A"},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio - Keithley 4200A","width":1280,"height":820,"minWidth":800,"minHeight":620,"dependencies":[],"prewarm":false,"reuse":true,"persistence":"project"}};
   DKDSPlugins.define(manifest,async ctx=>{
     const modules=ctx.modules;
     const protocol=modules.require('dkts-kxci');
@@ -78,7 +78,7 @@
       try{
         if(method==='GET'){
           if(route==='/api/status')return {status:200,data:{ok:true,...controller.status()}};
-          if(route==='/api/app/version')return {status:200,data:{version:'0.3.9'}};
+          if(route==='/api/app/version')return {status:200,data:{version:'0.3.10'}};
           if(route==='/api/ui/version')return {status:200,data:{version:'bundled',status:'disabled'}};
           if(route==='/api/workspaces')return {status:200,data:{ok:true,workspace:savedWorkspace}};
         }

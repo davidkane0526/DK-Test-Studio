@@ -1449,8 +1449,16 @@ body.dkts-android-shell .dkts-numeric-keypad{
   background:var(--dkts-chrome-bg,#f4f7fb);box-shadow:0 8px 26px rgba(18,40,75,.19);
   overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch
 }
-.dkts-keypad-head{display:grid;grid-template-columns:minmax(0,1fr) auto;
-  align-items:center;gap:8px;min-height:25px;padding:0 4px}
+.dkts-keypad-head{
+  display:grid;grid-template-columns:18px minmax(0,1fr) auto;
+  align-items:center;gap:7px;min-height:29px;padding:2px 4px;
+  border-radius:7px;cursor:grab;touch-action:none;user-select:none;
+  -webkit-user-select:none;-webkit-touch-callout:none;
+}
+.dkts-keypad-head.is-dragging{cursor:grabbing;background:var(--dkts-hover-bg,#e7eef9)}
+.dkts-keypad-grip{display:grid;place-items:center;color:var(--dkts-chrome-muted,#8393ac);
+  pointer-events:none;opacity:.9}
+.dkts-keypad-head :is(.dkts-keypad-label,.dkts-keypad-value){pointer-events:none}
 .dkts-keypad-label{font-size:11px;min-width:0;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis;color:var(--dkts-chrome-muted,#7f8da3)}
 .dkts-keypad-value{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums;
@@ -1484,8 +1492,20 @@ body.dkts-android-shell .dkts-numeric-keypad button:disabled{
 .dkts-keypad-feedback:empty{display:none}
 body.dkts-android-shell.dkts-keypad-open .workspace{padding-bottom:350px}
 body.dkts-android-shell .dkts-numeric-input[readonly]{
-  cursor:text;opacity:1;-webkit-text-fill-color:inherit;
-  background:var(--dkts-surface,#fff)
+  cursor:pointer;opacity:1;-webkit-text-fill-color:inherit;
+  background:var(--dkts-surface,#fff);caret-color:transparent!important;
+  -webkit-user-select:none!important;user-select:none!important;
+  -webkit-touch-callout:none!important;touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent
+}
+body.dkts-android-shell .dkts-numeric-input::selection{
+  background:transparent;color:inherit
+}
+body.dkts-android-shell .dkts-numeric-input.dkts-numeric-active{
+  border-color:#6997d5!important;
+  background:color-mix(in srgb,#6997d5 7%,var(--dkts-surface,#fff))!important;
+  box-shadow:0 0 0 2px color-mix(in srgb,#6997d5 23%,transparent)!important;
+  outline:0!important;
 }
 @media(prefers-color-scheme:dark){
   body.dkts-android-shell .dkts-keypad-foot .dkts-keypad-done{

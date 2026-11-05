@@ -1630,11 +1630,25 @@ function numericKeyEdit(value,start,end,key,real=true){
   if(result.value.length>48)return {value:original,start:left,end:right,changed:false};
   return result;
 }
+// Clamp the floating keypad within the usable viewport, including Android
+// status/navigation safe areas. Separate pure helper for regression testing.
+function clampNumericKeypad(left,top,width,height,viewportWidth,viewportHeight,topInset=0,bottomInset=0){
+  const margin=6;
+  const maxX=Math.max(margin,viewportWidth-width-margin);
+  const minY=Math.min(Math.max(margin,topInset+margin),Math.max(margin,viewportHeight-height-margin));
+  const maxY=Math.max(minY,viewportHeight-bottomInset-height-margin);
+  return {
+    left:Math.max(margin,Math.min(maxX,left)),
+    top:Math.max(minY,Math.min(maxY,top))
+  };
+}
 function installAndroidNumericKeypad(){
   if(!document.body.classList.contains('dkts-android-shell'))return;
   const panel=$('dkts-numeric-keypad');
-  if(!panel)return;
-  let active=null,original='';
+  const dragHandle=$('dkts-keypad-drag-handle');
+  if(!panel||!dragHandle)return;
+  let active=null,original='',selection={start:0,end:0};
+  let drag=null,rememberedPosition=null;
   const valueView=$('dkts-keypad-value');
   const labelView=$('dkts-keypad-label');
   const feedback=$('dkts-keypad-feedback');
@@ -1666,28 +1680,62 @@ function installAndroidNumericKeypad(){
       control.dispatchEvent(new Event('input',{bubbles:true}));
     }
     control.removeAttribute('aria-invalid');
+    control.classList.remove('dkts-numeric-active');
+    control.setAttribute('aria-expanded','false');
     control.dispatchEvent(new Event('change',{bubbles:true}));
     active=null;panel.hidden=true;document.body.classList.remove('dkts-keypad-open');
-    feedback.textContent='';return true;
+    feedback.textContent='';
+    return true;
+  }
+  function safeInsets(){
+    const styles=getComputedStyle(document.body);
+    const px=name=>Number.parseFloat(styles.getPropertyValue(name))||0;
+    return {top:px('--dkts-title-height')+px('--dkts-safe-top'),
+      bottom:px('--dkts-status-height')+px('--dkts-safe-bottom')};
+  }
+  function placeKeypad(left,top){
+    const rect=panel.getBoundingClientRect(),safe=safeInsets();
+    const position=clampNumericKeypad(left,top,rect.width,rect.height,
+      window.innerWidth,window.innerHeight,safe.top,safe.bottom);
+    panel.style.left=position.left+'px';
+    panel.style.top=position.top+'px';
+    panel.style.right='auto';
+    panel.style.bottom='auto';
+    rememberedPosition=position;
   }
   function revealInput(control){
     requestAnimationFrame(()=>{
       if(!active||active!==control)return;
       const rect=control.getBoundingClientRect();
-      const keypadTop=panel.getBoundingClientRect().top;
-      const limit=keypadTop-14;
-      if(rect.bottom<=limit)return;
-      const delta=rect.bottom-limit+12;
+      const keypad=panel.getBoundingClientRect();
+      // Once dragged aside, an input no longer obscured by the keypad
+      // should not cause an unexpected workspace scroll.
+      if(rect.right<=keypad.left||rect.left>=keypad.right||
+        rect.bottom<=keypad.top||rect.top>=keypad.bottom)return;
+      const delta=rect.bottom-keypad.top+12;
       const scrollable=control.closest('dialog[open]');
       if(scrollable)scrollable.scrollBy({top:delta,behavior:'smooth'});
       else window.scrollBy({top:delta,behavior:'smooth'});
     });
   }
   function open(control){
-    if(active===control)return;
+    if(active===control){
+      selection={start:0,end:control.value.length};
+      syncValue();return;
+    }
     close(false);
     active=control;original=control.value;
+    // Only the whole control is highlighted. No DOM text selection, caret,
+    // focus(), or setSelectionRange(): those trigger Android copy/paste UI.
+    selection={start:0,end:control.value.length};
+    control.classList.add('dkts-numeric-active');
+    control.setAttribute('aria-expanded','true');
     panel.hidden=false;document.body.classList.add('dkts-keypad-open');
+    if(rememberedPosition)placeKeypad(rememberedPosition.left,rememberedPosition.top);
+    else{
+      panel.style.removeProperty('left');panel.style.removeProperty('top');
+      panel.style.removeProperty('right');panel.style.removeProperty('bottom');
+    }
     const label=control.closest('label');
     labelView.textContent=label?.textContent.trim()||control.name||'数字';
     const real=control.dataset.dktsNumberKind==='real';
@@ -1698,9 +1746,6 @@ function installAndroidNumericKeypad(){
         (key==='sign'&&min!==null&&Number(min)>=0);
     });
     feedback.textContent='';
-    control.focus({preventScroll:true});
-    // First digit replaces the existing number; caret movement allows editing.
-    control.setSelectionRange(0,control.value.length);
     syncValue();revealInput(control);
   }
   function press(key){
@@ -1708,12 +1753,10 @@ function installAndroidNumericKeypad(){
     if(key==='done'){close(true);return;}
     const control=active;
     const before=control.value;
-    const change=numericKeyEdit(before,control.selectionStart??before.length,
-      control.selectionEnd??before.length,key,
+    const change=numericKeyEdit(before,selection.start,selection.end,key,
       control.dataset.dktsNumberKind==='real');
     control.value=change.value;
-    control.focus({preventScroll:true});
-    control.setSelectionRange(change.start,change.end);
+    selection={start:change.start,end:change.end};
     feedback.textContent='';
     if(change.changed)control.dispatchEvent(new Event('input',{bubbles:true}));
     syncValue();
@@ -1722,26 +1765,66 @@ function installAndroidNumericKeypad(){
     const step=control.getAttribute('step');
     control.dataset.dktsNumberKind=step==='any'||(step!==null&&!Number.isInteger(Number(step)))
       ?'real':'integer';
-    // WebView readonly + inputmode none prevents OEM software keyboards.
-    // Programmatic editing still emits the same input/change events.
+    // Keep the form value but make the Android field a non-editable touch
+    // target. This suppresses both the OEM IME and text-selection toolbar.
     control.type='text';
     control.inputMode='none';
     control.readOnly=true;
     control.autocomplete='off';
     control.classList.add('dkts-numeric-input');
+    control.setAttribute('aria-expanded','false');
+    control.setAttribute('aria-controls','dkts-numeric-keypad');
     control.setAttribute('aria-label',(control.closest('label')?.textContent.trim()||
       control.name||'数字')+'，使用内置数字键盘输入');
-    control.addEventListener('focus',()=>open(control));
-    control.addEventListener('click',()=>open(control));
+    control.addEventListener('pointerdown',event=>{
+      if(event.pointerType==='mouse'&&event.button!==0)return;
+      event.preventDefault();open(control);
+    });
+    // Some OEM WebViews still emit long-press selection from touchstart
+    // even with readonly fields, so consume touch before the native editor.
+    control.addEventListener('touchstart',event=>{
+      if(event.cancelable)event.preventDefault();
+      open(control);
+    },{passive:false});
+    control.addEventListener('contextmenu',event=>event.preventDefault());
+    control.addEventListener('selectstart',event=>event.preventDefault());
+    // Synthetic accessibility click or keyboard navigation remains possible.
+    control.addEventListener('click',event=>{event.preventDefault();open(control);});
   });
   panel.addEventListener('click',event=>{
     const button=event.target.closest('button[data-key]');
     if(button&&!button.disabled)press(button.dataset.key);
   });
   panel.addEventListener('pointerdown',event=>event.stopPropagation());
+  const endDrag=event=>{
+    if(!drag||event.pointerId!==drag.id)return;
+    drag=null;dragHandle.classList.remove('is-dragging');
+    if(dragHandle.hasPointerCapture?.(event.pointerId))
+      dragHandle.releasePointerCapture(event.pointerId);
+  };
+  dragHandle.addEventListener('pointerdown',event=>{
+    if(event.pointerType==='mouse'&&event.button!==0)return;
+    event.preventDefault();
+    const rect=panel.getBoundingClientRect();
+    drag={id:event.pointerId,dx:event.clientX-rect.left,dy:event.clientY-rect.top};
+    dragHandle.classList.add('is-dragging');
+    dragHandle.setPointerCapture?.(event.pointerId);
+  });
+  dragHandle.addEventListener('pointermove',event=>{
+    if(!drag||event.pointerId!==drag.id)return;
+    if(event.cancelable)event.preventDefault();
+    placeKeypad(event.clientX-drag.dx,event.clientY-drag.dy);
+  });
+  dragHandle.addEventListener('pointerup',endDrag);
+  dragHandle.addEventListener('pointercancel',endDrag);
+  dragHandle.addEventListener('lostpointercapture',endDrag);
+  window.addEventListener('resize',()=>{
+    if(active&&rememberedPosition)
+      requestAnimationFrame(()=>placeKeypad(rememberedPosition.left,rememberedPosition.top));
+  });
   document.addEventListener('pointerdown',event=>{
-    if(active&&!panel.contains(event.target)&&event.target!==active)
-      close(false);
+    if(active&&!panel.contains(event.target)&&event.target!==active&&
+      !event.target.closest?.('.dkts-numeric-input'))close(false);
   },true);
   document.addEventListener('keydown',event=>{
     if(!active)return;
@@ -1765,6 +1848,7 @@ function installAndroidNumericKeypad(){
     dialog.addEventListener('close',()=>close(false)));
   window.DKTSNumericKeypad=Object.freeze({close:()=>close(true),isOpen:()=>Boolean(active)});
 }
+
 installAndroidNumericKeypad();
 
 enhanceWorkspaceSelects();
