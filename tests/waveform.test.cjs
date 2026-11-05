@@ -55,6 +55,17 @@ test('PMU current capture exposes ranges and enforces acquisition buffer',()=>{
   assert.equal(w.captureBudget.hardwareMaxSampleRateHz,200e6);
   assert.throws(()=>validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measureWindowS:1e-9,inventory}),/采样率范围/);
 });
+test('PMU planning exposes the one-million-point hardware budget separately from the KXCI buffer',()=>{
+  const points=[{timeS:0,voltageV:0},{timeS:1/3,voltageV:1},{timeS:2/3,voltageV:0},{timeS:1,voltageV:1}];
+  const w=validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measureWindowS:1e-3,inventory});
+  assert.equal(w.captureBudget.maxPointsPerChannel,1000000);
+  assert.equal(w.captureBudget.interfaceMaxPointsPerChannel,65536);
+  assert.equal(w.captureBudget.maxSampleRateHz,1000000);
+  assert.equal(w.captureBudget.kxciCompatible,false);
+  assert.equal(w.interfaceLimits.capturePointsCompatible,false);
+  assert.equal(w.interfaceLimits.requiresAlternateBackend,true);
+  assert.equal(w.executionCompatibility,'hardware-valid-kxci-limited');
+});
 test('waveform parser rejects duplicate times, invalid load and point counts',()=>{
   assert.throws(()=>parseWaveformText('0 0\n0 1'),/严格递增/);
   assert.throws(()=>parseWaveformText('1 0\n0.5 1'),/严格递增/);
