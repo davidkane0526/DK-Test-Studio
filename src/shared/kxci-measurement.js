@@ -108,6 +108,7 @@
   }
   function createRunner(options={}){
     const {controller,execution}=options;
+    const wait=typeof options.wait==='function'?options.wait:null;
     if(!controller||typeof controller.measurementExchange!=='function')
       throw Error('缺少经过身份验证的 KXCI 会话');
     let job=null,sequence=0;
@@ -183,10 +184,11 @@
           const delay=point.delayMs+(point.changedP&&previousP!==null?
             point.pDelayMs:0);
           previousP=point.pPoint;
-          if(delay>0)await new Promise(resolve=>{
-            const timer=setTimeout(resolve,delay);
-            j.wake=()=>{clearTimeout(timer);resolve();};
-          });
+          if(delay>0){
+            if(!wait)throw Error('当前插件宿主未提供测量时序调度器');
+            await Promise.race([Promise.resolve().then(()=>wait(delay)),
+              new Promise(resolve=>{j.wake=resolve;})]);
+          }
           j.wake=null;
           if(j.cancelled)break;
           const raw=await command('TI'+j.compiled.measurementChannel,true);
@@ -234,11 +236,16 @@
       if(compiled.requiresInterlock)
         throw Error('该方案需要硬件高压互锁，尚未实现互锁状态的可靠读取');
       // No implicit partial plan override and no software-derived measurement.
+      const needsWait=compiled.plan.xSweep.delayMs>0||
+        compiled.plan.xSweep.segments.some(s=>(s.delayMs||0)>0)||
+        Boolean(compiled.plan.pSweep&&(compiled.plan.pSweep.delayMs>0||
+          compiled.plan.pSweep.segments.some(s=>(s.delayMs||0)>0)));
+      if(needsWait&&!wait)throw Error('当前 DKDS 插件宿主未提供受控测量时序调度器');
       const lease=execution.begin(compiled.plan.kind);
       job={id:'kxci-'+(++sequence),state:'running',cancelled:false,
-        compiled,rows:[],error:'',shutdown:'pending',wake:null,
+        compiled,rows:[],error:'',shutdown:'pending',wake:null,task:null,
         startedAt:new Date().toISOString(),finishedAt:null};
-      void execute(job,lease);
+      job.task=execute(job,lease);
       return publicState(0);
     }
     function stop(){
@@ -251,9 +258,7 @@
     async function dispose(){
       stop();
       // Wait for the owned execution task to finish before disconnecting.
-      while(job&&(job.state==='running'||job.state==='stopping')){
-        await new Promise(resolve=>setTimeout(resolve,20));
-      }
+      if(job?.task)await job.task;
     }
     return Object.freeze({start,stop,status:publicState,dispose});
   }
