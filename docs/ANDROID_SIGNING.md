@@ -11,7 +11,7 @@
 - 私钥以 GitHub Actions Secrets 形式保存，**不会**进入仓库、日志、热更新资源和 Release。
 - 每个 APK 用 Android `apksigner verify` 验签，并比对仓库的公开 SHA-256 指纹 `android/signing-certificate.sha256`。
 - Secrets 缺失、证书变化或模拟器启动失败时，完整 Release 必须失败，**绝不能回退成新的随机 Debug 签名**。
-- Windows Setup/Portable、Android APK、DKDS 插件、UI 资源仍随每次 `main` 提交全量构建，完整 Release 包含 5 个文件。
+- Windows Setup/Portable、Android APK、DKDS 插件、UI 热更新资源和 4200A 硬件能力数据库随完整版本一并构建，完整 Release 包含 **6 个文件**。
 
 ## 签名固定身份
 
@@ -29,11 +29,11 @@
 
 1. 下载并妥善保存私有签名包 `DKTS-Android-Signing-Kit.zip`（不要放入 Git、公共网盘或 Release），解压。
 2. 在自己的 Windows 电脑上使用 `Upload-DKTS-Signing.ps1`，脚本通过已授权的 `gh` 登录上传两个 Secrets。使用前请检查脚本源码：
-   `powershell -ExecutionPolicy Bypass -File .\Upload-DKTS-Signing.ps1`
+   `powershell -ExecutionPolicy Bypass -File .\\Upload-DKTS-Signing.ps1`
 3. 或到仓库 **Settings → Secrets and variables → Actions → New repository secret** 分别设置：
    - `DKTS_ANDROID_KEYSTORE_B64`：签名包内 .p12 文件内容的 Base64（不是文件路径）
    - `DKTS_ANDROID_SIGNING_PASSWORD`：签名包内密码
-4. 通过 GitHub Actions **Re-run failed jobs** 或新推送触发完整构建。核对 Build signed APK、apksigner 指纹、Android 16 模拟器启动与 5 文件 Release。
+4. 通过 GitHub Actions **Re-run failed jobs** 或新推送触发完整构建。核对 Build signed APK、apksigner 指纹、Android 16 模拟器启动与 **6 文件 Release**。
 
 GitHub Actions Secrets 设置页：https://github.com/davidkane0526/DK-Test-Studio/settings/secrets/actions
 
