@@ -62,20 +62,43 @@
     if (gateSlot && !['SMU', 'VS'].includes(gateSlot.family)) throw Error('栅极通道必须是 SMU 或 KXCI VS 电压源');
     if (sourceSmU === measureSmU && sourceSlot?.family === 'VS') throw Error('VS 是电压源专用通道，不能同时承担电流测量');
     const complianceA = positive(input.complianceA ?? 1e-4, '电流限值');
-    const sourceLimits = caps?.getSourceLimits ? caps.getSourceLimits(sourceSlot, sourceMaxAbsVoltage, complianceA) : { known: false, maxAbsVoltageV: 210 };
+    const sourceComplianceA=positive(input.sourceComplianceA??complianceA,'漏极电流保护值');
+    const gateComplianceA=positive(input.gateComplianceA??complianceA,'栅极电流保护值');
+    const independentCompliance=input.sourceComplianceA!=null||input.gateComplianceA!=null;
+    const sourceLimits = caps?.getSourceLimits ? caps.getSourceLimits(sourceSlot, sourceMaxAbsVoltage, sourceComplianceA) : { known: false, maxAbsVoltageV: 210 };
     const gateLimits = gateSmU && caps?.getSourceLimits ? caps.getSourceLimits(gateSlot, gateMaxAbsVoltage) : null;
     const sourceVoltageMax = sourceLimits.maxAbsVoltageV ?? 210;
     if (sourceMaxAbsVoltage > sourceVoltageMax + 1e-12) throw Error('源电压超过所选通道的理论上限 ±' + sourceVoltageMax + ' V');
     if (gateLimits && gateMaxAbsVoltage > (gateLimits.maxAbsVoltageV ?? 210) + 1e-12) throw Error('栅极电压超过所选通道的理论上限 ±' + (gateLimits.maxAbsVoltageV ?? 210) + ' V');
     const sourceCompliance = sourceLimits?.known === true && sourceLimits.maxComplianceA != null ? sourceLimits : null;
-    const gateSourceLimits = gateSmU && caps?.getSourceLimits ? caps.getSourceLimits(gateSlot, gateMaxAbsVoltage, complianceA) : null;
+    const gateSourceLimits = gateSmU && caps?.getSourceLimits ? caps.getSourceLimits(gateSlot, gateMaxAbsVoltage, gateComplianceA) : null;
     const gateCompliance = gateSourceLimits?.known === true && gateSourceLimits.maxComplianceA != null ? gateSourceLimits : null;
     const knownComplianceLimits = [sourceCompliance, gateCompliance].filter(Boolean);
     const knownMaxComplianceA = knownComplianceLimits.length ? Math.min(...knownComplianceLimits.map(item => item.maxComplianceA)) : null;
     const knownMinComplianceA = knownComplianceLimits.length ? Math.max(...knownComplianceLimits.map(item => item.minComplianceA)) : null;
     const allComplianceChannelsKnown = Boolean(sourceCompliance) && (!gateSmU || Boolean(gateCompliance));
-    if (knownMaxComplianceA !== null && complianceA > knownMaxComplianceA + 1e-15) throw Error('电流限值超过已识别 SMU 通道的理论能力上限 ' + knownMaxComplianceA + ' A');
-    if (knownMinComplianceA !== null && complianceA < knownMinComplianceA - 1e-15) throw Error('电流限值低于已识别 SMU 通道的 KXCI 最小值 ' + knownMinComplianceA + ' A');
+    if (!independentCompliance&&knownMaxComplianceA !== null && complianceA > knownMaxComplianceA + 1e-15)
+      throw Error('电流限值超过已识别 SMU 通道的理论能力上限 ' + knownMaxComplianceA + ' A');
+    if (!independentCompliance&&knownMinComplianceA !== null && complianceA < knownMinComplianceA - 1e-15)
+      throw Error('电流限值低于已识别 SMU 通道的 KXCI 最小值 ' + knownMinComplianceA + ' A');
+    function fixedRange(role,requested,capability,protection){
+      if(requested===undefined||requested===null||String(requested).toLowerCase()==='auto')
+        return 'auto';
+      const value=positive(requested,role+' 固定电流量程');
+      if(!capability?.known)return formatCurrentRange(value);
+      const available=capability.availableCurrentRangesA||[];
+      if(!available.some(range=>Math.abs(range-value)<=Math.max(value,range)*1e-10))
+        throw Error(role+' 电流档位不是已识别 SMU 支持的固定量程');
+      const module=caps?.DATABASE?.modules?.[capability.moduleType];
+      const factor=module?.electrical?.rangeOverrangeFactor??1.05;
+      const fraction=module?.electrical?.complianceMinFractionOfRange??0.1;
+      if(protection<value*fraction-1e-15||protection>value*factor+1e-15)
+        throw Error(role+' 电流保护值与固定电流档位不匹配');
+      return formatCurrentRange(value);
+    }
+    const sourceFixedCurrentRangeA=fixedRange('漏极',input.sourceCurrentRangeA,sourceLimits,sourceComplianceA);
+    const gateFixedCurrentRangeA=gateSmU?
+      fixedRange('栅极',input.gateCurrentRangeA,gateSourceLimits,gateComplianceA):'auto';
     const direction = String(input.direction || 'roundtrip');
     if (!['forward', 'reverse', 'roundtrip'].includes(direction)) throw Error('不支持的扫描方向');
     const delayMs = finite(input.delayMs ?? 20, '扫描点间延迟', 0, 6553);
@@ -99,7 +122,9 @@
       maxComplianceA: allComplianceChannelsKnown ? knownMaxComplianceA : null, knownMaxComplianceA,
       minComplianceA: allComplianceChannelsKnown ? knownMinComplianceA : null,
       sourceCurrentRangeA: sourceCompliance?.selectedCurrentRangeA ?? null, gateCurrentRangeA: gateCompliance?.selectedCurrentRangeA ?? null,
-      complianceA, delayMs, intervalMs, startV, stopV, fixedV, gateBiasV, pointsPerCycle, totalPoints,
+      complianceA, sourceComplianceA,gateComplianceA,
+      sourceFixedCurrentRangeA,gateFixedCurrentRangeA,
+      delayMs, intervalMs, startV, stopV, fixedV, gateBiasV, pointsPerCycle, totalPoints,
       hardwareCapabilityStatus: capabilityStatus, hardwareLimitsVerified: Boolean(hardware.inventory?.hardwareLimitsVerified),
       powerBudget, requiresInterlock, interlockStatus: requiresInterlock ? 'not-read-by-current-read-only-bridge' : 'not-required-for-selected-voltage-range',
       executable: false, hardwareVerified: false, provenance: 'user-test-plan',
