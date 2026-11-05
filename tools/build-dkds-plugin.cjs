@@ -4,6 +4,7 @@
 // No generated executable instrument commands or duplicate measurement logic.
 const fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
+require('./generate-4200a-capabilities.cjs').generate();
 const standaloneBuild=require.main===module;
 // Node tests execute files in parallel processes; give each worker private
 // staging files to prevent reading another worker's partial plugin writes.
