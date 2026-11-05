@@ -95,7 +95,9 @@
       PMU: {
         type: 'PMU', family: 'PMU', role: 'pulse-source-and-measure', verificationStatus: 'documented', modelAliases: ['4225-PMU'], channelsPerCard: 2,
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
-        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, timeResolutionS: 1e-8, maxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
+        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
+        kxciPulseTiming: { '10': { periodMinS: 6e-8, periodMaxS: 1, pulseWidthMinS: 4e-8, transitionMinS: 2e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 2e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
+        kxciPulseTiming: { '10': { periodMinS: 6e-8, periodMaxS: 1, pulseWidthMinS: 4e-8, transitionMinS: 2e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 2e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
         pulseTiming: {
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 }, withMeasurement: { periodMinS: 1.2e-7, periodMaxS: 1, pulseWidthMinS: 6e-8, transitionMinS: 2e-8, maxFrequencyHz: 8.3e6 } },
           '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
@@ -111,7 +113,7 @@
         type: 'PMURPM', family: 'PMU', role: 'pulse-source-and-measure-with-rpm', verificationStatus: 'documented',
         modelAliases: ['4225-PMU + 4225-RPM'], channelsPerCard: 2, hasRpm: true,
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
-        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, timeResolutionS: 1e-8, maxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
+        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
         pulseTiming: {
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 }, withMeasurement: { periodMinS: 1.2e-7, periodMaxS: 1, pulseWidthMinS: 6e-8, transitionMinS: 2e-8, maxFrequencyHz: 8.3e6 } },
           '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, maxFrequencyHz: 1e7 }, withMeasurement: { periodMinS: 2.8e-7, periodMaxS: 1, pulseWidthMinS: 1.4e-7, transitionMinS: 1e-7, maxFrequencyHz: 3.5e6 } }
@@ -161,11 +163,12 @@
   function getModuleCapability(type) { return DATABASE.modules[String(type || '').toUpperCase()] || null; }
   function getSmuLimits(slot, voltageV, requestedComplianceA) {
     if (!slot || slot.family !== 'SMU') return { known: false, reason: 'SMU channel not identified' };
-    const mod = getModuleCapability(slot.type);
-    if (!mod || mod.family !== 'SMU' || !mod.electrical) return { known: false, reason: 'SMU module capability not documented' };
+    const physicalType = slot.physicalType || (slot.physicalIdentityVerified === false ? null : slot.type);
+    const mod = getModuleCapability(physicalType);
+    if (!mod || mod.family !== 'SMU' || !mod.electrical) return { known: false, moduleType: physicalType || null, maxAbsVoltageV: 210, maxComplianceA: null, minComplianceA: null, reason: '物理 SMU 型号尚未由 instrumentinfo 确认，不能猜测中功率/高功率额定值' };
     const absV = Math.abs(Number(voltageV));
     if (!Number.isFinite(absV)) throw Error('SMU 电压不是有限数值');
-    const range = mod.electrical.voltageRanges.find(item => absV <= item.maxAbsV + 1e-12);
+    const range = mod.electrical.voltageRanges.filter(item => absV <= item.maxAbsV + 1e-12).sort((a,b) => a.maxAbsV - b.maxAbsV)[0];
     if (!range) throw Error('SMU 电压超过该模块 ±' + mod.electrical.maxSourceVoltageV + ' V 理论边界');
     const result = {
       known: true, moduleType: mod.type, powerClass: mod.powerClass, preamplifier: mod.preamplifier,
@@ -186,12 +189,15 @@
     return Object.freeze(result);
   }
   function getSourceLimits(slot, voltageV, requestedComplianceA) {
-    if (!slot) return { known: false, reason: 'source channel not identified', maxAbsVoltageV: 210 };
+    if (!slot) return { known: false, reason: 'source channel not identified', maxAbsVoltageV: 210, maxComplianceA: null };
     if (slot.family === 'SMU') return getSmuLimits(slot, voltageV, requestedComplianceA);
     if (slot.family === 'VS') {
       const maxAbsVoltageV = getModuleCapability('VS').kxci.maxSupportedVoltageV;
       if (Math.abs(Number(voltageV)) > maxAbsVoltageV) throw Error('KXCI VS 通道当前支持的电压上限为 ±' + maxAbsVoltageV + ' V');
-      return Object.freeze({ known: true, roleOnly: true, moduleType: 'VS', maxAbsVoltageV, maxComplianceA: null, minComplianceA: null, requiresInterlock: false, reason: 'VS 的物理 SMU 映射未由 *OPT? 暴露' });
+      const physicalType = slot.physicalType || (slot.physicalIdentityVerified === false ? null : slot.type);
+      if (!physicalType) return Object.freeze({ known: false, moduleType: null, maxAbsVoltageV, maxComplianceA: null, minComplianceA: null, requiresInterlock: false, reason: 'VS 的物理 SMU 型号尚未由 instrumentinfo 确认' });
+      const limits = getSmuLimits({ ...slot, type: physicalType, family: 'SMU', physicalIdentityVerified: true }, voltageV, requestedComplianceA);
+      return Object.freeze({ ...limits, moduleType: physicalType, logicalRole: 'VS', maxAbsVoltageV: Math.min(maxAbsVoltageV, limits.maxAbsVoltageV || maxAbsVoltageV) });
     }
     throw Error('所选通道不是可用的 SMU/VS 电压源');
   }
@@ -208,7 +214,7 @@
     const key = String(sourceType || '').toLowerCase() === 'pgu' ? 'VPU' : 'PMU';
     const mod = getModuleCapability(key), range = Number(rangeV);
     if (!mod.output.rangesV.includes(range)) throw Error('PMU/PGU 输出量程只能选择 10 V 或 40 V');
-    return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSequences: mod.segmentArb.maxSequencesPerChannel, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, timeResolutionS: mod.segmentArb.timeResolutionS });
+    return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.maxSegmentsPerCommand, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, timeResolutionS: mod.segmentArb.timeResolutionS });
   }
   function getPmuCurrentRanges(rangeV, withRpm = false) {
     const mod = getModuleCapability(withRpm ? 'PMURPM' : 'PMU');
@@ -234,22 +240,24 @@
     return Object.freeze({ minSampleRateHz: minimumRequiredRateHz, maxSampleRateHz: maximumRateHz, selectedSampleRateHz: selectedRateHz, sampleIntervalS: 1 / selectedRateHz, maxPointsPerChannel: mod.measurement.maxKxciBufferPointsPerChannel, hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz });
   }
   function getPulseTimingRecommendation(rangeV, measurementRangeA, withMeasurement = true) {
-    const mod = getModuleCapability('PMU'), range = String(Number(rangeV)), mode = withMeasurement ? 'withMeasurement' : 'sourceOnly';
-    const timing = mod.pulseTiming[range]?.[mode];
-    if (!timing) throw Error('没有该 PMU 工作模式的脉冲时序规格');
-    const recommendation = { ...timing, source: 'tek-4200a-datasheet-2026', typical: true };
+    const source = arguments.length > 3 ? arguments[3] : 'pmu';
+    const key = String(source || 'pmu').toLowerCase() === 'pgu' ? 'VPU' : 'PMU';
+    const mod = getModuleCapability(key), range = String(Number(rangeV));
+    const timing = mod.kxciPulseTiming?.[range];
+    if (!timing) throw Error('没有该模块/电压档的 KXCI 脉冲时序规格');
+    const recommendation = { ...timing, source: 'tek-4200a-kxci-rev-e', measurementEnabled: Boolean(withMeasurement), typical: false };
     if (measurementRangeA !== undefined && measurementRangeA !== null) {
       const current = Number(measurementRangeA);
-      if (!getPmuCurrentRanges(Number(rangeV), false).some(x => Math.abs(x - current) <= Math.max(1e-15, current * 1e-9))) throw Error('所选 PMU 电流量程与该电压档不匹配');
+      if (key !== 'PMU' || !getPmuCurrentRanges(Number(rangeV), false).some(x => Math.abs(x - current) <= Math.max(1e-15, current * 1e-9))) throw Error('所选 PMU 电流量程与该电压档不匹配');
       recommendation.measurementRangeA = current;
     }
     return Object.freeze(recommendation);
   }
   function calculateChassisPower({ inventory, activeSmuChannels = [], activePulseChannels = [] } = {}) {
     if (!inventory || !Array.isArray(inventory.slots)) return Object.freeze({ known: false, reason: '模块清单尚未读取' });
-    if (inventory.unknownModules?.length) return Object.freeze({ known: false, reason: '存在未识别模块，不能把其功耗按零计算' });
+    if (inventory.unknownModules?.length || inventory.unverifiedModules?.some(slot => ['SMU','VS','VM','PMU','PGU','unknown'].includes(slot.family))) return Object.freeze({ known: false, reason: '存在未确认物理型号的高功率相关模块，不能把其功耗按零计算' });
     const slots = inventory.slots.filter(slot => slot && slot.type && slot.type !== 'empty');
-    if (slots.some(slot => slot.family === 'VS' || slot.family === 'VM' || slot.family === 'unknown')) return Object.freeze({ known: false, reason: '存在逻辑通道或未知模块，物理模块功耗映射不完整' });
+    if (slots.some(slot => slot.family === 'unknown' || (['SMU','VS','VM'].includes(slot.family) && (!slot.powerClass || slot.powerClass === 'unknown')))) return Object.freeze({ known: false, reason: '存在未确认物理 SMU 型号的通道，无法核算高功率 SMU 功耗' });
     if (slots.some(slot => slot.family === 'PMU' && !Number.isFinite(slot.rpmCount))) return Object.freeze({ known: false, reason: 'PMU/RPM 数量未能从 *OPT? 完整解析' });
     const nPgu = slots.filter(slot => slot.family === 'PGU').length;
     const nPmu = slots.filter(slot => slot.family === 'PMU').length;
@@ -257,7 +265,7 @@
     const active = [...new Set(activeSmuChannels.map(Number).filter(Number.isInteger))];
     let nHighPowerSmu = 0;
     for (const channel of active) {
-      const slot = slots.find(item => item.family === 'SMU' && item.channel === channel);
+      const slot = slots.find(item => ['SMU','VS','VM'].includes(item.family) && item.channel === channel);
       if (!slot) return Object.freeze({ known: false, reason: '活动 SMU 通道 ' + channel + ' 未映射到已识别物理模块' });
       if (slot.powerClass === 'high') nHighPowerSmu++;
     }

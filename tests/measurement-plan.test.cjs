@@ -27,6 +27,10 @@ test('planning rejects invalid limits, missing values, and channel conflicts',()
   assert.equal(unidentified.complianceA,0.011,'Unknown modules must not receive a guessed 10.5 mA cap');
   const medium={inventory:{slots:[{type:'SMU',family:'SMU',channel:1,powerClass:'medium'}],unknownModules:[]}};
   const high={inventory:{slots:[{type:'HPSMU',family:'SMU',channel:1,powerClass:'high'}],unknownModules:[]}};
+  const unverified={inventory:{slots:[{type:'SMU',family:'SMU',channel:1,physicalIdentityVerified:false}],unknownModules:[],unverifiedModules:[{family:'SMU'}]}};
+  const unverifiedPlan=normalizePlan({complianceA:0.011},unverified);
+  assert.equal(unverifiedPlan.maxComplianceA,null);
+  assert.equal(unverifiedPlan.hardwareCapabilityStatus,'unresolved');
   assert.equal(normalizePlan({startV:200,stopV:200,complianceA:0.0105},medium).maxComplianceA,0.0105);
   assert.equal(normalizePlan({startV:200,stopV:200,complianceA:0.1},high).maxComplianceA,0.105);
   assert.equal(normalizePlan({startV:20,stopV:20,complianceA:1},high).maxComplianceA,1.05);

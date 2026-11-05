@@ -10,6 +10,10 @@ test('SMU module limits use the identified module and selected voltage range', (
   assert.equal(medium.requiresInterlock, true);
   const high = caps.getSmuLimits({ type: 'HPSMU', family: 'SMU' }, 20, 1);
   assert.equal(high.maxComplianceA, 1.05);
+  assert.equal(high.availableCurrentRangesA.at(-1), 1);
+  const unknown = caps.getSmuLimits({ type: 'SMU', family: 'SMU', physicalIdentityVerified: false }, 20, 0.01);
+  assert.equal(unknown.known, false);
+  assert.equal(unknown.maxComplianceA, null);
   assert.equal(high.voltageRangeNominalV, 20);
   const pa = caps.getSmuLimits({ type: 'SMUPA', family: 'SMU' }, 20, 1e-10);
   assert.equal(pa.minComplianceA, 1e-10);
@@ -28,6 +32,12 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   assert.equal(pm40.minSegmentS, 5e-8);
   assert.equal(pm40.maxSegments, 2048);
   assert.equal(pm40.timeResolutionS, 1e-8);
+  assert.equal(pm40.maxSegmentsPerCommand, 128);
+  assert.equal(pm40.maxSequenceLoops, 1e12);
+  const pmuTiming = caps.getPulseTimingRecommendation(10, 0.01, true);
+  assert.equal(pmuTiming.periodMinS, 60e-9);
+  const pguTiming = caps.getPulseTimingRecommendation(10, null, false, 'pgu');
+  assert.equal(pguTiming.periodMinS, 20e-9);
 });
 test('chassis power is calculated from KXCI inventory and active test channels', () => {
   const inventory = { slots: [
