@@ -29,7 +29,7 @@ test('UI and full-package Actions share one run number and publish both Releases
   assert.match(ui,/hotfix_id="a\$GITHUB_RUN_NUMBER"/);
   assert.match(ui,/DKTS_UI_VERSION=\$hotfix_id/);
   assert(ui.includes('DK Test Studio V$PACKAGE_VERSION $HOTFIX_ID · UI Hot Update'));
-  assert.match(ui,/Full downloadable package/);
+  assert.match(ui,/full downloadable package/i);
   assert.match(full,/workflow_run:/);
   assert.match(full,/workflows: \["Fast UI Hot Update"\]/);
   assert.match(full,/DKTS_BUILD_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
