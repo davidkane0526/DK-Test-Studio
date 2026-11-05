@@ -1593,3 +1593,134 @@ body.dkts-android-shell .dkts-numeric-input.dkts-numeric-active{
   .sweep-terminal-row label{font-size:10px}
   .sweep-fixed-voltages{gap:5px}
 }
+
+
+/* DKDS-aligned compact workspace: consistent field geometry, two responsive
+   lines for terminal assignment without truncating electrical parameters. */
+:root{
+  --dkts-control-h:32px;
+  --dkts-control-radius:7px;
+  --dkts-control-gap:7px;
+}
+.terminal-profiles{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(96px,1fr)) minmax(116px,1fr) minmax(116px,1fr) 70px 70px;
+  gap:var(--dkts-control-gap);
+  padding:12px 14px!important;
+  align-items:end;
+}
+.port-panel-heading{grid-column:1/-1;margin:0!important;min-height:22px}
+.port-panel-heading h2{font-size:13px;font-weight:650}
+.terminal-inventory-state,#terminal-profile-status,.workspace-context-label{display:none!important}
+.port-panel-controls,.port-preset-bar{display:contents!important}
+.terminal-profiles :is(.port-panel-controls label,.port-preset-bar label){
+  display:flex;flex-direction:column;justify-content:end;
+  gap:3px;min-width:0;width:100%;margin:0;
+  font-size:10px;line-height:14px;white-space:nowrap
+}
+.terminal-profiles :is(input,select,.dkts-select-trigger){
+  box-sizing:border-box;width:100%;min-width:0;max-width:100%;
+  height:var(--dkts-control-h);min-height:var(--dkts-control-h);
+  border-radius:var(--dkts-control-radius);
+  padding:5px 8px;font-size:11px;line-height:20px
+}
+.terminal-profiles :is(.port-preset-bar button){
+  box-sizing:border-box;width:100%;min-width:0;
+  height:var(--dkts-control-h);min-height:var(--dkts-control-h);
+  padding:5px 4px;font-size:10px;border-radius:var(--dkts-control-radius)
+}
+.terminal-profiles :is(.port-panel-controls,.port-preset-bar) .dkts-select-trigger{
+  display:flex;align-items:center
+}
+.heading-terminal-ports{gap:5px}
+.heading-terminal-ports label{min-width:70px;font-size:10px;gap:3px}
+.heading-terminal-ports :is(select,.dkts-select-trigger){
+  height:30px;min-height:30px;box-sizing:border-box;border-radius:7px;
+  padding:4px 7px;font-size:11px
+}
+.parameters-panel{min-width:0}
+.parameters-panel .detail-section-heading{gap:8px}
+.parameters-panel .plan-form,.sweep-configuration{gap:9px!important}
+.parameters-panel :is(label,select,input){box-sizing:border-box;min-width:0}
+.parameters-panel :is(.plan-form input,.plan-form select,
+  .sweep-configuration input:not([type="checkbox"]),.sweep-configuration select,
+  .sweep-configuration .dkts-select-trigger){
+  height:var(--dkts-control-h)!important;min-height:var(--dkts-control-h)!important;
+  border-radius:var(--dkts-control-radius)!important;
+  padding:5px 7px!important;font-size:11px!important;line-height:19px!important
+}
+.parameters-panel :is(.plan-form label,.sweep-configuration label){
+  font-size:10px;line-height:14px;gap:3px;min-width:0
+}
+.sweep-configuration .sweep-main-line{gap:8px}
+.sweep-configuration .sweep-detail-tip{display:none}
+.sweep-configuration .sweep-axis-card{border-radius:9px;overflow:hidden}
+.sweep-configuration .sweep-axis-heading{
+  display:grid;grid-template-columns:minmax(72px,1fr) repeat(3,minmax(66px,95px)) auto;
+  align-items:end;gap:6px;padding:9px
+}
+.sweep-configuration .sweep-axis-heading>strong{margin:0;align-self:center}
+.sweep-configuration .sweep-axis-heading label{
+  display:flex;flex-direction:column;align-items:stretch;justify-content:end;gap:3px
+}
+.sweep-configuration .sweep-axis-heading .psweep-enable{
+  flex-direction:row;align-items:center;margin:0;white-space:nowrap
+}
+.sweep-configuration .sweep-axis-heading .sweep-add-row{
+  height:var(--dkts-control-h);min-width:0;margin:0;padding:5px 6px;
+  font-size:10px;border-radius:var(--dkts-control-radius);white-space:nowrap
+}
+.sweep-segment-table{min-width:420px;table-layout:fixed}
+.sweep-segment-table th,.sweep-segment-table td{padding:5px 3px}
+.sweep-segment-table input,.sweep-segment-table select{
+  width:100%;min-width:0;font-variant-numeric:tabular-nums
+}
+.sweep-terminal-settings{gap:7px}
+.sweep-terminal-row{
+  display:grid;grid-template-columns:42px repeat(4,minmax(0,1fr));
+  align-items:end;column-gap:6px;row-gap:4px;padding:5px 0;
+  border-bottom:1px solid var(--dkts-chrome-border,#e2e9f2)
+}
+.sweep-terminal-row>strong{padding:0 0 9px;font-size:11px}
+.sweep-terminal-row label{font-size:9px;line-height:13px;gap:3px}
+.sweep-terminal-row input,.sweep-terminal-row select{width:100%;min-width:0}
+.sweep-fixed-voltages{gap:6px}
+.sweep-terminal-heading span,.sweep-fixed-heading span{display:none}
+.sweep-readonly-notice{display:none!important}
+#plan-status{margin:7px 0 0;font-size:10px;line-height:1.4}
+@media(min-width:1400px){
+  .detail-columns:not(.parameters-collapsed){
+    grid-template-columns:minmax(350px,390px) minmax(0,1fr)!important
+  }
+}
+@media(max-width:1120px){
+  .terminal-profiles{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .terminal-profiles .port-panel-controls label{grid-column:span 2}
+  .terminal-profiles .port-preset-bar label{grid-column:span 2}
+  .terminal-profiles .port-preset-bar button{grid-column:span 1}
+}
+@media(max-width:800px){
+  .sweep-configuration .sweep-axis-heading{
+    grid-template-columns:repeat(3,minmax(0,1fr))
+  }
+  .sweep-axis-heading>strong,.sweep-axis-heading .psweep-enable{
+    grid-column:1/-1;justify-self:start
+  }
+  .sweep-axis-heading .sweep-add-row{grid-column:1/-1;justify-self:stretch}
+}
+@media(max-width:620px){
+  .terminal-profiles{padding:9px 10px!important;column-gap:5px;row-gap:7px}
+  .terminal-profiles :is(.port-panel-controls label,.port-preset-bar label){font-size:9px}
+  .terminal-profiles :is(input,select,.dkts-select-trigger){font-size:10px;padding:5px!important}
+  .terminal-profiles .port-preset-bar button{padding:4px 2px}
+  .sweep-terminal-row{
+    grid-template-columns:repeat(2,minmax(0,1fr));row-gap:6px;
+    padding:7px 0
+  }
+  .sweep-terminal-row>strong{grid-column:1/-1;padding:0}
+  .sweep-terminal-row label{font-size:10px}
+  .sweep-fixed-voltages{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(prefers-color-scheme:dark){
+  .sweep-terminal-row{border-color:#415064}
+}
