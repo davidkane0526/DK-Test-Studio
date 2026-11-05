@@ -451,7 +451,7 @@ function waveformOptions(){
   const sourceType=$('waveform-source-type').value;
   const loadControl=$('waveform-load-control');
   loadControl.hidden=sourceType==='smu';
-  return {sourceType,loadMode:sourceType==='smu'?'not-applicable':$('waveform-load-mode').value};
+  return {sourceType,loadOhms:sourceType==='smu'?null:Number($('waveform-load-ohms').value)};
 }
 async function validateWave(){
   const expectedTabId=getActiveWorkspace()?.id,expectedMode=activeMode;
@@ -462,8 +462,8 @@ async function validateWave(){
     if(expectedTabId!==getActiveWorkspace()?.id||expectedMode!==activeMode)return;
     if(!r.ok)throw Error(r.error||'波形参数不正确');
     const sourceLabel=options.sourceType==='smu'?'SMU':options.sourceType==='pmu'?'4225-PMU':'4220-PGU';
-    const loadLabel=options.sourceType==='smu'?'':' · '+(r.loadMode==='highz'?'高阻负载':'按 50 Ω 限值');
-    info.textContent=sourceLabel+' · 电压范围 ±'+r.maxVoltageV+' V'+loadLabel+
+    const loadLabel=options.sourceType==='smu'?'':' · 负载 '+r.loadOhms+' Ω · 最大电流 '+(r.maxCurrentA*1000).toFixed(3)+' mA';
+    info.textContent=sourceLabel+' · 电压范围 ±'+r.maxVoltageV.toFixed(3)+' V'+loadLabel+
       ' · '+r.count+' 点 · 总时长 '+r.durationS+' s · 最小间隔 '+r.minimumStepS+' s · 仅规划';
 
     drawWave(r.preview);
