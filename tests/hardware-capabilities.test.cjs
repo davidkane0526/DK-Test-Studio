@@ -124,10 +124,17 @@ test('exported module database includes dedicated safety policies for all non-SM
   assert.equal(unknownCvu.known, false);
   assert.equal(unknownCvu.powerOption, null);
   const unverifiedPower = caps.getCvuCapabilities('4215-CVU', { powerOptionRequested: true });
-  assert.equal(unverifiedPower.powerOptionStatus, 'requested-but-unverified');
+  assert.equal(unverifiedPower.powerOptionStatus, 'requested-but-not-verified-by-inventory');
   assert.equal(unverifiedPower.highVoltageBiasAllowed, false);
   assert.equal(unverifiedPower.powerOption, null);
-  const verifiedPower = caps.getCvuCapabilities('4215-CVU', { powerOptionRequested: true, powerOptionVerified: true });
+  const callerClaim = caps.getCvuCapabilities('4215-CVU', { powerOptionRequested: true, powerOptionVerified: true });
+  assert.equal(callerClaim.powerOptionStatus, 'requested-but-not-verified-by-inventory');
+  assert.equal(callerClaim.highVoltageBiasAllowed, false);
+  assert.equal(callerClaim.powerOption, null);
+  const verifiedPower = caps.getCvuCapabilities('4215-CVU', {
+    powerOptionRequested: true,
+    inventory: { hardwareLimitsVerified: true, verifiedOptions: ['4200-CVU-PWR'] }
+  });
   assert.equal(verifiedPower.powerOptionStatus, 'verified');
   assert.equal(verifiedPower.highVoltageBiasAllowed, true);
   assert.equal(verifiedPower.powerOption.differentialMaxV, 400);
