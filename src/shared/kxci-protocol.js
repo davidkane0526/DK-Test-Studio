@@ -63,12 +63,12 @@
     const raw=String(value??'').replace(/\0+$/g,'').trim();
     if(!raw)return [];
     const fields=INFO_FIELDS.join('|');
-    const re=new RegExp('(?:^|,)\\s*slotno\\s*:\\s*(\\d+)\\s*,\\s*name\\s*:\\s*([^,]*?)\\s*,\\s*model\\s*:\\s*([^,]*?)\\s*,\\s*serialno\\s*:\\s*([^,]*?)\\s*,\\s*hwver\\s*:\\s*([^,]*?)\\s*,\\s*fwver\\s*:\\s*([^,]*?)\\s*,\\s*caldate\\s*:\\s*([\\s\\S]*?)\\s*,\\s*caldue\\s*:\\s*([\\\\s\\\\S]*?)(?=,\\s*slotno\\s*:|$)','gi');
+    const re=new RegExp('(?:^|,)\\s*slotno\\s*:\\s*(\\d+)\\s*,\\s*name\\s*:\\s*([^,]*?)\\s*,\\s*model\\s*:\\s*([^,]*?)\\s*,\\s*serialno\\s*:\\s*([^,]*?)\\s*,\\s*hwver\\s*:\\s*([^,]*?)\\s*,\\s*fwver\\s*:\\s*([^,]*?)\\s*,\\s*caldate\\s*:\\s*([\\s\\S]*?)\\s*,\\s*caldue\\s*:\\s*([\\s\\S]*?)(?=,\\s*slotno\\s*:|$)','gi');
     const rows=[];let match;
     while((match=re.exec(raw))){
       const record={slotno:Number(match[1]),name:match[2].trim(),model:match[3].trim(),
         serialno:match[4].trim(),hwver:match[5].trim(),fwver:match[6].trim(),
-        caldate:match[7].trim(),caldue:match[8].trim()};
+        caldate:match[7].trim(),caldue:match[8].trim().replace(/,$/,'')};
       const due=Date.parse(record.caldue);
       record.calibrationStatus=Number.isFinite(due)?(due<Date.now()?'overdue':'in-date'):'unknown';
       rows.push(record);
