@@ -50,8 +50,8 @@ jobs:
           set -euo pipefail
           head_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           if [ "$head_sha" != "$GITHUB_SHA" ]; then
-            # Full-platform Release is still published by the other workflow.
-            # Hot updater should not install an older commit after a newer one.
+            # UI hot updates are independent from full native shell builds.
+            # Never publish an older commit after a newer main revision.
             echo "A newer main commit exists; skip obsolete UI hot-update only."
             echo "Full build for $GITHUB_SHA continues independently." >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -66,7 +66,7 @@ jobs:
               dist/DKTS-UI-bundle.json dist/DK-Test-Studio-4200.dkplugin \
               --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --title "DK Test Studio UI Hot Update ${GITHUB_SHA:0:10}" \
-              --notes "Fast UI resources for this commit, distributed in parallel with a complete Windows + Android + DKDS build. This lets installed shells refresh quickly, but does not replace full-platform Releases. Instrument control and native drivers are not hot-swapped." \
+              --notes "UI-only hot update for this commit. Compatible installed shells can update HTML, CSS, and JavaScript without reinstalling the APK or replacing the Windows executable. Native drivers and instrument-control backends are not hot-swapped." \
               --prerelease --latest=false
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > published.txt
@@ -74,4 +74,4 @@ jobs:
           diff -u expected.txt published.txt
           url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
           echo "UI update published: $url"
-          printf '### Fast UI hot update\n\n%s\n\nThis is an extra update channel; a complete cross-platform build runs for the same commit.\n' "$url" >> "$GITHUB_STEP_SUMMARY"
+          printf '### Fast UI hot update\n\n%s\n\nThis is a UI-only update. No APK or Windows executable rebuild is required for frontend-only changes.\n' "$url" >> "$GITHUB_STEP_SUMMARY"

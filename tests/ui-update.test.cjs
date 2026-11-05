@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
-const {bundle}=require('../tools/build-ui-bundle.cjs');
+const {bundle,uiReleaseVersion}=require('../tools/build-ui-bundle.cjs');
 const {validateBundle,createUiUpdater}=require('../src/ui-update.cjs');
 const VERSION='123456789abcdef123456789abcdef123456789a';
 function prepare(platform){
@@ -146,10 +146,15 @@ test('both update platforms display the exact hot-updated commit in the UI metad
   for(const platform of ['windows','android']){
     const page=Buffer.from(bundle.platforms[platform]['index.html'].base64,'base64').toString('utf8');
     assert.match(page,new RegExp('<meta name="dkts-ui-version" content="'+bundle.version+'">'));
+    assert.match(page,new RegExp('<meta name="dkts-ui-release" content="'+uiReleaseVersion+'">'));
     assert.match(page,/id="ui-version-badge"/);
     assert(!page.includes('name="dkts-ui-version" content="bundled"') || bundle.version==='bundled');
   }
   const frontend=fs.readFileSync(path.join(__dirname,'../web/app.js'),'utf8');
   assert.match(frontend,/function displayUiVersion\(\)/);
+  assert.match(frontend,/meta\[name="dkts-ui-release"\]/);
+  assert.match(frontend,/nativePackageVersion/);
+  assert.match(frontend,/安装包 v/);
+  assert.match(frontend,/可选完整升级/);
   assert.match(frontend,/raw\.slice\(0,8\)/);
 });

@@ -9,6 +9,11 @@ test('native version reveals hidden UI SHA and explicitly checks updates',()=>{
   assert.match(html,/id="native-version-badge"[^>]*aria-expanded="false"/);
   assert.match(html,/id="ui-version-badge"[^>]*hidden/);
   assert.match(app,/nativeBadge\.addEventListener\('click'/);
+  assert.match(app,/meta\[name="dkts-ui-release"\]/);
+  assert.match(app,/nativePackageVersion/);
+  assert.match(app,/nativeBadge\.textContent='v'\+release/);
+  assert.match(app,/安装包 v/);
+  assert.match(app,/可选完整升级/);
   assert.match(app,/void checkUiUpdateNow\(\)/);
   assert.match(app,/fetch\('\/api\/ui\/check'/);
   assert.match(app,/window\.DKTSClient\.checkUiUpdate\(\)/);

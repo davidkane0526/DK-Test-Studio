@@ -9,14 +9,21 @@ const nativeBadge=$('native-version-badge');
 const uiBadge=$('ui-version-badge');
 const updateStatus=$('ui-update-state');
 let uiCheckBusy=false;
+let nativePackageVersion='';
 function displayUiVersion(){
   const raw=document.querySelector('meta[name="dkts-ui-version"]')?.content||'bundled';
+  const release=document.querySelector('meta[name="dkts-ui-release"]')?.content||'bundled';
   const isSha=/^[a-f0-9]{40}$/i.test(raw);
-  const bundled=String(nativeBadge.textContent||'').trim();
-  $('ui-version-text').textContent=isSha
-    ?'界面 '+bundled+' · '+raw.slice(0,8)
-    :'界面 '+bundled+'（内置）';
-  uiBadge.setAttribute('aria-label',isSha?'完整 UI 版本：'+raw:'当前使用内置界面资源');
+  const hasRelease=/^\d+\.\d+\.\d+$/.test(release);
+  // The visible version follows the hot-updatable UI, not the immutable APK/EXE
+  // package metadata. The installed native package version is shown separately.
+  if(hasRelease)nativeBadge.textContent='v'+release;
+  else if(nativePackageVersion)nativeBadge.textContent='v'+nativePackageVersion;
+  const visible=String(nativeBadge.textContent||'').trim();
+  $('ui-version-text').textContent=hasRelease
+    ?'界面 v'+release+(isSha?' · '+raw.slice(0,8):'')
+    :isSha?'界面 '+visible+' · '+raw.slice(0,8):'界面 '+visible+'（内置）';
+  uiBadge.setAttribute('aria-label',isSha?'界面版本：'+(hasRelease?release+'，提交 '+raw:raw):'当前使用内置界面资源');
 }
 displayUiVersion();
 async function displayNativeVersion(){
@@ -27,7 +34,8 @@ async function displayNativeVersion(){
       const response=await fetch('/api/app/version',{cache:'no-store'});
       if(response.ok)version=String((await response.json()).version||'');
     }
-    if(/^\d+\.\d+\.\d+$/.test(version))nativeBadge.textContent='v'+version;
+    if(/^\d+\.\d+\.\d+$/.test(version))nativePackageVersion=version;
+    displayUiVersion();
   }catch{/* Keep bundled version if unavailable offline. */}
 }
 void displayNativeVersion();
@@ -41,9 +49,9 @@ async function checkUiUpdateNow(){
         await new Promise(resolve=>setTimeout(resolve,900));
         const result=await window.DKTSClient.uiUpdateStatus();
         if(result.status==='updated'){
-          updateStatus.textContent='界面热更新已验证，正在刷新。注意：这不会升级 APK 程序版本。';return;
+          updateStatus.textContent='界面热更新已验证，正在刷新；安装包版本保持不变，无需重新安装。';return;
         }
-        if(result.status==='current'){updateStatus.textContent='界面资源已是最新；请在下方查看程序版本';return;}
+        if(result.status==='current'){const release=document.querySelector('meta[name="dkts-ui-release"]')?.content;updateStatus.textContent='界面 '+(/^\d+\.\d+\.\d+$/.test(release||'')?'v'+release:'资源')+' 已是最新；安装包版本单独显示。';return;}
         if(result.status==='pending'){
           updateStatus.textContent='主分支新版 UI 尚未发布，已保留当前界面；不会回退到旧版。';return;
         }
@@ -54,7 +62,7 @@ async function checkUiUpdateNow(){
           updateStatus.textContent='检查失败：'+String(result.error||'网络不可用').slice(0,72);return;
         }
       }
-      updateStatus.textContent='界面更新检查仍在进行；完整程序升级请使用下方「下载并安装」。';
+      updateStatus.textContent='界面更新检查仍在后台进行；无需安装完整程序即可更新界面。';
     }else if(window.DKTSClient)updateStatus.textContent='请安装新版 APK 以使用手动检查';
     else {
       const response=await fetch('/api/ui/check',{method:'POST',cache:'no-store',
@@ -62,7 +70,7 @@ async function checkUiUpdateNow(){
       if(!response.ok)throw Error('更新接口 HTTP '+response.status);
       const result=await response.json();
       if(result.updated){
-        updateStatus.textContent='界面热更新完成，正在刷新；程序本体版本不变。';
+        updateStatus.textContent='界面热更新完成，正在刷新；安装包版本保持不变，无需重新安装。';
         if(!window.DKTSMeasurementRunning)window.location.reload();
       }else if(result.error)updateStatus.textContent='检查失败：'+String(result.error).slice(0,72);
       else updateStatus.textContent=result.status==='disabled'
@@ -88,26 +96,28 @@ let nativeAppCheckBusy=false,nativeAppPolling=false;
 function nativeUpdateDisplay(result){
   const status=String(result?.status||'idle');
   const version=String(result?.version||'').slice(0,32);
+  const installed=String(result?.installedVersion||nativePackageVersion||'').slice(0,32);
+  const packageLabel=installed?'安装包 v'+installed:'安装包版本未知';
   const error=String(result?.error||'').slice(0,105);
   nativeBadge.classList.toggle('has-native-update',status==='available'||status==='ready');
   nativeAppAction.hidden=!(status==='available'||status==='ready'||status==='installer');
   nativeAppAction.disabled=false;
-  nativeAppAction.textContent=status==='ready'?'继续安装':
-    status==='installer'?'重新打开安装界面':'下载并安装';
+  nativeAppAction.textContent=status==='ready'?'继续安装（可选）':
+    status==='installer'?'重新打开安装界面':'可选完整升级';
   const label={
-    idle:'点击版本号检查程序更新',
-    checking:'正在检查完整程序更新…',
-    current:'完整程序已是最新版本',
-    available:'发现完整程序更新 v'+version+' · 当前 '+nativeBadge.textContent,
-    downloading:'正在下载更新：'+Math.max(0,Math.min(100,Number(result.progress)||0))+'%',
-    ready:'更新文件已验证，可以安装',
-    permission:'请在系统设置中允许安装，返回后继续',
-    installer:'已下载 APK。请在 Android 系统安装界面点击「更新」，安装完成后重新打开软件。未确认安装时程序版本不会改变。',
-    restarting:'已校验完整程序，正在退出旧程序并替换 EXE；只有重新启动后版本才会更新。',
-    unsupported:'当前模式不支持程序内安装',
-    error:'程序更新失败：'+error
+    idle:packageLabel+' · 点击版本号检查完整程序更新',
+    checking:packageLabel+' · 正在检查完整程序更新…',
+    current:packageLabel+' · 完整程序已是最新版本',
+    available:'可选完整程序更新 v'+version+' · 当前'+packageLabel,
+    downloading:packageLabel+' · 正在下载完整程序更新：'+Math.max(0,Math.min(100,Number(result.progress)||0))+'%',
+    ready:packageLabel+' · 完整程序更新包已验证，可选安装',
+    permission:packageLabel+' · 请在系统设置中允许安装，返回后继续',
+    installer:packageLabel+' · 已下载 APK。需在 Android 系统安装界面确认，未确认前安装包版本不变。',
+    restarting:packageLabel+' · 正在替换完整程序；重新启动后安装包版本才会改变。',
+    unsupported:packageLabel+' · 当前模式不支持程序内安装',
+    error:packageLabel+' · 完整程序更新失败：'+error
   };
-  nativeAppState.textContent=label[status]||'程序更新状态：'+status;
+  nativeAppState.textContent=label[status]||packageLabel+' · 程序更新状态：'+status;
   if(result?.error&&['ready','permission','installer'].includes(status))
     nativeAppState.textContent+=' · '+String(result.error).slice(0,110);
   if(result?.installError)nativeAppState.textContent+=

@@ -10,16 +10,21 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const releaseDir=path.join(root,'dist');
 const version=process.env.GITHUB_SHA||process.env.DKTS_UI_VERSION||'local-dev';
-if(!/^[a-zA-Z0-9._-]{5,80}$/.test(version))throw Error('Invalid update version');
+const uiReleaseVersion=require('../package.json').version;
+if(!/^[a-zA-Z0-9._-]{5,80}$/.test(version))throw Error('Invalid update commit version');
+if(!/^\d+\.\d+\.\d+$/.test(uiReleaseVersion))throw Error('Invalid UI release semver');
 function packed(bytes){
   return {sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
     base64:bytes.toString('base64'),bytes:bytes.length};
 }
 function versionedHtml(content){
-  const token='<meta name="dkts-ui-version" content="bundled">';
-  if(!content.includes(token))throw Error('Missing frontend version marker');
-  return Buffer.from(content.replace(token,
-    '<meta name="dkts-ui-version" content="'+version+'">'),'utf8');
+  const commitToken='<meta name="dkts-ui-version" content="bundled">';
+  const releaseToken='<meta name="dkts-ui-release" content="bundled">';
+  if(!content.includes(commitToken)||!content.includes(releaseToken))
+    throw Error('Missing frontend commit or semantic version marker');
+  return Buffer.from(content
+    .replace(commitToken,'<meta name="dkts-ui-version" content="'+version+'">')
+    .replace(releaseToken,'<meta name="dkts-ui-release" content="'+uiReleaseVersion+'">'),'utf8');
 }
 function resource(filename,source){
   const bytes=fs.readFileSync(path.join(root,source));
@@ -44,4 +49,4 @@ fs.mkdirSync(releaseDir,{recursive:true});
 const outfile=path.join(releaseDir,'DKTS-UI-bundle.json');
 fs.writeFileSync(outfile,JSON.stringify(bundle)+'\n','utf8');
 process.stdout.write('UI update bundle: '+outfile+' ('+fs.statSync(outfile).size+' bytes)\n');
-module.exports={bundle,outfile};
+module.exports={bundle,outfile,uiReleaseVersion};

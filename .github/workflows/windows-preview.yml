@@ -2,6 +2,22 @@ name: Native Shell Windows Android and DKDS Release
 on:
   push:
     branches: [main]
+    # Frontend-only changes are delivered by ui-update.yml. Do not rebuild
+    # or republish APK/EXE binaries when a verified UI hot update is sufficient.
+    paths:
+      - 'android/**'
+      - 'desktop/**'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'build/**'
+      - 'integrations/**'
+      - 'tools/sync-android-assets.cjs'
+      - 'tools/stamp-native-ui.cjs'
+      - 'tools/prepare-dkds-plot-vendor.cjs'
+      - 'tools/generate-app-icons.cjs'
+      - 'tools/build-dkds-plugin.cjs'
+      - 'tools/verify-dkds-installability.cjs'
   workflow_dispatch:
 permissions:
   contents: write
