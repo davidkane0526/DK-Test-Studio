@@ -151,10 +151,17 @@ async function post(route,data={}){
   return res.json();
 }
 
+async function apiGet(route){
+  if(window.DKTSClient&&typeof window.DKTSClient.get==='function')
+    return window.DKTSClient.get(route);
+  const response=await fetch(route,{cache:'no-store'});
+  const data=await response.json();
+  if(!response.ok)throw Error(data.error||('HTTP '+response.status));
+  return data;
+}
 async function loadCapabilities(){
   try{
-    const response=await fetch('/api/capabilities',{cache:'no-store'});
-    const data=await response.json();
+    const data=await apiGet('/api/capabilities');
     if(!response.ok||!data.ok||!data.database)throw Error(data.error||'能力数据库读取失败');
     capabilityState=data;
     const db=data.database;
@@ -171,9 +178,7 @@ async function loadCapabilities(){
 }
 async function exportCapabilities(){
   try{
-    const response=await fetch('/api/capabilities/export',{cache:'no-store'});
-    const payload=await response.json();
-    if(!response.ok)throw Error(payload.error||'数据库导出失败');
+    const payload=await apiGet('/api/capabilities/export');
     const database=payload.database||payload;
     if(!database.databaseVersion||!database.modules)throw Error('导出文件内容不完整');
     const blob=new Blob([JSON.stringify(database,null,2)+'\n'],{type:'application/json'});
