@@ -1494,6 +1494,7 @@ const portUi=(()=>{
     }
     select.value=last&&Array.from(select.options).some(option=>option.value===last)?
       last:(allowAuto?'auto':'1e-6');
+    select.dispatchEvent(new Event('change',{bubbles:false}));
   }
   function rangeInputs(){
     return [...scan.querySelectorAll('select[data-current-range]')];
@@ -1568,6 +1569,7 @@ const portUi=(()=>{
     });
     numberRows();
     window.DKTSNumericKeypad?.bindNew?.(row);
+    window.DKTSEnhanceNewSelects?.(row);
     return row;
   }
   function segments(axis){
@@ -1886,19 +1888,22 @@ $('waveform-text').addEventListener('input',rememberTabDraft);
 /* Compact cross-platform select menu. Keep the underlying native <select>
  * in the form so connect/plan payloads and DKDS interoperability are unchanged.
  * Without JS the original accessible native selector remains usable. */
-function enhanceWorkspaceSelects(){
-  let active=null;
+let enhancedSelectActive=null;
+let enhancedSelectSerial=0;
+let enhancedSelectGlobalsBound=false;
+function enhanceWorkspaceSelects(root=document){
   const close=(returnFocus=false)=>{
-    if(!active)return;
-    const current=active;
-    active=null;
+    if(!enhancedSelectActive)return;
+    const current=enhancedSelectActive;
+    enhancedSelectActive=null;
     current.trigger.setAttribute('aria-expanded','false');
     current.trigger.removeAttribute('aria-controls');
     current.popover.remove();
     if(returnFocus)current.trigger.focus({preventScroll:true});
   };
-  const selections=[...document.querySelectorAll('select:not([multiple])')];
-  selections.forEach((source,index)=>{
+  const selections=[...root.querySelectorAll('select:not([multiple])')];
+  selections.forEach(source=>{
+    const index=enhancedSelectSerial++;
     if(source.dataset.dktsEnhanced==='true')return;
     const fieldName=source.closest('label')?.firstChild?.textContent?.trim()||source.name||'选择项目';
     const wrapper=document.createElement('span');
@@ -1983,7 +1988,7 @@ function enhanceWorkspaceSelects(){
       root.appendChild(list);
       trigger.setAttribute('aria-expanded','true');
       trigger.setAttribute('aria-controls',list.id);
-      active={trigger,popover:list};
+      enhancedSelectActive={trigger,popover:list};
       const rect=trigger.getBoundingClientRect();
       const width=Math.min(Math.max(165,rect.width),window.innerWidth-12);
       const left=Math.min(Math.max(6,rect.left),Math.max(6,window.innerWidth-width-6));
@@ -2021,28 +2026,30 @@ function enhanceWorkspaceSelects(){
         entries.findIndex(entry=>!entry.disabled);
       if(first>=0)focusEntry(first);
     }
-    trigger.addEventListener('click',()=>active?.trigger===trigger?close():open());
+    trigger.addEventListener('click',()=>enhancedSelectActive?.trigger===trigger?close():open());
     trigger.addEventListener('keydown',event=>{
       if(event.key==='ArrowDown'||event.key==='ArrowUp'){
         event.preventDefault();
-        if(active?.trigger!==trigger)open();
-      }else if(event.key==='Escape'&&active?.trigger===trigger){
+        if(enhancedSelectActive?.trigger!==trigger)open();
+      }else if(event.key==='Escape'&&enhancedSelectActive?.trigger===trigger){
         event.preventDefault();event.stopPropagation();close();
       }
     });
   });
+  if(enhancedSelectGlobalsBound)return;
+  enhancedSelectGlobalsBound=true;
   document.addEventListener('pointerdown',event=>{
-    if(active&&!active.trigger.contains(event.target)&&
-      !active.popover.contains(event.target))close();
+    if(enhancedSelectActive&&!enhancedSelectActive.trigger.contains(event.target)&&
+      !enhancedSelectActive.popover.contains(event.target))close();
   },true);
   document.addEventListener('keydown',event=>{
-    if(event.key==='Escape'&&active){
+    if(event.key==='Escape'&&enhancedSelectActive){
       event.preventDefault();event.stopImmediatePropagation();close(true);
     }
   },true);
   window.addEventListener('resize',()=>close());
   document.addEventListener('scroll',event=>{
-    if(active&&!active.popover.contains(event.target))close();
+    if(enhancedSelectActive&&!enhancedSelectActive.popover.contains(event.target))close();
   },true);
   document.querySelectorAll('dialog').forEach(dialog=>
     dialog.addEventListener('close',()=>close()));
@@ -2322,6 +2329,7 @@ function installAndroidNumericKeypad(){
 installAndroidNumericKeypad();
 
 enhanceWorkspaceSelects();
+window.DKTSEnhanceNewSelects=enhanceWorkspaceSelects;
 
 (async()=>{await loadWorkspaceState();renderTestSelection();renderStatus(await refresh());if(state!=='connected')await connectInstrument();})();
 
