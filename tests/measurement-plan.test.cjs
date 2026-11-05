@@ -157,7 +157,7 @@ test('multi-port sweep planner rejects contradictory directions, missing channel
   ]}};
   assert.throws(()=>normalizeSweepProgram({kind:'iv',...base,
     xSweep:{...base.xSweep,segments:[{startV:0,stopV:1,stepV:.1,rangeA:'1e-8'}]}
-  },withoutPa),/不受已识别模块支持/);
+  },withoutPa),/不受已识别模块.*支持/);
   const withPa={inventory:{slots:[
     {family:'SMU',type:'SMUPA',physicalType:'SMUPA',channel:1,ratingsVerified:true},
     {family:'SMU',type:'SMUPA',physicalType:'SMUPA',channel:2,ratingsVerified:true}
