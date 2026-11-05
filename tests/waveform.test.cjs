@@ -70,8 +70,8 @@ test('PMU current capture exposes ranges and enforces acquisition buffer',()=>{
 test('PMU planning enforces fewer than one million hardware samples and fewer than 65536 KXCI-generated points',()=>{
   const points=[{timeS:0,voltageV:0},{timeS:0.25,voltageV:1},{timeS:0.5,voltageV:0},{timeS:0.75,voltageV:1},{timeS:1,voltageV:0}];
   const w=validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measureWindowS:1e-3,inventory});
-  assert.equal(w.captureBudget.maxPointsPerChannel,1000000);
-  assert.equal(w.captureBudget.interfaceMaxPointsPerChannel,65536);
+  assert.equal(w.captureBudget.maxPointsPerChannel,999999);
+  assert.equal(w.captureBudget.interfaceMaxPointsPerChannel,65535);
   assert.equal(w.captureBudget.maxSampleRateHz,999999);
   assert.equal(w.captureBudget.kxciCompatible,false);
   assert.equal(w.interfaceLimits.capturePointsCompatible,false);
