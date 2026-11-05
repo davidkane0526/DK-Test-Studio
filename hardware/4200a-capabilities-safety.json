@@ -591,7 +591,9 @@
         "nominalSampleIntervalS": 5e-9,
         "maxSamplesPerChannel": 1000000,
         "adcBits": 14,
-        "source": "datasheet2025"
+        "source": "datasheet2025",
+        "minimumMeasureWindowS": 5e-9,
+        "minimumMeasureWindowSource": "one ADC sample interval at the documented 200 MS/s maximum rate"
       },
       "waveform": {
         "segmentArb": {
@@ -797,7 +799,8 @@
           }
         },
         "timingResolutionS": 1e-8
-      }
+      },
+      "timingPolicy": "The timing tables are typical/recommended measurement-performance guidance, not absolute Segment ARB hardware minimums. Do not reject a hardware-valid 20 ns segment solely because a recommended pulse width or settling value is longer. Enforce the hardware segment range and the PMU sample interval only."
     },
     "4225-RPM": {
       "category": "PMU-REMOTE-PREAMPLIFIER-SWITCH",
@@ -1280,7 +1283,8 @@
         "enforceProfile": "hardware",
         "continuityRequired": true,
         "channelSegmentDurationsMustMatch": true,
-        "note": "The software enforces the published Segment ARB hardware range (20 ns to 40 s per segment, 10 ns resolution). Clarius example-library values are examples, not instrument limits."
+        "note": "The software enforces the published Segment ARB hardware range (20 ns to 40 s per segment, 10 ns resolution). Clarius example-library values are examples, not instrument limits.",
+        "timingPolicy": "Hard validation uses only published Segment ARB hardware limits (20 ns to 40 s per segment and 10 ns resolution). Typical/recommended PMU pulse width, transition and settling figures are displayed as performance guidance and warnings, not used to reduce the hardware timing range."
       },
       "fullArb": {
         "allowed": false,
