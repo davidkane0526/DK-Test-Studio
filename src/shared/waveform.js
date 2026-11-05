@@ -81,8 +81,8 @@
         pulseCurrentRangesA = caps.getPmuCurrentRanges(rangeV, rpm);
         if (options.measurementRangeA !== undefined && options.measurementRangeA !== null && !pulseCurrentRangesA.some(value => closeEnough(value, Number(options.measurementRangeA)))) throw Error('当前 PMU/RPM 模块在所选电压档不支持该电流测量量程');
         captureBudget = caps.getPmuCaptureBudget(durationS, options.measureWindowS, options.sampleRateHz);
-        if (options.measurementRangeA !== undefined && options.measurementRangeA !== null && !rpm) {
-          try { timingRecommendation = caps.getPulseTimingRecommendation(rangeV, options.measurementRangeA, true, 'pmu', false, Math.max(...normalized.map(point => Math.abs(point.voltageV)))); } catch { timingRecommendation = null; }
+        if (options.measurementRangeA !== undefined && options.measurementRangeA !== null) {
+          try { timingRecommendation = caps.getPulseTimingRecommendation(rangeV, options.measurementRangeA, true, 'pmu', rpm, Math.max(...normalized.map(point => Math.abs(point.voltageV)))); } catch { timingRecommendation = null; }
         }
       }
     }
