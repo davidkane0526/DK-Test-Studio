@@ -18,7 +18,9 @@ test('IT planner respects fixed voltage and elapsed-time order',()=>{
 });
 test('planning rejects invalid limits, missing values, and channel conflicts',()=>{
   assert.throws(()=>normalizePlan({kind:'pund'}),/尚未/);
-  assert.throws(()=>normalizePlan({startV:201}),/规划范围/);
+  assert.throws(()=>normalizePlan({startV:211}),/规划范围/);
+  assert.equal(normalizePlan({startV:210,stopV:-210}).startV,210);
+  assert.throws(()=>normalizePlan({complianceA:1.051}),/规划范围/);
   assert.throws(()=>normalizePlan({points:0}),/规划范围/);
   assert.throws(()=>normalizePlan({gateSmU:1,sourceSmU:1}),/不得/);
   assert.throws(()=>normalizePlan({complianceA:''}),/不能为空/);
