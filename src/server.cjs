@@ -81,7 +81,7 @@ async function createAppServer(options={}){
       if(req.method==='GET'&&urlPath==='/api/capabilities/export'){
         const data=JSON.stringify(safetyPolicy.getDatabase(),null,2)+'\n';
         res.writeHead(200,{'Content-Type':'application/json; charset=utf-8',
-          'Content-Disposition':'attachment; filename="4200a-capabilities-safety-v1.1.0.json"',
+          'Content-Disposition':'attachment; filename="4200a-capabilities-safety-v1.2.0.json"',
           'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
         return res.end(data);
       }
@@ -129,8 +129,14 @@ async function createAppServer(options={}){
       const plan=parseWaveformText(payload.text,{...payload,hardware:{inventory:snapshot.inventory,connected:snapshot.phase==='connected'}});
       return json(res,200,{ok:true,count:plan.points.length,durationS:plan.durationS,
         minimumStepS:plan.minimumStepS,maximumStepS:plan.maximumStepS,
-        sourceType:plan.sourceType,rangeV:plan.rangeV,loadOhms:plan.loadOhms,maxCurrentA:plan.maxCurrentA,maxVoltageV:plan.maxVoltageV,
-        executable:false,hardwareVerified:false,
+        sourceType:plan.sourceType,requestedRangeV:plan.requestedRangeV,rangeV:plan.rangeV,loadOhms:plan.loadOhms,
+        maxCurrentA:plan.maxCurrentA,availableCurrentA:plan.availableCurrentA,
+        effectiveCurrentLimitA:plan.effectiveCurrentLimitA,maxVoltageV:plan.maxVoltageV,
+        measureMode:plan.measureMode,currentMeasureRangeA:plan.currentMeasureRangeA,
+        measureWindowS:plan.measureWindowS,minSegmentTimeS:plan.minSegmentTimeS,
+        maxSegmentTimeS:plan.maxSegmentTimeS,timeResolutionS:plan.timeResolutionS,
+        sampleIntervalS:plan.sampleIntervalS,timingRecommendations:plan.timingRecommendations,
+        warnings:plan.warnings,executable:false,hardwareVerified:false,
         preview:plan.points.length<=300?plan.points:plan.points.filter((_,i)=>i%Math.ceil(plan.points.length/300)===0)});
     }catch(error){
       return json(res,400,{ok:false,error:String(error.message||error).slice(0,180)});
