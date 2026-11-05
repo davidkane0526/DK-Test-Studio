@@ -41,7 +41,7 @@
       Math.abs(Number(input.stopV??1)),Math.abs(Number(input.fixedV??0.1))
     );
     const highVoltage=maxAbsVoltage>21;
-    const highPower=sourceModel==='4210-SMU'||sourceModel==='4211-SMU';
+    const highPower=sourceModel==='high';
     const maxComplianceA=sourceModel==='UNKNOWN'?0.0105:
       highVoltage?(highPower?0.105:0.0105):(highPower?1.05:0.105);
     const complianceA=finite(input.complianceA??1e-4,'电流限值',1e-12,maxComplianceA);
