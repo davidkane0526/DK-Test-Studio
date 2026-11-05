@@ -2,7 +2,7 @@
   'use strict';
   const DATABASE = {
     schema: 'dkts.4200a.hardware-capabilities.v1',
-    databaseVersion: '1.2.0',
+    databaseVersion: '1.3.0',
     generatedAt: '2026-11-05',
     instrument: { family: 'Keithley 4200A-SCS', maxChassisPowerW: 500, kxciInventorySlots: 8, maxKxciSmuChannelNumber: 9 },
     inventoryDiscovery: {
@@ -108,7 +108,7 @@
       PMU: {
         type: 'PMU', family: 'PMU', role: 'pulse-source-and-measure', verificationStatus: 'documented', modelAliases: ['4225-PMU'], channelsPerCard: 2,
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
-        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
+        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 2e-8 }, kxciMinSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
         kxciPulseTiming: { '10': { periodMinS: 6e-8, periodMaxS: 1, pulseWidthMinS: 4e-8, transitionMinS: 2e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 2e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
         pulseTiming: {
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 }, withMeasurement: { periodMinS: 1.2e-7, periodMaxS: 1, pulseWidthMinS: 6e-8, transitionMinS: 2e-8, maxFrequencyHz: 8.3e6 } },
@@ -116,7 +116,7 @@
         },
         measurement: {
           currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-2, 1e-1, 8e-1] },
-          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
+          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 1000000
         },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
       },
@@ -124,7 +124,7 @@
         type: 'PMURPM', family: 'PMU', role: 'pulse-source-and-measure-with-rpm', verificationStatus: 'documented',
         modelAliases: ['4225-PMU + 4225-RPM'], channelsPerCard: 2, hasRpm: true,
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
-        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
+        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 2e-8 }, kxciMinSegmentTimeS: { '10': 2e-8, '40': 5e-8 } },
         kxciPulseTiming: { '10': { periodMinS: 6e-8, periodMaxS: 1, pulseWidthMinS: 4e-8, transitionMinS: 2e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 2e-8, minOffTimeS: 4e-8 }, '40': { periodMinS: 5e-7, periodMaxS: 1, pulseWidthMinS: 2.5e-7, transitionMinS: 5e-8, transitionMaxS: 33e-3, delayMinS: 0, delayStepS: 5e-8, minOffTimeS: 4e-8 } },
         pulseTiming: {
           '10': { sourceOnly: { periodMinS: 2e-8, periodMaxS: 1, pulseWidthMinS: 1e-8, transitionMinS: 1e-8, maxFrequencyHz: 5e7 }, withMeasurement: { periodMinS: 1.2e-7, periodMaxS: 1, pulseWidthMinS: 6e-8, transitionMinS: 2e-8, maxFrequencyHz: 8.3e6 } },
@@ -132,22 +132,25 @@
         },
         rpmTypicalTiming: {
           '10': {
-            '1e-7': { recommendedMinPulseWidthS: 0.134, recommendedMinMeasurementWindowS: 0.010, recommendedMinTransitionS: 1e-3, stabilizationTimeS: 0.1, typical: true },
-            '1e-3': { recommendedMinPulseWidthS: 20.4e-3, recommendedMinMeasurementWindowS: 1.64e-3, recommendedMinTransitionS: 360e-9, stabilizationTimeS: 15e-3, typical: true },
-            '1e-2': { recommendedMinPulseWidthS: 8.36e-3, recommendedMinMeasurementWindowS: 1e-3, recommendedMinTransitionS: 360e-9, stabilizationTimeS: 6e-6, typical: true },
-            '1e-1': { recommendedMinPulseWidthS: 1.04e-3, recommendedMinMeasurementWindowS: 130e-9, recommendedMinTransitionS: 40e-9, stabilizationTimeS: 750e-9, typical: true }
-          },
-          '40': {
+            '1e-7': { recommendedMinPulseWidthS: 134e-6, recommendedMinMeasurementWindowS: 10e-6, recommendedMinTransitionS: 1e-6, stabilizationTimeS: 100e-6, typical: true },
+            '1e-6': { recommendedMinPulseWidthS: 20.4e-6, recommendedMinMeasurementWindowS: 1.64e-6, recommendedMinTransitionS: 360e-9, stabilizationTimeS: 15e-6, typical: true },
+            '1e-5': { recommendedMinPulseWidthS: 8.36e-6, recommendedMinMeasurementWindowS: 1e-6, recommendedMinTransitionS: 360e-9, stabilizationTimeS: 6e-6, typical: true },
+            '1e-4': { recommendedMinPulseWidthS: 1.04e-6, recommendedMinMeasurementWindowS: 130e-9, recommendedMinTransitionS: 40e-9, stabilizationTimeS: 750e-9, typical: true },
             '1e-3': { recommendedMinPulseWidthS: 370e-9, recommendedMinMeasurementWindowS: 40e-9, recommendedMinTransitionS: 30e-9, stabilizationTimeS: 250e-9, typical: true },
             '1e-2': { recommendedMinPulseWidthS: 160e-9, recommendedMinMeasurementWindowS: 20e-9, recommendedMinTransitionS: 20e-9, stabilizationTimeS: 100e-9, typical: true }
+          },
+          '40': {
+            '1e-4': { recommendedMinPulseWidthS: 6.4e-6, recommendedMinMeasurementWindowS: 1e-6, recommendedMinTransitionS: 1e-6, stabilizationTimeS: 4e-6, typical: true },
+            '1e-2': { recommendedMinPulseWidthS: 770e-9, recommendedMinMeasurementWindowS: 100e-9, recommendedMinTransitionS: 100e-9, stabilizationTimeS: 500e-9, typical: true }
           }
         },
+        rpmTimingNote: '这些数值是制造商公布的典型推荐值（开路条件），用于显示测量窗口、转换时间和稳定时间参考，不作为硬件绝对最小值或自动拒绝条件。',
         measurement: {
           currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-2, 1e-1, 8e-1] },
-          withRpmCurrentRangesA: { '10': [1e-7, 1e-3, 1e-2, 1e-1], '40': [1e-3, 1e-2] },
+          withRpmCurrentRangesA: { '10': [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2], '40': [1e-4, 1e-2] },
           
           minimumCurrentRangeA: 1e-7, currentMeasurementResolutionA: 2e-10,
-          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
+          maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxHardwareSamplesPerChannel: 1000000
         },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
       },
@@ -159,7 +162,7 @@
           '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值不超过10 V时为30 ns，超过10 V时为100 ns', maxFrequencyHz: 1e7 } }
         },
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
-        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 1e-8, '40': 5e-8 } },
+        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 2e-8 }, kxciMinSegmentTimeS: { '10': 1e-8, '40': 5e-8 } },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c']
       },
       CVU: {
@@ -182,7 +185,7 @@
     safetyPolicies: {
       unknownModule: { applyGuessedNumericLimit: false, allowNonExecutablePlanning: true, allowHardwareOutput: false, requiredAction: 'Identify the exact installed module or mapped channel before enabling output.' },
       smu: { maximumSourceVoltageV: 210, voltageRangeOverrangePercent: 105, highVoltageNominalRangeV: 200, maximumOutputPowerWByPowerClass: { medium: 2.1, high: 21 }, applyVoltageDependentCompliancePowerLimit: true, interlockRequiredFor200VRange: true, interlockStatusAvailableThroughCurrentReadOnlyBridge: false, complianceMinimumA: { withoutPreamplifier: 1e-7, withPreamplifier: 1e-10 }, note: 'Reject a compliance request below the KXCI minimum instead of allowing KXCI to silently raise it.' },
-      pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000, currentKxciBufferPointsPerChannel: 65536 },
+      pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciCommandMaxSegmentTimeS: 1, hardwareMaxSamplesPerChannel: 1000000, currentKxciBufferPointsPerChannel: 65536 },
       chassis: { maximumPowerW: 500, blockPlanIfCompletePowerBudgetExceeded: true, doNotAssumeUnknownModulesConsumeZeroPower: true },
       dataProvenance: { callerSuppliedArraysAreRawInstrumentData: false, rawDataRequiresTrustedAcquisitionReceipt: true, currentBuildHasTrustedAcquisitionExecutor: false },
       execution: { allOutputCommandsDisabled: true, allowedKxciCommands: ['*IDN?', '*OPT?', 'UL', 'EX SystemUtil instrumentinfo(,4096,)', 'GN result', 'EX SystemUtil remotemoduleinfo(,4096,)', 'GN result', 'DE'], requireSingleInstrumentLease: true, requireFailClosedOnDisconnect: true, requireEmergencyStop: true }
@@ -246,7 +249,7 @@
     const key = String(sourceType || '').toLowerCase() === 'pgu' ? 'VPU' : 'PMU';
     const mod = getModuleCapability(key), range = Number(rangeV);
     if (!mod.output.rangesV.includes(range)) throw Error('PMU/PGU 输出量程只能选择 10 V 或 40 V');
-    return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.maxSegmentsPerCommand || 128, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, kxciMaxSegmentS: mod.segmentArb.kxciMaxSegmentTimeS || 1, timeResolutionS: mod.segmentArb.timeResolutionS });
+    return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.maxSegmentsPerCommand || 128, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, kxciMinSegmentS: mod.segmentArb.kxciMinSegmentTimeS?.[String(range)] ?? mod.segmentArb.minSegmentTimeS[String(range)], kxciMaxSegmentS: mod.segmentArb.kxciMaxSegmentTimeS || 1, timeResolutionS: mod.segmentArb.timeResolutionS });
   }
   function getPmuCurrentRanges(rangeV, withRpm = false) {
     const mod = getModuleCapability(withRpm ? 'PMURPM' : 'PMU');
@@ -262,7 +265,7 @@
     const hardwareMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, hardwareMaxPoints / duration);
     const kxciMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, interfaceMaxPoints / duration);
     const minimumRateHz = mod.measurement.minSampleRateHz;
-    if (hardwareMaxRateHz < minimumRateHz) throw Error('PMU 采集时长超过硬件单通道少于一百万采样点在最低采样率下的容量');
+    if (hardwareMaxRateHz < minimumRateHz) throw Error('PMU 采集时长超过硬件单通道一百万采样点在最低采样率下的容量');
     let minimumRequiredRateHz = minimumRateHz;
     if (measureWindowS !== undefined && measureWindowS !== null) {
       const windowS = Number(measureWindowS);
@@ -279,7 +282,7 @@
       maxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsPerChannel: hardwareMaxPoints,
       interfaceMaxPointsPerChannel: interfaceMaxPoints, kxciMaxSampleRateHz: kxciMaxRateHz,
       hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz, kxciCompatible,
-      interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 数据缓冲上限为每通道 65536 点；硬件采集上限为每通道 999999 点（严格小于 1000000）'
+      interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 数据缓冲上限为每通道 65536 点；硬件采集上限为每通道 1000000 点'
     });
   }
   function getPulseTimingRecommendation(rangeV, measurementRangeA, withMeasurement = true, source = 'pmu', withRpm = false, peakVoltageV = null) {
