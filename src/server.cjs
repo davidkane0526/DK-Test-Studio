@@ -55,7 +55,7 @@ async function createAppServer(options={}){
   // Reserved for the eventual real measurement runner: no output endpoint exists
   // at present. All future task execution must acquire this single lease.
   const execution=options.execution||createExecutionCoordinator();
-  const runner=options.runner||(typeof controller.measurementExchange==='function'?createRunner({controller,execution}):null);
+  const runner=options.runner||(typeof controller.measurementExchange==='function'?createRunner({controller,execution,wait:ms=>new Promise(resolve=>setTimeout(resolve,ms))}):null);
   const measurementBusy=()=>Boolean(runner?.status(0).running);
   const updater=options.uiCacheDir?createUiUpdater({cacheDir:options.uiCacheDir}):null;
   const workspaceFile=options.workspaceFile||workspaceStorage.defaultFile();
