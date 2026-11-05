@@ -41,7 +41,7 @@ Windows 应用图标、任务栏、任务管理器、安装包 EXE，以及 Andr
 **每次向 `main` 推送任何更改，都执行全平台完整构建。热更新只是额外的快速体验渠道，不替代原生安装包。**
 
 1. `Native Shell Windows Android and DKDS Release` 在**每一次 `main` 提交**时运行，不限制修改路径，也不取消排队中的旧提交。分别构建 Windows Setup、Windows Portable、独立 Android APK、DKDS 插件以及 UI 更新资源。
-2. 五项资产全部通过测试和构建后，发布到唯一的 `dkts-preview-<GitHub Actions run ID>` Release，并检查 **5/5** 资产完整性。即使后来有新提交，较早一次构建成功也仍应发布，不因 HEAD 已变化而拒绝。
+2. 六项资产全部通过测试和构建后，发布到唯一的 `dkts-preview-<GitHub Actions run ID>` Release，并检查 **5/5** 资产完整性。即使后来有新提交，较早一次构建成功也仍应发布，不因 HEAD 已变化而拒绝。
 3. `Fast UI Hot Update` 同样在每次提交时运行，另行发布 `dkts-ui-<commit SHA>` 资源包；若该提交已不是最新 HEAD，则跳过*过时的热更新*，防止旧内容覆盖新版本，但对应的完整构建仍继续并发布。
 4. 已安装的独立 Windows 与 Android 软件启动时以及约每 3 分钟检查一次热更新，验证后从私有缓存刷新；离线继续运行已安装版本。
 5. Release 必须分别提供 Windows 安装版、Windows 便携版、独立 Android APK、DKDS 插件和轻量 UI 更新资源。汇报开发结果时同时附上实际发布并验证的 Release 链接；不可用 Actions 地址冒充已完成的 Release。
@@ -71,7 +71,7 @@ npm start
 npm run dist:win
 ~~~
 
-GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，并构建 Windows Setup/Portable、独立 Android APK、DKDS 插件与热更新资源，完成后统一发布到 GitHub Release。每次发布必须核对 5 个文件，未成功构建则不能声称 Release 已发布。测试通过不等于完成真实仪器验收。
+GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，并构建 Windows Setup/Portable、独立 Android APK、DKDS 插件与热更新资源，完成后统一发布到 GitHub Release。每次发布必须核对 6 个文件，未成功构建则不能声称 Release 已发布。测试通过不等于完成真实仪器验收。
 
 ## 安全与控制边界
 
@@ -87,11 +87,11 @@ GitHub Actions 在 `main` **每次提交**时运行 Windows 与 Ubuntu 测试，
 
 标题栏中 UI 版本右侧保留固定分隔线。标签页代表独立工作区或样品上下文，不再以测试方式作为标签唯一标识。每个工作区使用独立 ID 和可编辑名称，允许多个工作区选择相同测试方式；同一工作区内也可以切换 I–V、I–t 等测试方式。参数草稿、测试历史和原始采样数据均按“工作区 ID → 测试方式 → 测试运行”隔离。桌面端双击标签重命名，Android 长按标签重命名。切换工作区或测试方式不会覆盖其他历史和数据；关闭工作区只清理该工作区的会话状态。各标签的关闭按钮使用 SVG 居中绘制，避免文字 × 受字体基线影响产生偏移。
 
-独立 Android APK 默认隐藏系统顶部状态栏的时间、蓝牙、Wi-Fi 等图标，保留底部系统导航手势/导航栏。标题栏在隐藏系统栏后上移至屏幕顶端，使用较紧凑高度。沉浸式模式的原生状态栏修改需要安装新 APK，仅靠热更新无法生效。Windows/Android 完整构建均在打包前嵌入本次 Git SHA，离线启动也显示 UI 版本；每次完整提交仍发布全部五项资产。
+独立 Android APK 默认隐藏系统顶部状态栏的时间、蓝牙、Wi-Fi 等图标，保留底部系统导航手势/导航栏。标题栏在隐藏系统栏后上移至屏幕顶端，使用较紧凑高度。沉浸式模式的原生状态栏修改需要安装新 APK，仅靠热更新无法生效。Windows/Android 完整构建均在打包前嵌入本次 Git SHA，离线启动也显示 UI 版本；每次完整提交仍发布全部六项资产。
 
 ## 双版本号
 
-顶部始终同时显示原生安装版本（当前 `v0.3.0`，Windows/Android 各自从真实宿主查询）与 `UI <Git SHA 前8位>`（每次热更新及完整构建写入），避免安装版和热更新版混淆。用户无需联网就可以从内置页面看到此次构建对应的 UI 提交号。用户界面的版本以实际装机环境为准，而不是只依赖 Release 的标签。
+顶部始终同时显示原生安装版本（当前 v0.3.12，Windows/Android 各自从真实宿主查询）与 `UI <Git SHA 前8位>`（每次热更新及完整构建写入），避免安装版和热更新版混淆。用户无需联网就可以从内置页面看到此次构建对应的 UI 提交号。用户界面的版本以实际装机环境为准，而不是只依赖 Release 的标签。
 
 
 ## 控件视觉统一（Windows、Android、浏览器）
@@ -155,3 +155,14 @@ Android 交互沿用 DKDS 的滚动交接原则：普通内容区域与空白面
 Windows 便携版使用 Electron userData 目录的 workspace-state.json，写入完整临时文件后原子替换。Android 使用应用私有目录中的 workspace-state-v1.json，通过 32 KiB 分块读写，已完成写入的数据在签名一致的 APK 升级后继续保留。DKDS 外部插件将同一工作区快照保存在自己的项目切片中，不使用不安全的 iframe same-origin 权限，也不会替换 DKDS 内置 4200 插件。
 
 当前单个快照最大 64 MiB，超过限制或恢复失败会向界面报告，避免静默覆盖已有文件。本版未启用未经验证的 SMU/PMU 硬件输出。长期连续测量的分段文件存储、备份与数据导出仍须在真正的采集层完成。
+
+
+## v0.3.12：4200A 硬件能力数据库与安全策略
+
+- 共享能力数据库覆盖 SMU、SMUPA、HPSMU、HPSMUPA、4225-PMU、4225-RPM、4220-PGU/VPU、CVU、VS、VM、CVIV 和 GNDU。
+- 运行 npm run hardware:export 可导出 DKTS-4200A-Hardware-Capability-Database-v1.json。每次完整 GitHub Release 同时发布该 JSON，包含模块能力、数值边界、安全策略、数据来源和未确认项目，便于外部审查。
+- 已识别 SMU 按模块功率类别和电压档计算电流限值；未知模块不再套用默认 10.5 mA。未知限值保持未定义，允许方案预览，但禁止真实输出。
+- PMU/PGU 按负载线计算最大输出电压/电流，并分别校验 Segment Arb 的最小时间、10 ns 分辨率和分段数量。PMU 电流采集按采样率及 KXCI 65536 点缓冲区核算。
+- 加入 4200A 500 W 机箱功耗模型。只有完整识别安装模块和活动通道时才给出确定预算。
+- 当前版本仍只允许 *IDN?、*OPT? 只读查询，不开放 SMU/PMU/PGU 输出。调用方提供的 X/Y 数组不会被误标记为原始仪器数据。
+- 完整发布资产为 Windows Setup、Windows Portable、Android APK、DKDS 插件、UI 热更新包及硬件能力数据库，共 6 项。

@@ -4,7 +4,7 @@
 
 1. 单一源代码：`src/shared/*.js` 是唯一 KXCI 协议、身份状态机、测试规划与波形校验实现。Node 包装层通过 CommonJS 转发；`tools/build-dkds-plugin.cjs` 复制同一份字节到 `.dkplugin`。严禁为两个程序各自另写测试核心。
 2. 宿主适配而非平台耦合：独立版在 Node/Electron 中使用 TCP；插件版使用 `ctx.services.require('tcp')`、`ctx.ui.*`、`ctx.project`、`ctx.capabilities`。共享领域模块不直接依赖 Electron、DOM、React Native 或 DKDS Core。
-3. 插件必须作为独立外部插件安装，禁止覆盖 DKDS 内置的 `com.dkds.keithley-4200`。独立插件 ID 为 `com.dkts.keithley-4200`，工作区和项目切片均为 `dkts-keithley-4200`，能力为 `instrument.dkts-keithley-4200`，Plugin API 为 `1.19.0`，当前开发插件版本 `0.6.13`。保留 `dkts.4200.interop.v1` 交换格式及旧 `com.dkds.keithley-4200` 方案导入兼容；旧项目中的 `plan.mode` 在导入时转成新的 `plan.kind`，不擅自更改实验参数。DKDS 原有项目切片不自动覆盖或迁移。
+3. 插件必须作为独立外部插件安装，禁止覆盖 DKDS 内置的 `com.dkds.keithley-4200`。独立插件 ID 为 `com.dkts.keithley-4200`，工作区和项目切片均为 `dkts-keithley-4200`，能力为 `instrument.dkts-keithley-4200`，Plugin API 为 `1.19.0`，当前开发插件版本 `0.6.14`。保留 `dkts.4200.interop.v1` 交换格式及旧 `com.dkds.keithley-4200` 方案导入兼容；旧项目中的 `plan.mode` 在导入时转成新的 `plan.kind`，不擅自更改实验参数。DKDS 原有项目切片不自动覆盖或迁移。
 4. 稳定的方案交换格式：`dkts.4200.interop.v1`。导出和导入都强制 `executable:false` 与 `hardwareVerified:false`，不允许通过导入配置触发硬件动作。未来新增数据格式必须版本化，并保留原始仪器数据、派生数据及仿真数据的独立来源标识。
 5. 统一的仪器安全边界：目前真实设备只发送 `*IDN?` 加 NUL；SMU/PMU 产生电压的执行层不开放。未来任何输出必须统一通过同一硬件能力验证、状态机、限流、紧急停止与故障关闭流程，不能为 DKDS 插件增加旁路。
 6. 同一仪器只能有一个控制者：当前两个应用都是独立 TCP 客户端，严禁同时连接同一台 4200A 进行操作。实时互联需要未来统一的仪器 Broker，包括会话租约、用户鉴权、独占锁、失联停止和日志审计。
@@ -16,25 +16,30 @@
 运行 `npm run plugin:build` 在 `dist/dkds-plugin` 临时目录按同一源码生成插件，并生成候选 `.dkplugin`。
 GitHub Actions 的 `DKDS Plugin API 1.19 compatibility` 任务会从 DK Data Studio 的 `4200` 分支读取官方 SDK，运行 `sdk/tools/dkds-plugin.js validate` 与 `package`，将通过校验的插件包上传为 `DK-Test-Studio-DKDS-Plugin` Artifact。
 
-## 4200A 数值保护（v0.3.11 / plugin 0.6.13）
+## 4200A 数值保护（v0.3.12 / plugin 0.6.14）
 
 - SMU 电压规划上限按 4200A 规格采用 ±210 V；该值是最大规划边界，不表示任意电压/电流组合均安全。
 - 4225-PMU 与 4220-PGU 波形规划边界按所选 10 V/40 V 量程及 DUT+互连总负载阻值计算。按 4200A 数据表的 50 Ω 源阻抗，`Vmax = Vrange × Rload / (50 Ω + Rload)`，`Imax = Vrange / (50 Ω + Rload)`。例如 40 V 档、50 Ω 负载时，最大输出约 20 V/400 mA；10 V 档、50 Ω 负载时约 5 V/100 mA。未填写有效负载阻值时拒绝校验。
-- SMU 电流限值按每个输出通道的 *OPT?* 中/高功率类别及其独立电压档分别计算：中功率 SMU（SMU/SMUPA）在 200 V 档不超过 10.5 mA、20 V 档不超过 105 mA；高功率 SMU（HPSMU/HPSMUPA）在 200 V 档不超过 105 mA、20 V 档不超过 1.05 A。若同时启用栅极 SMU，源通道与栅极通道分别计算并采用更严格的电流边界。*OPT?* 只报告中/高功率类别，不据此猜测具体 4200/4201/4210/4211 型号。未知通道默认 10.5 mA。
+- SMU 电流限值按每个输出通道的 *OPT?* 中/高功率类别及其独立电压档分别计算：中功率 SMU（SMU/SMUPA）在 200 V 档不超过 10.5 mA、20 V 档不超过 105 mA；高功率 SMU（HPSMU/HPSMUPA）在 200 V 档不超过 105 mA、20 V 档不超过 1.05 A。若同时启用栅极 SMU，源通道与栅极通道分别计算并采用更严格的电流边界。*OPT?* 只报告中/高功率类别，不据此猜测具体 4200/4201/4210/4211 型号。未知模块不再套用猜测的 10.5 mA 数值。未知通道的电流上限保持 null，方案可用于非执行规划，但在模块识别前不能执行输出。
 - 所有数值校验只生成不可执行方案。硬件执行前仍必须依据真实插槽、模块型号、工作象限、所选电流档位和设备 interlock 重新验证；目前没有开放 SMU/PMU 输出命令。
+- 4200A 能力数据唯一来源为 src/shared/hardware-capabilities.js。运行 npm run hardware:export 可生成 DKTS-4200A-Hardware-Capability-Database-v1.json，并作为完整 Release 的独立资产发布。
+- *OPT? 解析区分 SMU/SMUPA/HPSMU/HPSMUPA、PMU/PMURPM、VPU/PGU、CVU、VS 和 VM。VS/VM 是 KXCI 逻辑角色，不冒充物理模块。CVU 型号变体未从 *OPT? 中识别时，不擅自选择 4210-CVU 或 4215-CVU 的专属规格。
+- PMU/PGU Segment Arb 按模块和 10 V/40 V 档分别校验最小分段时间、10 ns 时间分辨率、每序列最少 3 段及每通道最多 2048 段。PMU 采集校验同时考虑 200 MSa/s、KXCI 每通道 65536 点缓冲区和测量窗口。
+- 机箱功耗按 KXCI 手册的 500 W 公式计算；模块清单或活动通道不完整时，功耗状态标记为未知，不将未知模块功耗视为零。
+- 数据中心发布接口收到调用方传入的数组时标记为未验证导入数据，不再自动标记为原始仪器采集数据。只有未来真实采集执行器提供可信采集凭证后，才允许标记 rawInstrumentData:true。
 
-## DKDS 原生宿主集成（plugin 0.6.13）
+## DKDS 原生宿主集成（plugin 0.6.14）
 
 - 插件工作区不再声明独立图标和窗口标题，连接状态通过 `ctx.ui.statusBar.add()` 注册到 DKDS 状态栏。
-- 插件能力提供 `publishMeasurement()`，把经校验的原始 X/Y 测量数组写入 `ctx.data.model.createTable()` 创建的 DataTable，再通过 `ctx.data.artifacts.upsert()` 发布到 DKDS canonical Artifact Store。
-- 原始采集数据保留仪器型号、序列号、测量类型和 acquisition provenance；不把规划预览或软件派生曲线伪装成仪器原始数据。
+- 插件能力提供 `publishMeasurement()`，把调用方提供的 X/Y 数组写入 `ctx.data.model.createTable()` 创建的 DataTable，再通过 `ctx.data.artifacts.upsert()` 发布到 DKDS canonical Artifact Store。
+- 调用方数组当前标记为 unverified-import，不伪装成原始仪器数据。真实采集执行器尚未开放。
 - 数据中心发布接口已具备，但当前版本尚未开放真实测量执行器，因此不能把该接口的测试通过描述为已完成实机数据采集。
 
 ## 未完成的无缝联动内容
 
 插件安装、真实 TCP 连接、Android 宿主仍需实机验收；跨程序实时控制、实验数据同步、原生文件及仪器图片导出尚未完成。请勿把 SDK 兼容视为完整功能验收。
 
-## 单源界面架构（DKDS 插件 v0.6.13）
+## 单源界面架构（DKDS 插件 v0.6.14）
 
 DKDS 插件不再自建测试卡片、参数区和空白曲线视图。构建时从 `web/index.html`、`web/styles.css`、`web/app.js` 以及独立版的 D3 运行时直接生成 `standalone-shell.js`。DKDS 页只负责宿主窗口/工作区生命周期、项目状态、能力注册和受限桥接。iframe 使用 `sandbox=allow-scripts allow-modals`（不授予 `allow-same-origin`），不允许浏览器直接访问设备、文件系统或第三方站点。桥接白名单仅提供与独立版 `/api/` 相同的只读连接、模块查询、方案校验、波形校验。原始数据图、标签、设置面板和移动端手势都来自同一套 App 代码。纯安装器和原生更新按钮在 DKDS 宿主不执行，因为插件由 DKDS 插件管理器升级。
 
@@ -59,3 +64,12 @@ DKDS 插件不再自建测试卡片、参数区和空白曲线视图。构建时
 ### v0.6.3：DKDS 项目级工作区存储
 
 独立 UI 使用经会话令牌和白名单隔离的 /api/workspaces 读写插件项目切片。保存数据包含每个工作区按测试方式分类的原始数据和历史记录。项目关闭、打开或重置时，插件会将对应工作区状态通知嵌入式独立 UI。独立 App 升级到 v0.3.1；外部插件升级到 v0.6.3。
+
+
+## v0.3.12 能力数据库与统一校验
+
+- 能力数据库由共享模块驱动，Windows、Android、DKDS 三端调用同一校验逻辑。
+- 未识别 SMU 不再套用 10.5 mA 默认上限。未识别数值保持未知，方案仍不可执行。
+- I–t 的 KXCI 采样间隔按 10 ms 至 10 s 校验；SMU 列表扫描最多 4096 点，往返扫描还需计算两个方向的总点数。
+- SMU 200 V 档标记为需要 interlock。当前只读通信桥不能读取 interlock 状态，因此高压方案不会被标记为硬件已验证。
+- 调用方提交的数组不会被标记为原始采集数据。
