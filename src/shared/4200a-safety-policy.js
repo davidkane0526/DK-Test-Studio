@@ -255,7 +255,7 @@
     }
     timing=pulseTimingProfile(sourceType,effectiveRangeV,measureMode,useRPM,currentMeasureRangeA);
     if(sourceType==='pmu'&&measureMode!=='none'){
-      measureWindowS=finite(options.measureWindowS??timing?.minMeasureWindowS??sampleIntervalS,
+      measureWindowS=finite(options.measureWindowS??sampleIntervalS,
         'PMU 测量窗口 (s)',sampleIntervalS,DB.rules.waveform.segmentArb.hardware.maxSegmentTimeS);
     }
     const hw=DB.rules.waveform.segmentArb.hardware;
