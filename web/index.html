@@ -119,8 +119,8 @@
 <main class="workspace">
 
   <section id="terminal-profiles" class="card terminal-profiles" aria-label="选择端口配置">
-    <div class="port-panel-heading"><div><h2>选择端口配置</h2><p class="hint">依据实际安装的 4200A 模块识别通道，None 表示未分配，不代表自动接地。</p></div>
-      <span id="terminal-inventory-state" class="terminal-inventory-state">等待模块识别</span></div>
+    <div class="port-panel-heading"><div><h2>选择端口配置</h2></div>
+      <span id="terminal-inventory-state" class="terminal-inventory-state" hidden></span></div>
     <div class="port-panel-controls">
       <label>源极 Source <select id="home-terminal-source" data-terminal-role="source"></select></label>
       <label>漏极 Drain <select id="home-terminal-drain" data-terminal-role="drain"></select></label>
@@ -132,7 +132,7 @@
       <button id="terminal-preset-save" type="button">保存配置</button>
       <button id="terminal-preset-load" type="button">加载配置</button>
     </div>
-    <p id="terminal-profile-status" class="hint" role="status">此处配置同步应用到当前测试的标题栏。</p>
+    <p id="terminal-profile-status" class="hint" role="status" hidden></p>
   </section>
   <section id="test-library" class="card types-card" aria-labelledby="test-types-title">
     <div class="card-heading">
@@ -189,9 +189,9 @@
               <label>栅极<select id="header-terminal-gate" data-terminal-role="gate"></select></label>
             </div>
             <span class="run-actions-divider" aria-hidden="true">|</span>
-            <button type="button" id="start-measurement" class="measure-button" disabled title="实机采集尚未接入">开始测试</button>
+            <button type="button" id="start-measurement" class="measure-button" disabled title="执行 KXCI 扫描并读取仪器原始数据">开始测试</button>
             <button type="button" id="pause-measurement" class="measure-button" disabled title="实机采集尚未接入">暂停</button>
-            <button type="button" id="stop-measurement" class="measure-button" disabled title="实机采集尚未接入">停止</button>
+            <button type="button" id="stop-measurement" class="measure-button" disabled title="停止扫描并关闭已配置的 SMU 输出">停止</button>
           </div>
         </div>
         <div id="detail-columns" class="detail-columns">
@@ -267,7 +267,7 @@
           <label>漏极 (V)<input id="fixed-drain" type="number" min="-210" max="210" step="any" value="0"></label>
           <label>栅极 (V)<input id="fixed-gate" type="number" min="-210" max="210" step="any" value="0"></label>
         </div>
-        <p class="hint sweep-readonly-notice">安全规划与扫描顺序预览已启用。真实输出及原始数据采集仍需通过执行器安全验收。</p>
+        
       </form>
             <p class="hint" id="plan-status" role="status">仅校验方案，尚未开放实机执行。</p>
             <div id="pending-parameters" class="pending-parameters" hidden>
