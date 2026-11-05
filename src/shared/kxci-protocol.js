@@ -133,7 +133,7 @@
         if(['SMU','PMU','PGU'].includes(slot.family))physicalType=slot.type;
         else if(slot.family==='CVU'||slot.family==='VS'||slot.family==='VM'){mismatch=true;reason='缺少物理型号，不能确认 CVU 变体或 VS/VM 底层 SMU';}
       }
-      if(slot.family==='SMU'&&record){
+      if(slot.family==='SMU'){
         const remotePa=paRecords.length>0,badPa=paRecords.some(x=>!/4200/.test(x.model));
         if(badPa||remotePa!==Boolean(slot.preamplifier)){mismatch=true;reason='*OPT? 的 PA 类别与 remotemoduleinfo 不一致';}
         preamplifier=remotePa;
@@ -151,10 +151,12 @@
         if(!known){unknownModules.push(Object.freeze({family:'remote',slot:slot.slot,...item}));mismatch=true;reason='发现未识别的远程模块';}
       }
       if(mismatch){type=null;physicalType=null;}
-      const cap=type?getCapabilities()?.getModuleCapability(type):null;
+      const capabilityType=['VS','VM'].includes(slot.family)?physicalType:type;
+      const cap=capabilityType?getCapabilities()?.getModuleCapability(capabilityType):null;
       const ratingsVerified=!mismatch&&Boolean(cap)&&(
         ['SMU','SMUPA','HPSMU','HPSMUPA','PMU','PMURPM','VPU'].includes(type)||
-        (slot.family==='CVU'&&Boolean(variant))
+        (slot.family==='CVU'&&Boolean(variant))||
+        (['VS','VM'].includes(slot.family)&&Boolean(physicalType))
       );
       const enriched=Object.freeze({
         ...slot,type,physicalType,basePhysicalType,physicalModel:record?.model||null,
