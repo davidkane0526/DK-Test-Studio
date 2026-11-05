@@ -11,6 +11,11 @@ test('localhost API is read-only, origin guarded and waveform is not executable'
     assert.match(await home.text(),/DK Test Studio/);
     const status=await (await fetch(base+'/api/status')).json();
     assert.equal(status.phase,'disconnected');
+    const capability=await (await fetch(base+'/api/capabilities')).json();
+    assert.equal(capability.database.databaseVersion,'1.2.0');
+    assert.equal(capability.database.rules.waveform.segmentArb.hardware.minSegmentTimeS,2e-8);
+    const exported=await (await fetch(base+'/api/capabilities/export')).json();
+    assert.equal(exported.databaseVersion,'1.2.0');
     const invalid=await fetch(base+'/api/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     assert.equal(invalid.status,403);
     const cross=await fetch(base+'/api/connect',{method:'POST',headers:{'Content-Type':'application/json','X-DKTS-Request':'1','Origin':'https://other.example'},body:'{}'});
@@ -18,8 +23,8 @@ test('localhost API is read-only, origin guarded and waveform is not executable'
     const res=await fetch(base+'/api/waveform/validate',{method:'POST',headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},
       body:JSON.stringify({text:'0 0\n0.00000002 1\n0.00000004 0'})});
     assert.equal(res.status,200);
-    const plan=await res.json();assert.equal(plan.ok,true);assert.equal(plan.executable,false);
-    const planResponse=await fetch(base+'/api/plan/validate',{method:'POST',headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},body:JSON.stringify({kind:'iv',points:11,loops:2})});
+    const plan=await res.json();assert.equal(plan.ok,true);assert.equal(plan.executable,false);assert.equal(plan.minSegmentTimeS,2e-8);assert.equal(plan.minimumStepS,2e-8);
+    const planResponse=await fetch(base+'/api/plan/validate',{method:'POST',headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},body:JSON.stringify({kind:'iv',sourceModel:'4200-SMU',measureModel:'4200-SMU',points:11,loops:2})});
     const smuPlan=await planResponse.json();assert.equal(smuPlan.ok,true);assert.equal(smuPlan.plan.executable,false);assert.equal(smuPlan.plan.totalPoints,42);
     const unknown=await fetch(base+'/api/output',{method:'POST',headers:{'Content-Type':'application/json','X-DKTS-Request':'1'},body:'{}'});
     assert.equal(unknown.status,404);
