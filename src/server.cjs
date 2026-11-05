@@ -8,6 +8,7 @@ const {normalizePlan,previewPlan,createExecutionCoordinator}=require('./controll
 const {createIdentityController,summarizeError}=require('./controller/identity.cjs');
 const {createUiUpdater}=require('./ui-update.cjs');
 const workspaceStorage=require('./workspace-storage.cjs');
+const safetyPolicy=require('./shared/4200a-safety-policy.js');
 
 const root=path.resolve(__dirname,'..');
 const assets=Object.freeze({
@@ -71,6 +72,19 @@ async function createAppServer(options={}){
         return json(res,200,{version:require('../package.json').version});
       if(req.method==='GET'&&urlPath==='/api/workspaces')
         return json(res,200,{ok:true,workspace:workspaceStorage.readWorkspace(workspaceFile)});
+      if(req.method==='GET'&&urlPath==='/api/capabilities'){
+        const snapshot=controller.status();
+        return json(res,200,{ok:true,database:safetyPolicy.getDatabase(),
+          inventory:snapshot.inventory,connected:snapshot.phase==='connected',
+          inventoryError:snapshot.inventoryError||''});
+      }
+      if(req.method==='GET'&&urlPath==='/api/capabilities/export'){
+        const data=JSON.stringify(safetyPolicy.getDatabase(),null,2)+'\\n';
+        res.writeHead(200,{'Content-Type':'application/json; charset=utf-8',
+          'Content-Disposition':'attachment; filename="4200a-capabilities-safety-v1.1.0.json"',
+          'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
+        return res.end(data);
+      }
       if(req.method==='GET'&&Object.hasOwn(assets,urlPath)){
         const item=assets[urlPath];
         const bytes=(urlPath.startsWith('/vendor/')?null:updater?.getAsset(path.basename(item.file)))||fs.readFileSync(path.join(root,item.file));
@@ -106,11 +120,13 @@ async function createAppServer(options={}){
         catch(error){return json(res,400,{ok:false,error:summarizeError(error),...controller.status()});}
       }
       if(urlPath==='/api/plan/validate'){
-        const preview=previewPlan(payload,300,{inventory:controller.status().inventory});
+        const snapshot=controller.status();
+        const preview=previewPlan(payload,300,{inventory:snapshot.inventory,connected:snapshot.phase==='connected'});
         return json(res,200,{ok:true,plan:preview.plan,firstPoints:preview.firstPoints,truncated:preview.truncated});
       }
       if(typeof payload.text!=='string')return json(res,400,{error:'波形应为文本'});
-      const plan=parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu',loadOhms:payload.loadOhms});
+      const snapshot=controller.status();
+      const plan=parseWaveformText(payload.text,{...payload,hardware:{inventory:snapshot.inventory,connected:snapshot.phase==='connected'}});
       return json(res,200,{ok:true,count:plan.points.length,durationS:plan.durationS,
         minimumStepS:plan.minimumStepS,maximumStepS:plan.maximumStepS,
         sourceType:plan.sourceType,rangeV:plan.rangeV,loadOhms:plan.loadOhms,maxCurrentA:plan.maxCurrentA,maxVoltageV:plan.maxVoltageV,
