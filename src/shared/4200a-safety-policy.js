@@ -391,6 +391,7 @@
       const biasSmU=integer(input.biasSmU,'CVU 外部偏置 SMU',1,9);
       const biasComplianceA=finite(input.biasComplianceA,'CVU 外部 SMU 电流 Compliance (A)',1e-12,1.05);
       validateSmuPlan({kind:'it',sourceMode:'voltage',sourceSmU:biasSmU,measureSmU:biasSmU,
+        sourceModel:input.biasModel,measureModel:input.biasModel,
         fixedV:dcBiasV,complianceA:biasComplianceA},hardware);
     }
     if(biasSource==='cvu-pwr'&&!hardware.inventory?.externalAccessories?.cvuPower&&hardware.connected)
