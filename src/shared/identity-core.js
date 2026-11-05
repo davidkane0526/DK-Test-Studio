@@ -59,6 +59,11 @@
         let optionsRaw='',logicalInventory=null,enteredUserLibrary=false;
         try{
           optionsRaw=await send(protocol.OPTIONS_REQUEST,4096);logicalInventory=protocol.parseOptions(optionsRaw);
+          if(logicalInventory.logicalModules.length===0&&logicalInventory.unknownModules.length>0){
+            inventory=logicalInventory;
+            inventoryError='配置响应中没有可识别的模块类型，已停止后续模块查询';
+            return status();
+          }
           enteredUserLibrary=true;await send(protocol.UL_REQUEST,1024);
           await send(protocol.INSTRUMENT_INFO_REQUEST,1024);
           const instrumentInfo=await send(protocol.GN_RESULT_REQUEST,8192);
