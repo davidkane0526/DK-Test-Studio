@@ -1,18 +1,20 @@
 (() => {
   'use strict';
-  const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.6.16","apiVersion":"1.19.0","entry":"plugin.js","enabled":true,"order":82,"description":"DK Test Studio shared standalone UI, DKDS-owned transport and project integration","pluginType":"developer","requiresCore":["runtime","status","services","modules","project","workspace","capabilities","data.model","data.artifacts","ui.dom","ui.dialogs","ui.activities","ui.top-workspace","ui.pages","ui.unit-templates","ui.status-bar"],"capabilities":["instrument.dkts-keithley-4200","network.tcp-client","ui.page","ui.top-workspace","ui.plugin-workspace"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"scripts":["hardware-capabilities.js","kxci-protocol.js","measurement-plan.js","waveform.js","identity-core.js","interop.js","standalone-shell.js","presentation.js","plugin.js"],"workspace":{"role":"top","activity":"dkts-keithley-4200"},"window":{"activity":"dkts-keithley-4200","width":1280,"height":820,"minWidth":800,"minHeight":620,"dependencies":[],"prewarm":false,"reuse":true,"persistence":"project"}};
+  const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.6.17","apiVersion":"1.19.0","entry":"plugin.js","enabled":true,"order":82,"description":"DK Test Studio shared standalone UI, DKDS-owned transport and project integration","pluginType":"developer","requiresCore":["runtime","status","services","modules","project","workspace","capabilities","data.model","data.artifacts","ui.dom","ui.dialogs","ui.activities","ui.top-workspace","ui.pages","ui.unit-templates","ui.status-bar"],"capabilities":["instrument.dkts-keithley-4200","network.tcp-client","ui.page","ui.top-workspace","ui.plugin-workspace"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"scripts":["hardware-capabilities.js","kxci-protocol.js","measurement-plan.js","kxci-measurement.js","waveform.js","identity-core.js","interop.js","standalone-shell.js","presentation.js","plugin.js"],"workspace":{"role":"top","activity":"dkts-keithley-4200"},"window":{"activity":"dkts-keithley-4200","width":1280,"height":820,"minWidth":800,"minHeight":620,"dependencies":[],"prewarm":false,"reuse":true,"persistence":"project"}};
   DKDSPlugins.define(manifest,async ctx=>{
     const modules=ctx.modules;
     const capabilities=modules.require('dkts-capabilities');
     const protocol=modules.require('dkts-kxci');
     const domain=modules.require('dkts-identity-core');
     const planner=modules.require('dkts-plan');
+    const measurementCore=modules.require('dkts-kxci-measurement');
     const execution=planner.createExecutionCoordinator();
     const waveform=modules.require('dkts-waveform');
     const interop=modules.require('dkts-interop');
     const presentation=modules.require('presentation');
     // Both applications inject their own transport; only one shared domain state machine exists.
     const controller=domain.createIdentityController(ctx.services.require('tcp'),protocol);
+    const runner=measurementCore.createRunner({controller,execution});
     let ui=null,storedPlan={},disposed=false,savedWorkspace=null;
     const statusItem=ctx.ui.statusBar.add({
       id:'dkts-4200a',side:'right',order:42,icon:'',label:'4200A 未连接',
@@ -58,7 +60,10 @@
       }
       catch(e){notify(controller.status());return {ok:false,error:domain.summarizeError(e)};}
     }
-    async function disconnect(){return notify(await controller.disconnect());}
+    async function disconnect(){
+      if(runner.status().running){runner.stop();throw Error('测量正在停止，输出关闭后再断开连接');}
+      return notify(await controller.disconnect());
+    }
     async function toggleConnection(){
       return controller.status().phase==='connected'?disconnect():connect();
     }
@@ -92,6 +97,7 @@
       try{
         if(method==='GET'){
           if(route==='/api/status')return {status:200,data:{ok:true,...controller.status()}};
+          if(route==='/api/measurement/status')return {status:200,data:{ok:true,...runner.status(0)}};
           if(route==='/api/hardware/capabilities')return {status:200,data:{ok:true,database:capabilities.exportDatabase()}};
           if(route==='/api/app/version')return {status:200,data:{version:'0.3.13'}};
           if(route==='/api/ui/version')return {status:200,data:{version:'bundled',status:'disabled'}};
@@ -105,7 +111,14 @@
             return {status:200,data:{ok:true}};
           }
           if(route==='/api/ui/check')return {status:200,data:{ok:true,status:'disabled',updated:false}};
+          if(route==='/api/measurement/status')
+            return {status:200,data:{ok:true,...runner.status(Number(payload.cursor||0))}};
+          if(route==='/api/measurement/start')
+            return {status:200,data:{ok:true,...runner.start(payload.plan,hardwareProfile(),payload.authorization)}};
+          if(route==='/api/measurement/stop')
+            return {status:200,data:{ok:true,...runner.stop()}};
           if(route==='/api/connect'){
+            if(runner.status().running)throw Error('测量进行期间不能重新连接');
             try{
               const value=await controller.connect(payload);
               return {status:200,data:{ok:true,...notify(value)}};
@@ -115,8 +128,9 @@
             }
           }
           if(route==='/api/disconnect')
-            return {status:200,data:{ok:true,...notify(await controller.disconnect())}};
+            return {status:200,data:{ok:true,...await disconnect()}};
           if(route==='/api/modules/inspect'){
+            if(runner.status().running)throw Error('测量期间不能读取模块信息');
             const value=await controller.inspectModules();
             return {status:200,data:{ok:true,...notify(value)}};
           }
@@ -238,7 +252,8 @@
       disposed=true;
       statusItem.remove?.();
       ui?.dispose?.();ui=null;
-      void controller.dispose();
+      runner.stop();
+      void runner.dispose().then(()=>controller.dispose());
     }};
   });
 })();
