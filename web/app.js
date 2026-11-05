@@ -1499,6 +1499,22 @@ const portUi=(()=>{
     return [...scan.querySelectorAll('select[data-current-range]')];
   }
   function syncCurrentRangeMenus(){
+    for(const [role,id] of [['drain','it-drain-current-range'],['gate','it-gate-current-range']]){
+      const select=$(id),previous=select.value;
+      select.replaceChildren(new Option('Auto','auto'));
+      for(const range of rangesForRole(role)){
+        const value=scientific(range);
+        select.append(new Option(value,value));
+      }
+      if(previous!=='auto'&&previous&&
+         ![...select.options].some(item=>item.value===previous))
+        select.append(new Option(previous+' · 待核实',previous));
+      select.value=previous||'auto';
+      const active=workspaceStore.getTerminalConfig()[role];
+      select.disabled=!/^SMU[1-9]$/.test(active);
+      const protect=planForm.elements.namedItem(role==='drain'?'sourceComplianceA':'gateComplianceA');
+      if(protect)protect.disabled=!/^SMU[1-9]$/.test(active);
+    }
     for(const select of rangeInputs()){
       const role=select.dataset.currentRange==='segment'?
         axisFields[select.closest('tbody')?.id==='psweep-segments'?'p':'x'].terminal.value:
