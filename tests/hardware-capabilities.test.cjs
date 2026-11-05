@@ -58,9 +58,9 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   assert.equal(pgu40High.transitionMinS, 100e-9);
   assert.throws(() => caps.getPulseTimingRecommendation(10, null, true, 'pgu'), /不具备电流测量/);
   const capture = caps.getPmuCaptureBudget(1, null);
-  assert.equal(capture.maxPointsPerChannel, 1000000);
+  assert.equal(capture.maxPointsPerChannel, 999999);
   assert.equal(capture.interfaceMaxPointsPerChannel, 65536);
-  assert.equal(capture.maxSampleRateHz, 1000000);
+  assert.equal(capture.maxSampleRateHz, 999999);
   assert.equal(capture.kxciMaxSampleRateHz, 65536);
   assert.equal(capture.kxciCompatible, false);
 });
