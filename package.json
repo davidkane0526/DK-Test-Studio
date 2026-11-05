@@ -9,7 +9,7 @@
     "identify": "node cli/identify.cjs",
     "serve": "node tools/prepare-dkds-plot-vendor.cjs && node src/server.cjs",
     "start": "node tools/prepare-dkds-plot-vendor.cjs && electron .",
-    "dist:win": "node tools/prepare-dkds-plot-vendor.cjs && node tools/generate-app-icons.cjs && electron-builder --win nsis portable",
+    "dist:win": "node tools/prepare-dkds-plot-vendor.cjs && node tools/generate-app-icons.cjs && electron-builder --win portable",
     "plugin:build": "node tools/build-dkds-plugin.cjs",
     "icons:build": "node tools/generate-app-icons.cjs",
     "prepare:plot-vendor": "node tools/prepare-dkds-plot-vendor.cjs",
@@ -37,12 +37,6 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
           "target": "portable",
           "arch": [
             "x64"
@@ -51,14 +45,6 @@
       ],
       "icon": "build/icon.ico",
       "executableName": "DK Test Studio"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "artifactName": "DK-Test-Studio-Setup-${version}-${arch}.${ext}",
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico"
     },
     "portable": {
       "artifactName": "DK-Test-Studio-Portable-${version}-${arch}.${ext}"
