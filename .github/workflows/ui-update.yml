@@ -1,5 +1,5 @@
 name: Fast UI Hot Update
-run-name: DK Test Studio V0.3.12 a${{ github.run_number }} · UI
+run-name: DK Test Studio V0.3.13 a${{ github.run_number }} · UI
 on:
   push:
     branches: [main]
@@ -8,7 +8,7 @@ permissions:
   contents: write
 jobs:
   ui-update:
-    name: Build and publish V0.3.12 a${{ github.run_number }} UI hot update
+    name: Build and publish V0.3.13 a${{ github.run_number }} UI hot update
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

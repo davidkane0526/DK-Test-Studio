@@ -130,10 +130,6 @@ function createUiUpdater(options={}){
           throw Error('UI 发布包与 main 提交不一致');
         // Require a real Git fast-forward from the installed UI to the
         // requested HEAD. A force-push or replayed release cannot roll back.
-        const comparison=await request(API+'/compare/'+installed+'...'+head);
-        if(comparison?.status!=='ahead'||!(comparison.ahead_by>0)){
-          status='blocked';return {updated:false,version};
-        }
         const asset=release.assets?.find(a=>a.name===ASSET);
         const expected='https://github.com/'+REPO+'/releases/download/'+releaseTag+'/'+ASSET;
         if(!asset||asset.browser_download_url!==expected)
@@ -141,6 +137,15 @@ function createUiUpdater(options={}){
         const bundle=await request(expected);
         if(String(bundle.version||'').toLowerCase()!==head)
           throw Error('UI 热更新版本与主分支不一致');
+        // A new native/Desktop package cannot be installed via a UI-only bundle.
+        // Preserve the installed application's version and its native runtime.
+        if(bundle.packageVersion!==require('../package.json').version){
+          status='native-required';return {updated:false,version,packageVersion,nativeRequired:true};
+        }
+        const comparison=await request(API+'/compare/'+installed+'...'+head);
+        if(comparison?.status!=='ahead'||!(comparison.ahead_by>0)){
+          status='blocked';return {updated:false,version};
+        }
         const parts=validateBundle(bundle,'windows');
         fs.mkdirSync(root,{recursive:true});
         fs.rmSync(stage,{recursive:true,force:true});fs.mkdirSync(stage);

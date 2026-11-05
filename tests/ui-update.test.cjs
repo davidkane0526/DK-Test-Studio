@@ -168,3 +168,17 @@ test('both update platforms display the exact hot-updated commit in the UI metad
   assert.match(frontend,/nativeBadge\.textContent='V'\+nativePackageVersion/);
   assert.match(frontend,/textContent=hasHotfix\?hotfix/);
 });
+
+test('UI-only updates refuse cross-native versions before retrieving a diff',async()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-native-'));
+  const b=prepare();b.packageVersion='0.3.999';
+  const stub=stubGitHub({bundleData:b});
+  const updater=createUiUpdater({cacheDir:dir,baseCommit:BASE,fetchImpl:stub.fetchImpl});
+  try{
+    const value=await updater.updateOnce();
+    assert.equal(value.updated,false);
+    assert.equal(value.nativeRequired,true);
+    assert.equal(updater.state().status,'native-required');
+    assert(!stub.requests.some(url=>url.includes('/compare/')));
+  }finally{updater.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});

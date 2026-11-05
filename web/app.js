@@ -56,6 +56,10 @@ async function checkUiUpdateNow(){
         if(result.status==='blocked'){
           updateStatus.textContent='检测到可能的旧版或分支回退，已阻止界面降级。';return;
         }
+        if(result.status==='native-required'){
+          updateStatus.textContent='新版涉及 Android 原生组件，不能仅更新界面。';
+          await inspectNativeAppUpdate();return;
+        }
         if(result.status==='offline'){
           updateStatus.textContent='检查失败：'+String(result.error||'网络不可用').slice(0,72);return;
         }
@@ -77,6 +81,8 @@ async function checkUiUpdateNow(){
           ?'主分支新版 UI 尚未发布，保留当前界面，不安装旧版。':
         result.status==='blocked'
           ?'已阻止安装落后于当前界面的旧版 UI。':
+          result.status==='native-required'
+            ?'新版包含原生组件，当前版本需要完整程序更新。':
           '界面已是最新版本（不代表程序本体已升级）';
     }
   }catch(error){updateStatus.textContent='检查失败：'+String(error.message||error).slice(0,72);}
@@ -84,6 +90,35 @@ async function checkUiUpdateNow(){
 }
 // The app checks only UI hot updates. Full APK/EXE packages remain
 // available from GitHub Releases and are never offered as an in-app update.
+// Only offer a full native upgrade when a UI-only update is insufficient.
+const appUpgradeButton=$('native-app-update-btn');
+async function inspectNativeAppUpdate(){
+  if(!appUpgradeButton||typeof window.DKTSClient?.checkAppUpdate!=='function')return;
+  appUpgradeButton.hidden=true;
+  try{
+    await window.DKTSClient.checkAppUpdate();
+    for(let n=0;n<20;n++){
+      await new Promise(resolve=>setTimeout(resolve,500));
+      const result=await window.DKTSClient.appUpdateStatus();
+      if(result.status==='checking')continue;
+      if(result.status==='available'||result.status==='ready'){
+        appUpgradeButton.hidden=false;
+        appUpgradeButton.textContent='下载并安装 V'+String(result.version||'新版');
+      }else if(result.status==='error'){
+        updateStatus.textContent='程序更新检查失败：'+String(result.error||'未知错误').slice(0,90);
+      }
+      return;
+    }
+    updateStatus.textContent='程序版本检查仍在进行，请稍后重试。';
+  }catch(error){updateStatus.textContent='程序更新检查失败：'+String(error.message||error).slice(0,90);}
+}
+appUpgradeButton?.addEventListener('click',async()=>{
+  appUpgradeButton.disabled=true;
+  updateStatus.textContent='正在下载已验证的安装包，并准备系统安装界面…';
+  try{await window.DKTSClient.installAppUpdate();}
+  catch(error){updateStatus.textContent='安装请求失败：'+String(error.message||error).slice(0,90);}
+  finally{appUpgradeButton.disabled=false;}
+});
 nativeBadge.addEventListener('click',()=>{
   const opening=uiBadge.hidden;
   uiBadge.hidden=!opening;

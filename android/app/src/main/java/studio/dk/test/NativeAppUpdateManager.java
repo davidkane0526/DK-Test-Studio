@@ -40,6 +40,7 @@ final class NativeAppUpdateManager {
     private static final String REPO = "davidkane0526/DK-Test-Studio";
     private static final String API = "https://api.github.com/repos/" + REPO + "/releases?per_page=20";
     private static final String APK_ASSET = "DK-Test-Studio-Android-Preview.apk";
+    private static final Pattern RELEASE_TAG = Pattern.compile("^dkts-preview-v(\\d+\\.\\d+\\.\\d+)-a\\d+$");
     private static final Pattern PORTABLE = Pattern.compile(
         "DK-Test-Studio-Portable-(\\d+\\.\\d+\\.\\d+)-x64\\.exe");
     private static final int MAX_APK = 180 * 1024 * 1024;
@@ -143,7 +144,9 @@ final class NativeAppUpdateManager {
         Candidate chosen=null;
         for(int i=0;i<releases.length();i++){
             JSONObject row=releases.getJSONObject(i);
-            if(row.optBoolean("draft",false)||!row.optString("tag_name").matches("dkts-preview-[0-9]+"))continue;
+            if(row.optBoolean("draft",false))continue;
+            Matcher tag=RELEASE_TAG.matcher(row.optString("tag_name"));
+            if(!tag.matches())continue;
             JSONArray assets=row.optJSONArray("assets");if(assets==null)continue;
             JSONObject apk=null;String releaseVersion="";
             for(int j=0;j<assets.length();j++){
@@ -152,7 +155,7 @@ final class NativeAppUpdateManager {
                 Matcher m=PORTABLE.matcher(item.optString("name"));
                 if(m.matches())releaseVersion=m.group(1);
             }
-            if(apk==null||releaseVersion.isEmpty())continue;
+            if(apk==null||!tag.group(1).equals(releaseVersion))continue;
             String sha=apk.optString("digest");
             String url=apk.optString("browser_download_url");
             long size=apk.optLong("size",0);

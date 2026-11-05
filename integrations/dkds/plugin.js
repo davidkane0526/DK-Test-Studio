@@ -93,7 +93,7 @@
         if(method==='GET'){
           if(route==='/api/status')return {status:200,data:{ok:true,...controller.status()}};
           if(route==='/api/hardware/capabilities')return {status:200,data:{ok:true,database:capabilities.exportDatabase()}};
-          if(route==='/api/app/version')return {status:200,data:{version:'0.3.12'}};
+          if(route==='/api/app/version')return {status:200,data:{version:'0.3.13'}};
           if(route==='/api/ui/version')return {status:200,data:{version:'bundled',status:'disabled'}};
           if(route==='/api/workspaces')return {status:200,data:{ok:true,workspace:savedWorkspace}};
         }

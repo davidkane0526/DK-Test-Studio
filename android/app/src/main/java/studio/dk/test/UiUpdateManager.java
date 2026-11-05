@@ -36,6 +36,9 @@ final class UiUpdateManager {
     private static final String REPO = "davidkane0526/DK-Test-Studio";
     private static final String SCHEMA = "dkts-ui-v1";
     private static final String ASSET = "DKTS-UI-bundle.json";
+    // GitHub comparison JSON includes complete file diffs; 256 KiB is insufficient
+    // even for the real V0.3.11 -> V0.3.12 release (~290 KiB).
+    private static final int MAX_COMPARE_BYTES = 8 * 1024 * 1024;
     private static final String API = "https://api.github.com/repos/" + REPO;
     private static final Pattern SHA = Pattern.compile("^[a-fA-F0-9]{40}$");
     private static final Pattern STAMP = Pattern.compile("name=\"dkts-ui-version\" content=\"([a-fA-F0-9]{40})\"");
@@ -46,6 +49,7 @@ final class UiUpdateManager {
     private final File live, stage, backup;
     private final String bundledCommit;
     private final String bundledUiVersion;
+    private final String nativePackageVersion;
     private final WebViewAssetLoader.AssetsPathHandler bundled;
     private final ExecutorService updateWorker = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -68,6 +72,10 @@ final class UiUpdateManager {
         this.stage = new File(ctx.getFilesDir(), "dkts-ui-next");
         this.backup = new File(ctx.getFilesDir(), "dkts-ui-backup");
         this.bundled = new WebViewAssetLoader.AssetsPathHandler(ctx);
+        String version = "";
+        try {version = ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionName;}
+        catch (Exception error) {Log.w(TAG, "Unable to read installed APK version", error);}
+        this.nativePackageVersion = version;
         String embedded = "", embeddedUi = "a0";
         try (InputStream input = ctx.getAssets().open("index.html")) {
             String html = new String(readLimit(input, 524288), StandardCharsets.UTF_8);
@@ -246,9 +254,6 @@ final class UiUpdateManager {
             !tag.equals(selected.optString("tag_name"))||
             !head.equalsIgnoreCase(selected.optString("target_commitish")))
             throw new IllegalStateException("Release does not match main HEAD");
-        JSONObject comparison=jsonGet(API+"/compare/"+installed+"..."+head,262144);
-        if(!"ahead".equals(comparison.optString("status"))||
-            comparison.optInt("ahead_by",0)<=0){updateStatus="blocked";return;}
         String expectedUrl="https://github.com/"+REPO+"/releases/download/"+tag+"/"+ASSET;
         String assetUrl="";
         org.json.JSONArray assets=selected.getJSONArray("assets");
@@ -266,6 +271,17 @@ final class UiUpdateManager {
             !HOTFIX.matcher(bundle.optString("uiVersion")).matches()||
             !SEMVER.matcher(bundle.optString("packageVersion")).matches())
             throw new IllegalStateException("Bundle does not match main HEAD");
+        // Never install UI stamped for another native APK. It cannot update
+        // the signed TCP bridge, Android permissions, or native release version.
+        if(nativePackageVersion.isEmpty())throw new IllegalStateException("无法确认已安装 APK 版本");
+        if(!nativePackageVersion.equals(bundle.getString("packageVersion"))){
+            updateStatus="native-required";return;
+        }
+        // Compare only when a UI-only update is actually applicable. Fetch a
+        // bounded GitHub comparison response, without accepting any rollback.
+        JSONObject comparison=jsonGet(API+"/compare/"+installed+"..."+head,MAX_COMPARE_BYTES);
+        if(!"ahead".equals(comparison.optString("status"))||
+            comparison.optInt("ahead_by",0)<=0){updateStatus="blocked";return;}
         JSONObject data = bundle.getJSONObject("platforms").getJSONObject("android");
         JSONObject hashes = new JSONObject();
         deleteTree(stage);

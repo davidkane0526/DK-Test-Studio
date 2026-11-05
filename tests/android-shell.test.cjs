@@ -248,3 +248,18 @@ test('emulator verifies the actual DKDS engine and toolbar grip at runtime',()=>
   assert.match(workflow,/android-plot-ready\.log/);
   assert.match(workflow,/grep -q 'd3\.\*true\.\*renderer\.\*true\.\*charts\.\*true\.\*grip\.\*true'/);
 });
+
+test('Android updater accepts current GitHub Release tags and never hot-swaps native versions',()=>{
+  const java=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/UiUpdateManager.java'),'utf8');
+  const updater=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/NativeAppUpdateManager.java'),'utf8');
+  const bridge=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
+  const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
+  assert(java.includes('MAX_COMPARE_BYTES = 8 * 1024 * 1024'));
+  assert(java.includes('jsonGet(API+"/compare/"+installed+"..."+head,MAX_COMPARE_BYTES)'));
+  assert(java.indexOf('nativePackageVersion.equals(bundle.getString("packageVersion"))')<java.indexOf('JSONObject comparison=jsonGet('));
+  assert(java.includes('updateStatus="native-required"'));
+  assert(updater.includes('RELEASE_TAG.matcher(row.optString("tag_name"))'));
+  assert(updater.includes('tag.group(1).equals(releaseVersion)'));
+  assert(bridge.includes('inspectNativeAppUpdate()')&&bridge.includes('native-app-update-btn'));
+  assert(gradle.includes('versionCode 24')&&gradle.includes("versionName '0.3.13'"));
+});
