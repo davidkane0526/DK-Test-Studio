@@ -39,7 +39,7 @@
     frame.setAttribute('title','DK Test Studio 完整测试工作区');
     // The App uses native <dialog>. Keep the opaque origin and deny same-origin
     // access while explicitly permitting only script execution and modal dialogs.
-    frame.setAttribute('sandbox','allow-scripts allow-modals');
+    frame.setAttribute('sandbox','allow-scripts allow-modals allow-downloads');
     frame.setAttribute('referrerpolicy','no-referrer');
     frame.setAttribute('loading','eager');
     dom.style(frame,{
