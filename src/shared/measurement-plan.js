@@ -23,11 +23,14 @@
     if (!Number.isSafeInteger(n)) throw Error(label + ' 必须是整数');
     return n;
   }
-  function findChannel(inventory, channel) {
-    return Array.isArray(inventory?.slots) ? inventory.slots.find(item => item && item.channel === Number(channel)) || null : null;
+  function findChannel(inventory, channel, allowedFamilies = ['SMU','VS','VM']) {
+    if (!Array.isArray(inventory?.slots)) return null;
+    const candidates=inventory.slots.filter(item=>item&&item.channel===Number(channel)&&allowedFamilies.includes(item.family));
+    if(!candidates.length)return null;
+    return candidates.find(item=>item.family===allowedFamilies[0])||candidates[0];
   }
   function detectedSmUClass(channel, inventory) {
-    const slot = findChannel(inventory, channel);
+    const slot = findChannel(inventory, channel, ['SMU']);
     return slot?.family === 'SMU' ? slot.powerClass : 'UNKNOWN';
   }
   function normalizePlan(input = {}, hardware = {}) {
@@ -46,9 +49,9 @@
     if (!gateSmU && gateBiasV !== 0) throw Error('设置栅极偏置时必须选择独立的栅极 SMU');
     const sourceMaxAbsVoltage = kind === 'iv' ? Math.max(Math.abs(startV), Math.abs(stopV)) : Math.abs(fixedV);
     const gateMaxAbsVoltage = gateSmU ? Math.abs(gateBiasV) : 0;
-    const sourceSlot = findChannel(hardware.inventory, sourceSmU);
-    const measureSlot = findChannel(hardware.inventory, measureSmU);
-    const gateSlot = gateSmU ? findChannel(hardware.inventory, gateSmU) : null;
+    const sourceSlot = findChannel(hardware.inventory, sourceSmU, ['SMU','VS']);
+    const measureSlot = findChannel(hardware.inventory, measureSmU, ['SMU']);
+    const gateSlot = gateSmU ? findChannel(hardware.inventory, gateSmU, ['SMU','VS']) : null;
     const caps = capabilityApi(hardware);
     const hasInventory = Array.isArray(hardware.inventory?.slots);
     if (hasInventory && !sourceSlot) throw Error('源通道 ' + sourceSmU + ' 不在仪器 *OPT? 模块清单中');
@@ -82,7 +85,7 @@
     const totalPoints = loops * pointsPerCycle;
     if (totalPoints > 250000) throw Error('预计采样点超过 250000，请减少循环或点数');
     const maxAbsVoltage = Math.max(sourceMaxAbsVoltage, gateMaxAbsVoltage);
-    const activeSmuChannels = [...new Set([sourceSmU, measureSmU, gateSmU].filter(Boolean))];
+    const activeSmuChannels = [sourceSlot, measureSlot, gateSlot].filter(Boolean).map(slot=>({channel:slot.channel,family:slot.family}));
     const powerBudget = caps?.calculateChassisPower ? caps.calculateChassisPower({ inventory: hardware.inventory, activeSmuChannels }) : { known: false, reason: '能力数据库不可用' };
     if (powerBudget.known && !powerBudget.withinLimit) throw Error('4200A 机箱功耗预算超限：' + powerBudget.totalW + ' W > ' + powerBudget.limitW + ' W');
     const capabilityStatus = !hasInventory ? 'not-inspected' : allComplianceChannelsKnown ? 'identified' : knownComplianceLimits.length ? 'partial' : 'unresolved';
