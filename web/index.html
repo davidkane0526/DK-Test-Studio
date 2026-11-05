@@ -218,6 +218,13 @@
                 <label id="waveform-load-control" hidden>最小预计总负载阻值（Ω）
                   <input id="waveform-load-ohms" type="number" min="0.01" max="1000000000" step="any" value="50">
                 </label>
+                <label id="waveform-range-control" hidden>PMU/PGU 输出量程
+                  <select id="waveform-range-v">
+                    <option value="10">10 V 档</option>
+                    <option value="40">40 V 档</option>
+                  </select>
+                </label>
+
               </div>
               <label for="waveform-text" class="input-title">时间 (s)、电压 (V)，每行一组</label>
               <textarea id="waveform-text" spellcheck="false">0, 0
