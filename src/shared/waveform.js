@@ -55,7 +55,7 @@
       maxVoltageV = limits.maxVoltageV; maxCurrentA = limits.maxCurrentA;
       const arb = caps.getSegmentArbLimits(sourceType, rangeV), segmentCount = normalized.length - 1;
       const kxciSegmentCompatible = steps.every(step => step <= arb.kxciMaxSegmentS + 1e-12);
-      interfaceLimits = Object.freeze({ transport: 'KXCI', maxSegmentTimeS: arb.kxciMaxSegmentS, maxSegmentsPerCommand: arb.maxSegmentsPerCommand, segmentTimesCompatible: kxciSegmentCompatible, requiresAlternateBackend: !kxciSegmentCompatible });
+      interfaceLimits = Object.freeze({ transport: 'KXCI', maxSegmentTimeS: arb.kxciMaxSegmentS, maxSegmentsPerCommand: arb.maxSegmentsPerCommand, requiresCommandChunking: segmentCount > arb.maxSegmentsPerCommand, segmentTimesCompatible: kxciSegmentCompatible, requiresAlternateBackend: !kxciSegmentCompatible });
       if (segmentCount < arb.minSegments) throw Error('4200A Segment Arb 每个序列至少需要 ' + arb.minSegments + ' 个分段');
       if (segmentCount > arb.maxSegments) throw Error('4200A Segment Arb 每通道最多支持 ' + arb.maxSegments + ' 个分段');
       for (let i = 0; i < steps.length; i++) {
