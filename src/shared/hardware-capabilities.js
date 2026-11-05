@@ -132,7 +132,7 @@
             '8e-1': { recommendedMinPulseWidthS: 770e-9, recommendedMinTransitionS: 100e-9, typical: true, measurementFrontEnd: 'PMU' }
           }
         },
-        typicalTimingNote: '原厂典型最小脉冲宽度及上升/下降时间建议，条件为空载。10 V 档 100 nA 至 10 mA 为 RPM 量程；10 V 档 200 mA、40 V 档 100 µA/10 mA/800 mA 为 PMU 量程。实际 DUT、线缆和互连可能需要更长的稳定时间。该表不提供独立的测量窗口或稳定时间数值；这些典型建议不作为硬件绝对最小值或自动拒绝条件。',
+        typicalTimingNote: '原厂典型最小脉冲宽度及上升/下降时间建议，条件为空载。10 V 档 100 nA 至 1 mA 为 RPM 扩展量程，10 mA 同时属于 PMU 与 RPM 量程，200 mA 为 PMU 量程；40 V 档 100 µA、10 mA、800 mA 为 PMU 量程。实际 DUT、线缆和互连可能需要更长的稳定时间。该表不提供独立的测量窗口或稳定时间数值；这些典型建议不作为硬件绝对最小值或自动拒绝条件。',
         measurement: {
           currentRangesA: { '10': [1e-2, 2e-1], '40': [1e-4, 1e-2, 8e-1] },
           maxSampleRateHz: 2e8, minSampleRateHz: 1e3, maxKxciBufferPointsPerChannel: 65536, maxKxciGeneratedPointsExclusive: 65536, maxHardwareSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000
