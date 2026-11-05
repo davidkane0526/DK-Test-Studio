@@ -4,6 +4,7 @@
 const fs=require('node:fs');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
+require('./generate-4200a-capabilities.cjs').generate();
 const destination=path.join(root,'android/app/src/main/assets');
 const scripts=[
   'android/bootstrap.js',
