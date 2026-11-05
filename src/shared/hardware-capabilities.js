@@ -370,7 +370,7 @@
       clariusItmMaxPointsPerChannel: mod.measurement.maxClariusItmPointsPerChannel, clariusUtmMaxPointsPerChannel: mod.measurement.maxClariusUtmPointsPerChannel,
       kxciBoundaryStatus: sampleCountAtSelectedRate === interfaceMaxPoints ? 'exact-upper-bound-ambiguous' : (kxciCompatible ? 'within-published-range' : 'over-interface-limit'),
       kxciPointLimitNote: mod.measurement.kxciGeneratedPointBoundaryNote,
-      hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz, kxciCompatible,
+      hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz, hardwareCompatible: sampleCountAtSelectedRate <= hardwareMaxPoints, clariusItmCompatible: sampleCountAtSelectedRate <= mod.measurement.maxClariusItmPointsPerChannel, clariusUtmCompatible: sampleCountAtSelectedRate <= mod.measurement.maxClariusUtmPointsPerChannel, kxciCompatible,
       interface: 'KXCI', interfaceLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus, kxciInterfaceLimitsSourceRevision: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsSourceRevision, latestIndexListedKxciRevision: DATABASE.safetyPolicies.pulse.latestIndexListedKxciRevision, latestKxciRevisionContentVerified: DATABASE.safetyPolicies.pulse.latestKxciRevisionContentVerified, interfaceLimitation: kxciCompatible ? null : '当前 KXCI 波形生成点数上限为每通道 65536 点（数据缓冲容量同为 65536 点；手册对等于上限的文字表述存在歧义）；PMU 硬件单次采集点数必须严格少于 1000000 点',
       executionCompatibility: kxciCompatible ? 'hardware-and-kxci-compatible' : 'hardware-valid-kxci-limited'
     });
