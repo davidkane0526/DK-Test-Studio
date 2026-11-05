@@ -103,7 +103,7 @@ function prepare(){
 }
 test('DKDS plugin displays the exact standalone app in a sandboxed workbench',async()=>{
   const env=prepare(),installed=await env.captured.activate(env.ctx),v=env.view;
-  assert.equal(env.captured.manifest.version,'0.6.15');
+  assert.equal(env.captured.manifest.version,'0.6.16');
   assert.equal(v.activity.openMode,'window');
   assert.equal(v.top.activity,'dkts-keithley-4200');
   assert.equal(v.statusSpec.icon,'');
