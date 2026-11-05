@@ -73,6 +73,11 @@ test('parse KXCI user-mode TI status and preserve exact raw text',()=>{
   assert.equal(reading.currentA,1.25e-9);
   assert.equal(reading.rawResponse,'NAI+1.2500E-09');
   assert.equal(parseTi('CAI+2.1000E-06',1).status,'C');
+  assert.equal(parseTi('NEI+1.2500E-09',5).channel,'E');
+  assert.equal(parseTi('NHI-1.0000E-06',8).requestedSmU,8);
+  assert.throws(()=>parseTi('NBI+1.2000E-09',1),/通道不匹配/);
+  assert.throws(()=>parseTi('NZ I+1.2000E-09',1),/无法解析/);
+  assert.throws(()=>parseTi('NAI+1.2000E-09',9),/TI 请求通道/);
   assert.throws(()=>parseTi('1.2e-9',1),/无法解析/);
 });
 test('physical identity, authorization and high voltage interlock gate real output',()=>{
@@ -129,4 +134,35 @@ test('a compliance status terminates and reports the instrument protection event
   assert.match(result.error,/Compliance/);
   assert.equal(result.totalRows,1);
   assert.equal(result.shutdown,'commands-sent');
+});
+
+test('a mismatched TI reply fails without importing another channel and still attempts to disable SMUs',async()=>{
+  const ctl=makeController(command=>command==='TI1'?'NBI+1.0000E-09':
+    command===':ERROR:LAST:GET'?'No error (0)':'');
+  const runner=createRunner({controller:ctl,execution:createExecutionCoordinator(),
+    wait:ms=>new Promise(resolve=>setTimeout(resolve,ms))});
+  runner.start(program(),hardware,'CONFIRM_WIRING_AND_OUTPUT');
+  const result=await untilStopped(runner);
+  assert.equal(result.state,'failed');
+  assert.match(result.error,/响应通道不匹配/);
+  assert.equal(result.totalRows,0);
+  assert.deepEqual(ctl.commands.slice(-2).map(x=>x.command),['DV2','DV1']);
+});
+
+test('raw rows retain strictly increasing sequence and segment metadata',async()=>{
+  const ctl=makeController();
+  const runner=createRunner({controller:ctl,execution:createExecutionCoordinator(),
+    wait:ms=>new Promise(resolve=>setTimeout(resolve,ms))});
+  const cfg=program();
+  cfg.sweepProgram.xSweep.segments=[
+    {startV:0,stopV:0.5,stepV:0.5,rangeA:'auto'},
+    {startV:1,stopV:1.5,stepV:0.5,rangeA:'auto'}
+  ];
+  runner.start(cfg,hardware,'CONFIRM_WIRING_AND_OUTPUT');
+  const result=await untilStopped(runner);
+  assert.equal(result.state,'completed');
+  assert.deepEqual(result.rows.slice(0,4).map(x=>x.xSegment),[1,1,2,2]);
+  assert.deepEqual(result.rows.map(x=>x.sequence),
+    Array.from({length:result.rows.length},(_,i)=>i+1));
+  assert.equal(result.rows[8].pSegment,1);
 });
