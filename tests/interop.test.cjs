@@ -14,9 +14,9 @@ test('browser SDK modules use the same implementation as Node',()=>{
     assert.equal(id,'com.dkds.keithley-4200');registry.set(name,value);
   }}}};
   vm.createContext(sandbox);
-  for(const file of ['hardware-capabilities.js','kxci-protocol.js','waveform.js','measurement-plan.js','identity-core.js','interop.js'])
+  for(const file of ['hardware-capabilities.js','kxci-protocol.js','waveform.js','measurement-plan.js','kxci-measurement.js','identity-core.js','interop.js'])
     vm.runInContext(fs.readFileSync(path.join(root,'src/shared',file),'utf8'),sandbox,{filename:file});
-  assert.equal(registry.size,6);
+  assert.equal(registry.size,7);
   assert.equal(registry.get('dkts-kxci').IDN_REQUEST,protocol.IDN_REQUEST);
   const input={kind:'iv',points:3,loops:2,direction:'roundtrip'};
   assert.equal(JSON.stringify(registry.get('dkts-plan').previewPlan(input)),JSON.stringify(plan.previewPlan(input)));
@@ -47,7 +47,7 @@ test('DKDS package contains byte-for-byte copies of the shared core',()=>{
   const pkg=JSON.parse(fs.readFileSync(require('../tools/build-dkds-plugin.cjs').artifact,'utf8'));
   assert.equal(pkg.schema,1);
   assert.equal(pkg.manifest.id,'com.dkts.keithley-4200');
-  assert.equal(pkg.manifest.version,'0.6.16');
+  assert.equal(pkg.manifest.version,'0.6.17');
   assert.equal(pkg.manifest.apiVersion,'1.19.0');
   for(const file of ['kxci-protocol.js','waveform.js','measurement-plan.js','identity-core.js','interop.js'])
     assert.equal(pkg.files[file],require('../tools/build-dkds-plugin.cjs').adaptPluginSource(
