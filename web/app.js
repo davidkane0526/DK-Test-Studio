@@ -215,9 +215,10 @@ function renderStatus(value){
   reconnect.disabled=busy;
   disconnect.disabled=busy||!connected;
   reconnect.textContent=busy?'正在连接…':connected?'应用设置并重连':'重新连接';
+  syncRunButtons();
   if(state!==renderStatus.lastPhase){
     renderStatus.lastPhase=state;
-    const statusDetail=state==='connected'?'4200A 连接成功 · 只读模式':
+    const statusDetail=state==='connected'?'4200A 已连接':
       state==='error'?'连接失败 · 点击底栏连接状态查看详情':
       state==='connecting'?'正在连接 4200A…':'4200A 已断开连接';
     showStatusMessage(statusDetail,state==='error'?'error':connected?'success':'info',true,false);
@@ -1412,9 +1413,7 @@ const portUi=(()=>{
       for(const role of ROLES)
         for(const node of [home[role],header[role]])
           setSelectOptions(node,config[role],items);
-      $('terminal-inventory-state').textContent=inventory()
-        ?'已获取模块清单 · '+(latestStatus.inventory?.physicalModelsVerified?'物理型号已核验':'部分型号待核验')
-        :'仪器未识别 · 仅允许离线配置';
+      $('terminal-inventory-state').textContent='';
       const select=$('terminal-preset-select'),chosen=select.value;
       select.replaceChildren();
       const placeholder=document.createElement('option');
@@ -1741,12 +1740,12 @@ function renderTestSelection(){
   detail.inert=!active;
   detail.setAttribute('aria-hidden',String(!active));
   document.querySelector('.workspace').classList.toggle('workspace-active',active);
-  $('workspace-context-label').hidden=!tab;
-  $('workspace-context-label').textContent=tab
-    ?'当前工作区：'+tab.name+' · 可在此工作区切换不同测试方式':'';
+  $('workspace-context-label').hidden=true;
+  $('workspace-context-label').textContent='';
   renderWorkspaceTabs();
   if(!active)return;
   $('test-detail-title').textContent=mode.title;
+  syncRunButtons();
   $('data-column-x').textContent=mode.xColumn;
   $('measurement-empty').textContent='尚无'+mode.title+'的仪器实测数据';
   const rows=workspaceStore.getData(tab.id,activeMode);
@@ -1801,7 +1800,91 @@ function returnToTestLibrary(){
   $('test-types-title').focus({preventScroll:true});
   showStatusMessage(tab?'已返回'+tab.name+'的测试方式选择':'已返回测试方式选择');
 }
+let measurementUi=null;
+function syncRunButtons(){
+  const scanning=['iv','transfer','output'].includes(activeMode);
+  const running=Boolean(measurementUi?.running);
+  $('start-measurement').disabled=!scanning||running||state!=='connected';
+  $('stop-measurement').disabled=!running;
+  $('pause-measurement').disabled=true;
+  $('start-measurement').title=scanning?'执行 KXCI US/DV/TI 原生测量':'该测试尚未接入原生测量';
+  $('stop-measurement').title=running?'停止并尝试关闭全部已启用 SMU 输出':'';
+}
 renderTestSelection();
+
+async function startKxciMeasurement(){
+  if(measurementUi?.running)return;
+  if(!['iv','transfer','output'].includes(activeMode))return;
+  const approved=window.confirm('即将由 4200A 实际施加扫描电压。\n请确认接线、限流、设备互锁以及现场无人接触测试端。继续执行？');
+  if(!approved)return;
+  const tab=getActiveWorkspace();
+  if(!tab)return;
+  measurementUi={running:true,stopping:false,context:null,cursor:0,runId:null};
+  window.DKTSMeasurementRunning=true;
+  syncRunButtons();
+  try{
+    const plan={kind:activeMode,sweepProgram:portUi.snapshotScan()};
+    const result=await post('/api/measurement/start',{
+      authorization:'CONFIRM_WIRING_AND_OUTPUT',plan
+    });
+    if(!result.ok)throw Error(result.error||'仪器拒绝启动');
+    measurementUi.runId=result.runId;
+    measurementUi.context=beginMeasurementRun({summary:'4200A KXCI US/DV/TI 原始采集',
+      source:'instrument-raw',startedAt:result.startedAt,parameters:currentParameterSnapshot()});
+    showStatusMessage('KXCI 扫描已启动','success');
+    let finished=false;
+    while(!finished){
+      await new Promise(resolve=>setTimeout(resolve,220));
+      const response=await post('/api/measurement/status',{cursor:measurementUi.cursor});
+      if(!response.ok)throw Error(response.error||'测量状态读取失败');
+      if(response.runId!==measurementUi.runId)throw Error('仪器测量会话发生切换');
+      if(response.rows?.length){
+        appendMeasurementRun(measurementUi.context,response.rows);
+        measurementUi.cursor=response.nextCursor;
+      }
+      $('plan-status').textContent='实测 '+response.totalRows+' / '+response.totalPoints+
+        ' 点'+(response.state==='stopping'?' · 正在停止':'');
+      finished=!response.running;
+      if(finished){
+        const failed=response.state==='failed';
+        finishMeasurementRun(measurementUi.context,{
+          status:response.state,summary:response.error||'KXCI '+response.state,
+          safetyShutdown:response.shutdown,finishedAt:response.finishedAt
+        });
+        if(failed||response.shutdown!=='commands-sent'){
+          showStatusMessage((response.error||'测试异常')+
+            (response.shutdown!=='commands-sent'?'；关闭输出未确认，须现场检查':''),'error');
+        }else showStatusMessage(response.state==='stopped'?
+          '测量已停止，已发送 SMU 关闭输出指令':'测量完成，已发送 SMU 关闭输出指令','success');
+      }
+    }
+  }catch(error){
+    try{await post('/api/measurement/stop');}catch{}
+    if(measurementUi?.context)
+      finishMeasurementRun(measurementUi.context,{status:'failed',summary:String(error.message||error)});
+    showStatusMessage('测量异常：'+String(error.message||error).slice(0,170)+
+      '。若通信中断，请在仪器现场确认输出已关闭','error');
+  }finally{
+    measurementUi=null;
+    window.DKTSMeasurementRunning=false;
+    syncRunButtons();
+  }
+}
+async function stopKxciMeasurement(){
+  if(!measurementUi?.running||measurementUi.stopping)return;
+  measurementUi.stopping=true;
+  $('stop-measurement').disabled=true;
+  try{
+    const reply=await post('/api/measurement/stop');
+    if(!reply.ok)throw Error(reply.error||'停止请求失败');
+    showStatusMessage('已请求停止，正在关闭已启用的 SMU 输出');
+  }catch(error){
+    showStatusMessage('停止请求异常，请立即到仪器现场断开输出：'+
+      String(error.message||error).slice(0,90),'error');
+  }
+}
+$('start-measurement').addEventListener('click',()=>void startKxciMeasurement());
+$('stop-measurement').addEventListener('click',()=>void stopKxciMeasurement());
 
 async function validatePlan(){
   if(!activeMode||!TEST_MODES[activeMode]?.ready)return;
