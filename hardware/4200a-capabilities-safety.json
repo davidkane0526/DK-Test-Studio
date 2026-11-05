@@ -504,9 +504,13 @@
       },
       "sampling": {
         "maxRateSps": 200000000,
+        "maxSamplesPerAdcPerTest": 1000000,
         "nominalSampleIntervalS": 5e-9,
-        "parallelAdcBits": 14,
-        "maxSamplesPerChannel": 1000000
+        "note": "200 MS/s is a maximum; when the planned total exceeds one million samples per ADC test, the legacy Clarius ITM behavior may lower the sample rate. DKTS must calculate sample budget and not promise 5 ns across unlimited records.",
+        "evidence": [
+          "datasheet2025",
+          "smuReference2017"
+        ]
       },
       "waveform": {
         "segmentArb": {
@@ -517,9 +521,13 @@
           "timeResolutionS": 1e-8
         },
         "fullArb": {
-          "maxPoints": 262144,
-          "minIntervalS": 2e-8,
-          "maxIntervalS": 1
+          "supported": true,
+          "numericLimitsStatus": "not-extracted-and-not-enabled",
+          "note": "The official reference manual confirms Full-ARB mode exists, but this database does not yet contain a verified point-count/time-grid limit. DKTS must reject Full-ARB validation until the current 2026 Pulse Manual Rev D is extracted and the exact constraints are added.",
+          "maxPoints": null,
+          "minIntervalS": null,
+          "maxIntervalS": null,
+          "timeResolutionS": null
         },
         "pulseWidthSummary": {
           "sourceOnlyMinS": 2e-8,
@@ -644,7 +652,48 @@
         "datasheet2025",
         "pulseReference2017",
         "pulseManual2020"
-      ]
+      ],
+      "standardPulseTiming": {
+        "10V": {
+          "sourceOnly": {
+            "periodMinS": 2e-8,
+            "periodMaxS": 1,
+            "pulseWidthMinS": 1e-8,
+            "transitionMinS": 1e-8,
+            "transitionMaxS": 0.033
+          },
+          "withMeasure": {
+            "periodMinS": 1.2e-7,
+            "periodMaxS": 1,
+            "pulseWidthMinS": 6e-8,
+            "transitionMinS": 2e-8,
+            "transitionMaxS": 0.033
+          }
+        },
+        "40V": {
+          "sourceOnly": {
+            "periodMinS": 1e-7,
+            "periodMaxS": 1,
+            "pulseWidthMinS": 5e-8,
+            "transitionMinS": 3e-8,
+            "transitionMinVoltageV": 10,
+            "transitionMinAboveThresholdS": 1e-7,
+            "transitionMaxS": 0.033
+          },
+          "withMeasure": {
+            "periodMinS": 2.8e-7,
+            "periodMaxS": 1,
+            "pulseWidthMinS": 1.4e-7,
+            "transitionMinS": 1e-7,
+            "transitionMaxS": 0.033
+          }
+        },
+        "timingResolutionS": 1e-8,
+        "evidence": [
+          "datasheet2025",
+          "smuReference2017"
+        ]
+      }
     },
     "4225-RPM": {
       "category": "PMU-REMOTE-PREAMPLIFIER-SWITCH",
@@ -702,9 +751,13 @@
           "timeResolutionS": 1e-8
         },
         "fullArb": {
-          "maxPoints": 262144,
-          "minIntervalS": 2e-8,
-          "maxIntervalS": 1
+          "supported": true,
+          "numericLimitsStatus": "not-extracted-and-not-enabled",
+          "note": "The official reference manual confirms Full-ARB mode exists, but this database does not yet contain a verified point-count/time-grid limit. DKTS must reject Full-ARB validation until the current 2026 Pulse Manual Rev D is extracted and the exact constraints are added.",
+          "maxPoints": null,
+          "minIntervalS": null,
+          "maxIntervalS": null,
+          "timeResolutionS": null
         },
         "pulseWidthSummary": {
           "sourceOnlyMinS": 2e-8
@@ -714,31 +767,56 @@
         "datasheet2025",
         "pulseReference2017",
         "pulseManual2020"
-      ]
+      ],
+      "standardPulseTiming": {
+        "10V": {
+          "periodMinS": 2e-8,
+          "periodMaxS": 1,
+          "pulseWidthMinS": 1e-8,
+          "transitionMinS": 1e-8,
+          "transitionMaxS": 0.033
+        },
+        "40V": {
+          "periodMinS": 1e-7,
+          "periodMaxS": 1,
+          "pulseWidthMinS": 5e-8,
+          "transitionMinS": 3e-8,
+          "transitionMinVoltageV": 10,
+          "transitionMinAboveThresholdS": 1e-7,
+          "transitionMaxS": 0.033
+        },
+        "timingResolutionS": 1e-8,
+        "evidence": [
+          "datasheet2025",
+          "smuReference2017"
+        ]
+      },
+      "sampling": null
     },
     "4210-CVU": {
       "category": "CVU",
       "frequencyHz": {
         "min": 1000,
         "max": 10000000,
-        "steps": [
+        "discreteCount": 37,
+        "stepSchedule": [
           {
             "from": 1000,
             "to": 10000,
             "step": 1000
           },
           {
-            "from": 10000,
+            "from": 20000,
             "to": 100000,
             "step": 10000
           },
           {
-            "from": 100000,
+            "from": 200000,
             "to": 1000000,
             "step": 100000
           },
           {
-            "from": 1000000,
+            "from": 2000000,
             "to": 10000000,
             "step": 1000000
           }
@@ -754,8 +832,7 @@
       },
       "acDriveVrms": {
         "min": 0.01,
-        "max": 0.1,
-        "step": 0.001
+        "max": 0.1
       },
       "acOutputImpedanceOhmTypical": 100,
       "acMeasureCurrentRangesA": [
@@ -776,14 +853,16 @@
         "datasheet2025",
         "setup2025",
         "cvuManual2023"
-      ]
+      ],
+      "maxAcCurrentA": 0.01
     },
     "4215-CVU": {
       "category": "CVU",
       "frequencyHz": {
         "min": 1000,
         "max": 10000000,
-        "step": 1000
+        "step": 1000,
+        "discreteCount": 10000
       },
       "internalDcBiasV": {
         "min": -30,
@@ -795,8 +874,7 @@
       },
       "acDriveVrms": {
         "min": 0.01,
-        "max": 1,
-        "step": 0.001
+        "max": 1
       },
       "acOutputImpedanceOhmTypical": 100,
       "acMeasureCurrentRangesA": [
@@ -817,7 +895,8 @@
         "datasheet2025",
         "setup2025",
         "cvuManual2023"
-      ]
+      ],
+      "maxAcCurrentA": 0.01
     },
     "4200A-CVIV": {
       "category": "SWITCH-MATRIX",
@@ -836,13 +915,26 @@
         "not a source or measurement instrument",
         "bias-tee modes are for C-V only",
         "unused SMU input positions require channel blockers",
-        "must be bonded to protective earth using both supplied ground cables"
+        "must be bonded to protective earth using both supplied ground cables",
+        "Bias-tee DC bias is limited to ±200 V single-ended or 400 V differential; this is distinct from the switch general 210 V / 1 A rating."
       ],
       "discovery": "not reported by *OPT?; requires separate verified instrument information or explicit operator confirmation",
       "evidence": [
         "cvivManual2017",
         "datasheet2025"
-      ]
+      ],
+      "biasTee": {
+        "maxSingleEndedDcBiasV": 200,
+        "maxDifferentialDcBiasV": 400,
+        "maxComplianceABySmuClass": {
+          "medium": 0.1,
+          "high": 1
+        },
+        "allowedFor": "C-V measurements only; use SMU configuration mode for I-V",
+        "evidence": [
+          "cvivManual2017"
+        ]
+      }
     },
     "4200A-CVIV-SPT": {
       "category": "CVIV-ACCESSORY",
@@ -949,7 +1041,8 @@
         "medium": 210,
         "high": 210
       },
-      "note": "For voltage source, current limit is bounded by the selected voltage range and the module power envelope. For current source, voltage compliance is bounded by the selected voltage range and power envelope. Do not use the headline max V and max I as a simultaneously available rectangular operating area."
+      "note": "For voltage source, current limit is bounded by the selected voltage range and the module power envelope. For current source, voltage compliance is bounded by the selected voltage range and power envelope. Do not use the headline max V and max I as a simultaneously available rectangular operating area.",
+      "minComplianceExplanation": "Compliance lower bound is 10% of the selected current range; the lowest range depends on 4200-PA presence."
     },
     "pulse": {
       "loadDefinition": "total resistance at the pulse output connector, including DUT and interconnect",
@@ -965,7 +1058,9 @@
       "requireKnownLoadForSafetyValidation": true,
       "requireModuleMatchWhenConnected": true,
       "pmuCurrentMeasureRangeIsNotOutputCurrentLimit": true,
-      "rpmTimingMustBeUsedWhenRpmDetected": true
+      "rpmTimingMustBeUsedWhenRpmDetected": true,
+      "standardPulseTiming": "Use module standardPulseTiming by range and source-only versus measure mode; do not substitute Segment-ARB timing.",
+      "fullArb": "blocked until exact point/time limits from current 2026 Pulse Card User Manual Rev D are extracted"
     },
     "waveform": {
       "segmentArb": {
@@ -976,13 +1071,12 @@
         "maxSequences": 512
       },
       "fullArb": {
-        "minIntervalS": 2e-8,
-        "maxIntervalS": 1,
-        "maxPoints": 262144,
-        "intervalMustBeUniform": true
+        "allowed": false,
+        "reason": "The feature exists, but the exact constraints have not been verified from the current manual. DKTS must reject it instead of guessing."
       },
       "strictlyIncreasingTime": true,
-      "voltageMustRespectLoadAndCurrentLimit": true
+      "voltageMustRespectLoadAndCurrentLimit": true,
+      "smuArbitrary": "SMU is a source-delay-measure (SDM) staircase/custom sweep instrument, not a nanosecond pulse arbitrary-waveform generator. Validate the actual SDM cycle as source delay + integration/measurement time; do not accept PMU-style timing for SMU."
     },
     "cvu": {
       "requireExplicitModelWhenUsing1VRms": true,
@@ -993,7 +1087,8 @@
         0.000001,
         0.00003,
         0.001
-      ]
+      ],
+      "frequencySchedule": "4210-CVU has 37 discrete frequencies; 4215-CVU has 10,000 discrete frequencies at 1 kHz resolution."
     },
     "cviv": {
       "maxVoltageV": 210,
@@ -1084,10 +1179,21 @@
   },
   "sources": [
     {
+      "id": "officialCatalog2026",
+      "title": "Tektronix official 4200A-SCS support and downloads catalog",
+      "document": "Current official document index",
+      "revision": "2026-10-22 catalog snapshot",
+      "url": "https://www.tek.com/en/support/datasheets-manuals-software-downloads?series=Keithley+4200A-SCS+Parameter+Analyzer",
+      "sections": [
+        "Latest document list: 1KW-60780-7 datasheet (2026-10-22); 4200A-PMU-900-01D pulse manual (2026-10-22); 4200A-KXCI-907-01F (2026-10-09); 4200A-LPT-907-01E (2026-10-09)"
+      ],
+      "note": "The latest 2026 revisions are listed by the official catalog. Their PDF contents have not yet been fully extracted into this database; detailed numeric values below remain traceable to the cited accessible 2025 datasheet and prior official manuals until a revision-by-revision comparison is completed."
+    },
+    {
       "id": "datasheet2025",
       "title": "4200A-SCS Parameter Analyzer Datasheet",
       "document": "1KW-60780-7",
-      "revision": "2025-03-20",
+      "revision": "2025-03-20; official catalog lists a newer 2026-10-22 edition requiring revision comparison",
       "url": "https://download.tek.com/datasheet/1KW-60780-7_4200A-SCS_Parameter_Analyzer_Datasheet_20250320.pdf",
       "sections": [
         "Instruments and Modules",
@@ -1098,7 +1204,8 @@
         "Segment ARB",
         "RPM",
         "Ground Unit"
-      ]
+      ],
+      "note": "Detailed numeric source used for this initial database baseline. Check officialCatalog2026 before claiming the numbers are unchanged in the latest edition."
     },
     {
       "id": "setup2025",
@@ -1190,6 +1297,21 @@
         "pulse modes",
         "Segment ARB"
       ]
+    },
+    {
+      "id": "smuReference2017",
+      "title": "Model 4200A-SCS Parameter Analyzer Reference Manual",
+      "document": "4200A-901-01 Rev. D",
+      "revision": "2017-11",
+      "url": "https://download.tek.com/manual/4200A-901-01D_Reference_Manual_Nov2017.pdf",
+      "sections": [
+        "SMU source-delay-measure cycle",
+        "SMU current and voltage compliance",
+        "PMU/PGU modes",
+        "PMU sample limits",
+        "Full-ARB and Segment-ARB",
+        "CVU operation"
+      ]
     }
   ],
   "limitations": [
@@ -1199,6 +1321,8 @@
     "The PMU/PGU load equations are based on nominal 50 ohm source impedance and are approximate; verify the actual fixture and cabling.",
     "A module's output rating is not a safe operating limit for an arbitrary DUT. DUT voltage, current, power, energy, pulse width and thermal limits must be separately supplied.",
     "Pulse timing values are documented recommended minima/typical characteristics, not a guarantee of measurement accuracy for every DUT and cable configuration.",
-    "The database is not a substitute for the official manuals, laboratory electrical-safety procedures or physical interlocks."
+    "The database is not a substitute for the official manuals, laboratory electrical-safety procedures or physical interlocks.",
+    "Full-ARB exists for PMU/PGU, but exact point-count and time-grid limits are intentionally not asserted until extracted from the latest 2026-10-22 Pulse Card User Manual Rev D.",
+    "SMU sweep point time is an SDM cycle. It includes range-dependent source settling delay and measurement integration time; auto-ranging can extend it. A simple user-entered interval is not a guaranteed hardware interval."
   ]
 }
