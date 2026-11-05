@@ -57,6 +57,15 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   assert.equal(pgu40Low.transitionMinS, 30e-9);
   assert.equal(pgu40High.transitionMinS, 100e-9);
   assert.throws(() => caps.getPulseTimingRecommendation(10, null, true, 'pgu'), /不具备电流测量/);
+  assert.deepEqual(caps.getPmuCurrentRanges(40, false), [1e-2, 1e-1, 8e-1]);
+  assert.deepEqual(caps.getPmuCurrentRanges(40, true), [1e-3, 1e-2]);
+  const rpmTiming10 = caps.getPulseTimingRecommendation(10, 1e-7, true, 'pmu', true);
+  const rpmTiming40 = caps.getPulseTimingRecommendation(40, 1e-3, true, 'pmu', true);
+  assert.equal(rpmTiming10.rpmTimingStatus, 'published-typical');
+  assert.equal(rpmTiming10.rpmTypicalTiming.recommendedMinPulseWidthS, 0.134);
+  assert.equal(rpmTiming40.rpmTypicalTiming.recommendedMinPulseWidthS, 370e-9);
+  const pmu40High = caps.getPulseTimingRecommendation(40, null, false, 'pmu', false, 20);
+  assert.equal(pmu40High.transitionMinS, 100e-9);
   const capture = caps.getPmuCaptureBudget(1, null);
   assert.equal(capture.maxPointsPerChannel, 999999);
   assert.equal(capture.interfaceMaxPointsPerChannel, 65536);
