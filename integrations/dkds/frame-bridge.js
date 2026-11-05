@@ -82,6 +82,7 @@
     document.documentElement.dataset.dkdsHost='mobile';
   }
   document.addEventListener('DOMContentLoaded',()=>{
+    document.body.classList.add('dkds-plugin-host');
     ready=true;
     emit({type:'ready'});
     publishDraft(false,'initial');
