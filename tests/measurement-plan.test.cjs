@@ -33,6 +33,20 @@ test('planning rejects invalid limits, missing values, and channel conflicts',()
   assert.throws(()=>normalizePlan({startV:200,stopV:200,complianceA:0.0106}),/规划范围/);
   assert.throws(()=>normalizePlan({points:0}),/规划范围/);
   assert.throws(()=>normalizePlan({gateSmU:1,sourceSmU:1}),/不得/);
+  const mixed={inventory:{slots:[
+    {family:'SMU',channel:1,powerClass:'high'},
+    {family:'SMU',channel:2,powerClass:'medium'}
+  ]}};
+  const dual=normalizePlan({
+    sourceSmU:1,measureSmU:3,gateSmU:2,gateBiasV:100,
+    startV:20,stopV:20,complianceA:0.0105
+  },mixed);
+  assert.equal(dual.sourceMaxComplianceA,1.05);
+  assert.equal(dual.gateMaxComplianceA,0.0105);
+  assert.equal(dual.maxComplianceA,0.0105,
+    'The stricter gate-channel limit must constrain the shared compliance setting');
+  assert.throws(()=>normalizePlan({gateBiasV:10,gateSmU:0}),/必须选择独立的栅极 SMU/);
+
   assert.throws(()=>normalizePlan({complianceA:''}),/不能为空/);
 });
 
