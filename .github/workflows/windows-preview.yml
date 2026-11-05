@@ -303,7 +303,7 @@ jobs:
           Source commit: ${DKTS_BUILD_SHA}
           Matching UI hot update: ${hotfix_url}
 
-          This is the complete downloadable development package for this exact commit: Windows Setup, Windows Portable, Android APK, DKDS plugin, and the UI bundle. The installed DKTS application checks and applies the UI hot update only; it does not display or offer a full-package upgrade. Users can download this complete package directly from GitHub Releases. UI-only commits keep the same program version V${package_version}; only the hot-update ID advances."
+          This is the complete downloadable development package for this exact commit: Windows Setup, Windows Portable, Android APK, DKDS plugin, and the UI bundle. The UI hot update does not replace the standalone desktop server or native Android bridge. This release changes those native paths, so Windows and Android users need this matching full package to activate the complete hardware-specific validation. DKDS users can update the external plugin through DKDS Plugin Manager. The installed DKTS application does not prompt for a full-package upgrade; users can download this complete package directly from GitHub Releases. UI-only commits keep the same program version V${package_version}; only the hot-update ID advances."
           files=(release/windows/*.exe release/plugin/*.dkplugin release/android/*.apk release/ui/*.json)
           test "${#files[@]}" -eq 5
           url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
