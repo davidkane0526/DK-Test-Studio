@@ -2,7 +2,7 @@
   'use strict';
   const DATABASE = {
     schema: 'dkts.4200a.hardware-capabilities.v1',
-    databaseVersion: '1.4.1',
+    databaseVersion: '1.5.0',
     generatedAt: '2026-11-05',
     instrument: { family: 'Keithley 4200A-SCS', maxChassisPowerW: 500, kxciInventorySlots: 8, maxKxciSmuChannelNumber: 9 },
     inventoryDiscovery: {
@@ -21,6 +21,8 @@
       { id: 'tek-4200a-pmu-rev-c', title: 'Model 4200A-SCS Pulse Card (PGU and PMU) User Manual', revision: '4200A-PMU-900-01 Rev. C', published: '2024-05', url: 'https://download.tek.com/manual/4200A-PMU-900-01C_May31_2024.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-setup-rev-f', title: 'Model 4200A-SCS Setup and Maintenance', revision: '4200A-908-01 Rev. F', published: '2025-03', url: 'https://download.tek.com/manual/4200A-908-01F_Setup_Maint_March_2025.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-cvu-rev-b', title: 'Model 4200A-SCS CVU User Manual', revision: '4200A-CVU-900-01 Rev. B', published: '2023-03', url: 'https://download.tek.com/manual/4200A-CVU-900-01B_March_2023.pdf', authority: 'manufacturer' },
+      { id: 'tek-4200a-cviv-rev-e', title: 'Model 4200A-CVIV Multi-Switch User Manual', revision: '4200A-CVIV-900-01 Rev. E', published: '2020-12', url: 'https://www.tek.com/-/media/documents/4200a-cviv-900-01e_december2020.pdf', authority: 'manufacturer' },
+      { id: 'tek-4200a-cviv-400v-appnote', title: 'Making Three-Terminal Capacitance-Voltage Measurements Up to 400 V Using the 4200A-CVIV Multi-Switch Bias Tee Capability', revision: '1KW-61529-1', published: '2020-12-15', url: 'https://download.tek.com/document/1KW-61529-1_Making_3-Terminal_C-V_Measurements_up_to_400V_4200A-CVIV_Application_Note_111320.pdf', authority: 'manufacturer' },
       { id: 'tek-4200a-current-manual-index', title: 'Tektronix 4200A-SCS manuals and software download index', revision: 'Current index checked 2026-11-05', url: 'https://www.tek.com/en/support/datasheets-manuals-software-downloads?model=4200A-SCS', authority: 'manufacturer' },
       { id: 'tek-4200-cvu-pwr-rev-f', title: 'Model 4200-CVU-PWR Parts Package Instruction Sheet', revision: 'PA-977 Rev. F', published: '2023-06-21', url: 'https://www.tek.com/en/manual/model-4200-cvu-pwr-parts-package', authority: 'manufacturer' },
       { id: 'tek-4200-cvu-pwr-appnote', title: 'Using the 4200-CVU-PWR C-V Power Package for High Voltage and High Current C-V Measurements', revision: 'Application Note', published: '2020-04-06', url: 'https://download.tek.com/document/1KW606370MakingHighVoltageHighCurrentCV%20Measurements4200ASCS4200CVUPWRApplicationNote040620.pdf', authority: 'manufacturer' }
@@ -179,7 +181,22 @@
       VM: { type: 'VM', family: 'VM', role: 'voltage-meter-only', verificationStatus: 'role-only', measurement: { nominalMaxVoltageV: 200, maxAbsVoltageV: 210, inputImpedanceOhm: 1e13, inputLeakageA: 30e-12 }, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e'] },
       RPM: { type: 'RPM', family: 'RPM', role: 'low-current-measurement-accessory', verificationStatus: 'documented', measurement: { lowestCurrentRangeA: 1e-7, currentMeasurementResolutionA: 2e-10 }, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e'] },
       PA: { type: 'PA', family: 'SMU-accessory', role: 'low-current-preamplifier', verificationStatus: 'documented', measurement: { lowestCurrentRangeA: 1e-12, currentMeasurementResolutionA: 1e-17 }, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e'] },
-      CVIV: { type: 'CVIV', family: 'switch-matrix', role: 'signal-routing-only', verificationStatus: 'documented', channels: 4, maxVoltageV: 210, maxCurrentA: 1, independentSource: false, sourceRefs: ['tek-4200a-datasheet-2026'] },
+      CVIV: {
+        type: 'CVIV', family: 'switch-matrix', role: 'signal-routing-only', verificationStatus: 'documented',
+        channels: 4, maxVoltageV: 210, maxCurrentA: 1, independentSource: false,
+        biasTeeModes: {
+          biasTSmuCvHiLo: { maximumDcBiasV: 200, maximumDcCurrentA: 1 },
+          biasTSmuLoICvHiLo: { maximumDcBiasV: 200, maximumDcCurrentA: 1e-4 },
+          biasTSmuAcGnd: { maximumDcBiasV: 200 }
+        },
+        specialDifferentialMode: {
+          maximumDifferentialVoltageV: 400, maximumAbsoluteVoltagePerPathV: 200,
+          requiresThreeSynchronizedSmuChannels: true, packagedDevicesOnly: true,
+          waferLevelAllowed: false, requiresVerifiedBiasTeeConfiguration: true,
+          note: '400 V 为器件端差分电压，由三个 SMU 按指定 Bias Tee 接法同步输出实现，不是 CVIV 单通道可直接输出 400 V。'
+        },
+        sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-cviv-rev-e', 'tek-4200a-cviv-400v-appnote']
+      },
       GNDU: { type: 'GNDU', family: 'ground-unit', role: 'built-in-ground-unit', verificationStatus: 'documented', currentA: { dualMiniTriax: 2.6, bindingPosts: 9.5 }, independentSource: false, sourceRefs: ['tek-4200a-datasheet-2026'] }
     },
     safetyPolicies: {
@@ -210,9 +227,22 @@
         RPM: { independentSource: false, allowedHostFamily: 'PMU', role: 'remote-preamplifier-and-switch', requiresPMU: true, noIndependentPulseOutput: true }
       },
       switchMatrix: {
-        CVIV: { maximumVoltageV: 210, maximumCurrentA: 1, independentSource: false,
+        CVIV: {
+          maximumVoltagePerSignalPathV: 210, maximumCurrentA: 1, independentSource: false,
           requiresImpedanceLimitedSource: true, forbidDirectMainsConnection: true,
-          requirePowerOffBeforeReconfiguration: true }
+          requirePowerOffBeforeReconfiguration: true,
+          biasTeeModes: {
+            biasTSmuCvHiLo: { maximumDcBiasV: 200, maximumDcCurrentA: 1 },
+            biasTSmuLoICvHiLo: { maximumDcBiasV: 200, maximumDcCurrentA: 1e-4 },
+            biasTSmuAcGnd: { maximumDcBiasV: 200 }
+          },
+          specialDifferentialMode: {
+            maximumDifferentialVoltageV: 400, maximumAbsoluteVoltagePerPathV: 200,
+            requiresThreeSynchronizedSmuChannels: true, packagedDevicesOnly: true,
+            waferLevelAllowed: false, requiresVerifiedBiasTeeConfiguration: true,
+            sourceRefs: ['tek-4200a-cviv-400v-appnote']
+          }
+        }
       },
       groundUnit: {
         GNDU: { independentSource: false, currentA: { dualMiniTriax: 2.6, bindingPosts: 9.5 },
