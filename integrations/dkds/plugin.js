@@ -123,7 +123,7 @@
           }
           if(route==='/api/waveform/validate'){
             if(typeof payload.text!=='string')return {status:400,data:{error:'波形应为文本'}};
-            const wave=waveform.parseWaveformText(payload.text);
+            const wave=waveform.parseWaveformText(payload.text,{sourceType:payload.sourceType||'smu'});
             const interval=Math.max(1,Math.ceil(wave.points.length/300));
             return {status:200,data:{ok:true,count:wave.points.length,
               durationS:wave.durationS,minimumStepS:wave.minimumStepS,
@@ -213,7 +213,7 @@
         validatePlan:()=>plan(),previewPlan:()=>planner.previewPlan(plan()),
         validateWaveform:(points,options)=>waveform.validateWaveform(points,options),
         publishMeasurement,
-        parseWaveformText:text=>waveform.parseWaveformText(text),
+        parseWaveformText:(text,options)=>waveform.parseWaveformText(text,options),
         exportPlan,importPlan
       }
     });
