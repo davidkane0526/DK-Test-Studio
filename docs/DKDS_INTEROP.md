@@ -24,7 +24,7 @@ GitHub Actions 的 `DKDS Plugin API 1.19 compatibility` 任务会从 DK Data Stu
 - 所有数值校验只生成不可执行方案。硬件执行前仍必须依据真实插槽、模块型号、工作象限、所选电流档位和设备 interlock 重新验证；目前没有开放 SMU/PMU 输出命令。
 - 4200A 能力数据唯一来源为 `src/shared/hardware-capabilities.js`。运行 `npm run hardware:export` 可生成 `DKTS-4200A-Hardware-Capability-Database-v1.json`，并作为完整 Release 的独立资产发布。数据库同时记录 *OPT? 类别、SystemUtil 物理模块识别规则、参数边界、来源手册和安全策略。
 - `*OPT?` 中的 `HPSMUPA`、`PMU1RPM1-2` 等类别直接用于选择数据库额定值；具体 4200/4201/4210/4211 型号及校准信息由 `instrumentinfo` 补充。CVU 变体必须由物理型号确认，不擅自选择 4210-CVU 或 4215-CVU 的专属 AC 驱动规格。
-- 导出的模块安全策略还分别约束 CVU 型号与 4200-CVU-PWR 附件识别、VS/VM 逻辑通道绑定、PA/RPM 宿主模块依赖、CVIV 高压开关矩阵和 GNDU 接地电流边界。CVU-PWR 未被明确验证时，不开放其 400 V 差分能力。
+- 导出的模块安全策略还分别约束 CVU 型号与 4200-CVU-PWR 附件识别、VS/VM 逻辑通道绑定、PA/RPM 宿主模块依赖、CVIV 高压开关矩阵和 GNDU 接地电流边界。CVU-PWR 未被明确验证时，不开放其 400 V 差分能力。 CVIV 另有独立的 400 V 器件端差分 Bias Tee 方案，必须由三个 SMU 按规定同步输出，且只适用于封装器件，不适用于晶圆级测试。
 - PMU/PGU 的硬件规划上限为 Segment Arb 每段 20 ns 至 40 s、每通道最多 2048 段、每通道最多 512 个序列、序列循环上限 10^12，分段时间分辨率 10 ns。PMU 硬件采集上限为 200 MSa/s、每个 A/D 每次测试最多 1,000,000 点。
 - 当前 KXCI 命令路径另有接口边界：Segment Arb 单段时间上限 1 s，最小分段时间按量程分别为 PMU 10 V 20 ns、PGU 10 V 10 ns、40 V 50 ns；数组命令每次最多 128 个值（可用 ADD 命令分批追加），PMU 数据缓冲每通道最多 65,536 点。能力数据库分别保存硬件极限和 KXCI 接口极限，波形规划按硬件规格校验，并单独标记当前接口不兼容的方案。
 - PMU 电流量程按是否安装 RPM 分开：无 RPM 时，40 V 档为 10 mA、100 mA、800 mA；安装 RPM 后，10 V 档为 100 nA、1 mA、10 mA、100 mA，40 V 档为 1 mA、10 mA。RPM 的最小脉冲宽度、测量窗口和跳变时间按量程提供厂商典型值，仅作为性能建议，不冒充硬件硬限制。
