@@ -9,7 +9,7 @@ const js=fs.readFileSync(path.join(root,'web/app.js'),'utf8');
 const html=fs.readFileSync(path.join(root,'web/index.html'),'utf8');
 const css=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
 const from=js.indexOf('function numericKeyEdit(value,start,end,key,real=true){');
-const until=js.indexOf('\nfunction installAndroidNumericKeypad(){',from);
+const until=js.indexOf('\n// Clamp the floating keypad',from);
 assert(from>=0&&until>from);
 const edit=vm.runInNewContext('('+js.slice(from,until)+')');
 const asPlain=result=>JSON.parse(JSON.stringify(result));
