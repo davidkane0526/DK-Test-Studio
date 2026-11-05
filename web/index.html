@@ -205,6 +205,30 @@
             <label>测量 SMU<input type="number" name="measureSmU" value="1" min="1" max="9"></label>
             <label>栅极 SMU（0 不用）<input type="number" name="gateSmU" value="0" min="0" max="9"></label>
             <label>栅极偏置 (V)<input type="number" name="gateBiasV" value="0" step="any" min="-210" max="210"></label>
+            <label id="source-model-control" class="offline-model-only" hidden>离线规划：源 SMU 型号
+              <select name="sourceModel">
+                <option value="4200-SMU">4200-SMU · 中功率</option>
+                <option value="4201-SMU">4201-SMU · 中功率/高电容</option>
+                <option value="4210-SMU">4210-SMU · 高功率</option>
+                <option value="4211-SMU">4211-SMU · 高功率/高电容</option>
+              </select>
+            </label>
+            <label id="measure-model-control" class="offline-model-only" hidden>离线规划：测量 SMU 型号
+              <select name="measureModel">
+                <option value="4200-SMU">4200-SMU · 中功率</option>
+                <option value="4201-SMU">4201-SMU · 中功率/高电容</option>
+                <option value="4210-SMU">4210-SMU · 高功率</option>
+                <option value="4211-SMU">4211-SMU · 高功率/高电容</option>
+              </select>
+            </label>
+            <label id="gate-model-control" class="offline-model-only" hidden>离线规划：栅极 SMU 型号
+              <select name="gateModel">
+                <option value="4200-SMU">4200-SMU · 中功率</option>
+                <option value="4201-SMU">4201-SMU · 中功率/高电容</option>
+                <option value="4210-SMU">4210-SMU · 高功率</option>
+                <option value="4211-SMU">4211-SMU · 高功率/高电容</option>
+              </select>
+            </label>
           </div>
         </details>
       </form>
