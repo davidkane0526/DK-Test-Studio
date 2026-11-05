@@ -136,6 +136,7 @@
   function scanChannel(value,label){
     const raw=String(value??'None').toUpperCase().trim();
     if(raw==='NONE')return {name:'None',family:'none',number:null};
+    if(raw==='GNDU')return {name:'GNDU',family:'GNDU',number:null};
     const match=/^(SMU|VS|VM|PMU|VPU)([1-9])(?:-([12]))?$/.exec(raw);
     if(!match)throw Error(label+' 不是有效的 4200A 通道标识');
     if(match[3]&& !['PMU','VPU'].includes(match[1]))
@@ -152,7 +153,9 @@
     if(delta===0){
       if(stepV!==0)throw Error(label+' 起止相同必须使用 0 步长');
       return Object.freeze({startV,stopV,stepV,points:1,
-        rangeA:String(input.rangeA??'auto').toLowerCase()});
+        rangeA:String(input.rangeA??'auto').toLowerCase(),
+        delayMs:input.delayMs==null||input.delayMs===''?null:
+          finite(input.delayMs,label+' 点间延迟',0,6553)});
     }
     if(stepV===0||Math.sign(delta)!==Math.sign(stepV))
       throw Error(label+' 步长符号必须与扫描方向一致');
@@ -163,7 +166,9 @@
     // Per-command KXCI list capacity, not a guessed hardware voltage limit.
     if(nearest+1>4096)throw Error(label+' 超过 KXCI 单段 4096 点，请拆分扫描段');
     return Object.freeze({startV,stopV,stepV,points:nearest+1,
-      rangeA:String(input.rangeA??'auto').toLowerCase()});
+      rangeA:String(input.rangeA??'auto').toLowerCase(),
+      delayMs:input.delayMs==null||input.delayMs===''?null:
+        finite(input.delayMs,label+' 点间延迟',0,6553)});
   }
   function sweepAxis(input,name,defaultRole){
     if(!input||typeof input!=='object')throw Error(name+' 设置缺失');
@@ -184,7 +189,8 @@
       if(offset<segment.points)return Object.freeze({
         voltageV:offset===segment.points-1?segment.stopV:
           segment.startV+offset*segment.stepV,
-        rangeA:segment.rangeA,segmentIndex:axis.segments.indexOf(segment)+1});
+        rangeA:segment.rangeA,delayMs:segment.delayMs??axis.delayMs,
+        segmentIndex:axis.segments.indexOf(segment)+1});
       offset-=segment.points;
     }
     throw Error('扫描点索引越界');
@@ -210,8 +216,9 @@
       x.terminal==='gate'?'drain':'gate'):null;
     if(p&&p.terminal===x.terminal)
       throw Error('Psweep 和 Xsweep 不能扫描同一个电极');
-    if(terminalChannels[x.terminal]==='None'||(p&&terminalChannels[p.terminal]==='None'))
-      throw Error('扫描电极必须分配可用仪器通道');
+    if(['None','GNDU'].includes(terminalChannels[x.terminal])||
+       (p&&['None','GNDU'].includes(terminalChannels[p.terminal])))
+      throw Error('扫描电极必须分配能输出电压的仪器通道');
     const loops=count(program.loops??1,'整体循环次数',1,10000);
     const totalPoints=x.points*x.repeats*(p?p.points*p.repeats:1)*loops;
     if(!Number.isSafeInteger(totalPoints))throw Error('总规划点数超过安全整数范围');
@@ -220,8 +227,8 @@
       fixedVoltages[role]=finite(program.fixedVoltages?.[role]??0,
         role+' 固定电压',-210,210);
     for(const role of DC_ROLES){
-      if(terminalChannels[role]==='None'&&fixedVoltages[role]!==0)
-        throw Error(role+' 未分配端口，不能施加非零固定偏置');
+      if(['None','GNDU'].includes(terminalChannels[role])&&fixedVoltages[role]!==0)
+        throw Error(role+' 未分配源通道或为 GNDU，不能施加非零偏置');
     }
     const caps=capabilityApi(hardware);
     const inventory=hardware.inventory;
@@ -230,7 +237,7 @@
     for(const role of DC_ROLES){
       const name=terminalChannels[role];
       const channel=scanChannel(name,role);
-      if(channel.family!=='none'&&!['SMU','VS'].includes(channel.family))
+      if(!['none','GNDU','SMU','VS'].includes(channel.family))
         throw Error(role+' 的 DC 扫描必须使用 SMU 或 VS；PMU/PGU 应在脉冲测试中配置');
       const entry=program.portSettings?.[role]||{};
       const rangeMode=String(entry.rangeMode||'auto');
@@ -244,7 +251,7 @@
       if(rangeMode!=='auto'&&!SCIENTIFIC_RANGES.some(v=>String(v)===String(Number(rangeA))))
         throw Error(role+' 固定量程/自动量程下限必须为原厂支持的离散档位');
       portSettings[role]=Object.freeze({rangeMode,complianceMode,rangeA,complianceA});
-      if(channel.family==='none')continue;
+      if(channel.family==='none'||channel.family==='GNDU')continue;
       const slot=inventory?.slots?.find(item=>item&&item.channel===channel.number&&
         (item.family===channel.family||
           (channel.family==='SMU'&&item.family==='SMU'))) ||null;
@@ -284,7 +291,7 @@
           currentRangesA:[...supported]});
       }else limitsByRole[role]=Object.freeze({known:false});
     }
-    const roles=DC_ROLES.filter(role=>terminalChannels[role]!=='None');
+    const roles=DC_ROLES.filter(role=>!['None','GNDU'].includes(terminalChannels[role]));
     const powerBudget=caps?.calculateChassisPower?.({
       inventory,activeSmuChannels:roles.map(role=>slotForRole[role]).filter(Boolean)
         .map(slot=>({channel:slot.channel,family:slot.family}))
@@ -325,7 +332,8 @@
         xVoltageV:xp.voltageV,pVoltageV:pp?.voltageV??null,
         sourceVoltageV:voltageByRole.source,drainVoltageV:voltageByRole.drain,
         gateVoltageV:voltageByRole.gate,
-        currentRangeA:xp.rangeA}));
+        currentRangeA:xp.rangeA,plannedPointDelayMs:xp.delayMs,
+        pPointDelayMs:pp?.delayMs??null}));
     }
     return {plan,firstPoints,truncated:plan.totalPoints>max};
   }
