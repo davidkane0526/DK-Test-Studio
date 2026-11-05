@@ -1,0 +1,1204 @@
+{
+  "schema": "dkts.4200a.capability-safety",
+  "schemaVersion": 1,
+  "databaseVersion": "1.0.0",
+  "target": {
+    "manufacturer": "Keithley Instruments / Tektronix",
+    "family": "4200A-SCS",
+    "supportedModes": [
+      "4200A native KXCI"
+    ],
+    "notSupportedModes": [
+      "4145B emulation"
+    ]
+  },
+  "generated": {
+    "date": "2026-11-05",
+    "owner": "DK Test Studio",
+    "canonical": true
+  },
+  "purpose": "Machine-readable source of truth for module capabilities and planning-time safety validation. This file is intentionally exportable for independent AI and human review.",
+  "safetyModel": {
+    "levels": [
+      {
+        "id": "instrument",
+        "description": "Instrument/module electrical and timing limits documented by Keithley/Tektronix."
+      },
+      {
+        "id": "dut",
+        "description": "Device-under-test limits supplied by the operator or a DUT profile. Instrument ratings do not imply DUT safety."
+      },
+      {
+        "id": "execution",
+        "description": "Runtime interlocks, output-off state, abort behavior, wiring/fixture checks and hardware acceptance. These cannot be inferred from this database alone."
+      }
+    ],
+    "unknownDataPolicy": "Never infer a higher capability from missing or ambiguous inventory. For offline planning only, use medium-power SMU without preamplifier assumptions. A connected inventory that does not contain the selected channel, or contains an unknown token, blocks that channel's plan.",
+    "executionStatus": "planning-only; no output commands are enabled by this database",
+    "humanSafety": {
+      "shockHazardThresholds": {
+        "dcV": 60,
+        "acRmsV": 30,
+        "acPeakV": 42.4
+      },
+      "highVoltageInterlockRequired": true,
+      "highVoltageInterlockNote": "The 4200A-SCS high-voltage output interlock must be positively activated. Software cannot prove that the physical interlock, fixture lid, earth bonding or operator exclusion zone is safe.",
+      "switchingWarning": "Do not connect switching cards directly to unlimited-energy sources or mains. Use impedance-limited sources and suitable protective devices.",
+      "cableAndDutWarning": "Inspect cables and fixtures; discharge capacitors and remove power before changing connections. Treat unknown circuits as potentially hazardous."
+    }
+  },
+  "system": {
+    "mainframeSlots": {
+      "maxSmus": 9,
+      "kxciOptionQueryReturnsUpTo": 8,
+      "channelNumbers": {
+        "min": 1,
+        "max": 9
+      },
+      "source": "setup2025,kxci2025"
+    },
+    "maxPmuCards": 6,
+    "inventory": {
+      "primaryCommand": "*OPT?",
+      "mode": "4200A native KXCI only",
+      "returns": "Up to eight comma-separated slot descriptors. Descriptor channel suffix n identifies KXCI instrument number 1..9.",
+      "discovers": [
+        "SMU medium/high class",
+        "SMU preamplifier-present flag",
+        "CVU family",
+        "PMU/PGU family",
+        "RPM attachment/channel association when encoded by KXCI"
+      ],
+      "doesNotDiscover": [
+        "Exact 4200-SMU versus 4201-SMU model",
+        "Exact 4210-SMU versus 4211-SMU model",
+        "Exact 4210-CVU versus 4215-CVU model",
+        "4200A-CVIV presence/configuration",
+        "GNDU terminal wiring and binding-post selection",
+        "Physical interlock state",
+        "DUT/load/cable ratings"
+      ],
+      "secondaryOfficialQueries": {
+        "instrumentinfo": {
+          "purpose": "Instrument-card and 4200A-CVIV information",
+          "implementationStatus": "not-integrated; must not be assumed available through current read-only bridge"
+        },
+        "remotemoduleinfo": {
+          "purpose": "Preamplifier and RPM information",
+          "implementationStatus": "not-integrated; must not be assumed available through current read-only bridge"
+        }
+      }
+    }
+  },
+  "modules": {
+    "4200-SMU": {
+      "category": "SMU",
+      "powerClass": "medium",
+      "variants": [
+        "4200-SMU",
+        "4200-SMU-R"
+      ],
+      "capabilities": [
+        "dc-iv",
+        "source-voltage",
+        "source-current",
+        "measure-voltage",
+        "measure-current",
+        "four-quadrant",
+        "two-wire",
+        "four-wire",
+        "sweep",
+        "step",
+        "constant-bias",
+        "very-low-frequency-cv",
+        "qscv"
+      ],
+      "sourceVoltageMaxV": 210,
+      "sourceCurrentMaxA": 0.105,
+      "maxPowerW": 2.1,
+      "voltageSourceRanges": [
+        {
+          "rangeV": 200,
+          "maxCurrentA": 0.0105
+        },
+        {
+          "rangeV": 20,
+          "maxCurrentA": 0.105
+        },
+        {
+          "rangeV": 2,
+          "maxCurrentA": 0.105
+        },
+        {
+          "rangeV": 0.2,
+          "maxCurrentA": 0.105
+        }
+      ],
+      "currentSourceRanges": [
+        {
+          "rangeA": 0.1,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.01,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.0001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.00001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.000001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 1e-7,
+          "maxComplianceV": 210
+        }
+      ],
+      "minCurrentRangeA": 1e-7,
+      "hasPreamplifier": false,
+      "loadCapacitance": {
+        "maxF": 1e-8,
+        "qualification": "4200-SMU/4210-SMU base model; use conservative 10 nF limit"
+      },
+      "evidence": [
+        "datasheet2025",
+        "setup2025"
+      ]
+    },
+    "4201-SMU": {
+      "category": "SMU",
+      "powerClass": "medium",
+      "variants": [
+        "4201-SMU",
+        "4201-SMU-R"
+      ],
+      "capabilities": [
+        "dc-iv",
+        "source-voltage",
+        "source-current",
+        "measure-voltage",
+        "measure-current",
+        "four-quadrant",
+        "two-wire",
+        "four-wire",
+        "sweep",
+        "step",
+        "constant-bias",
+        "high-capacitance-fixture"
+      ],
+      "sourceVoltageMaxV": 210,
+      "sourceCurrentMaxA": 0.105,
+      "maxPowerW": 2.1,
+      "voltageSourceRanges": [
+        {
+          "rangeV": 200,
+          "maxCurrentA": 0.0105
+        },
+        {
+          "rangeV": 20,
+          "maxCurrentA": 0.105
+        },
+        {
+          "rangeV": 2,
+          "maxCurrentA": 0.105
+        },
+        {
+          "rangeV": 0.2,
+          "maxCurrentA": 0.105
+        }
+      ],
+      "currentSourceRanges": [
+        {
+          "rangeA": 0.1,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.01,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.0001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.00001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.000001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 1e-7,
+          "maxComplianceV": 210
+        }
+      ],
+      "minCurrentRangeA": 1e-7,
+      "hasPreamplifier": false,
+      "loadCapacitance": {
+        "byCurrentRange": [
+          {
+            "maxCurrentA": 0.1,
+            "maxF": 0.0001
+          },
+          {
+            "minCurrentA": 1e-7,
+            "maxCurrentA": 0.01,
+            "maxF": 0.00001
+          }
+        ]
+      },
+      "evidence": [
+        "datasheet2025",
+        "setup2025"
+      ]
+    },
+    "4210-SMU": {
+      "category": "SMU",
+      "powerClass": "high",
+      "variants": [
+        "4210-SMU",
+        "4210-SMU-R"
+      ],
+      "capabilities": [
+        "dc-iv",
+        "source-voltage",
+        "source-current",
+        "measure-voltage",
+        "measure-current",
+        "four-quadrant",
+        "two-wire",
+        "four-wire",
+        "sweep",
+        "step",
+        "constant-bias",
+        "very-low-frequency-cv",
+        "qscv"
+      ],
+      "sourceVoltageMaxV": 210,
+      "sourceCurrentMaxA": 1.05,
+      "maxPowerW": 21,
+      "voltageSourceRanges": [
+        {
+          "rangeV": 200,
+          "maxCurrentA": 0.105
+        },
+        {
+          "rangeV": 20,
+          "maxCurrentA": 1.05
+        },
+        {
+          "rangeV": 2,
+          "maxCurrentA": 1.05
+        },
+        {
+          "rangeV": 0.2,
+          "maxCurrentA": 1.05
+        }
+      ],
+      "currentSourceRanges": [
+        {
+          "rangeA": 1,
+          "maxComplianceV": 21
+        },
+        {
+          "rangeA": 0.1,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.01,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.0001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.00001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.000001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 1e-7,
+          "maxComplianceV": 210
+        }
+      ],
+      "minCurrentRangeA": 1e-7,
+      "hasPreamplifier": false,
+      "loadCapacitance": {
+        "maxF": 1e-8,
+        "qualification": "4200-SMU/4210-SMU base model; use conservative 10 nF limit"
+      },
+      "evidence": [
+        "datasheet2025",
+        "setup2025"
+      ]
+    },
+    "4211-SMU": {
+      "category": "SMU",
+      "powerClass": "high",
+      "variants": [
+        "4211-SMU",
+        "4211-SMU-R"
+      ],
+      "capabilities": [
+        "dc-iv",
+        "source-voltage",
+        "source-current",
+        "measure-voltage",
+        "measure-current",
+        "four-quadrant",
+        "two-wire",
+        "four-wire",
+        "sweep",
+        "step",
+        "constant-bias",
+        "high-capacitance-fixture"
+      ],
+      "sourceVoltageMaxV": 210,
+      "sourceCurrentMaxA": 1.05,
+      "maxPowerW": 21,
+      "voltageSourceRanges": [
+        {
+          "rangeV": 200,
+          "maxCurrentA": 0.105
+        },
+        {
+          "rangeV": 20,
+          "maxCurrentA": 1.05
+        },
+        {
+          "rangeV": 2,
+          "maxCurrentA": 1.05
+        },
+        {
+          "rangeV": 0.2,
+          "maxCurrentA": 1.05
+        }
+      ],
+      "currentSourceRanges": [
+        {
+          "rangeA": 1,
+          "maxComplianceV": 21
+        },
+        {
+          "rangeA": 0.1,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.01,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.0001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.00001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 0.000001,
+          "maxComplianceV": 210
+        },
+        {
+          "rangeA": 1e-7,
+          "maxComplianceV": 210
+        }
+      ],
+      "minCurrentRangeA": 1e-7,
+      "hasPreamplifier": false,
+      "loadCapacitance": {
+        "byCurrentRange": [
+          {
+            "maxCurrentA": 1,
+            "maxF": 0.0001
+          },
+          {
+            "minCurrentA": 1e-7,
+            "maxCurrentA": 0.01,
+            "maxF": 0.00001
+          }
+        ]
+      },
+      "evidence": [
+        "datasheet2025",
+        "setup2025"
+      ]
+    },
+    "4200-PA": {
+      "category": "SMU-PREAMPLIFIER",
+      "role": "extends the low-current source/measure ranges of an associated SMU; does not increase the SMU's voltage, current or power rating",
+      "addedCurrentRangesA": [
+        1e-8,
+        1e-9,
+        1e-10,
+        1e-11,
+        1e-12
+      ],
+      "addedRangesLabels": [
+        "10 nA",
+        "1 nA",
+        "100 pA",
+        "10 pA",
+        "1 pA"
+      ],
+      "minimumCurrentRangeA": 1e-12,
+      "minimumComplianceA": 1e-13,
+      "matchingRule": "Each preamplifier is matched to its associated SMU. Do not infer the association from physical proximity.",
+      "evidence": [
+        "datasheet2025",
+        "setup2025"
+      ]
+    },
+    "4225-PMU": {
+      "category": "PMU",
+      "channels": 2,
+      "sourceAndMeasure": true,
+      "simultaneousVoltageCurrentMeasure": true,
+      "voltageRangesV": [
+        10,
+        40
+      ],
+      "sourceImpedanceOhm": 50,
+      "shortCircuitCurrentByRangeA": {
+        "10": 0.2,
+        "40": 0.8
+      },
+      "outputLimit": "programmable; must be set no higher than min(DUT current limit, source-impedance/load-derived current capability)",
+      "currentMeasureRangesA": {
+        "10": [
+          0.01,
+          0.2
+        ],
+        "40": [
+          0.0001,
+          0.01,
+          0.8
+        ]
+      },
+      "sampling": {
+        "maxRateSps": 200000000,
+        "nominalSampleIntervalS": 5e-9,
+        "parallelAdcBits": 14,
+        "maxSamplesPerChannel": 1000000
+      },
+      "waveform": {
+        "segmentArb": {
+          "maxSegmentsPerChannel": 2048,
+          "maxSequencesPerChannel": 512,
+          "minSegmentTimeS": 2e-8,
+          "maxSegmentTimeS": 40,
+          "timeResolutionS": 1e-8
+        },
+        "fullArb": {
+          "maxPoints": 262144,
+          "minIntervalS": 2e-8,
+          "maxIntervalS": 1
+        },
+        "pulseWidthSummary": {
+          "sourceOnlyMinS": 2e-8,
+          "sourceAndMeasureSummaryMinS": 6e-8
+        }
+      },
+      "timing": {
+        "currentMeasureNoRpm": {
+          "10V": {
+            "0.01": {
+              "minPulseS": 1.6e-7,
+              "minMeasureWindowS": 2e-8,
+              "minTransitionS": 2e-8,
+              "settlingS": 1e-7
+            },
+            "0.2": {
+              "minPulseS": 7e-8,
+              "minMeasureWindowS": 2e-8,
+              "minTransitionS": 2e-8,
+              "settlingS": 3e-8
+            }
+          },
+          "40V": {
+            "0.0001": {
+              "minPulseS": 0.0000064,
+              "minMeasureWindowS": 0.000001,
+              "minTransitionS": 0.000001,
+              "settlingS": 0.000004
+            },
+            "0.01": {
+              "minPulseS": 7.7e-7,
+              "minMeasureWindowS": 1e-7,
+              "minTransitionS": 1e-7,
+              "settlingS": 5e-7
+            },
+            "0.8": {
+              "minPulseS": 7.7e-7,
+              "minMeasureWindowS": 1e-7,
+              "minTransitionS": 1e-7,
+              "settlingS": 5e-7
+            }
+          }
+        },
+        "currentMeasureWithRpm": {
+          "10V": {
+            "0.0000001": {
+              "minPulseS": 0.000134,
+              "minMeasureWindowS": 0.00001,
+              "minTransitionS": 0.000001,
+              "settlingS": 0.0001
+            },
+            "0.000001": {
+              "minPulseS": 0.0000204,
+              "minMeasureWindowS": 0.00000164,
+              "minTransitionS": 3.6e-7,
+              "settlingS": 0.000015
+            },
+            "0.00001": {
+              "minPulseS": 0.00000836,
+              "minMeasureWindowS": 0.000001,
+              "minTransitionS": 3.6e-7,
+              "settlingS": 0.000006
+            },
+            "0.0001": {
+              "minPulseS": 0.00000104,
+              "minMeasureWindowS": 1.3e-7,
+              "minTransitionS": 4e-8,
+              "settlingS": 7.5e-7
+            },
+            "0.001": {
+              "minPulseS": 3.7e-7,
+              "minMeasureWindowS": 4e-8,
+              "minTransitionS": 3e-8,
+              "settlingS": 2.5e-7
+            },
+            "0.01": {
+              "minPulseS": 1.6e-7,
+              "minMeasureWindowS": 2e-8,
+              "minTransitionS": 2e-8,
+              "settlingS": 1e-7
+            }
+          },
+          "40V": {
+            "0.0001": {
+              "minPulseS": 0.0000064,
+              "minMeasureWindowS": 0.000001,
+              "minTransitionS": 0.000001,
+              "settlingS": 0.000004
+            },
+            "0.01": {
+              "minPulseS": 7.7e-7,
+              "minMeasureWindowS": 1e-7,
+              "minTransitionS": 1e-7,
+              "settlingS": 5e-7
+            }
+          }
+        },
+        "voltageMeasureNoRpm": {
+          "10V": {
+            "minPulseS": 7e-8,
+            "minMeasureWindowS": 2e-8,
+            "minTransitionS": 2e-8,
+            "settlingS": 3e-8
+          },
+          "40V": {
+            "minPulseS": 1.5e-7,
+            "minMeasureWindowS": 2e-8,
+            "minTransitionS": 1e-7,
+            "settlingS": 3e-8
+          }
+        },
+        "voltageMeasureWithRpm": {
+          "10V": {
+            "minPulseS": 1.6e-7,
+            "minMeasureWindowS": 2e-8,
+            "minTransitionS": 2e-8,
+            "settlingS": 1e-7
+          }
+        }
+      },
+      "evidence": [
+        "datasheet2025",
+        "pulseReference2017",
+        "pulseManual2020"
+      ]
+    },
+    "4225-RPM": {
+      "category": "PMU-REMOTE-PREAMPLIFIER-SWITCH",
+      "channelsPerUnit": 1,
+      "functions": [
+        "extends PMU low-current measurement ranges",
+        "switches between SMU,CVU,PMU paths"
+      ],
+      "addedCurrentMeasureRangesA": {
+        "10V": [
+          1e-7,
+          0.000001,
+          0.00001,
+          0.0001,
+          0.001,
+          0.01
+        ],
+        "40V": [
+          0.0001,
+          0.01
+        ]
+      },
+      "constraints": [
+        "Requires association with a 4225-PMU channel",
+        "PMU/RPM current measurement timing is slower on low-current ranges",
+        "When RPM is installed, do not connect directly to PMU CH1/CH2 SMA outputs"
+      ],
+      "evidence": [
+        "datasheet2025",
+        "rpmManual2023",
+        "pulseReference2017"
+      ]
+    },
+    "4220-PGU": {
+      "category": "PGU",
+      "channels": 2,
+      "sourceOnly": true,
+      "measureCapability": false,
+      "voltageRangesV": [
+        10,
+        40
+      ],
+      "sourceImpedanceOhm": 50,
+      "shortCircuitCurrentByRangeA": {
+        "10": 0.2,
+        "40": 0.8
+      },
+      "outputLimit": "programmable; must be set no higher than min(DUT current limit, source-impedance/load-derived current capability)",
+      "waveform": {
+        "segmentArb": {
+          "maxSegmentsPerChannel": 2048,
+          "maxSequencesPerChannel": 512,
+          "minSegmentTimeS": 2e-8,
+          "maxSegmentTimeS": 40,
+          "timeResolutionS": 1e-8
+        },
+        "fullArb": {
+          "maxPoints": 262144,
+          "minIntervalS": 2e-8,
+          "maxIntervalS": 1
+        },
+        "pulseWidthSummary": {
+          "sourceOnlyMinS": 2e-8
+        }
+      },
+      "evidence": [
+        "datasheet2025",
+        "pulseReference2017",
+        "pulseManual2020"
+      ]
+    },
+    "4210-CVU": {
+      "category": "CVU",
+      "frequencyHz": {
+        "min": 1000,
+        "max": 10000000,
+        "steps": [
+          {
+            "from": 1000,
+            "to": 10000,
+            "step": 1000
+          },
+          {
+            "from": 10000,
+            "to": 100000,
+            "step": 10000
+          },
+          {
+            "from": 100000,
+            "to": 1000000,
+            "step": 100000
+          },
+          {
+            "from": 1000000,
+            "to": 10000000,
+            "step": 1000000
+          }
+        ]
+      },
+      "internalDcBiasV": {
+        "min": -30,
+        "max": 30
+      },
+      "externalSmuDcBiasV": {
+        "min": -210,
+        "max": 210
+      },
+      "acDriveVrms": {
+        "min": 0.01,
+        "max": 0.1,
+        "step": 0.001
+      },
+      "acOutputImpedanceOhmTypical": 100,
+      "acMeasureCurrentRangesA": [
+        0.000001,
+        0.00003,
+        0.001
+      ],
+      "parameters": [
+        "Z-Theta",
+        "R+jX",
+        "Cp-Gp",
+        "Cs-Rs",
+        "Cp-D",
+        "Cs-D",
+        "Y-Theta"
+      ],
+      "evidence": [
+        "datasheet2025",
+        "setup2025",
+        "cvuManual2023"
+      ]
+    },
+    "4215-CVU": {
+      "category": "CVU",
+      "frequencyHz": {
+        "min": 1000,
+        "max": 10000000,
+        "step": 1000
+      },
+      "internalDcBiasV": {
+        "min": -30,
+        "max": 30
+      },
+      "externalSmuDcBiasV": {
+        "min": -210,
+        "max": 210
+      },
+      "acDriveVrms": {
+        "min": 0.01,
+        "max": 1,
+        "step": 0.001
+      },
+      "acOutputImpedanceOhmTypical": 100,
+      "acMeasureCurrentRangesA": [
+        0.000001,
+        0.00003,
+        0.001
+      ],
+      "parameters": [
+        "Z-Theta",
+        "R+jX",
+        "Cp-Gp",
+        "Cs-Rs",
+        "Cp-D",
+        "Cs-D",
+        "Y-Theta"
+      ],
+      "evidence": [
+        "datasheet2025",
+        "setup2025",
+        "cvuManual2023"
+      ]
+    },
+    "4200A-CVIV": {
+      "category": "SWITCH-MATRIX",
+      "channels": 4,
+      "sourceCapability": false,
+      "measurementCapability": false,
+      "voltageRatingV": 210,
+      "currentRatingA": 1,
+      "functions": [
+        "switches up to four SMU channels",
+        "routes CVU HI/LO/guard",
+        "supports SMU/CVU and bias-tee routing",
+        "can route GNDU to an output channel"
+      ],
+      "restrictions": [
+        "not a source or measurement instrument",
+        "bias-tee modes are for C-V only",
+        "unused SMU input positions require channel blockers",
+        "must be bonded to protective earth using both supplied ground cables"
+      ],
+      "discovery": "not reported by *OPT?; requires separate verified instrument information or explicit operator confirmation",
+      "evidence": [
+        "cvivManual2017",
+        "datasheet2025"
+      ]
+    },
+    "4200A-CVIV-SPT": {
+      "category": "CVIV-ACCESSORY",
+      "role": "SMU pass-through module used inside 4200A-CVIV",
+      "sourceCapability": false,
+      "measurementCapability": false,
+      "restrictions": [
+        "not a standalone source",
+        "does not increase the connected SMU's electrical rating"
+      ],
+      "evidence": [
+        "cvivManual2017",
+        "datasheet2025"
+      ]
+    },
+    "GNDU": {
+      "category": "GROUND-UNIT",
+      "builtIn": true,
+      "sourceCapability": false,
+      "measurementCapability": false,
+      "currentRatingA": {
+        "triaxial": 2.6,
+        "bindingPost": 9.5
+      },
+      "restrictions": [
+        "current rating is not a source-current capability",
+        "do not select GNDU as an SMU source channel",
+        "binding-post and triaxial ratings are connection-specific"
+      ],
+      "evidence": [
+        "datasheet2025",
+        "setup2025"
+      ]
+    },
+    "KXCI-VS": {
+      "category": "LEGACY-KXCI-VOLTAGE-SOURCE",
+      "voltageMaxV": 20,
+      "supportStatus": "documented by KXCI but not part of the modern 4200A module profile; block until separately identified",
+      "evidence": [
+        "kxci2025"
+      ]
+    },
+    "KXCI-VM": {
+      "category": "LEGACY-KXCI-VOLTAGE-METER",
+      "measurementOnly": true,
+      "supportStatus": "documented by KXCI but not part of the modern 4200A module profile; block until separately identified",
+      "evidence": [
+        "kxci2025"
+      ]
+    }
+  },
+  "rules": {
+    "inventory": {
+      "unknownToken": "block selected channel use",
+      "missingInventory": "allow planning only using conservative medium-power SMU without preamplifier; mark hardwareVerified=false",
+      "exactSmuModelUnknown": "use power-class limits; do not assume high-capacitance 4201/4211 model-specific behavior",
+      "cvuModelUnknown": "use 4210-CVU intersection limits (100 mV RMS AC maximum) until exact 4215-CVU is confirmed",
+      "externalAccessories": "CVIV and GNDU ratings are recorded but presence/physical configuration is not inferred from *OPT?"
+    },
+    "smu": {
+      "voltageSourceRangeThresholdV": 21,
+      "voltageSourceRangeForAbsV": {
+        "maxAbsVoltageAtOrBelowThreshold": 20,
+        "rangeV": 20,
+        "aboveThresholdRangeV": 200
+      },
+      "maxAbsVoltageV": 210,
+      "voltageSourceMaxCurrentAByPowerClassAndRange": {
+        "medium": {
+          "2": 0.105,
+          "20": 0.105,
+          "200": 0.0105,
+          "0.2": 0.105
+        },
+        "high": {
+          "2": 1.05,
+          "20": 1.05,
+          "200": 0.105,
+          "0.2": 1.05
+        }
+      },
+      "maxPowerW": {
+        "medium": 2.1,
+        "high": 21
+      },
+      "enforcePowerEnvelope": true,
+      "currentComplianceFraction": {
+        "min": 0.1,
+        "max": 1
+      },
+      "voltageComplianceFraction": {
+        "min": 0.1,
+        "max": 1
+      },
+      "minCurrentRangeA": {
+        "withoutPreamplifier": 1e-7,
+        "withPreamplifier": 1e-12
+      },
+      "currentSourceMaxA": {
+        "medium": 0.105,
+        "high": 1.05
+      },
+      "currentSourceVoltageComplianceMaxV": {
+        "medium": 210,
+        "high": 210
+      },
+      "note": "For voltage source, current limit is bounded by the selected voltage range and the module power envelope. For current source, voltage compliance is bounded by the selected voltage range and power envelope. Do not use the headline max V and max I as a simultaneously available rectangular operating area."
+    },
+    "pulse": {
+      "loadDefinition": "total resistance at the pulse output connector, including DUT and interconnect",
+      "sourceVoltageFormula": "Vmax = Vrange * Rload / (50 + Rload)",
+      "sourceCurrentFormula": "Imax = Vrange / (50 + Rload)",
+      "instrumentCurrentCeilingAByRange": {
+        "10": 0.2,
+        "40": 0.8
+      },
+      "requireUserDutCurrentLimit": true,
+      "effectiveCurrentLimitFormula": "min(userDutCurrentLimitA, Vrange/(50+Rload), instrumentShortCircuitCurrentLimitA)",
+      "effectiveVoltageLimitFormula": "min(Vrange*Rload/(50+Rload), effectiveCurrentLimitA*Rload)",
+      "requireKnownLoadForSafetyValidation": true,
+      "requireModuleMatchWhenConnected": true,
+      "pmuCurrentMeasureRangeIsNotOutputCurrentLimit": true,
+      "rpmTimingMustBeUsedWhenRpmDetected": true
+    },
+    "waveform": {
+      "segmentArb": {
+        "minSegmentTimeS": 2e-8,
+        "maxSegmentTimeS": 40,
+        "timeResolutionS": 1e-8,
+        "maxSegments": 2048,
+        "maxSequences": 512
+      },
+      "fullArb": {
+        "minIntervalS": 2e-8,
+        "maxIntervalS": 1,
+        "maxPoints": 262144,
+        "intervalMustBeUniform": true
+      },
+      "strictlyIncreasingTime": true,
+      "voltageMustRespectLoadAndCurrentLimit": true
+    },
+    "cvu": {
+      "requireExplicitModelWhenUsing1VRms": true,
+      "unknownModelUses4210Limits": true,
+      "internalBiasLimitV": 30,
+      "externalSmuBiasLimitV": 210,
+      "acCurrentMeasureRangesA": [
+        0.000001,
+        0.00003,
+        0.001
+      ]
+    },
+    "cviv": {
+      "maxVoltageV": 210,
+      "maxCurrentA": 1,
+      "requireEarthBonding": true,
+      "requireChannelBlockersForUnusedInputs": true,
+      "neverTreatAsSource": true
+    },
+    "gndu": {
+      "neverTreatAsSource": true
+    }
+  },
+  "kxciOptionTokens": {
+    "SMU": {
+      "family": "SMU",
+      "powerClass": "medium",
+      "preamplifier": false
+    },
+    "HPSMU": {
+      "family": "SMU",
+      "powerClass": "high",
+      "preamplifier": false
+    },
+    "SMUPA": {
+      "family": "SMU",
+      "powerClass": "medium",
+      "preamplifier": true
+    },
+    "HPSMUPA": {
+      "family": "SMU",
+      "powerClass": "high",
+      "preamplifier": true
+    },
+    "CVU": {
+      "family": "CVU"
+    },
+    "VPU": {
+      "family": "PGU",
+      "model": "4220-PGU"
+    },
+    "PMU": {
+      "family": "PMU",
+      "model": "4225-PMU",
+      "rpm": false
+    },
+    "PMURPM": {
+      "family": "PMU",
+      "model": "4225-PMU",
+      "rpm": true,
+      "rpmChannels": "unknown"
+    },
+    "PMUnRPM1": {
+      "family": "PMU",
+      "model": "4225-PMU",
+      "rpm": true,
+      "rpmChannels": [
+        1
+      ]
+    },
+    "PMUnRPM2": {
+      "family": "PMU",
+      "model": "4225-PMU",
+      "rpm": true,
+      "rpmChannels": [
+        2
+      ]
+    },
+    "PMUnRPM1-2": {
+      "family": "PMU",
+      "model": "4225-PMU",
+      "rpm": true,
+      "rpmChannels": [
+        1,
+        2
+      ]
+    },
+    "VS": {
+      "family": "KXCI-VS",
+      "voltageMaxV": 20
+    },
+    "VM": {
+      "family": "KXCI-VM",
+      "measurementOnly": true
+    },
+    "": {
+      "family": "empty"
+    }
+  },
+  "sources": [
+    {
+      "id": "datasheet2025",
+      "title": "4200A-SCS Parameter Analyzer Datasheet",
+      "document": "1KW-60780-7",
+      "revision": "2025-03-20",
+      "url": "https://download.tek.com/datasheet/1KW-60780-7_4200A-SCS_Parameter_Analyzer_Datasheet_20250320.pdf",
+      "sections": [
+        "Instruments and Modules",
+        "Source Measure Units",
+        "SMU Current/Voltage Specifications",
+        "PMU",
+        "PGU",
+        "Segment ARB",
+        "RPM",
+        "Ground Unit"
+      ]
+    },
+    {
+      "id": "setup2025",
+      "title": "Model 4200A-SCS Setup and Maintenance User's Manual",
+      "document": "4200A-908-01 Rev. F",
+      "revision": "2025-03",
+      "url": "https://download.tek.com/manual/4200A-908-01F_Setup_Maint_March_2025.pdf",
+      "sections": [
+        "Safety precautions",
+        "Source-measure unit",
+        "Ground unit",
+        "Capacitance-Voltage Unit",
+        "Pulse source-measure hardware"
+      ]
+    },
+    {
+      "id": "kxci2025",
+      "title": "Model 4200A-SCS KXCI Remote Control Programming",
+      "document": "4200A-KXCI-907-01 Rev. E",
+      "revision": "2025-03",
+      "url": "https://download.tek.com/manual/4200A-KXCI-907-01E_March2025.pdf",
+      "sections": [
+        "KXCI common commands",
+        "*OPT?",
+        "instrumentinfo",
+        "remotemoduleinfo"
+      ]
+    },
+    {
+      "id": "cvuManual2023",
+      "title": "Model 4200A-SCS Capacitance-Voltage Unit User's Manual",
+      "document": "4200A-CVU-900-01 Rev. B",
+      "revision": "2023-03",
+      "url": "https://download.tek.com/manual/4200A-CVU-900-01B_March_2023.pdf",
+      "sections": [
+        "CVU test signal",
+        "frequency steps",
+        "AC drive",
+        "DC bias",
+        "current measure ranges"
+      ]
+    },
+    {
+      "id": "cvivManual2017",
+      "title": "Model 4200A-CVIV Multi-Switch User's Manual",
+      "document": "4200A-CVIV-900-01 Rev. B",
+      "revision": "2017-11",
+      "url": "https://download.tek.com/manual/4200A-CVIV-900-01B_Nov2017.pdf",
+      "sections": [
+        "General ratings",
+        "bias tee switching",
+        "grounding",
+        "channel blockers"
+      ]
+    },
+    {
+      "id": "rpmManual2023",
+      "title": "Model 4225-RPM Remote Pulse Module Instructions",
+      "document": "PA-1086 Rev. B",
+      "revision": "2023-03",
+      "url": "https://download.tek.com/manual/PA-1086B_Mar_2023_4225-RPM.pdf",
+      "sections": [
+        "RPM overview",
+        "current ranges",
+        "connections"
+      ]
+    },
+    {
+      "id": "pulseReference2017",
+      "title": "Model 4200-SCS Semiconductor Characterization System Reference Manual",
+      "document": "4200-901-01 Rev. S",
+      "revision": "2017-05",
+      "url": "https://download.tek.com/manual/4200-901-01S_May2017_Ref_0.pdf",
+      "sections": [
+        "Models 4220-PGU, 4225-PMU, 4225-RPM",
+        "pulse modes",
+        "PMU timing tables",
+        "RPM safety connection warning"
+      ]
+    },
+    {
+      "id": "pulseManual2020",
+      "title": "Model 4200A-SCS Pulse Card (PGU and PMU) User's Manual",
+      "document": "4200A-PMU-900-01 Rev. A",
+      "revision": "2020-12",
+      "url": "https://www.tek.com/-/media/documents/4200a-pmu-900-01a_dec_2020.pdf",
+      "sections": [
+        "PGU/PMU concepts",
+        "pulse modes",
+        "Segment ARB"
+      ]
+    }
+  ],
+  "limitations": [
+    "The database records published ratings, not the calibration state or health of a particular physical instrument.",
+    "KXCI *OPT? does not identify every exact product model or every external accessory; do not infer 4201/4211, CVU variant, CVIV, GNDU wiring or interlock state from it.",
+    "The SMU maximum power and range limits are conservative planning boundaries; actual output depends on source mode, selected range, load, cables, temperature and instrument condition.",
+    "The PMU/PGU load equations are based on nominal 50 ohm source impedance and are approximate; verify the actual fixture and cabling.",
+    "A module's output rating is not a safe operating limit for an arbitrary DUT. DUT voltage, current, power, energy, pulse width and thermal limits must be separately supplied.",
+    "Pulse timing values are documented recommended minima/typical characteristics, not a guarantee of measurement accuracy for every DUT and cable configuration.",
+    "The database is not a substitute for the official manuals, laboratory electrical-safety procedures or physical interlocks."
+  ]
+}
