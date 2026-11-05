@@ -83,6 +83,7 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   assert.equal(pmu40High.transitionMinS, 100e-9);
   const capture = caps.getPmuCaptureBudget(1, null);
   assert.equal(capture.maxPointsPerChannel, 999999);
+  assert.equal(capture.hardwareMaxPointsExclusivePerChannel, 1000000);
   assert.equal(capture.interfaceMaxPointsPerChannel, 65535);
   assert.equal(capture.interfaceDataBufferCapacityPointsPerChannel, 65536);
   assert.equal(capture.interfaceMaxGeneratedPointsExclusive, 65536);
