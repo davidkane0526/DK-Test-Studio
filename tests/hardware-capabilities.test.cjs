@@ -118,6 +118,9 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   assert.equal(manualIndex.observedManualRevisions.PMU.contentRetrieved, false);
   assert.equal(manualIndex.observedManualRevisions.PMU.partNumber, '4200A-PMU-900-01D');
   assert.equal(manualIndex.indexObservationCheckedAt, '2026-11-05');
+  assert.equal(manualIndex.indexConflicts.PMU.openedModelSupportPage.partNumber, '4200A-PMU-900-01C');
+  assert.equal(manualIndex.indexConflicts.PMU.manualSpecificListing.partNumber, '4200A-PMU-900-01D');
+  assert.equal(caps.DATABASE.safetyPolicies.pulse.pmuRevisionIndexConflictStatus, 'inconsistent-official-listings');
   assert.equal(caps.DATABASE.safetyPolicies.pulse.latestIndexListedPmuRevision, '4200A-PMU-900-01D, 22 Oct 2026');
   assert.equal(caps.DATABASE.safetyPolicies.pulse.latestPmuRevisionContentVerified, false);
   assert.equal(caps.DATABASE.safetyPolicies.pulse.numericPmuSpecsCurrentlyGroundedInRevision, '4200A-PMU-900-01C, May 2024');
