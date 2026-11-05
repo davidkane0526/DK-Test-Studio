@@ -89,7 +89,7 @@ async function createAppServer(options={}){
           'X-Content-Type-Options':'nosniff'});
         return res.end(bytes);
       }
-      if(req.method!=='POST'||!['/api/ui/check','/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect','/api/workspaces','/api/hardware/capabilities','/api/measurement/start','/api/measurement/stop'].includes(urlPath))
+      if(req.method!=='POST'||!['/api/ui/check','/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect','/api/workspaces','/api/hardware/capabilities','/api/measurement/start','/api/measurement/stop','/api/measurement/status'].includes(urlPath))
         return json(res,404,{error:'接口不存在'});
       // No arbitrary command endpoint exists; this only sends the hardcoded KXCI IDN query.
       if(req.headers['x-dkts-request']!=='1'||!String(req.headers['content-type']||'').startsWith('application/json'))
@@ -105,6 +105,8 @@ async function createAppServer(options={}){
         const saved=workspaceStorage.writeWorkspace(workspaceFile,payload.workspace);
         return json(res,200,{ok:true,...saved});
       }
+      if(urlPath==='/api/measurement/status')
+        return json(res,200,{ok:true,...(runner?.status(Number(payload.cursor||0))||{state:'unsupported',running:false,rows:[]})});
       if(urlPath==='/api/measurement/stop')
         return json(res,200,{ok:true,...(runner?.stop()||{state:'unsupported'})});
       if(urlPath==='/api/measurement/start'){
