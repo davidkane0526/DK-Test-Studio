@@ -32,8 +32,10 @@ test('two frequent selects are progressively enhanced without changing form inpu
   assert.match(html,/id="psweep-terminal"/);
   assert.match(html,/<select id="waveform-source-type">/);
   assert.match(html,/<select id="waveform-range-v">/);
-  assert.match(app, /function enhanceWorkspaceSelects\(\)/);
-  assert.match(app,/document\.querySelectorAll\('select:not\(\[multiple\]\)'\)/);
+  assert.match(app, /function enhanceWorkspaceSelects\(root=document\)/);
+  assert.match(app,/root\.querySelectorAll\('select:not\(\[multiple\]\)'\)/);
+  assert.match(app,/window\.DKTSEnhanceNewSelects=enhanceWorkspaceSelects/);
+  assert.match(app,/window\.DKTSEnhanceNewSelects\?\.\(row\)/);
   assert.match(app,/source\.hidden=true/);
   assert.match(app,/source\.dispatchEvent\(new Event\('input',\{bubbles:true\}\)\)/);
   assert.match(app,/source\.dispatchEvent\(new Event\('change',\{bubbles:true\}\)\)/);
