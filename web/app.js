@@ -320,7 +320,7 @@ function renderStatus(value){
   const modules=inventory?.knownModules||[];
   $('module-summary').textContent=inventory
     ?(modules.length?modules.map(x=>[x.raw,x.modelKey||'',x.preamplifier?'PA':'',x.rpm?'RPM':''].filter(Boolean).join(' ')).join(' · '):'未识别到已知模块')+
-      (inventory.detailedInventoryAvailable?' · 精确型号已读取':' · 按 *OPT? 功率等级保守校验')
+      (inventory.detailedInventoryAvailable?' · 精确型号已读取':' · 按 *OPT? 已识别功率等级校验')
     :value.inventoryError?'查询失败：'+String(value.inventoryError).slice(0,90):'尚未查询';
   if(inventory?.detailedInventoryError||value.inventoryError)
     $('module-summary').title=String(inventory.detailedInventoryError||value.inventoryError).slice(0,500);
