@@ -271,6 +271,9 @@ public final class InstrumentBridge {
         // Exact allowlist: identity, logical slot mapping, and documented read-only SystemUtil metadata.
         if (!isReadOnlyKxciRequest(request))
             throw new SecurityException("Only fixed read-only KXCI identity and SystemUtil inventory queries are permitted");
+        final boolean noReply = args.optBoolean("noReply", false);
+        if (noReply && !(Arrays.equals(request, UL) || Arrays.equals(request, DE)))
+            throw new SecurityException("Write-only mode is restricted to fixed KXCI UL/DE commands");
         final int maxBytes = bounded(args, "maxBytes", 4096, 1, 8192);
         final int firstTimeout = bounded(args, "readTimeoutMs", 5000, 250, 30000);
         final int idleTimeout = bounded(args, "idleTimeoutMs", 120, 20, 10000);
@@ -280,6 +283,7 @@ public final class InstrumentBridge {
             InputStream in = socket.getInputStream();
             out.write(request);
             out.flush();
+            if (noReply) return new JSONObject().put("base64", "").put("bytesRead", 0);
             byte[] part = new byte[2048];
             socket.setSoTimeout(firstTimeout);
             while (true) {
