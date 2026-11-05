@@ -96,7 +96,9 @@
     const used=new Set(),unknownModules=[...logical.unknownModules],unverifiedModules=[];
     const slots=logical.slots.map(slot=>{
       if(slot.family==='empty'||slot.family==='unknown')return slot;
-      const record=instruments.find(x=>x.slotNo===slot.slot&&expectedInstrumentName(slot.family,x.name,slot.channel))||instruments.find(x=>expectedInstrumentName(slot.family,x.name,slot.channel));
+      const exactRecord=instruments.find(x=>x.slotNo===slot.slot&&expectedInstrumentName(slot.family,x.name,slot.channel));
+      const candidates=instruments.filter(x=>expectedInstrumentName(slot.family,x.name,slot.channel));
+      const record=exactRecord||(candidates.length===1?candidates[0]:null);
       const physicalSlotNo=record?.slotNo??slot.slot;
       const attached=remote.filter(x=>x.slotNo===physicalSlotNo);
       const paRecords=attached.filter(x=>/^PA\d+$/i.test(x.name));
