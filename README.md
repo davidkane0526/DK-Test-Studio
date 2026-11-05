@@ -161,7 +161,7 @@ Windows 便携版使用 Electron userData 目录的 workspace-state.json，写�
 
 - 共享能力数据库覆盖 SMU、SMUPA、HPSMU、HPSMUPA、4225-PMU、4225-RPM、4220-PGU/VPU、CVU、VS、VM、CVIV 和 GNDU。
 - 运行 npm run hardware:export 可导出 DKTS-4200A-Hardware-Capability-Database-v1.json。每次完整 GitHub Release 同时发布该 JSON，包含模块能力、数值边界、安全策略、数据来源和未确认项目，便于外部审查。
-- 已识别 SMU 按模块功率类别和电压档计算电流限值；未知模块不再套用默认 10.5 mA。未知限值保持未定义，允许方案预览，但禁止真实输出。
+- 已识别 SMU 按物理功率类别、实际源电压和额定输出功率计算电流限值（中功率 2.1 W、高功率 21 W），未知模块不套用默认电流值。
 - PMU/PGU 规划按硬件规格校验：Segment Arb 每段 20 ns 至 40 s、每通道最多 2048 段、时间分辨率 10 ns。PMU 硬件采集最高 200 MSa/s，每个 A/D 每次测试严格少于 1,000,000 点。
 - 当前 KXCI 远程命令路径另有接口限制：Segment Arb 单段最多 1 s、单条数组命令最多 128 个值，PMU 数据缓冲每通道最多 65,536 点。规划界面保留硬件能力上限，并单独标记当前接口不兼容的方案。
 - 加入 4200A 500 W 机箱功耗模型。只有完整识别安装模块和活动通道时才给出确定预算。
