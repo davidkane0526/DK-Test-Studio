@@ -286,6 +286,7 @@ function fields(){
   const f=new FormData(form);return Object.fromEntries(f.entries());
 }
 function renderStatus(value){
+  if(capabilityState){capabilityState.inventory=value.inventory||null;capabilityState.connected=value.phase==='connected';capabilityState.inventoryError=value.inventoryError||'';}
   state=value.phase||'disconnected';
   const connected=state==='connected';
   const label=connected?'连接成功':state==='connecting'?'正在连接…':state==='error'?'连接失败':'未连接';
