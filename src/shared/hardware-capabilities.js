@@ -166,7 +166,7 @@
           '40': { sourceOnly: { periodMinS: 1e-7, periodMaxS: 1, pulseWidthMinS: 5e-8, transitionMinS: 3e-8, transitionMinSAbove10V: 1e-7, transitionCondition: '输出幅值绝对值小于10 V时为30 ns，大于10 V时为100 ns；恰为10 V时手册未明确', maxFrequencyHz: 1e7 } }
         },
         output: { rangesV: [10, 40], sourceImpedanceOhm: 50, loadOhms: { min: 1, max: 1000000 }, maxShortCircuitCurrentA: { '10': 0.2, '40': 0.8 }, loadLine: 'Imax = Vrange / (50 Ω + Rload); Vmax = Imax × Rload' },
-        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 2e-8, '40': 2e-8 }, kxciMinSegmentTimeS: { '10': 1e-8, '40': 5e-8 } },
+        segmentArb: { minSegmentsPerSequence: 3, maxSegmentsPerChannel: 2048, maxSequencesPerChannel: 512, maxSegmentsPerCommand: 128, maxSequenceLoops: 1e12, timeResolutionS: 1e-8, maxSegmentTimeS: 40, kxciMaxSegmentTimeS: 1, minSegmentTimeS: { '10': 1e-8, '40': 2e-8 }, kxciMinSegmentTimeS: { '10': 1e-8, '40': 5e-8 }, hardwareMinSegmentNote: 'PGU 10 V 的 KXCI Rev. E 量程专属条目明确列出 10 ns；同一命令参数表的通用说明及 4200A 数据表给出 20 ns。此处采用更具体的 PGU 10 V 条目作为规划边界，并保留该规格冲突供外部审查。' },
         sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-pmu-rev-c', 'tek-4200a-current-manual-index']
       },
       CVU: {
@@ -319,7 +319,7 @@
     const key = String(sourceType || '').toLowerCase() === 'pgu' ? 'VPU' : 'PMU';
     const mod = getModuleCapability(key), range = Number(rangeV);
     if (!mod.output.rangesV.includes(range)) throw Error('PMU/PGU 输出量程只能选择 10 V 或 40 V');
-    return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.maxSegmentsPerCommand || 128, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, kxciMinSegmentS: mod.segmentArb.kxciMinSegmentTimeS?.[String(range)] ?? mod.segmentArb.minSegmentTimeS[String(range)], kxciMaxSegmentS: mod.segmentArb.kxciMaxSegmentTimeS || 1, kxciLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus, timeResolutionS: mod.segmentArb.timeResolutionS });
+    return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.maxSegmentsPerCommand || 128, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, kxciMinSegmentS: mod.segmentArb.kxciMinSegmentTimeS?.[String(range)] ?? mod.segmentArb.minSegmentTimeS[String(range)], hardwareMinSegmentNote: mod.segmentArb.hardwareMinSegmentNote || null, kxciMaxSegmentS: mod.segmentArb.kxciMaxSegmentTimeS || 1, kxciLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus, timeResolutionS: mod.segmentArb.timeResolutionS });
   }
   function getPmuCurrentRanges(rangeV, withRpm = false) {
     const mod = getModuleCapability(withRpm ? 'PMURPM' : 'PMU');
