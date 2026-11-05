@@ -447,14 +447,25 @@ function drawWave(points){
   const ly=make('text',{x:13,y:height/2,transform:'rotate(-90 13 '+height/2+')','text-anchor':'middle','font-size':13,fill:'currentColor'});
   ly.textContent='Voltage (V)';
 }
+function waveformOptions(){
+  const sourceType=$('waveform-source-type').value;
+  const loadControl=$('waveform-load-control');
+  loadControl.hidden=sourceType==='smu';
+  return {sourceType,loadMode:sourceType==='smu'?'not-applicable':$('waveform-load-mode').value};
+}
 async function validateWave(){
   const expectedTabId=getActiveWorkspace()?.id,expectedMode=activeMode;
   const info=$('waveform-info');
   try{
-    const r=await post('/api/waveform/validate',{text:$('waveform-text').value});
+    const options=waveformOptions();
+    const r=await post('/api/waveform/validate',{text:$('waveform-text').value,...options});
     if(expectedTabId!==getActiveWorkspace()?.id||expectedMode!==activeMode)return;
     if(!r.ok)throw Error(r.error||'波形参数不正确');
-    info.textContent=r.count+' 点 · 总时长 '+r.durationS+' s · 最小时间间隔 '+r.minimumStepS+' s · 未验证硬件可执行性';
+    const sourceLabel=options.sourceType==='smu'?'SMU':options.sourceType==='pmu'?'4225-PMU':'4220-PGU';
+    const loadLabel=options.sourceType==='smu'?'':' · '+(r.loadMode==='highz'?'高阻负载':'按 50 Ω 限值');
+    info.textContent=sourceLabel+' · 电压范围 ±'+r.maxVoltageV+' V'+loadLabel+
+      ' · '+r.count+' 点 · 总时长 '+r.durationS+' s · 最小间隔 '+r.minimumStepS+' s · 仅规划';
+
     drawWave(r.preview);
     showStatusMessage('波形校验通过 · '+r.count+' 个规划点（无硬件输出）','success');
   }catch(error){
