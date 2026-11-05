@@ -253,7 +253,7 @@ async function disconnectInstrument(){
   busy=true;renderStatus(latestStatus);
   try{latestStatus=await post('/api/disconnect');}
   catch(error){latestStatus={phase:'error',summary:'断开连接失败',diagnostic:String(error)};}
-  finally{busy=false;renderStatus(latestStatus);}
+  finally{busy=false;renderStatus(latestStatus);portUi.syncTerminals();}
 }
 function openConnectionDialog(){
   if(!dialog.open)dialog.showModal();
@@ -2200,7 +2200,9 @@ function installAndroidNumericKeypad(){
     if(change.changed)control.dispatchEvent(new Event('input',{bubbles:true}));
     syncValue();
   }
-  numeric.forEach(control=>{
+  const bindNumericControl=control=>{
+    if(control.dataset.dktsNumberBound==='true')return;
+    control.dataset.dktsNumberBound='true';
     const step=control.getAttribute('step');
     control.dataset.dktsNumberKind=step==='any'||(step!==null&&!Number.isInteger(Number(step)))
       ?'real':'integer';
@@ -2229,7 +2231,8 @@ function installAndroidNumericKeypad(){
     control.addEventListener('selectstart',event=>event.preventDefault());
     // Synthetic accessibility click or keyboard navigation remains possible.
     control.addEventListener('click',event=>{event.preventDefault();open(control);});
-  });
+  };
+  numeric.forEach(bindNumericControl);
   panel.addEventListener('click',event=>{
     const button=event.target.closest('button[data-key]');
     if(button&&!button.disabled)press(button.dataset.key);
@@ -2285,7 +2288,10 @@ function installAndroidNumericKeypad(){
   },true);
   document.querySelectorAll('dialog').forEach(dialog=>
     dialog.addEventListener('close',()=>close(false)));
-  window.DKTSNumericKeypad=Object.freeze({close:()=>close(true),isOpen:()=>Boolean(active)});
+  window.DKTSNumericKeypad=Object.freeze({
+    close:()=>close(true),isOpen:()=>Boolean(active),
+    bindNew:root=>root.querySelectorAll('input[type="number"]').forEach(bindNumericControl)
+  });
 }
 
 installAndroidNumericKeypad();
