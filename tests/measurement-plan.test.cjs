@@ -170,3 +170,23 @@ test('multi-port sweep planner rejects contradictory directions, missing channel
   assert.equal(offline.hardwareCapabilityStatus,'not-inspected');
   assert.equal(offline.executable,false);
 });
+
+
+test('I–t preserves independent drain and gate compliance rather than imposing the gate limit on drain',()=>{
+  const hardware={inventory:{slots:[
+    {type:'HPSMU',physicalType:'HPSMU',family:'SMU',channel:1,powerClass:'high'},
+    {type:'SMU',physicalType:'SMU',family:'SMU',channel:2,powerClass:'medium'}
+  ]}};
+  const params={kind:'it',sourceSmU:1,measureSmU:1,gateSmU:2,
+    fixedV:20,gateBiasV:100,sourceComplianceA:.5,gateComplianceA:.01,
+    sourceCurrentRangeA:'1',gateCurrentRangeA:'1e-2'};
+  const plan=normalizePlan(params,hardware);
+  assert.equal(plan.sourceComplianceA,.5);
+  assert.equal(plan.gateComplianceA,.01);
+  assert.equal(plan.sourceFixedCurrentRangeA,'1e0');
+  assert.equal(plan.gateFixedCurrentRangeA,'1e-2');
+  assert.equal(plan.maxComplianceA,.0105,'Combined theoretical limit remains diagnostic only');
+  assert.equal(plan.executable,false);
+  assert.throws(()=>normalizePlan({...params,gateCurrentRangeA:'1e-8'},hardware),/不.*支持/);
+  assert.throws(()=>normalizePlan({...params,sourceCurrentRangeA:'1e-1'},hardware),/不匹配/);
+});
