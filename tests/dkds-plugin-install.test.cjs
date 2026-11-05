@@ -82,7 +82,7 @@ test('external module registrations replace stale definitions when the same pack
 test('official package builder refuses repackaging under the built-in ID',()=>{
   const build=read('tools/build-dkds-plugin.cjs');
   assert.match(build,/manifest\.id!=='com\.dkts\.keithley-4200'/);
-  assert.match(build,/manifest\.version!=='0\.6\.12'/);
+  assert.match(build,/manifest\.version!=='0\.6\.13'/);
 });
 
 test('full plugin shell is built from canonical App assets, not a separate DKDS UI',()=>{
