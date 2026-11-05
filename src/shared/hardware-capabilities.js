@@ -327,34 +327,52 @@
     if (!ranges) throw Error('未定义该 PMU 电压档的电流测量量程');
     return [...ranges];
   }
-  function getPmuCaptureBudget(durationS, measureWindowS, requestedRateHz) {
-    const mod = getModuleCapability('PMU'), duration = Number(durationS);
-    if (!Number.isFinite(duration) || duration <= 0) throw Error('PMU 采集时长必须大于 0');
+  function getPmuCaptureBudget(totalMeasureDurationS, measureWindowS, requestedRateHz, context = {}) {
+    const mod = getModuleCapability('PMU'), totalDuration = Number(totalMeasureDurationS);
+    if (!Number.isFinite(totalDuration) || totalDuration <= 0) throw Error('PMU 总测量窗口累计时长必须大于 0');
+    const positiveCount = (value, label) => {
+      const count = Number(value ?? 1);
+      if (!Number.isSafeInteger(count) || count < 1) throw Error(label + ' 必须是大于 0 的安全整数');
+      return count;
+    };
+    const pulseCount = positiveCount(context.pulseCount, 'PMU 脉冲数');
+    const sweepPoints = positiveCount(context.sweepPoints, 'PMU 扫描点数');
+    const stepPoints = positiveCount(context.stepPoints, 'PMU 步进点数');
+    const measurementCount = pulseCount * sweepPoints * stepPoints;
+    if (!Number.isSafeInteger(measurementCount)) throw Error('PMU 脉冲数、扫描点数和步进点数的乘积超出安全整数范围');
     const hardwareMaxPoints = mod.measurement.maxHardwareSamplesPerChannel;
     const interfaceBufferCapacity = mod.measurement.maxKxciBufferPointsPerChannel;
     const interfaceMaxGeneratedPoints = mod.measurement.maxKxciGeneratedPointsPerChannel;
     const interfaceMaxPoints = interfaceMaxGeneratedPoints;
-    const hardwareMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, hardwareMaxPoints / duration);
-    const kxciMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, interfaceMaxPoints / duration);
+    const hardwareMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, hardwareMaxPoints / totalDuration);
+    const kxciMaxRateHz = Math.min(mod.measurement.maxSampleRateHz, interfaceMaxPoints / totalDuration);
     const minimumRateHz = mod.measurement.minSampleRateHz;
-    if (hardwareMaxRateHz < minimumRateHz) throw Error('PMU 采集时长超过硬件单通道严格少于一百万采样点在最低采样率下的容量');
+    if (hardwareMaxRateHz < minimumRateHz) throw Error('PMU 总测量窗口累计时长超过硬件单通道严格少于一百万采样点在最低采样率下的容量');
     let minimumRequiredRateHz = minimumRateHz;
     if (measureWindowS !== undefined && measureWindowS !== null) {
       const windowS = Number(measureWindowS);
       if (!Number.isFinite(windowS) || windowS <= 0) throw Error('PMU 测量窗口无效');
       minimumRequiredRateHz = Math.max(minimumRateHz, 1 / windowS);
     }
-    if (minimumRequiredRateHz > hardwareMaxRateHz) throw Error('PMU 测量窗口与总采集时长超过硬件采样容量可同时满足的采样率范围');
+    if (minimumRequiredRateHz > hardwareMaxRateHz) throw Error('PMU 最短测量窗口与总测量窗口累计时长超过硬件采样容量可同时满足的采样率范围');
     const selectedRateHz = requestedRateHz === undefined || requestedRateHz === null ? hardwareMaxRateHz : Number(requestedRateHz);
     if (!Number.isFinite(selectedRateHz) || selectedRateHz < minimumRequiredRateHz || selectedRateHz > hardwareMaxRateHz) throw Error('PMU 采样率必须在 ' + minimumRequiredRateHz + ' 至 ' + hardwareMaxRateHz + ' Sa/s 之间');
-    const kxciCompatible = selectedRateHz <= kxciMaxRateHz + 1e-6 && Math.ceil(selectedRateHz * duration - 1e-9) <= interfaceMaxPoints;
+    const sampleCountAtSelectedRate = Math.ceil(selectedRateHz * totalDuration - 1e-9);
+    const kxciCompatible = selectedRateHz <= kxciMaxRateHz + 1e-6 && sampleCountAtSelectedRate <= interfaceMaxPoints;
     return Object.freeze({
+      totalMeasureDurationS: totalDuration, pulseCount, sweepPoints, stepPoints, measurementCount,
+      sampleCountFormula: mod.measurement.sampleCountFormula,
+      sampleCountAtSelectedRate,
       minSampleRateHz: minimumRequiredRateHz, maxSampleRateHz: hardwareMaxRateHz,
       selectedSampleRateHz: selectedRateHz, sampleIntervalS: 1 / selectedRateHz,
       maxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsPerChannel: hardwareMaxPoints, hardwareMaxPointsExclusivePerChannel: mod.measurement.hardwareSampleCountUpperBoundExclusive,
-      interfaceMaxPointsPerChannel: interfaceMaxPoints, interfaceDataBufferCapacityPointsPerChannel: interfaceBufferCapacity, interfaceMaxGeneratedPointsPerChannel: interfaceMaxGeneratedPoints, kxciMaxSampleRateHz: kxciMaxRateHz, kxciBoundaryStatus: Math.ceil(selectedRateHz * duration - 1e-9) === interfaceMaxPoints ? 'exact-upper-bound-ambiguous' : (kxciCompatible ? 'within-published-range' : 'over-interface-limit'), kxciPointLimitNote: mod.measurement.kxciGeneratedPointBoundaryNote,
+      interfaceMaxPointsPerChannel: interfaceMaxPoints, interfaceDataBufferCapacityPointsPerChannel: interfaceBufferCapacity, interfaceMaxGeneratedPointsPerChannel: interfaceMaxGeneratedPoints, kxciMaxSampleRateHz: kxciMaxRateHz,
+      clariusItmMaxPointsPerChannel: mod.measurement.maxClariusItmPointsPerChannel, clariusUtmMaxPointsPerChannel: mod.measurement.maxClariusUtmPointsPerChannel,
+      kxciBoundaryStatus: sampleCountAtSelectedRate === interfaceMaxPoints ? 'exact-upper-bound-ambiguous' : (kxciCompatible ? 'within-published-range' : 'over-interface-limit'),
+      kxciPointLimitNote: mod.measurement.kxciGeneratedPointBoundaryNote,
       hardwareMaxSampleRateHz: mod.measurement.maxSampleRateHz, kxciCompatible,
-      interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 波形生成点数上限为每通道 65536 点（数据缓冲容量同为 65536 点；手册对等于上限的文字表述存在歧义）；PMU 硬件单次采集点数必须严格少于 1000000 点', interfaceLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus
+      interface: 'KXCI', interfaceLimitation: kxciCompatible ? null : '当前 KXCI 波形生成点数上限为每通道 65536 点（数据缓冲容量同为 65536 点；手册对等于上限的文字表述存在歧义）；PMU 硬件单次采集点数必须严格少于 1000000 点',
+      executionCompatibility: kxciCompatible ? 'hardware-and-kxci-compatible' : 'hardware-valid-kxci-limited'
     });
   }
   function getPulseTimingRecommendation(rangeV, measurementRangeA, withMeasurement = true, source = 'pmu', withRpm = false, peakVoltageV = null) {
