@@ -16,7 +16,15 @@
     if(!Number.isSafeInteger(n))throw Error(label+' 必须是整数');
     return n;
   }
-  function normalizePlan(input={}){
+  function detectedSmUModel(channel,inventory){
+    const number=Number(channel??1);
+    const slot=Array.isArray(inventory?.slots)
+      ?inventory.slots.find(item=>item?.family==='SMU'&&item.channel===number):null;
+    if(slot?.powerClass==='high')return '4210-SMU';
+    if(slot?.powerClass==='medium')return '4200-SMU';
+    return 'UNKNOWN';
+  }
+  function normalizePlan(input={},hardware={}){
     const kind=String(input.kind||'iv');
     if(!['iv','it'].includes(kind))throw Error('该测试方式尚未进入安全执行计划');
     const loops=count(input.loops??1,'循环次数',1,10000);
@@ -26,9 +34,8 @@
     const gateSmU=count(input.gateSmU??0,'栅极 SMU（0 为不使用）',0,9);
     if(gateSmU&&(gateSmU===sourceSmU||gateSmU===measureSmU))
       throw Error('栅极 SMU 不得与源/测量 SMU 使用相同编号');
-    const sourceModel=String(input.sourceModel||'unknown').trim().toUpperCase();
-    if(!['UNKNOWN','4200-SMU','4201-SMU','4210-SMU','4211-SMU'].includes(sourceModel))
-      throw Error('未识别的 SMU 型号，不能应用未经核实的额定参数');
+    // Never trust a model name supplied by the UI/imported plan. Resolve it only from the read-only *OPT? inventory.
+    const sourceModel=detectedSmUModel(sourceSmU,hardware.inventory);
     const maxAbsVoltage=Math.max(
       Math.abs(Number(input.gateBiasV??0)),Math.abs(Number(input.startV??-1)),
       Math.abs(Number(input.stopV??1)),Math.abs(Number(input.fixedV??0.1))
@@ -57,8 +64,8 @@
       provenance:'user-test-plan',safetyNote:'已按所选 SMU 型号和最大电压应用保守电流边界；仍需核验实际插槽、工作象限及模块额定值，禁止据此直接执行'
     });
   }
-  function previewPlan(plan,limit=300){
-    const p=normalizePlan(plan);
+  function previewPlan(plan,limit=300,hardware={}){
+    const p=normalizePlan(plan,hardware);
     const max=Math.min(p.totalPoints,Math.max(2,Math.trunc(limit)));
     const rows=[];
     for(let index=0;index<max;index++){
@@ -108,7 +115,7 @@
     }
     return Object.freeze({status,begin,run});
   }
-  const api=Object.freeze({normalizePlan,previewPlan,createExecutionCoordinator});
+  const api=Object.freeze({normalizePlan,previewPlan,detectedSmUModel,createExecutionCoordinator});
     if(typeof window!=='undefined' && window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkds.keithley-4200','dkts-plan',api);
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
