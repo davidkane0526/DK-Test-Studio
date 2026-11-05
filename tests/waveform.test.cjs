@@ -20,11 +20,24 @@ test('PMU Segment Arb enforces exact range, load-line and segment timing',()=>{
   assert.equal(w.maxCurrentA,0.4);
   assert.equal(w.durationS,1.5e-7);
   assert.equal(w.hardwareVerified,false);
+  assert.equal(w.interfaceLimits.segmentTimesCompatible,true);
+  assert.equal(w.executionCompatibility,'hardware-plan-only');
   assert.throws(()=>validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:40,inventory:{slots:[],unknownModules:[]}}),/没有已识别/);
   assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:0.00000005,voltageV:39.999},{timeS:0.0000001,voltageV:0},{timeS:0.00000015,voltageV:1}],{sourceType:'pmu',loadOhms:1000000,rangeV:40,inventory}),/输出边界/);
   assert.throws(()=>validateWaveform(points.slice(0,3),{sourceType:'pmu',loadOhms:50,rangeV:40}),/至少需要 3 个分段/);
   assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:0.000000025,voltageV:1},{timeS:0.00000005,voltageV:0},{timeS:0.000000075,voltageV:1}],{sourceType:'pmu',loadOhms:50,rangeV:10}),/10 ns 时间分辨率/);
   assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:0.00000002,voltageV:1},{timeS:0.00000004,voltageV:0},{timeS:0.00000006,voltageV:1}],{sourceType:'pmu',loadOhms:50,rangeV:40}),/分段时间/);
+});
+test('Segment Arb accepts the documented 40 s hardware segment while exposing the 1 s KXCI command limit',()=>{
+  const points=[{timeS:0,voltageV:0},{timeS:40,voltageV:1},{timeS:80,voltageV:0},{timeS:120,voltageV:1}];
+  const w=validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,inventory});
+  assert.equal(w.durationS,120);
+  assert.equal(w.interfaceLimits.maxSegmentTimeS,1);
+  assert.equal(w.interfaceLimits.segmentTimesCompatible,false);
+  assert.equal(w.interfaceLimits.requiresAlternateBackend,true);
+  assert.equal(w.executionCompatibility,'hardware-valid-kxci-limited');
+  assert.equal(w.executable,false);
+  assert.throws(()=>validateWaveform([{timeS:0,voltageV:0},{timeS:40.00000001,voltageV:1},{timeS:80.00000002,voltageV:0},{timeS:120.00000003,voltageV:1}],{sourceType:'pmu',loadOhms:50,rangeV:10,inventory}),/分段时间/);
 });
 test('PGU source-only uses its own 10 V minimum segment time and cannot capture current',()=>{
   const points=[{timeS:0,voltageV:0},{timeS:1e-8,voltageV:1},{timeS:2e-8,voltageV:0},{timeS:3e-8,voltageV:1}];
@@ -37,7 +50,8 @@ test('PMU current capture exposes ranges and enforces acquisition buffer',()=>{
   const points=[{timeS:0,voltageV:0},{timeS:0.00000002,voltageV:1},{timeS:0.00000004,voltageV:0},{timeS:0.00000006,voltageV:1}];
   const w=validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measureWindowS:20e-9,inventory});
   assert(w.pulseCurrentRangesA.includes(0.2));
-  assert.equal(w.captureBudget.maxPointsPerChannel,65536);
+  assert.equal(w.captureBudget.maxPointsPerChannel,1000000);
+  assert.equal(w.captureBudget.interfaceMaxPointsPerChannel,65536);
   assert.equal(w.captureBudget.hardwareMaxSampleRateHz,200e6);
   assert.throws(()=>validateWaveform(points,{sourceType:'pmu',loadOhms:50,rangeV:10,captureCurrent:true,measureWindowS:1e-9,inventory}),/采样率范围/);
 });
