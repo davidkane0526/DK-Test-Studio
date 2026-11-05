@@ -99,6 +99,7 @@ const form=$('connection-form'),planForm=$('plan-form');
 const dialog=$('connection-dialog'),statusButton=$('connection-status');
 const reconnect=$('reconnect-instrument'),disconnect=$('disconnect-instrument');
 let state='disconnected',busy=false;
+let capabilityState=null;
 const messages=[];
 function showStatusMessage(message,level='info',record=true,display=true){
   const value=String(message||'').slice(0,300);
@@ -149,6 +150,138 @@ async function post(route,data={}){
     body:JSON.stringify(data),cache:'no-store'});
   return res.json();
 }
+
+async function loadCapabilities(){
+  try{
+    const response=await fetch('/api/capabilities',{cache:'no-store'});
+    const data=await response.json();
+    if(!response.ok||!data.ok||!data.database)throw Error(data.error||'能力数据库读取失败');
+    capabilityState=data;
+    const db=data.database;
+    $('capability-db-version').textContent='v'+db.databaseVersion+' · '+Object.keys(db.modules).length+' 类模块';
+    applyPlanInputBounds();
+    updateWaveformControls();
+    return data;
+  }catch(error){
+    $('capability-db-version').textContent='数据库读取失败';
+    showStatusMessage('4200A 安全数据库加载失败：'+String(error.message||error).slice(0,100),'error');
+    return null;
+  }
+}
+async function exportCapabilities(){
+  try{
+    const response=await fetch('/api/capabilities/export',{cache:'no-store'});
+    const payload=await response.json();
+    if(!response.ok)throw Error(payload.error||'数据库导出失败');
+    const database=payload.database||payload;
+    if(!database.databaseVersion||!database.modules)throw Error('导出文件内容不完整');
+    const blob=new Blob([JSON.stringify(database,null,2)+'\n'],{type:'application/json'});
+    const url=URL.createObjectURL(blob),link=document.createElement('a');
+    link.href=url;link.download='4200a-capabilities-safety-v'+database.databaseVersion+'.json';
+    document.body.appendChild(link);link.click();link.remove();
+    window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+    showStatusMessage('已导出 4200A 能力与安全策略数据库 v'+database.databaseVersion,'success');
+  }catch(error){
+    showStatusMessage('数据库导出失败：'+String(error.message||error).slice(0,110),'error');
+  }
+}
+function resolveUiSmu(channel){
+  const inventory=capabilityState?.inventory;
+  if(!inventory){
+    if(capabilityState?.connected)return null;
+    return {powerClass:'medium',preamplifier:false};
+  }
+  const slot=inventory.slots?.find(x=>x.family==='SMU'&&Number(x.channel)===Number(channel));
+  if(!slot)return null;
+  let powerClass=slot.powerClass;
+  if(slot.modelKey==='4210-SMU'||slot.modelKey==='4211-SMU')powerClass='high';
+  if(slot.modelKey==='4200-SMU'||slot.modelKey==='4201-SMU')powerClass='medium';
+  if(!['medium','high'].includes(powerClass))return null;
+  const preamplifier=!!slot.preamplifier||inventory.remoteModules?.some(x=>
+    x.category==='SMU-PREAMPLIFIER'&&Number(x.channel)===Number(channel));
+  return {powerClass,preamplifier};
+}
+function smuUiComplianceBounds(channel,absVoltage){
+  const db=capabilityState?.database;if(!db)return null;
+  const slot=resolveUiSmu(channel);if(!slot)return null;
+  const rangeV=absVoltage<=0.21?0.2:absVoltage<=2.1?2:absVoltage<=21?20:200;
+  const rule=db.rules.smu;
+  const maxByRange=Number(rule.voltageSourceMaxCurrentAByPowerClassAndRange[slot.powerClass][String(rangeV)]);
+  const maxPower=Number(rule.maxPowerW[slot.powerClass]);
+  const max=maxByRange===undefined?0:Math.min(maxByRange,absVoltage>0?maxPower/absVoltage:maxByRange);
+  const minRange=slot.preamplifier?Number(rule.minCurrentRangeA.withPreamplifier):Number(rule.minCurrentRangeA.withoutPreamplifier);
+  return {min:minRange*rule.currentComplianceFraction.min,max};
+}
+function applyPlanInputBounds(){
+  const db=capabilityState?.database;if(!db)return;
+  const maxV=Number(db.rules.smu.maxAbsVoltageV);
+  for(const name of ['startV','stopV','fixedV','gateBiasV']){
+    const input=planForm.elements.namedItem(name);
+    if(input){input.min=String(-maxV);input.max=String(maxV);}
+  }
+  const sourceChannel=Number(planForm.elements.namedItem('sourceSmU')?.value||1);
+  const gateChannel=Number(planForm.elements.namedItem('gateSmU')?.value||0);
+  const sourceVoltage=Math.max(
+    Math.abs(Number(planForm.elements.namedItem('startV')?.value||0)),
+    Math.abs(Number(planForm.elements.namedItem('stopV')?.value||0)),
+    Math.abs(Number(planForm.elements.namedItem('fixedV')?.value||0))
+  );
+  const gateVoltage=Math.abs(Number(planForm.elements.namedItem('gateBiasV')?.value||0));
+  const source=smuUiComplianceBounds(sourceChannel,sourceVoltage);
+  const gate=gateChannel?smuUiComplianceBounds(gateChannel,gateVoltage):null;
+  const input=planForm.elements.namedItem('complianceA');
+  if(!input)return;
+  if(!source||(gateChannel&&!gate)){
+    input.disabled=true;input.setCustomValidity('所选 SMU 通道未被当前仪器清单识别，不能确定安全边界');
+    return;
+  }
+  input.disabled=false;input.setCustomValidity('');
+  input.min=String(Math.max(source.min,gate?.min||0));
+  input.max=String(Math.min(source.max,gate?.max??Infinity));
+}
+function updateWaveformControls(){
+  const sourceType=$('waveform-source-type').value;
+  const isSmu=sourceType==='smu',isPmu=sourceType==='pmu',isPgu=sourceType==='pgu';
+  $('waveform-load-control').hidden=isSmu;
+  $('waveform-range-control').hidden=isSmu;
+  $('waveform-dut-current-control').hidden=isSmu;
+  $('waveform-card-control').hidden=isSmu;
+  $('waveform-channel-control').hidden=isSmu;
+  $('waveform-smu-delay-control').hidden=!isSmu;
+  $('waveform-smu-integration-control').hidden=!isSmu;
+  $('waveform-measure-mode-control').hidden=!isPmu;
+  const measureMode=isPmu?$('waveform-measure-mode').value:'none';
+  $('waveform-current-range-control').hidden=!isPmu||!['current','both'].includes(measureMode);
+  $('waveform-measure-window-control').hidden=!isPmu||measureMode==='none';
+  if(isPgu)$('waveform-measure-mode').value='none';
+  if(!capabilityState?.database)return;
+  const db=capabilityState.database,range=String(Number($('waveform-range-v').value));
+  if(isPmu){
+    const card=Number($('waveform-card').value||1),channel=Number($('waveform-channel').value||1);
+    const slot=capabilityState.inventory?.slots?.find(x=>x.family==='PMU'&&Number(x.channel)===card);
+    const rpm=!!(slot&&(slot.rpm===true||slot.rpmChannels==='unknown'||slot.rpmChannels?.includes(channel))||
+      capabilityState.inventory?.remoteModules?.some(x=>x.category==='PMU-REMOTE-PREAMPLIFIER-SWITCH'&&Number(x.pmuChannel)===card&&Number(x.rpmChannel)===channel));
+    const allowed=(rpm?db.modules['4225-RPM'].currentMeasureRangesA:db.modules['4225-PMU'].currentMeasureRangesA)[range+'V']||[];
+    const select=$('waveform-current-range'),previous=select.value;
+    select.replaceChildren();
+    const auto=document.createElement('option');auto.value='';auto.textContent='自动选择最高可用量程';select.appendChild(auto);
+    for(const value of allowed){
+      const option=document.createElement('option');option.value=String(value);
+      option.textContent=value>=1?' '+value+' A':value>=0.001?(value*1000)+' mA':value>=0.000001?(value*1e6)+' µA':(value*1e9)+' nA';
+      select.appendChild(option);
+    }
+    select.value=allowed.some(x=>String(x)===previous)?previous:'';
+    const selected=select.value?Number(select.value):allowed.at(-1);
+    const timingTable=rpm?db.modules['4225-PMU'].timing.currentMeasureWithRpm:db.modules['4225-PMU'].timing.currentMeasureNoRpm;
+    const profile=timingTable[range+'V']?.[String(selected)];
+    const minWindow=profile?.minMeasureWindowS||0;
+    const windowInput=$('waveform-measure-window');
+    windowInput.min=String(minWindow*1e9||1);
+    windowInput.placeholder=minWindow?'最小 '+(minWindow*1e9)+' ns':'该量程暂无公开时序数据';
+    $('waveform-dut-current').max=String(db.rules.pulse.instrumentCurrentCeilingAByRange[String(rpm?10:range)]);
+  }
+}
+
 function fields(){
   const f=new FormData(form);return Object.fromEntries(f.entries());
 }
@@ -171,8 +304,12 @@ function renderStatus(value){
   const inventory=value.inventory;
   const modules=inventory?.knownModules||[];
   $('module-summary').textContent=inventory
-    ?(modules.length?modules.map(x=>x.raw).join(' · '):'未识别到已知模块')+'（额定参数未核验）'
+    ?(modules.length?modules.map(x=>[x.raw,x.modelKey||'',x.preamplifier?'PA':'',x.rpm?'RPM':''].filter(Boolean).join(' ')).join(' · '):'未识别到已知模块')+
+      (inventory.detailedInventoryAvailable?' · 精确型号已读取':' · 按 *OPT? 功率等级保守校验')
     :value.inventoryError?'查询失败：'+String(value.inventoryError).slice(0,90):'尚未查询';
+  if(inventory?.detailedInventoryError||value.inventoryError)
+    $('module-summary').title=String(inventory.detailedInventoryError||value.inventoryError).slice(0,500);
+  applyPlanInputBounds();
   const detail=String(value.diagnostic||'');
   $('diagnostic-wrap').hidden=!detail;
   $('diagnostic').textContent=detail.slice(0,6000);
@@ -447,17 +584,34 @@ function drawWave(points){
   const ly=make('text',{x:13,y:height/2,transform:'rotate(-90 13 '+height/2+')','text-anchor':'middle','font-size':13,fill:'currentColor'});
   ly.textContent='Voltage (V)';
 }
+function optionalNumber(id){
+  const value=$(id).value.trim();return value===''?undefined:Number(value);
+}
 function waveformOptions(){
   const sourceType=$('waveform-source-type').value;
-  const loadControl=$('waveform-load-control');
-  const rangeControl=$('waveform-range-control');
-  loadControl.hidden=sourceType==='smu';
-  rangeControl.hidden=sourceType==='smu';
-  return {
-    sourceType,
-    loadOhms:sourceType==='smu'?null:Number($('waveform-load-ohms').value),
-    rangeV:sourceType==='smu'?null:Number($('waveform-range-v').value)
-  };
+  updateWaveformControls();
+  const planValues=Object.fromEntries(new FormData(planForm).entries());
+  const options={sourceType};
+  if(sourceType==='smu'){
+    options.sourceSmU=Number(planValues.sourceSmU||1);
+    options.measureSmU=Number(planValues.measureSmU||options.sourceSmU);
+    options.complianceA=Number(planValues.complianceA);
+    options.sourceDelayS=Number($('waveform-smu-delay').value)/1000;
+    options.integrationTimeS=Number($('waveform-smu-integration').value)/1000;
+  }else{
+    options.loadOhms=optionalNumber('waveform-load-ohms');
+    options.rangeV=Number($('waveform-range-v').value);
+    options.dutCurrentLimitA=optionalNumber('waveform-dut-current');
+    options.pmuCard=Number($('waveform-card').value||1);
+    options.pguCard=Number($('waveform-card').value||1);
+    options.pmuChannel=Number($('waveform-channel').value||1);
+    options.pguChannel=Number($('waveform-channel').value||1);
+    options.measureMode=sourceType==='pmu'?$('waveform-measure-mode').value:'none';
+    options.currentMeasureRangeA=optionalNumber('waveform-current-range');
+    const windowNs=optionalNumber('waveform-measure-window');
+    options.measureWindowS=windowNs===undefined?undefined:windowNs*1e-9;
+  }
+  return options;
 }
 async function validateWave(){
   const expectedTabId=getActiveWorkspace()?.id,expectedMode=activeMode;
@@ -468,9 +622,14 @@ async function validateWave(){
     if(expectedTabId!==getActiveWorkspace()?.id||expectedMode!==activeMode)return;
     if(!r.ok)throw Error(r.error||'波形参数不正确');
     const sourceLabel=options.sourceType==='smu'?'SMU':options.sourceType==='pmu'?'4225-PMU':'4220-PGU';
-    const loadLabel=options.sourceType==='smu'?'':' · '+r.rangeV+' V 档 · 负载 '+r.loadOhms+' Ω · 最大电流 '+(r.maxCurrentA*1000).toFixed(3)+' mA';
-    info.textContent=sourceLabel+' · 电压范围 ±'+r.maxVoltageV.toFixed(3)+' V'+loadLabel+
-      ' · '+r.count+' 点 · 总时长 '+r.durationS+' s · 最小间隔 '+r.minimumStepS+' s · 仅规划';
+    const loadLabel=options.sourceType==='smu'
+      ?' · SDM 最小步进 '+(r.minimumStepS*1000).toFixed(3)+' ms'
+      :' · '+r.rangeV+' V 档 · 负载 '+r.loadOhms+' Ω · 输出限流 '+(r.effectiveCurrentLimitA*1000).toFixed(3)+' mA';
+    const measureLabel=r.measureMode&&r.measureMode!=='none'
+      ?' · '+r.measureMode+' 测量 · ADC量程 '+(r.currentMeasureRangeA===null?'—':r.currentMeasureRangeA)+' A · 窗口 '+(r.measureWindowS*1e9).toFixed(1)+' ns':'';
+    const timingLabel=r.minSegmentTimeS?' · Segment ARB '+r.segmentCount+' 段 · 最短 '+(r.minSegmentTimeS*1e9).toFixed(1)+' ns':'';
+    info.textContent=sourceLabel+' · 电压边界 ±'+r.maxVoltageV.toFixed(3)+' V'+loadLabel+measureLabel+timingLabel+
+      ' · '+r.points.length+' 点 · 总时长 '+r.durationS+' s · 仅规划';
 
     drawWave(r.preview);
     showStatusMessage('波形校验通过 · '+r.count+' 个规划点（无硬件输出）','success');
@@ -1345,6 +1504,11 @@ dialog.addEventListener('click',event=>{
   if(event.target===dialog)closeConnectionDialog();
 });
 $('validate-plan').addEventListener('click',validatePlan);
+$('export-capabilities').addEventListener('click',exportCapabilities);
+for(const id of ['waveform-source-type','waveform-range-v','waveform-measure-mode',
+  'waveform-current-range','waveform-card','waveform-channel'])
+  $(id).addEventListener('change',updateWaveformControls);
+planForm.addEventListener('input',applyPlanInputBounds);
 document.querySelectorAll('.test-type-card').forEach(card=>{
   card.addEventListener('click',()=>selectTestKind(card.dataset.testKind));
 });
@@ -1815,7 +1979,7 @@ installAndroidNumericKeypad();
 
 enhanceWorkspaceSelects();
 
-(async()=>{await loadWorkspaceState();renderTestSelection();renderStatus(await refresh());if(state!=='connected')await connectInstrument();})();
+(async()=>{await loadCapabilities();await loadWorkspaceState();renderTestSelection();renderStatus(await refresh());if(state!=='connected')await connectInstrument();})();
 
 /* Native shells update UI assets in the background, without replacing instrument drivers.
  * The local UI version endpoint is cheap; GitHub is queried by the host, not this page. */
