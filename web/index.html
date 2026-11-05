@@ -118,6 +118,22 @@
 </dialog>
 <main class="workspace">
 
+  <section id="terminal-profiles" class="card terminal-profiles" aria-label="选择端口配置">
+    <div class="port-panel-heading"><div><h2>选择端口配置</h2><p class="hint">依据实际安装的 4200A 模块识别通道，None 表示未分配，不代表自动接地。</p></div>
+      <span id="terminal-inventory-state" class="terminal-inventory-state">等待模块识别</span></div>
+    <div class="port-panel-controls">
+      <label>源极 Source <select id="home-terminal-source" data-terminal-role="source"></select></label>
+      <label>漏极 Drain <select id="home-terminal-drain" data-terminal-role="drain"></select></label>
+      <label>栅极 Gate <select id="home-terminal-gate" data-terminal-role="gate"></select></label>
+    </div>
+    <div class="port-preset-bar">
+      <label>配置名称 <input id="terminal-preset-name" type="text" maxlength="48" placeholder="例如 MOSFET 三端口"></label>
+      <label>已保存配置 <select id="terminal-preset-select" aria-label="已保存的端口配置"></select></label>
+      <button id="terminal-preset-save" type="button">保存配置</button>
+      <button id="terminal-preset-load" type="button">加载配置</button>
+    </div>
+    <p id="terminal-profile-status" class="hint" role="status">此处配置同步应用到当前测试的标题栏。</p>
+  </section>
   <section id="test-library" class="card types-card" aria-labelledby="test-types-title">
     <div class="card-heading">
       <div><h2 id="test-types-title">选择测试方式</h2><p id="workspace-context-label" class="workspace-context-label" hidden></p></div>
@@ -167,6 +183,12 @@
             <h2 id="test-detail-title" tabindex="-1">测试工作区</h2>
           </div>
           <div class="data-header-actions detail-run-actions" role="group" aria-label="测试运行控制">
+            <div class="heading-terminal-ports" role="group" aria-label="当前测试端口配置">
+              <label>源极<select id="header-terminal-source" data-terminal-role="source"></select></label>
+              <label>漏极<select id="header-terminal-drain" data-terminal-role="drain"></select></label>
+              <label>栅极<select id="header-terminal-gate" data-terminal-role="gate"></select></label>
+            </div>
+            <span class="run-actions-divider" aria-hidden="true">|</span>
             <button type="button" id="start-measurement" class="measure-button" disabled title="实机采集尚未接入">开始测试</button>
             <button type="button" id="pause-measurement" class="measure-button" disabled title="实机采集尚未接入">暂停</button>
             <button type="button" id="stop-measurement" class="measure-button" disabled title="实机采集尚未接入">停止</button>
@@ -188,7 +210,7 @@
         <label class="it-only" hidden>固定偏置 (V)<input type="number" step="any" name="fixedV" value="0.1" min="-210" max="210"></label>
         <label>每循环点数<input type="number" min="2" max="100000" name="points" value="101"></label>
         <label>循环次数<input type="number" min="1" max="10000" name="loops" value="3"></label>
-        <label>规划电流限值 (A，按已识别 SMU 与电压档校验)<input type="number" step="any" name="complianceA" value="0.0001" min="0.000000000001" max="1.05"></label>
+        <label>I–t 电流保护值 (A)<input type="number" step="any" name="complianceA" value="0.0001" min="0.000000000001" max="1.05"></label>
         <details class="span-two settings">
           <summary>高级测试设置（通道与速度）</summary>
           <div class="advanced-grid">
@@ -203,6 +225,45 @@
             <label>栅极偏置 (V)<input type="number" name="gateBiasV" value="0" step="any" min="-210" max="210"></label>
           </div>
         </details>
+      </form>
+      <form id="sweep-configuration" class="sweep-configuration" hidden aria-label="Xsweep 与 Psweep 多段扫描设置">
+        <div class="sweep-main-line">
+          <strong>扫描策略</strong>
+          <label>整体循环<input id="sweep-global-loops" type="number" min="1" max="10000" value="1" step="1"></label>
+          <span class="sweep-detail-tip">Xsweep 为内层扫描；完成指定次数后，Psweep 才切换到下一栅压/偏置点。</span>
+        </div>
+        <section class="sweep-axis-card" id="xsweep-card" aria-labelledby="xsweep-title">
+          <div class="sweep-axis-heading">
+            <strong id="xsweep-title">Xsweep <small>主扫描</small></strong>
+            <label>扫描电极<select id="xsweep-terminal"><option value="drain">漏极</option><option value="gate">栅极</option><option value="source">源极</option></select></label>
+            <label>重复次数<input id="xsweep-repeats" type="number" min="1" max="10000" value="1" step="1"></label>
+            <label>点间延迟 (ms)<input id="xsweep-delay" type="number" min="0" max="6553" step="any" value="20"></label>
+            <button type="button" id="xsweep-add" class="sweep-add-row">添加扫描段</button>
+          </div>
+          <div class="sweep-table-scroll"><table class="sweep-segment-table"><thead><tr><th>#</th><th>起始 (V)</th><th>结束 (V)</th><th>步长 (V)</th><th>电流档位 (A)</th><th></th></tr></thead><tbody id="xsweep-segments"></tbody></table></div>
+        </section>
+        <section class="sweep-axis-card" id="psweep-card" aria-labelledby="psweep-title">
+          <div class="sweep-axis-heading">
+            <label class="psweep-enable"><input type="checkbox" id="psweep-enabled"> <strong id="psweep-title">Psweep <small>参数扫描</small></strong></label>
+            <label>扫描电极<select id="psweep-terminal"><option value="gate">栅极</option><option value="drain">漏极</option><option value="source">源极</option></select></label>
+            <label>重复次数<input id="psweep-repeats" type="number" min="1" max="10000" value="1" step="1"></label>
+            <label>点间延迟 (ms)<input id="psweep-delay" type="number" min="0" max="6553" step="any" value="20"></label>
+            <button type="button" id="psweep-add" class="sweep-add-row">添加扫描段</button>
+          </div>
+          <div id="psweep-fields" hidden>
+            <div class="sweep-table-scroll"><table class="sweep-segment-table"><thead><tr><th>#</th><th>起始 (V)</th><th>结束 (V)</th><th>步长 (V)</th><th>电流档位 (A)</th><th></th></tr></thead><tbody id="psweep-segments"></tbody></table></div>
+          </div>
+          <p id="psweep-off-note" class="hint">Psweep 未启用：其余电极使用固定偏置。</p>
+        </section>
+        <div class="sweep-terminal-heading"><strong>各端口电流档位与保护值</strong><span>档位必须是实际仪器提供的离散值；自定义的是保护阈值，而非虚拟硬件档位。</span></div>
+        <div id="sweep-terminal-settings" class="sweep-terminal-settings"></div>
+        <div class="sweep-fixed-heading"><strong>固定偏置</strong><span>只有未参与 Xsweep/Psweep 的电极使用固定值。</span></div>
+        <div class="sweep-fixed-voltages">
+          <label>源极 (V)<input id="fixed-source" type="number" min="-210" max="210" step="any" value="0"></label>
+          <label>漏极 (V)<input id="fixed-drain" type="number" min="-210" max="210" step="any" value="0"></label>
+          <label>栅极 (V)<input id="fixed-gate" type="number" min="-210" max="210" step="any" value="0"></label>
+        </div>
+        <p class="hint sweep-readonly-notice">安全规划与扫描顺序预览已启用。真实输出及原始数据采集仍需通过执行器安全验收。</p>
       </form>
             <p class="hint" id="plan-status" role="status">仅校验方案，尚未开放实机执行。</p>
             <div id="pending-parameters" class="pending-parameters" hidden>
