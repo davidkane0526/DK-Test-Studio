@@ -46,7 +46,7 @@ test('Android host exercises the exact shared identity controller via native TCP
       writes.push(command);
       const responses={
         [commands.idn]:'KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0',
-        [commands.opt]:'SMU1,PMU3,CVU1\0',
+        [commands.opt]:'SMUPA1,PMU3RPM1,CVU1\0',
         [commands.ul]:'OK\0',[commands.de]:'OK\0',
         [commands.instrument]:'OK\0',[commands.remote]:'OK\0',
         [commands.gn]:(lastQuery==='instrument'?instrumentInfo:remoteInfo)+'\0'
