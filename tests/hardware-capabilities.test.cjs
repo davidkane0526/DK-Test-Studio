@@ -34,7 +34,8 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   const pg10 = caps.getSegmentArbLimits('pgu', 10);
   const pm10 = caps.getSegmentArbLimits('pmu', 10);
   const pm40 = caps.getSegmentArbLimits('pmu', 40);
-  assert.equal(pg10.minSegmentS, 2e-8);
+  assert.equal(pg10.minSegmentS, 1e-8);
+  assert.match(pg10.hardwareMinSegmentNote, /PGU 10 V.*10 ns/);
   assert.equal(pg10.kxciMinSegmentS, 1e-8);
   assert.equal(pm10.minSegmentS, 2e-8);
   assert.equal(pm40.minSegmentS, 2e-8);
