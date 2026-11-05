@@ -1,6 +1,6 @@
 {
   "name": "dk-test-studio",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "private": true,
   "description": "Standalone Keithley 4200A research test control workspace",
   "main": "desktop/main.cjs",
