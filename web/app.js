@@ -162,7 +162,7 @@ async function apiGet(route){
 async function loadCapabilities(){
   try{
     const data=await apiGet('/api/capabilities');
-    if(!response.ok||!data.ok||!data.database)throw Error(data.error||'能力数据库读取失败');
+    if(!data.ok||!data.database)throw Error(data.error||'能力数据库读取失败');
     capabilityState=data;
     const db=data.database;
     $('capability-db-version').textContent='v'+db.databaseVersion+' · '+Object.keys(db.modules).length+' 类模块';
