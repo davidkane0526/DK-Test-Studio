@@ -30,6 +30,27 @@ test('instrumentinfo and remotemoduleinfo identify physical SMU, PA, PMU, RPM, C
  const smu=caps.getSmuLimits(p.slots[0],20,1e-10);assert.equal(smu.maxComplianceA,0.105);assert.equal(smu.minComplianceA,1e-10);
  assert.equal(caps.getPmuCurrentRanges(10,true).includes(1e-7),true);
 });
+test('VS and VM logical channels inherit their physical SMU class and attached PA',()=>{
+ const slots='VS1,VM2';
+ const cards=[
+  'slotno:1,name:SMU1,model:KISMU4200,serialno:SMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
+  'slotno:2,name:SMU2,model:KIHPSMU4210,serialno:SMU002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026'
+ ].join(',');
+ const remotes='slotno:1,name:PA1,model:KI4200,serialno:PA001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026';
+ const p=protocol.parseHardwareInventory(slots,cards,remotes);
+ assert.equal(p.hardwareLimitsVerified,true);
+ assert.equal(p.slots[0].physicalType,'SMUPA');
+ assert.equal(p.slots[0].powerClass,'medium');
+ assert.equal(p.slots[0].ratingsVerified,true);
+ assert.equal(p.slots[1].physicalType,'HPSMU');
+ assert.equal(p.slots[1].powerClass,'high');
+ assert.equal(p.slots[1].ratingsVerified,true);
+ const source=caps.getSourceLimits(p.slots[0],20,0.01);
+ assert.equal(source.known,true);
+ assert.equal(source.logicalRole,'VS');
+ assert.equal(source.maxAbsVoltageV,20);
+ assert.throws(()=>caps.getSourceLimits(p.slots[0],21,0.01),/上限/);
+});
 test('KXCI module inspection sends only fixed read-only metadata commands and caches results',async()=>{
  const writes=[];let lastQuery='';
  const server=net.createServer(socket=>socket.on('data',bytes=>{
