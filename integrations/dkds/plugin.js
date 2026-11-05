@@ -93,11 +93,65 @@
       activity:'dkts-keithley-4200',label:'4200A',title:'',
       toolbar:false,html:'',onOpen});
     const shell=modules.require('standalone-shell');
+    const publishedNativeRuns=new Set();
+    function nativeRunStatus(cursor=0){
+      const state=runner.status(cursor);
+      if(state.runId&&!state.running&&!publishedNativeRuns.has(state.runId)&&state.totalRows){
+        try{
+          const rows=[];
+          let offset=0;
+          while(offset<state.totalRows){
+            const page=runner.status(offset);
+            if(!page.rows.length)break;
+            rows.push(...page.rows);
+            offset=page.nextCursor;
+          }
+          if(rows.length!==state.totalRows)throw Error('原始数据分页不完整');
+          const identity=controller.status().identity;
+          const artifact=ctx.data.model.createTable({
+            id:'dkts-native-'+state.runId,
+            name:'4200A 原始 KXCI 测量 '+state.runId,
+            semanticType:'science.transport.iv',
+            transient:false,
+            metadata:{
+              rawInstrumentData:true,acquisitionVerified:true,
+              origin:'4200A-KXCI-user-TI',sampleCount:rows.length,
+              measuredCurrentUnit:'A',xIsProgrammedSetpoint:true,
+              rawKxciResponses:rows.map(r=>r.rawKxciResponse),
+              measurementStatus:rows.map(r=>r.measurementStatus),
+              sourceBiasV:rows.map(r=>r.sourceVoltageV),
+              gateBiasV:rows.map(r=>r.gateVoltageV),
+              instrumentModel:identity?.model||null,serial:identity?.serial||null,
+              runStatus:state.state,shutdownState:state.shutdown
+            },
+            columns:[
+              {key:'VdSet',name:'漏极设定电压',unit:'V',role:'x',
+                values:rows.map(r=>r.drainVoltageV)},
+              {key:'Id',name:'漏极实测电流',unit:'A',role:'y',
+                values:rows.map(r=>r.currentA)},
+              {key:'Time',name:'采集时间',unit:'s',role:'aux',
+                values:rows.map(r=>r.timeS)}
+            ],
+            provenance:[{type:'instrument-measurement',
+              label:'4200A KXCI TI 原始响应',
+              producer:'com.dkts.keithley-4200',
+              operation:'US-DV-TI',
+              source:{model:identity?.model||null,serial:identity?.serial||null}}]
+          });
+          ctx.data.artifacts.upsert(artifact);
+          publishedNativeRuns.add(state.runId);
+          return {...state,dataCenterArtifactId:artifact.id};
+        }catch(e){
+          return {...state,dataCenterError:String(e.message||e).slice(0,160)};
+        }
+      }
+      return state;
+    }
     async function handleUiRequest({method,route,payload={}}){
       try{
         if(method==='GET'){
           if(route==='/api/status')return {status:200,data:{ok:true,...controller.status()}};
-          if(route==='/api/measurement/status')return {status:200,data:{ok:true,...runner.status(0)}};
+          if(route==='/api/measurement/status')return {status:200,data:{ok:true,...nativeRunStatus(0)}};
           if(route==='/api/hardware/capabilities')return {status:200,data:{ok:true,database:capabilities.exportDatabase()}};
           if(route==='/api/app/version')return {status:200,data:{version:'0.3.13'}};
           if(route==='/api/ui/version')return {status:200,data:{version:'bundled',status:'disabled'}};
@@ -112,7 +166,7 @@
           }
           if(route==='/api/ui/check')return {status:200,data:{ok:true,status:'disabled',updated:false}};
           if(route==='/api/measurement/status')
-            return {status:200,data:{ok:true,...runner.status(Number(payload.cursor||0))}};
+            return {status:200,data:{ok:true,...nativeRunStatus(Number(payload.cursor||0))}};
           if(route==='/api/measurement/start')
             return {status:200,data:{ok:true,...runner.start(payload.plan,hardwareProfile(),payload.authorization)}};
           if(route==='/api/measurement/stop')
