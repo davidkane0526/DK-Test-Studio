@@ -119,6 +119,24 @@
       throw error;
     }
   }
+  async function saveCapabilityDatabase(database){
+    const text=JSON.stringify(database,null,2)+'\n';
+    const bytes=new TextEncoder().encode(text);
+    const filename='4200a-capabilities-safety-v'+database.databaseVersion+'.json';
+    const started=await native('capability-export-begin',{bytes:bytes.length,filename});
+    try{
+      for(let offset=0;offset<bytes.length;offset+=WORKSPACE_CHUNK_BYTES){
+        const part=bytes.subarray(offset,offset+WORKSPACE_CHUNK_BYTES);
+        await native('capability-export-append',{
+          token:started.token,offset,base64:toBase64(part)
+        });
+      }
+      return await native('capability-export-commit',{token:started.token});
+    }catch(error){
+      try{await native('capability-export-abort');}catch{}
+      throw error;
+    }
+  }
   async function loadWorkspace(){
     const info=await native('workspace-info');
     if(!info.exists)return {ok:true,workspace:null};
@@ -139,7 +157,7 @@
   }
 
   window.DKTSClient=Object.freeze({
-    get,post,loadWorkspace,status:()=>Promise.resolve(controller.status()),
+    get,post,loadWorkspace,saveCapabilityDatabase,status:()=>Promise.resolve(controller.status()),
     nativeVersion:async()=>String((await native('version')).version||''),
     checkUiUpdate:async()=>native('ui-check'),
     uiUpdateStatus:async()=>native('ui-status'),
