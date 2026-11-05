@@ -210,7 +210,11 @@
         <label class="it-only" hidden>固定偏置 (V)<input type="number" step="any" name="fixedV" value="0.1" min="-210" max="210"></label>
         <label>每循环点数<input type="number" min="2" max="100000" name="points" value="101"></label>
         <label>循环次数<input type="number" min="1" max="10000" name="loops" value="3"></label>
-        <label>I–t 电流保护值 (A)<input type="number" step="any" name="complianceA" value="0.0001" min="0.000000000001" max="1.05"></label>
+        <input type="hidden" name="complianceA" value="0.0001">
+        <label class="it-only" hidden>漏极电流量程 (A)<select name="sourceCurrentRangeA" id="it-drain-current-range"><option value="auto">Auto</option><option value="1e-12">1e-12</option><option value="1e-11">1e-11</option><option value="1e-10">1e-10</option><option value="1e-9">1e-9</option><option value="1e-8">1e-8</option><option value="1e-7">1e-7</option><option value="1e-6">1e-6</option><option value="1e-5">1e-5</option><option value="1e-4">1e-4</option><option value="1e-3">1e-3</option><option value="1e-2">1e-2</option><option value="1e-1">1e-1</option><option value="1e0">1e0</option></select></label>
+        <label class="it-only" hidden>漏极电流保护 (A)<input type="number" step="any" name="sourceComplianceA" value="1e-4" min="1e-12" max="1.05"></label>
+        <label class="it-only" hidden>栅极电流量程 (A)<select name="gateCurrentRangeA" id="it-gate-current-range"><option value="auto">Auto</option><option value="1e-12">1e-12</option><option value="1e-11">1e-11</option><option value="1e-10">1e-10</option><option value="1e-9">1e-9</option><option value="1e-8">1e-8</option><option value="1e-7">1e-7</option><option value="1e-6">1e-6</option><option value="1e-5">1e-5</option><option value="1e-4">1e-4</option><option value="1e-3">1e-3</option><option value="1e-2">1e-2</option><option value="1e-1">1e-1</option><option value="1e0">1e0</option></select></label>
+        <label class="it-only" hidden>栅极电流保护 (A)<input type="number" step="any" name="gateComplianceA" value="1e-4" min="1e-12" max="1.05"></label>
         <details class="span-two settings">
           <summary>高级测试设置（通道与速度）</summary>
           <div class="advanced-grid">
