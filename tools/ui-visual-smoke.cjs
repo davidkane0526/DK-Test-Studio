@@ -39,7 +39,7 @@ async function main(){
  try{
   browser=await chromium.launch({executablePath,args:['--no-sandbox','--disable-dev-shm-usage']});
   const url='http://127.0.0.1:'+server.address().port+'/';
-  const selectors=['#home-terminal-source','#home-terminal-drain','#home-terminal-gate','#terminal-preset-name','#terminal-preset-select','#terminal-preset-save','#terminal-preset-load'];
+  const selectors=['label:has(#home-terminal-source) .dkts-select-trigger','label:has(#home-terminal-drain) .dkts-select-trigger','label:has(#home-terminal-gate) .dkts-select-trigger','#terminal-preset-name','label:has(#terminal-preset-select) .dkts-select-trigger','#terminal-preset-save','#terminal-preset-load'];
   const desktop=await pageFor(browser,url,1488,992),d=desktop.page;
   await d.screenshot({path:path.join(out,'desktop-home.png'),fullPage:true});
   const wide=await Promise.all(selectors.map(s=>box(d,s)));
