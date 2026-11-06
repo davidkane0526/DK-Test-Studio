@@ -1675,11 +1675,11 @@ button.statusbar-message,button.statusbar-connection{border:0;background:transpa
 .plan-form{grid-template-columns:repeat(2,minmax(0,1fr))}
 .sweep-terminal-row{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:6px;padding:7px 0}.sweep-terminal-row>strong{grid-column:1/-1;padding:0}
 .sweep-fixed-voltages{grid-template-columns:repeat(2,minmax(0,1fr))}.settings form{grid-template-columns:minmax(0,1fr)}.app-statusbar{padding-inline:5px}}
-body.dkts-android-shell{--dkts-titlebar-height:44px;--dkts-statusbar-height:42px;padding-top:calc(var(--dkts-titlebar-height) + var(--dkts-safe-top));padding-bottom:calc(var(--dkts-statusbar-height) + var(--dkts-safe-bottom))}
+body.dkts-android-shell{--dkts-titlebar-height:39px;--dkts-statusbar-height:42px;padding-top:calc(var(--dkts-titlebar-height) + var(--dkts-safe-top));padding-bottom:calc(var(--dkts-statusbar-height) + var(--dkts-safe-bottom))}
 body.dkts-android-shell .app-titlebar{height:calc(var(--dkts-titlebar-height) + var(--dkts-safe-top));min-height:calc(var(--dkts-titlebar-height) + var(--dkts-safe-top));padding-top:var(--dkts-safe-top)}
 body.dkts-android-shell .app-statusbar{height:calc(var(--dkts-statusbar-height) + var(--dkts-safe-bottom));min-height:calc(var(--dkts-statusbar-height) + var(--dkts-safe-bottom));padding-bottom:var(--dkts-safe-bottom)}
 body.dkts-android-shell .terminal-profiles :is(input,select,.dkts-select-trigger),body.dkts-android-shell .heading-terminal-ports :is(select,.dkts-select-trigger){min-height:44px;height:44px}
-body.dkts-android-shell .app-titlebar{padding-top:env(safe-area-inset-top,0px)}
+body.dkts-android-shell .app-titlebar{padding-top:var(--dkts-safe-top)}
 body.dkts-android-shell .workspace{padding-bottom:max(12px,env(safe-area-inset-bottom,0px))}
 body.dkts-android-shell .plan-form input,body.dkts-android-shell .plan-form select,body.dkts-android-shell .sweep-configuration input:not([type="checkbox"]),body.dkts-android-shell .sweep-configuration select,body.dkts-android-shell .sweep-configuration .dkts-select-trigger{min-height:44px;height:44px}
 body.dkts-android-shell .sweep-segment-table input,body.dkts-android-shell .sweep-segment-table select{min-height:40px;height:40px}
