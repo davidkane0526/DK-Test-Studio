@@ -1,0 +1,49 @@
+/* a97 stabilization: unify geometry only; never restyle floating keypad/popover/chart UI. */
+:root{--dkts-unified-control-height:36px;--dkts-unified-control-radius:8px}
+body.dkts-android-shell{--dkts-unified-control-height:44px}
+/* Native and custom select triggers use the exact same geometry as editable fields. */
+:where(.terminal-profiles,.detail-heading,.detail-panel,.connection-dialog)
+  :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),select,.dkts-select-trigger){
+  box-sizing:border-box;width:100%;min-width:0;height:var(--dkts-unified-control-height);
+  min-height:var(--dkts-unified-control-height);max-height:var(--dkts-unified-control-height);
+  border-radius:var(--dkts-unified-control-radius);padding:6px 9px;font-size:11px;
+  line-height:1.25;text-align:left
+}
+/* The visible dropdown button must not acquire the generic button sizing rules. */
+:where(.terminal-profiles,.detail-heading,.detail-panel,.connection-dialog)
+  .dkts-select-wrapper .dkts-select-trigger{display:flex;align-items:center;justify-content:space-between}
+/* Align actions to the neighboring fields but keep icon-only and plot actions unchanged. */
+.terminal-profiles .port-preset-bar>button,
+.detail-run-actions>.measure-button,
+.sweep-axis-heading>.sweep-add-row{
+  box-sizing:border-box;height:var(--dkts-unified-control-height);
+  min-height:var(--dkts-unified-control-height);padding:6px 10px;
+  border-radius:var(--dkts-unified-control-radius);font-size:11px;line-height:1.25
+}
+.port-panel-controls{align-items:end}
+.port-panel-controls>label,.port-preset-bar>label,
+.heading-terminal-ports>label,.sweep-terminal-row>label,
+.sweep-fixed-voltages>label{min-width:0}
+.port-preset-bar{align-items:flex-end}
+.port-preset-bar>label{display:flex;flex-direction:column;justify-content:flex-end;gap:4px}
+.heading-terminal-ports{align-items:flex-end}
+.heading-terminal-ports>label{display:flex;flex-direction:column;justify-content:flex-end;gap:3px}
+/* Give each SMU protection and current-range field actual usable width. */
+.sweep-terminal-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;gap:7px}
+.sweep-terminal-row>strong{grid-column:1/-1;padding:3px 0 0}
+.sweep-terminal-row>label{display:flex;flex-direction:column;gap:4px;justify-content:flex-end}
+.sweep-axis-heading{align-items:flex-end}
+.sweep-axis-heading>label:not(.psweep-enable){display:flex;flex-direction:column;align-items:stretch;justify-content:flex-end;gap:4px;min-width:80px}
+.sweep-axis-heading>label:not(.psweep-enable) :is(input,select,.dkts-select-wrapper,.dkts-select-trigger){width:100%;max-width:none;min-width:0}
+.sweep-axis-heading .psweep-enable input{height:15px;min-height:15px;max-height:none;width:15px;min-width:15px}
+/* Axis rows share one input height; the delete icon keeps its deliberate small size. */
+.sweep-segment-table :is(input,select,.dkts-select-trigger){
+  box-sizing:border-box;height:var(--dkts-unified-control-height);
+  min-height:var(--dkts-unified-control-height);max-height:var(--dkts-unified-control-height);
+  font-size:11px;line-height:1.25;padding:5px 6px
+}
+.sweep-segment-table .dkts-select-wrapper{width:100%;min-width:0}
+body.dkts-android-shell .terminal-profiles .port-preset-bar>button,
+body.dkts-android-shell .sweep-axis-heading>.sweep-add-row{min-height:44px;height:44px}
+/* a97 restores the document's original scroll model, which the existing keypad
+   revealInput() and viewport-anchored dropdown calculation were written for. */
