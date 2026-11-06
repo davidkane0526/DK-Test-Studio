@@ -1624,6 +1624,7 @@ const portUi=(()=>{
       const row=document.createElement('div');
       row.className='sweep-terminal-row';row.dataset.role=role;
       const heading=document.createElement('strong');
+      heading.textContent=role.toUpperCase();
       row.appendChild(heading);
       const addField=(label,control)=>{
         const field=DKTSUI.create.field({label,control});

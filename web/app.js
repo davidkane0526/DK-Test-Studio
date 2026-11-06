@@ -76,7 +76,7 @@ function subscribeThemeRevision(id,handler){
    const next=String(event?.theme||localTheme.current?.()||'light').toLowerCase()==='dark'?'dark':'light';
    const root=rootElement();if(root)root.dataset.dkdsTheme=next;
    if(themeMode!==next){themeMode=next;emitTheme('system-mode');}
-  });}catch(error){releaseLocal=null;}
+  },{consumer:'computed-style'});}catch(error){releaseLocal=null;}
  }
  return()=>{themeSubscribers.delete(row);try{releaseLocal?.();}catch(error){}};
 }
@@ -1806,6 +1806,7 @@ const portUi=(()=>{
       const row=document.createElement('div');
       row.className='sweep-terminal-row';row.dataset.role=role;
       const heading=document.createElement('strong');
+      heading.textContent=role.toUpperCase();
       row.appendChild(heading);
       const addField=(label,control)=>{
         const field=DKTSUI.create.field({label,control});
