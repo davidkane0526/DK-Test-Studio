@@ -69,10 +69,10 @@ async function main(){
   await p.locator('#dkts-numeric-keypad').waitFor({state:'visible'});
   await p.locator('#dkts-numeric-keypad [data-key="7"]').click();
   assert.equal(await numeric.inputValue(),'7','numeric keypad did not edit field');
-  await p.screenshot({path:path.join(out,'android-tablet-keypad.png'),fullPage:true});
+  await p.screenshot({path:path.join(out,'android-tablet-keypad.png'),fullPage:false});
   await p.locator('#dkts-numeric-keypad [data-key="done"]').click();
   assert(await p.locator('#dkts-numeric-keypad').isHidden(),'numeric keypad did not close');
-  await p.screenshot({path:path.join(out,'android-tablet-workspace.png'),fullPage:true});
+  await p.screenshot({path:path.join(out,'android-tablet-workspace.png'),fullPage:false});
   assert(!desktop.errors.length&&!tablet.errors.length,'UI errors '+[...desktop.errors,...tablet.errors].join(','));
   console.log('PASS actual Chromium visual geometry and controls '+JSON.stringify({card,title,rows,dropdown:pop,cards}));
   await desktop.context.close();await tablet.context.close();
