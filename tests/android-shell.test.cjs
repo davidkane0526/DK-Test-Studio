@@ -267,3 +267,13 @@ test('Android updater accepts current GitHub Release tags and never hot-swaps na
   assert(bridge.includes('inspectNativeAppUpdate()')&&bridge.includes('native-app-update-btn'));
   assert(gradle.includes('versionCode 24')&&gradle.includes("versionName '0.3.13'"));
 });
+
+
+test('Android UI updater retries only transient 502/503/504 on its worker and preserves the verified cache',()=>{
+  const java=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/UiUpdateManager.java'),'utf8');
+  assert.match(java,/for\(int attempt=0;attempt<3;attempt\+\+\)/);
+  assert.match(java,/code==502\|\|code==503\|\|code==504/);
+  assert.match(java,/if\(!transientGateway && code!=200\)/);
+  assert.match(java,/Thread\.sleep\(\(attempt\+1\)\*700L\)/);
+  assert.match(java,/已自动重试 3 次；当前界面保持不变/);
+});

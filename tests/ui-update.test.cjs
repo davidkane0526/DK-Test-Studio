@@ -184,3 +184,48 @@ test('UI-only updates refuse cross-native versions before retrieving a diff',asy
     assert(!stub.requests.some(url=>url.includes('/compare/')));
   }finally{updater.stop();fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test('transient GitHub HTTP 504 retries, applies verified bundle, and never retries 403',async()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-504-'));
+  const github=stubGitHub();
+  let gateway=0,waits=[];
+  const update=createUiUpdater({cacheDir:dir,baseCommit:BASE,retryWait:async ms=>waits.push(ms),
+    fetchImpl:async url=>{
+      if(url.includes('/branches/main')&&gateway++<2)return {ok:false,status:504};
+      return github.fetchImpl(url);
+    }});
+  try{
+    const result=await update.updateOnce();
+    assert.equal(result.updated,true);
+    assert.deepEqual(waits,[700,1400]);
+    assert.equal(update.state().version,VERSION);
+  }finally{update.stop();fs.rmSync(dir,{recursive:true,force:true});}
+  const deniedDir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-403-'));
+  let count=0;
+  const denied=createUiUpdater({cacheDir:deniedDir,baseCommit:BASE,retryWait:async()=>assert.fail('403 must not retry'),
+    fetchImpl:async()=>{
+      count++;return {ok:false,status:403,headers:{}};
+    }});
+  try{
+    const result=await denied.updateOnce();
+    assert.equal(result.updated,false);
+    assert.equal(count,1);
+    assert.match(result.error,/403/);
+  }finally{denied.stop();fs.rmSync(deniedDir,{recursive:true,force:true});}
+});
+test('repeated 504 keeps bundled UI intact and reports a meaningful reason',async()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-504-exhausted-'));
+  let count=0;
+  const updater=createUiUpdater({cacheDir:dir,baseCommit:BASE,retryWait:async()=>{},
+    fetchImpl:async()=>{
+      count++;return {ok:false,status:504};
+    }});
+  try{
+    const result=await updater.updateOnce();
+    assert.equal(count,3);
+    assert.equal(result.updated,false);
+    assert.match(result.error,/504.*重试 3 次/);
+    assert.equal(updater.state().version,'bundled');
+  }finally{updater.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});

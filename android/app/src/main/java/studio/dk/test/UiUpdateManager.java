@@ -197,17 +197,33 @@ final class UiUpdateManager {
         GitHubRateLimit.assertAllowed();
         URL parsed = new URL(url);
         if (!parsed.getProtocol().equals("https")) throw new SecurityException("HTTPS required for UI updates");
-        HttpURLConnection c = (HttpURLConnection) parsed.openConnection();
-        c.setRequestProperty("User-Agent", "DK-Test-Studio-Android");
-        c.setRequestProperty("Accept", "application/vnd.github+json");
-        c.setConnectTimeout(10000);
-        c.setReadTimeout(12000);
-        try {
-            int status = c.getResponseCode();
-            if(allowMissing && status==404)return null;
-            if(status!=200)throw new IllegalStateException(GitHubRateLimit.onHttpError(c,status));
-            return new JSONObject(new String(readLimit(c.getInputStream(),maxBytes),StandardCharsets.UTF_8));
-        } finally { c.disconnect(); }
+        for(int attempt=0;attempt<3;attempt++) {
+            HttpURLConnection c = (HttpURLConnection) parsed.openConnection();
+            c.setRequestProperty("User-Agent", "DK-Test-Studio-Android");
+            c.setRequestProperty("Accept", "application/vnd.github+json");
+            c.setConnectTimeout(10000);
+            c.setReadTimeout(12000);
+            boolean transientGateway=false;
+            int code=0;
+            try {
+                code=c.getResponseCode();
+                if(allowMissing && code==404)return null;
+                transientGateway=(code==502||code==503||code==504);
+                if(!transientGateway && code!=200)
+                    throw new IllegalStateException(GitHubRateLimit.onHttpError(c,code));
+                if(code==200)return new JSONObject(new String(
+                    readLimit(c.getInputStream(),maxBytes),StandardCharsets.UTF_8));
+            } finally { c.disconnect(); }
+            if(!transientGateway)
+                throw new IllegalStateException("Unexpected GitHub HTTP "+code);
+            if(attempt==2)
+                throw new IllegalStateException("GitHub HTTP "+code+
+                    "（网关临时故障，已自动重试 3 次；当前界面保持不变）");
+            // UI updater has a dedicated worker, so this delay never blocks
+            // the main WebView thread or interferes with instrument output.
+            Thread.sleep((attempt+1)*700L);
+        }
+        throw new IllegalStateException("GitHub update request exhausted retries");
     }
     private boolean validateStored(File folder) {
         try {

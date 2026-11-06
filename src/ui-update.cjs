@@ -97,15 +97,24 @@ function createUiUpdater(options={}){
     try{return fs.readFileSync(path.join(active,name));}
     catch{return null;}
   }
+  const retryWait=options.retryWait|| (ms=>new Promise(resolve=>setTimeout(resolve,ms)));
   async function request(url,{notFound=false}={}){
     githubLimit.assertAllowed();
-    const res=await fetcher(url,{
-      headers:{'User-Agent':'DK-Test-Studio','Accept':'application/vnd.github+json'},
-      signal:AbortSignal.timeout(12000)
-    });
-    if(notFound&&res.status===404)return null;
-    if(!res.ok)throw Error(githubLimit.onHttpError(res.status,res.headers));
-    return res.json();
+    for(let attempt=0;attempt<3;attempt++){
+      const res=await fetcher(url,{
+        headers:{'User-Agent':'DK-Test-Studio','Accept':'application/vnd.github+json'},
+        signal:AbortSignal.timeout(12000)
+      });
+      if(notFound&&res.status===404)return null;
+      // Do not retry authorization failures or rate limits: their own gate
+      // applies. GitHub/CDN 502/503/504 are transient and safe to retry for GET.
+      if([502,503,504].includes(res.status)){
+        if(attempt<2){await retryWait((attempt+1)*700);continue;}
+        throw Error('GitHub HTTP '+res.status+'（网关临时故障，已自动重试 3 次；当前界面保持不变）');
+      }
+      if(!res.ok)throw Error(githubLimit.onHttpError(res.status,res.headers));
+      return res.json();
+    }
   }
   async function updateOnce(){
     if(busy)return busy;
