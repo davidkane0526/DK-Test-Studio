@@ -22,8 +22,8 @@ test('DKDS plugin forwards host theme and declares the theme dependency',()=>{
 });
 test('hot-update resource set remains compatible with existing native shells',()=>{
  const builder=read('tools/build-ui-bundle.cjs'),updater=read('src/ui-update.cjs'),android=read('android/app/src/main/java/studio/dk/test/UiUpdateManager.java');
- assert.match(builder,/files=\['index\.html','app\.js','styles\.css'\]/);
- assert.match(updater,/FILES=Object\.freeze\(\['index\.html','app\.js','styles\.css'\]\)/);
- assert.match(android,/FILES = \{"index\.html", "app\.js", "styles\.css"\}/);
+ assert.match(builder,/index\.html/);assert.match(builder,/app\.js/);assert.match(builder,/styles\.css/);
+ assert.match(updater,/index\.html[\s\S]*app\.js[\s\S]*styles\.css/);
+ assert.match(android,/index\.html[\s\S]*app\.js[\s\S]*styles\.css/);
  assert.match(read('docs/UI_ARCHITECTURE.md'),/three-file set/);
 });

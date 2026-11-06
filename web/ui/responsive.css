@@ -1,5 +1,5 @@
 @container dkts-workspace (max-width:1080px){
-.terminal-profiles{grid-template-columns:repeat(4,minmax(0,1fr))}.port-panel-heading h2{grid-column:1/-1;padding:0 0 1px}
+.terminal-profiles{grid-template-columns:repeat(4,minmax(0,1fr))}.port-panel-heading h2{padding-bottom:8px}
 .terminal-profiles .port-panel-controls label,.terminal-profiles .port-preset-bar label{grid-column:span 1}.terminal-profiles .port-preset-bar button{grid-column:span 1}}
 @container dkts-workspace (max-width:760px){
 .detail-columns{grid-template-columns:minmax(0,1fr)}.parameters-panel{max-height:none}.data-panel{min-height:620px}
@@ -17,7 +17,7 @@
 .sweep-axis-heading>strong,.sweep-axis-heading .psweep-enable,.sweep-axis-heading .sweep-add-row{grid-column:1/-1}
 .sweep-terminal-row{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:6px;padding:7px 0}.sweep-terminal-row>strong{grid-column:1/-1;padding:0}
 .sweep-fixed-voltages{grid-template-columns:repeat(2,minmax(0,1fr))}.settings form{grid-template-columns:minmax(0,1fr)}.app-statusbar{padding-inline:5px}}
-body.dkts-android-shell{--dkts-control-height:var(--dkts-touch-control-height)}
+body.dkts-android-shell .terminal-profiles :is(input,select,.dkts-select-trigger),body.dkts-android-shell .heading-terminal-ports :is(select,.dkts-select-trigger){min-height:44px;height:44px}
 body.dkts-android-shell .app-titlebar{padding-top:env(safe-area-inset-top,0px)}
 body.dkts-android-shell .workspace{padding-bottom:max(12px,env(safe-area-inset-bottom,0px))}
 body.dkts-android-shell .plan-form input,body.dkts-android-shell .plan-form select,body.dkts-android-shell .sweep-configuration input:not([type="checkbox"]),body.dkts-android-shell .sweep-configuration select,body.dkts-android-shell .sweep-configuration .dkts-select-trigger{min-height:44px;height:44px}

@@ -25,7 +25,7 @@ control:Object.freeze({desktopHeightPx:32,touchHeightPx:44,radiusPx:8,gapPx:6}),
 surface:Object.freeze({panelGapPx:8,pageGapPx:10,radiusPx:10,paddingPx:12}),
 layout:Object.freeze({titlebarHeightPx:46,statusbarHeightPx:28,parameterPaneMinPx:320})
 });
-const COMPONENTS=Object.freeze({field:'field',action:'toolbarAction',tab:'tab',chip:'chip',panelHeader:'panelHeader',toolbarGroup:'toolbarGroup',statusBar:'statusBar'});
+const COMPONENTS=Object.freeze({field:'field',card:'card',action:'toolbarAction',tab:'tab',chip:'chip',panelHeader:'panelHeader',toolbarGroup:'toolbarGroup',statusBar:'statusBar'});
 const localTheme=globalThis.DKDSTheme||null;
 let themeMode=String(localTheme?.current?.()||'light').toLowerCase()==='dark'?'dark':'light';
 let themeProfile=String(localTheme?.profile?.()||'builtin.default'),themeScientific=null,hostThemeActive=false;
@@ -101,11 +101,13 @@ function actionVariant(el){
 function normalizeElement(el){
  if(!el||el.nodeType!==1)return;
  const tab=el.matches('[role="tab"],.workspace-tab,.dkts-host-workspace-tab');
+ const card=el.matches('.test-type-card');
  const field=el.matches('input:not([type="hidden"]),select,textarea,.dkts-select-trigger');
  if(tab){setIdentity(el,COMPONENTS.tab,el.getAttribute('aria-selected')==='true'?'selected':'standard');el.dataset.dkdsUnitTemplate='tab-v2';}
+ else if(card){setIdentity(el,COMPONENTS.card,'selectable');el.dataset.dkdsMaterialRole='surface';el.dataset.dkdsMaterialContext='interactive-card';}
  else if(field){setIdentity(el,COMPONENTS.field,el.disabled?'quiet':'standard');el.classList.add('dkds-field-control');el.dataset.dkdsUnitControlHeight='field';el.dataset.dkdsUnitTemplate='field-v2';}
  else if(el.matches('button')){setIdentity(el,COMPONENTS.action,actionVariant(el));el.classList.add('dkds-action-button');el.dataset.dkdsUnitControlHeight='field';el.dataset.dkdsUnitTemplate='action-v2';}
- if(el.matches('.card,.detail-panel,.sweep-axis-card,.connection-dialog,.workspace-archive-dialog')){el.dataset.dkdsMaterialRole='surface';el.dataset.dkdsMaterialContext='panel';}
+ if(el.matches('.card,.detail-panel,.sweep-axis-card,.connection-dialog,.workspace-archive-dialog')){setIdentity(el,COMPONENTS.card,'standard');el.dataset.dkdsMaterialRole='surface';el.dataset.dkdsMaterialContext='panel';}
  if(el.matches('.app-titlebar,.app-statusbar')){el.dataset.dkdsMaterialRole='chrome';el.dataset.dkdsMaterialContext='application-chrome';}
  if(el.matches('.detail-section-heading,.card-heading,.data-list-heading'))setIdentity(el,COMPONENTS.panelHeader,'standard');
  if(el.matches('.state-chip,.test-type-state,.workspace-archive-count,.status-dot'))setIdentity(el,COMPONENTS.chip,'quiet');
@@ -147,7 +149,7 @@ function createField(options={}){
 }
 function createSurface(options={}){
  const el=document.createElement(options.tagName||'section');el.className='dkts-surface'+(options.className?' '+options.className:'');
- el.dataset.dkdsMaterialRole=String(options.role||'surface');el.dataset.dkdsMaterialContext=String(options.context||'panel');
+ setIdentity(el,COMPONENTS.card,String(options.variant||'standard'));el.dataset.dkdsMaterialRole=String(options.role||'surface');el.dataset.dkdsMaterialContext=String(options.context||'panel');
  if(options.variant)el.dataset.dktsSurfaceVariant=String(options.variant);
  if(options.title){const title=document.createElement('h3');title.className='dkts-surface-title';title.textContent=String(options.title);el.appendChild(title);}
  for(const child of options.children||[])el.append(child instanceof Node?child:document.createTextNode(String(child)));
