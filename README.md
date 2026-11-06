@@ -169,3 +169,8 @@ Windows 便携版使用 Electron userData 目录的 workspace-state.json，写�
 - 加入 4200A 500 W 机箱功耗模型。只有完整识别安装模块和活动通道时才给出确定预算。
 - 当前版本只允许固定的 *IDN?、*OPT? 和 SystemUtil 物理模块元数据只读查询，不开放任意 KXCI 指令或 SMU/PMU/PGU 输出。调用方提供的 X/Y 数组不会被误标记为原始仪器数据。
 - 完整发布资产为 Windows Portable、Android APK、DKDS 插件、UI 热更新包及硬件能力数据库，共 5 项。
+
+
+## UI 设计系统与组件架构
+
+DKTS 的 UI 源码按设计令牌、语义组件、页面结构、测量参数布局和响应式规则分层，遵循 DKDS 的 Theme Token 与 Component Identity 契约。web/ui/ 保存模块化源码，web/app-main.js 保存测试工作台业务逻辑；npm run build:ui 将其编译为现有热更新资源 web/app.js 和 web/styles.css。Windows、Android 与 DKDS 外部插件使用同一编译产物，UI 热更新仍保持 index.html、app.js、styles.css 三文件协议，不要求因新增 UI 模块升级原生壳。详见 docs/UI_ARCHITECTURE.md。
