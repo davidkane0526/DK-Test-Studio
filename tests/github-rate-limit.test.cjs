@@ -42,7 +42,7 @@ test('Windows and Android checks share per-platform rate gates and auto interval
   assert.match(windows,/githubLimit\.onHttpError\(response\.statusCode,response\.headers\)/);
   assert.match(androidUi,/main\.postDelayed\(this, 3600000L\)/);
   assert.match(androidUi,/GitHubRateLimit\.assertAllowed\(\)/);
-  assert.match(androidUi,/GitHubRateLimit\.onHttpError\(c,status\)/);
+  assert.match(androidUi,/GitHubRateLimit\.onHttpError\(c,code\)/);
   assert.match(androidNative,/GitHubRateLimit\.assertAllowed\(\)/);
   assert.match(androidNative,/GitHubRateLimit\.onHttpError\(c,status\)/);
   assert.match(androidRate,/X-RateLimit-Remaining/);

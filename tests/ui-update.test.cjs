@@ -201,18 +201,7 @@ test('transient GitHub HTTP 504 retries, applies verified bundle, and never retr
     assert.deepEqual(waits,[700,1400]);
     assert.equal(update.state().version,VERSION);
   }finally{update.stop();fs.rmSync(dir,{recursive:true,force:true});}
-  const deniedDir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-403-'));
-  let count=0;
-  const denied=createUiUpdater({cacheDir:deniedDir,baseCommit:BASE,retryWait:async()=>assert.fail('403 must not retry'),
-    fetchImpl:async()=>{
-      count++;return {ok:false,status:403,headers:{}};
-    }});
-  try{
-    const result=await denied.updateOnce();
-    assert.equal(result.updated,false);
-    assert.equal(count,1);
-    assert.match(result.error,/403/);
-  }finally{denied.stop();fs.rmSync(deniedDir,{recursive:true,force:true});}
+
 });
 test('repeated 504 keeps bundled UI intact and reports a meaningful reason',async()=>{
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-504-exhausted-'));
@@ -228,4 +217,19 @@ test('repeated 504 keeps bundled UI intact and reports a meaningful reason',asyn
     assert.match(result.error,/504.*重试 3 次/);
     assert.equal(updater.state().version,'bundled');
   }finally{updater.stop();fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('403 authorization failure is not retried or mistaken for HTTP 504',async()=>{
+  const deniedDir=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-ui-403-'));
+  let count=0;
+  const denied=createUiUpdater({cacheDir:deniedDir,baseCommit:BASE,retryWait:async()=>assert.fail('403 must not retry'),
+    fetchImpl:async()=>{
+      count++;return {ok:false,status:403,headers:{}};
+    }});
+  try{
+    const result=await denied.updateOnce();
+    assert.equal(result.updated,false);
+    assert.equal(count,1);
+    assert.match(result.error,/403/);
+  }finally{denied.stop();fs.rmSync(deniedDir,{recursive:true,force:true});}
 });
