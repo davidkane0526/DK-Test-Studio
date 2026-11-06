@@ -1537,13 +1537,30 @@ const portUi=(()=>{
     const parent=axisFields[axis].body;
     const row=document.createElement('tr');
     row.className='sweep-segment';
-    row.innerHTML='<td class="segment-number"></td>'+
-      '<td><input data-sweep-field="startV" type="number" min="-210" max="210" step="any" aria-label="起始电压"></td>'+
-      '<td><input data-sweep-field="stopV" type="number" min="-210" max="210" step="any" aria-label="结束电压"></td>'+
-      '<td><input data-sweep-field="stepV" type="number" min="-420" max="420" step="any" aria-label="扫描步长"></td>'+
-      '<td><select data-sweep-field="rangeA" data-current-range="segment" aria-label="电流档位"></select></td>'+
-      '<td><input data-sweep-field="delayMs" type="number" min="0" max="6553" step="any" placeholder="继承" aria-label="本段延迟"></td>'+
-      '<td><button type="button" class="remove-segment" aria-label="删除扫描段">×</button></td>';
+    const addCell=(className,node)=>{
+      const cell=document.createElement('td');
+      if(className)cell.className=className;
+      if(node)cell.appendChild(node);
+      row.appendChild(cell);
+      return node;
+    };
+    addCell('segment-number',document.createTextNode(''));
+    const numberInput=(field,min,max,label,placeholder)=>DKTSUI.controls.input({
+      type:'number',min,max,step:'any',ariaLabel:label,
+      ...(placeholder?{placeholder}:{}),
+      attributes:{'data-sweep-field':field}
+    });
+    addCell('',numberInput('startV',-210,210,'起始电压'));
+    addCell('',numberInput('stopV',-210,210,'结束电压'));
+    addCell('',numberInput('stepV',-420,420,'扫描步长'));
+    const select=DKTSUI.controls.select({
+      ariaLabel:'电流档位',
+      attributes:{'data-sweep-field':'rangeA','data-current-range':'segment'}
+    });
+    addCell('',select);
+    addCell('',numberInput('delayMs',0,6553,'本段延迟','继承'));
+    const remove=DKTSUI.controls.action({label:'×',className:'remove-segment',ariaLabel:'删除扫描段'});
+    addCell('',remove);
     parent.append(row);
     const defaults={startV:0,stopV:1,stepV:.1,rangeA:'auto',delayMs:''};
     const values={...defaults,...initial};
@@ -1551,7 +1568,6 @@ const portUi=(()=>{
       const field=row.querySelector('[data-sweep-field="'+key+'"]');
       if(field&&key!=='rangeA')field.value=value==null?'':String(value);
     }
-    const select=row.querySelector('[data-current-range="segment"]');
     rangeOptions(select,axisFields[axis].terminal.value,true);
     if(values.rangeA!=='auto'){
       const wanted=scientific(Number(values.rangeA));
@@ -1562,7 +1578,7 @@ const portUi=(()=>{
       element.querySelector('.segment-number').textContent=String(i+1);
       element.querySelector('.remove-segment').disabled=parent.children.length===1;
     });
-    row.querySelector('.remove-segment').addEventListener('click',()=>{
+    remove.addEventListener('click',()=>{
       if(parent.children.length<=1)return;
       row.remove();numberRows();rememberTabDraft();
     });
@@ -1607,14 +1623,35 @@ const portUi=(()=>{
     for(const role of ROLES){
       const row=document.createElement('div');
       row.className='sweep-terminal-row';row.dataset.role=role;
-      row.innerHTML='<strong></strong>'+
-        '<label>测量量程<select data-port-setting="rangeMode">'+
-          '<option value="auto">Auto</option><option value="fixed">Fixed</option>'+
-          '<option value="limited-auto">Limited Auto</option></select></label>'+
-        '<label>档位 / 自动下限 (A)<select data-current-range="port" data-port-setting="rangeA"></select></label>'+
-        '<label>电流保护<select data-port-setting="complianceMode">'+
-          '<option value="follow-range">跟随档位</option><option value="custom">自定义数值</option></select></label>'+
-        '<label>保护值 (A)<input type="number" step="any" min="1e-12" max="1.05" value="1e-4" data-port-setting="complianceA"></label>';
+      const heading=document.createElement('strong');
+      row.appendChild(heading);
+      const addField=(label,control)=>{
+        const field=DKTSUI.create.field({label,control});
+        row.appendChild(field.element);
+        return field.control;
+      };
+      addField('测量量程',DKTSUI.controls.select({
+        options:[
+          {value:'auto',label:'Auto'},
+          {value:'fixed',label:'Fixed'},
+          {value:'limited-auto',label:'Limited Auto'}
+        ],
+        attributes:{'data-port-setting':'rangeMode'}
+      }));
+      addField('档位 / 自动下限 (A)',DKTSUI.controls.select({
+        attributes:{'data-current-range':'port','data-port-setting':'rangeA'}
+      }));
+      addField('电流保护',DKTSUI.controls.select({
+        options:[
+          {value:'follow-range',label:'跟随档位'},
+          {value:'custom',label:'自定义数值'}
+        ],
+        attributes:{'data-port-setting':'complianceMode'}
+      }));
+      addField('保护值 (A)',DKTSUI.controls.input({
+        type:'number',step:'any',min:'1e-12',max:'1.05',value:'1e-4',
+        attributes:{'data-port-setting':'complianceA'}
+      }));
       target.append(row);
       rangeOptions(row.querySelector('[data-port-setting="rangeA"]'),role,false);
     }
