@@ -1,0 +1,1503 @@
+:root{color-scheme:light;font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;background:#f5f7fb;color:#202737}
+*{box-sizing:border-box}
+body{margin:0}
+button,input,select,textarea{font:inherit}
+.topbar{height:74px;background:white;border-bottom:1px solid #e5e9f1;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(18px,4vw,56px)}
+.brand{display:flex;align-items:center;gap:13px}.brand-mark{width:41px;height:41px;display:grid;place-items:center;border-radius:12px;background:#253f7d;color:#fff;font-size:14px;font-weight:800;letter-spacing:.03em}.brand strong{display:block;font-size:17px}.brand small{display:block;font-size:11px;color:#758093;margin-top:3px}
+.top-status{display:flex;align-items:center;gap:8px;font-size:13px;color:#596578}.status-dot{background:#9ba4b4;border-radius:50%;height:9px;width:9px}.status-dot[data-phase="connected"]{background:#19a678}.status-dot[data-phase="error"]{background:#d47436}.status-dot[data-phase="connecting"]{background:#4d78d4}
+.workspace{width:min(1300px,100%);margin:auto;padding:34px clamp(16px,3.3vw,48px)}.intro{display:flex;justify-content:space-between;align-items:center;margin-bottom:23px;gap:12px}.intro h1{margin:2px 0 7px;font-size:26px;letter-spacing:-.025em}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.13em;color:#7185ae;margin:0 0 8px}.subtle{color:#778295;font-size:13px;line-height:1.55;margin:5px 0}.stage{padding:7px 10px;border:1px solid #d4dced;border-radius:8px;color:#6679a7;font-size:10px;font-weight:700;white-space:nowrap}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:17px}.card{background:#fff;border:1px solid #e2e7f0;border-radius:15px;padding:22px;box-shadow:0 3px 12px rgba(24,40,70,.027)}.card-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:17px}.card h2{font-size:18px;margin:0;font-weight:700;letter-spacing:-.015em}.instrument-identity{font-size:17px;font-weight:700;margin-bottom:9px}.state-line{color:#44577b;font-weight:600;font-size:13px;margin:0 0 9px;line-height:1.6}
+button{border:1px solid #ced7e7;background:#fff;border-radius:9px;padding:10px 15px;color:#344361;font-size:13px;font-weight:650;cursor:pointer}button:hover{background:#f1f5fc}button:disabled{opacity:.55;cursor:default}button.primary{background:#2f539c;border-color:#2f539c;color:#fff;min-width:88px}button.primary:hover{background:#244480}details{font-size:13px;margin-top:15px}summary{cursor:pointer;font-weight:620;color:#617293;user-select:none}#diagnostic{margin:12px 0 0;padding:12px;background:#f3f5f8;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-height:220px;overflow:auto;border-radius:8px}
+form{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:17px}label{display:grid;gap:6px;font-size:12px;color:#667389;font-weight:600}input,select,textarea{border:1px solid #dce3ee;background:#fff;color:#27344e;border-radius:8px;padding:9px 10px;width:100%;min-width:0}input:focus,select:focus,textarea:focus{outline:2px solid #aabdeb;outline-offset:1px}
+.info-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:15px 0;border-bottom:1px solid #eff1f5;font-size:13px;font-weight:600}.info-row:last-of-type{border-bottom:0}.mute-pill,.ready-pill{font-size:10px;border-radius:7px;padding:5px 8px;white-space:nowrap;background:#f1f3f6;color:#778293}.ready-pill{background:#edf3ff;color:#476bb1}.hint{font-size:12px;color:#8892a2;line-height:1.6;margin-top:14px}
+.waveform-card{margin-top:17px}.wave-grid{display:grid;grid-template-columns:minmax(230px,0.75fr) minmax(380px,1.25fr);gap:20px;align-items:start}.input-title{margin-bottom:9px}.wave-grid textarea{height:235px;resize:vertical;line-height:1.7;font-family:"Cascadia Mono",Consolas,monospace;font-size:12px}.chart-box{border:1px solid #e8edf5;border-radius:11px;background:#fbfcff;padding:15px}.chart-box svg{width:100%;display:block;max-height:290px}.chart-footer{font-size:11px;color:#8794a7;margin:4px 2px 0}.workspace footer{color:#9ca5b4;font-size:11px;margin-top:23px}
+@media(max-width:820px){.two-col,.wave-grid{grid-template-columns:1fr}.workspace{padding-top:24px}.card{padding:19px}}
+@media(max-width:500px){form{grid-template-columns:1fr}.intro h1{font-size:21px}.topbar{height:65px}.brand small{font-size:9px}.stage{display:none}}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;background:#171c25;color:#e3e8f3}.topbar,.card{background:#222936;border-color:#343c4a}.stage,.chart-box{border-color:#3b4355}.chart-box,#diagnostic{background:#1c2431}.info-row{border-color:#3a4250}.subtle,.hint,.chart-footer{color:#a6b0c2}button,input,select,textarea{background:#222936;border-color:#43506a;color:#e0e8f8}button:hover{background:#2d3749}}
+
+.plan-form{margin-top:3px}.plan-form .span-two{grid-column:1/-1}.advanced-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:15px}[hidden]{display:none!important}.test-card .hint{margin-bottom:0}
+@media(max-width:500px){.advanced-grid{grid-template-columns:1fr}}
+
+/* Minimal always-visible connection status; settings appear in an accessible modal only. */
+.top-status{display:inline-flex;align-items:center;gap:9px;padding:8px 12px;border-radius:10px;border:1px solid #dce4f0;background:#f7f9fd;color:#44536d;font-size:12px;white-space:nowrap;min-height:35px}
+.top-status:hover{background:#eef3fa}
+.top-status:focus-visible,.icon-close:focus-visible{outline:2px solid #4579ce;outline-offset:2px}
+.status-chevron{font-size:15px;opacity:.65;line-height:1}
+.test-workspace{display:block;width:100%}
+.connection-dialog{width:min(580px,calc(100vw - 28px));max-height:min(88vh,820px);padding:0;background:#fff;color:#243247;border:1px solid #dce4f1;border-radius:16px;box-shadow:0 22px 70px rgba(15,29,58,.22);overflow:auto}
+.connection-dialog::backdrop{background:rgba(18,28,46,.48);backdrop-filter:blur(3px)}
+.dialog-header{padding:19px 23px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eef0f4}
+.dialog-header h2{margin:0;font-size:19px}
+.icon-close{border:0;background:transparent;border-radius:8px;font-size:24px;font-weight:400;line-height:1;padding:3px 9px;color:#627188}
+.dialog-body{padding:18px 23px 16px}
+.device-identity{font-size:15px;font-weight:700;margin:0 0 8px}
+.connection-detail{display:grid;gap:10px;padding:14px;background:#f6f8fc;border:1px solid #edf0f6;border-radius:10px;margin:14px 0}
+.connection-detail>div{display:grid;grid-template-columns:90px minmax(0,1fr);gap:12px;font-size:12px;align-items:start}
+.connection-detail span{color:#7c889b}
+.connection-detail strong{font-weight:600;color:#3e4f6a;overflow-wrap:anywhere}
+.dialog-body .settings{margin-top:14px}
+.dialog-body .settings form{margin-top:14px}
+#connection-hint{margin-top:13px;font-size:12px}
+.dialog-actions{padding:14px 23px 18px;border-top:1px solid #eef0f4;display:flex;justify-content:flex-end;gap:9px}
+#diagnostic{margin-top:9px}
+@media(max-width:500px){
+  .top-status{padding:7px 9px;font-size:11px;gap:6px}
+  .brand small{max-width:175px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dialog-header{padding:15px 16px}
+  .dialog-body{padding:14px 16px}
+  .dialog-actions{padding:12px 16px}
+  .connection-detail>div{grid-template-columns:75px minmax(0,1fr)}
+}
+@media(prefers-color-scheme:dark){
+  .top-status{background:#293344;border-color:#3e4a60;color:#dbe3f4}
+  .top-status:hover{background:#344258}
+  .connection-dialog{background:#222936;color:#e3e8f3;border-color:#46516a}
+  .dialog-header,.dialog-actions{border-color:#384257}
+  .connection-detail{background:#1c2431;border-color:#3b455a}
+  .connection-detail strong{color:#dce5f7}
+  .connection-detail span{color:#a0aec5}
+  .icon-close{color:#b4c1d6}
+}
+
+/* Test mode library: two cards minimum per row on every screen, four on wide screens. */
+.types-card{margin-bottom:17px}
+.types-card .card-heading{margin-bottom:13px}
+.types-note{font-size:12px;color:#8794a7;line-height:1.6;margin:13px 2px 0}
+.test-type-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.test-type-card{appearance:none;display:flex;flex-direction:column;gap:8px;text-align:left;align-items:stretch;justify-content:flex-start;min-width:0;min-height:112px;padding:13px 14px;border:1px solid #dfe5f0;border-radius:12px;background:#fdfefe;transition:background .15s,border-color .15s,box-shadow .15s;color:#233149;cursor:pointer;white-space:normal}
+.test-type-card:hover:not(:disabled){background:#f4f8ff;border-color:#95b0e2}
+.test-type-card:focus-visible{outline:3px solid #78a6f0;outline-offset:2px}
+.test-type-card.is-selected{border:2px solid #2b65c9;background:#eef5ff;box-shadow:0 2px 12px rgba(52,107,199,.12);padding:12px 13px}
+.test-type-card:disabled{opacity:.65;cursor:not-allowed;background:#f5f6f9;border-style:dashed}
+.test-type-top{display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:23px}
+.test-type-icon{border-radius:6px;background:#edf2fa;color:#40628c;padding:4px 6px;font-size:10px;line-height:1.1;font-weight:800;letter-spacing:.02em}
+.test-type-state{font-size:10px;font-weight:600;color:#667b9e;white-space:nowrap}
+.test-type-card.is-selected .test-type-state{color:#2363b7}
+.test-type-card strong{display:block;font-size:14px;line-height:1.3;font-weight:700;overflow-wrap:anywhere}
+.test-type-card small{display:block;font-size:11px;line-height:1.35;font-weight:450;color:#758298;overflow-wrap:anywhere}
+@media(max-width:950px){.test-type-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){
+  .test-type-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .test-type-card{padding:10px;min-height:112px;gap:7px}
+  .test-type-card.is-selected{padding:9px}
+  .test-type-card strong{font-size:12px}
+  .test-type-card small{font-size:10px}
+  .test-type-icon,.test-type-state{font-size:9px}
+  .types-card .card-heading{align-items:start;flex-direction:column;gap:4px}
+}
+@media(prefers-color-scheme:dark){
+  .test-type-card{background:#252e3d;border-color:#3c485b;color:#e2e8f4}
+  .test-type-card:hover:not(:disabled){background:#303d52;border-color:#6585b9}
+  .test-type-card.is-selected{background:#253e61;border-color:#77a5ea}
+  .test-type-card:disabled{background:#1f2632}
+  .test-type-icon{background:#32425a;color:#b0c6e8}
+  .test-type-card small,.types-note{color:#a2b1c6}
+  .test-type-state{color:#a6b7d3}
+}
+
+/* One continuous workspace: card selection expands settings and instrument data beneath the library. */
+.workspace{padding-top:24px}
+.types-card{margin-bottom:0}
+.test-detail{display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;transition:grid-template-rows .34s cubic-bezier(.2,.75,.25,1),opacity .24s ease,visibility 0s .34s}
+.test-detail.is-open{grid-template-rows:1fr;opacity:1;visibility:visible;transition:grid-template-rows .34s cubic-bezier(.2,.75,.25,1),opacity .24s ease}
+.test-detail-inner{min-height:0;overflow:hidden}
+.detail-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid #e4eaf4;margin-top:20px;padding:24px 0 14px}
+.detail-heading h3{font-size:20px;font-weight:750;margin:0 0 5px}
+.detail-subtitle{font-size:12px;color:#8995a8;margin:0}
+.detail-close{padding:7px 11px;font-size:12px;flex-shrink:0}
+.detail-columns{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);align-items:start;gap:14px;padding-bottom:4px}
+.detail-panel{border:1px solid #e4eaf3;border-radius:13px;padding:18px;background:#fbfcff;min-width:0}
+.detail-section-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px;margin-bottom:14px}
+.detail-section-heading h4{margin:0;font-size:16px}
+.detail-section-heading .eyebrow{margin-bottom:4px}
+.detail-panel .plan-form{margin-top:0}
+.detail-panel .plan-form label{font-size:12px}
+.detail-panel .hint{margin-top:14px}
+.small-action{padding:8px 11px;white-space:nowrap}
+.pending-parameters{padding:20px 16px;border:1px dashed #d6e0ed;background:#f4f7fc;border-radius:11px;color:#5e6f89;font-size:13px;line-height:1.6}
+.pending-parameters p{margin-bottom:0}
+.acquisition-state{font-size:11px;color:#7182a1;background:#edf1f8;border-radius:18px;padding:5px 9px;white-space:nowrap}
+.readout-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:8px 0 15px}
+.readout{background:#fff;border:1px solid #e2e8f1;border-radius:9px;padding:12px 10px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.readout span{font-size:11px;color:#8190a6}
+.readout strong{font-size:19px;font-weight:700;color:#293e60}
+.readout small{color:#8f9cb1;font-size:10px}
+.measured-plot{position:relative;border:1px solid #e2e8f1;background:#fff;border-radius:11px;min-height:240px;padding:8px 8px 0}
+.measured-plot svg{display:block;width:100%;height:auto}
+.plot-axis{stroke:#8293ad;stroke-width:1.4}
+.plot-guide{stroke:#dae2ef;stroke-width:1;stroke-dasharray:5 5}
+.plot-label{font-size:13px;fill:#7c8ba1}
+.empty-chart-message{position:absolute;left:18%;right:8%;top:42%;text-align:center;color:#a0acbf;font-size:13px;margin:0;pointer-events:none}
+.data-list-heading{display:flex;justify-content:space-between;align-items:center;margin:15px 1px 9px;font-size:12px}
+.data-list-heading span{color:#8896aa}
+.data-table-scroll{max-height:190px;overflow:auto;border:1px solid #e1e7f0;border-radius:9px;background:#fff}
+.data-table{width:100%;border-collapse:collapse;min-width:360px;font-size:11px}
+.data-table th{background:#f2f5fa;color:#7383a0;text-align:left;font-weight:650;padding:9px 11px}
+.data-table td{border-top:1px solid #e6eaf2;color:#8491a5;padding:14px;text-align:center}
+.acquisition-notice{font-size:11px;line-height:1.55;color:#8e9ab0;margin:10px 0}
+.measure-button{width:100%;background:#e9edf4;color:#8d9ab0}
+#waveform-editor textarea{height:176px;resize:vertical;font-family:Consolas,monospace;font-size:12px;margin-top:8px}
+.waveform-preview{border:1px solid #e1e8f2;border-radius:9px;background:#fff;margin-top:12px;padding:10px}
+.waveform-preview svg{width:100%;display:block}
+.test-type-card[aria-expanded="true"]{border:2px solid #2b65c9;background:#eef5ff;box-shadow:0 2px 12px rgba(52,107,199,.12);padding:12px 13px}
+.test-type-card:not(:disabled){cursor:pointer}
+.test-type-card[aria-expanded="true"] .test-type-state{color:#2363b7}
+@media(max-width:1050px){.detail-columns{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:500px){
+  .readout-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .detail-panel{padding:13px}
+  .detail-heading{padding-top:17px}
+  .detail-heading h3{font-size:17px}
+  .test-type-card[aria-expanded="true"]{padding:9px}
+}
+@media(prefers-reduced-motion:reduce){
+  .test-detail,.test-detail.is-open{transition:none}
+}
+@media(prefers-color-scheme:dark){
+  .detail-heading{border-color:#3b485a}
+  .detail-panel,.pending-parameters{background:#202b3a;border-color:#3d4a60}
+  .readout,.measured-plot,.data-table-scroll,.waveform-preview{background:#253244;border-color:#3c4a60}
+  .readout strong{color:#e6edff}
+  .data-table th{background:#293548;color:#b0bfd9}
+  .data-table td{border-color:#3a485b}
+  .plot-axis{stroke:#92a5c1}
+  .plot-guide{stroke:#3e4c61}
+  .plot-label{fill:#a6b8d4}
+  .acquisition-state{background:#32445d;color:#c2d3ea}
+  .test-type-card[aria-expanded="true"]{background:#253e61;border-color:#77a5ea}
+}
+
+/* Second-level workbench: the test library and the measurement screen never coexist. */
+.workspace.workspace-active{width:min(100%,1660px);max-width:none;padding:12px clamp(10px,1.4vw,22px) 14px}
+.workspace.workspace-active footer{display:none}
+#test-library[hidden],#test-detail[hidden]{display:none!important}
+.test-detail,.test-detail.is-open{display:block;opacity:1;visibility:visible;grid-template-rows:none;transition:none}
+.test-detail:not([hidden]){animation:dkts-page-enter .2s ease-out both}
+@keyframes dkts-page-enter{from{opacity:.68;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.workspace-active .test-detail{padding:12px 16px 15px;min-height:calc(100dvh - 98px)}
+.test-detail-inner{overflow:visible;display:block}
+.detail-heading{border-top:0;margin:0 0 11px;padding:0 0 11px;border-bottom:1px solid #e4eaf4;display:flex;justify-content:flex-start;align-items:center;gap:18px}
+.detail-heading-title{flex:1;min-width:0}
+.detail-heading-title .eyebrow{margin:0 0 3px}
+.detail-heading h2{font-size:19px;margin:0;letter-spacing:-.02em}
+.detail-subtitle{font-size:11px;margin:2px 0 0}
+.detail-back{border:1px solid #d4ddec;background:#f8faff;border-radius:8px;white-space:nowrap;font-size:12px;font-weight:650;padding:9px 11px}
+.detail-back span{font-size:16px;margin-right:5px}
+.detail-runtime-badge{font-size:11px;white-space:nowrap;padding:7px 9px;color:#6d7e9e;background:#f3f6fb;border-radius:8px}
+.detail-columns{grid-template-columns:minmax(292px,350px) minmax(0,1fr);gap:12px;align-items:start;padding:0}
+.detail-panel{padding:14px;min-height:0}
+.parameters-panel{position:relative}
+.detail-section-heading{margin-bottom:10px;min-height:35px}
+.detail-section-heading h4{font-size:15px}
+.detail-panel .plan-form{gap:11px}
+.detail-panel .plan-form label{font-size:11px}
+.detail-panel .plan-form input,.detail-panel .plan-form select{padding:8px 9px}
+.detail-panel .plan-form .settings{margin-top:5px}
+.detail-panel .hint{font-size:11px;line-height:1.5;margin-top:10px}
+.readout-grid{margin:5px 0 11px}
+.readout{padding:9px 10px;gap:1px}
+.readout strong{font-size:17px}
+.measured-plot{min-height:clamp(300px,43dvh,580px);padding:6px 8px}
+.measured-plot svg{width:100%;height:clamp(300px,43dvh,580px)}
+.data-list-heading{margin:11px 1px 8px}
+.data-table-scroll{max-height:240px}
+@media(max-width:850px){
+  .detail-columns{grid-template-columns:minmax(0,1fr)}
+  .detail-runtime-badge{display:none}
+  .workspace-active .test-detail{min-height:calc(100dvh - 86px)}
+  .measured-plot,.measured-plot svg{min-height:280px;height:300px}
+}
+@media(max-width:500px){
+  .workspace.workspace-active{padding:8px}
+  .workspace-active .test-detail{padding:10px;min-height:calc(100dvh - 80px)}
+  .detail-heading{gap:9px}
+  .detail-heading h2{font-size:15px}
+  .detail-heading-title .eyebrow{display:none}
+  .detail-back{padding:7px;font-size:11px}
+  .detail-back span{font-size:13px;margin-right:2px}
+  .detail-subtitle{font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){
+  .test-detail:not([hidden]){animation:none}
+}
+@media(prefers-color-scheme:dark){
+  .detail-heading{border-color:#39485e}
+  .detail-back,.detail-runtime-badge{background:#2b3648;border-color:#3d4d67;color:#bfcee8}
+}
+
+/* Current hot-updated frontend revision, independent from the installed native shell version. */
+.brand-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand-title strong{font-size:17px}
+.ui-version-badge{font-variant-numeric:tabular-nums;letter-spacing:.015em;font-size:10px;line-height:1;white-space:nowrap;color:#3766a6;background:#eef4ff;border:1px solid #d6e5fb;border-radius:6px;padding:5px 7px;font-weight:700;cursor:help}
+@media(max-width:520px){.brand-title{gap:6px}.brand-title strong{font-size:14px}.ui-version-badge{font-size:9px;padding:4px 5px}}
+@media(prefers-color-scheme:dark){.ui-version-badge{color:#a6caff;background:#2c3f5e;border-color:#3d5c83}}
+
+/* Full-canvas, no persistent top status bar. Connection/version ride within the page. */
+html,body{min-height:100%;height:auto}
+.workspace,.workspace.workspace-active{position:relative;width:100%;max-width:none;padding:8px clamp(8px,1vw,18px) 10px;margin:0 auto}
+.workspace-actions{position:absolute;top:17px;right:clamp(20px,2vw,38px);display:flex;align-items:center;gap:8px;z-index:2}
+.workspace-actions .top-status{min-height:29px;padding:5px 9px;border-radius:8px;font-size:11px;gap:6px}
+.workspace-actions .status-dot{height:7px;width:7px}
+.workspace-actions .ui-version-badge{padding:6px 7px;font-size:10px}
+.types-card{padding:16px 18px 18px;margin:0}
+.types-card .card-heading{padding-right:204px;margin-bottom:11px;min-height:36px}
+.types-card .card-heading .eyebrow{margin-bottom:3px}
+.types-card .card-heading h2{font-size:18px}
+.types-card .card-heading .subtle{font-size:11px}
+.test-type-grid{gap:9px}
+.test-type-card{min-height:94px;padding:11px 12px;gap:5px}
+.test-type-card strong{font-size:13px}
+.test-type-card small{font-size:10px}
+.test-type-card .test-type-top{min-height:20px}
+.workspace-active .test-detail{padding:11px 14px;min-height:calc(100dvh - 16px);border-radius:12px}
+.detail-heading{padding:0 207px 9px 0;margin:0 0 9px;gap:11px;min-height:42px}
+.detail-back{font-size:11px;padding:7px 10px}
+.detail-heading-title{display:flex;align-items:baseline;gap:9px;min-width:0;flex-wrap:wrap}
+.detail-heading h2{font-size:17px}
+.detail-subtitle{font-size:10px;line-height:1.3}
+.compact-tool{font-size:11px;padding:6px 10px;white-space:nowrap}
+.detail-columns{grid-template-columns:minmax(250px,clamp(270px,25vw,330px)) minmax(0,1fr);gap:9px;align-items:stretch}
+.detail-columns.parameters-collapsed{grid-template-columns:minmax(0,1fr)}
+.detail-panel{padding:11px;min-width:0}
+.parameters-panel{max-height:calc(100dvh - 85px);overflow:auto}
+.data-panel{display:flex;flex-direction:column;min-height:calc(100dvh - 85px);gap:0}
+.detail-section-heading{min-height:28px;margin-bottom:8px}
+.detail-section-heading h4{font-size:14px}
+.detail-section-heading .eyebrow{display:none}
+.data-header-actions{display:flex;align-items:center;gap:7px;min-width:0}
+.data-header-actions .measure-button{width:auto;padding:6px 9px;border-radius:7px;white-space:nowrap;font-size:11px}
+.acquisition-state{font-size:10px;padding:5px 7px}
+.detail-panel .plan-form{gap:9px 9px}
+.detail-panel .plan-form input,.detail-panel .plan-form select{padding:7px 8px}
+.detail-panel .plan-form label{font-size:11px;gap:4px}
+.detail-panel .plan-form details{margin-top:5px}
+.readout-grid{gap:7px;margin:2px 0 8px}
+.readout{padding:8px 10px}
+.readout strong{font-size:16px}
+.measured-plot{flex:1 1 270px;min-height:250px;max-height:none;padding:0;overflow:hidden}
+.measured-plot svg{height:100%;min-height:250px;max-height:none;width:100%;display:block}
+.data-list-heading{margin:10px 0 6px}
+.data-table-scroll{max-height:145px;flex:0 0 auto}
+.data-table th{padding:7px 9px}
+.data-table td{padding:9px}
+.acquisition-notice{font-size:10px;margin:5px 0 0}
+@media(min-width:1400px){.detail-columns{grid-template-columns:minmax(280px,310px) minmax(0,1fr)}}
+@media(max-width:960px){
+  .detail-columns{grid-template-columns:minmax(230px,32%) minmax(0,1fr)}
+  .detail-heading-title{display:block}
+}
+@media(max-width:760px){
+  .workspace-actions{top:14px;right:16px}
+  .types-card .card-heading{padding-right:170px}
+  .types-card .card-heading .subtle{display:none}
+  .detail-columns{grid-template-columns:minmax(0,1fr)}
+  .parameters-panel{max-height:none}
+  .data-panel{min-height:440px}
+  .detail-heading{padding-right:175px}
+  .detail-subtitle{display:none}
+}
+@media(max-width:500px){
+  .workspace,.workspace.workspace-active{padding:6px}
+  .workspace-actions{top:13px;right:12px;gap:5px}
+  .workspace-actions .top-status{font-size:10px;padding:5px 6px}
+  .workspace-actions .ui-version-badge{font-size:9px;padding:5px 6px}
+  .types-card{padding:11px}
+  .types-card .card-heading{padding-right:0;padding-top:34px;margin-bottom:8px}
+  .types-card .card-heading h2{font-size:16px}
+  .test-type-grid{gap:7px}
+  .test-type-card{padding:9px;min-height:92px}
+  .workspace-active .test-detail{padding:8px;min-height:calc(100dvh - 12px)}
+  .detail-heading{padding-right:0;padding-top:31px;gap:7px}
+  .detail-back{padding:6px 7px}
+  .detail-heading h2{font-size:14px}
+  .compact-tool{padding:6px}
+  .data-header-actions{gap:5px}
+  .data-header-actions .measure-button{font-size:10px;padding:5px}
+  .readout-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .data-panel{min-height:400px}
+  .measured-plot,.measured-plot svg{height:280px;min-height:280px}
+}
+@media(prefers-color-scheme:dark){
+  .workspace-actions .ui-version-badge{color:#b7d4ff;background:#293c5c}
+}
+
+
+/* One chrome contract, shared across platforms. No legacy stacked overrides. */
+:root{
+  --dkts-title-height:46px;
+  --dkts-status-height:34px;
+  --dkts-safe-top:0px;
+  --dkts-safe-bottom:0px;
+  --dkts-safe-left:0px;
+  --dkts-safe-right:0px;
+  --dkts-chrome-bg:#f3f6fb;
+  --dkts-status-bg:#f7f9fc;
+  --dkts-chrome-border:#dfe6f0;
+  --dkts-chrome-text:#516681;
+  --dkts-hover-bg:#e7eef9;
+  --dkts-hover-border:#d4e2f3;
+}
+body{padding-top:var(--dkts-title-height);padding-bottom:var(--dkts-status-height)}
+.app-titlebar{
+  position:fixed;top:0;left:0;right:0;z-index:85;
+  display:flex;align-items:center;height:var(--dkts-title-height);
+  padding:0 11px 0 15px;gap:0;
+  background:var(--dkts-chrome-bg);border-bottom:1px solid var(--dkts-chrome-border);
+  color:var(--dkts-chrome-text);user-select:none;
+  app-region:drag;-webkit-app-region:drag
+}
+.titlebar-brand{
+  display:flex;align-items:center;gap:9px;min-width:0;height:100%;
+  flex-shrink:0;white-space:nowrap;padding:0 2px;
+}
+.titlebar-brand strong{font-size:12px;font-weight:700;letter-spacing:-.012em}
+.titlebar-logo{
+  display:grid;place-items:center;width:24px;height:24px;flex-shrink:0;
+  background:#213b69;color:#fff;border-radius:6px;font-size:10px;font-weight:800
+}
+.titlebar-brand .ui-version-badge{
+  margin-left:5px;padding:4px 5px;font-size:10px;font-weight:600;
+  color:#7185a5;border:1px solid transparent;background:transparent;
+  app-region:no-drag;-webkit-app-region:no-drag
+}
+.titlebar-brand .ui-version-badge:hover{color:#425f8c;background:var(--dkts-hover-bg);border-color:var(--dkts-hover-border)}
+.titlebar-drag-region{flex:1 1 auto;min-width:8px;height:100%;app-region:drag;-webkit-app-region:drag}
+.window-actions{display:flex;align-items:center;gap:3px;flex-shrink:0;height:100%;margin-left:10px;
+  app-region:no-drag;-webkit-app-region:no-drag}
+#window-actions[hidden]{display:none!important}
+.app-titlebar .window-actions button{
+  display:grid;place-items:center;flex:none;
+  width:34px;min-width:34px;height:32px;margin:0;padding:0;
+  border:0;border-radius:8px;background:transparent;box-shadow:none;
+  color:var(--dkts-chrome-text);cursor:pointer;font-size:15px;
+  app-region:no-drag;-webkit-app-region:no-drag;
+  transition:background-color .13s ease,color .13s ease
+}
+.app-titlebar .window-actions button svg{display:block;pointer-events:none}
+.app-titlebar .window-actions button:hover{background:var(--dkts-hover-bg);color:#203a60}
+.app-titlebar .window-actions button:active{background:#d7e3f2}
+.app-titlebar .window-actions .window-close:hover{background:#fae5e9;color:#a9263c}
+.app-titlebar .window-actions .window-close:active{background:#efcfd5}
+#window-maximize .restore-glyph{display:none}
+#window-maximize[data-maximized="true"] .restore-glyph{display:block}
+#window-maximize[data-maximized="true"] .maximize-glyph{display:none}
+
+.app-statusbar{
+  position:fixed;bottom:0;left:0;right:0;width:100%;z-index:80;
+  height:var(--dkts-status-height);display:flex;align-items:center;gap:8px;
+  padding:0 9px 0 5px;margin:0;border:0;border-top:1px solid var(--dkts-chrome-border);
+  border-radius:0;background:var(--dkts-status-bg);color:var(--dkts-chrome-text);
+  box-shadow:0 -3px 12px rgba(23,45,77,.07),inset 0 1px 0 rgba(255,255,255,.55);
+  font-size:11px;user-select:none;app-region:no-drag;-webkit-app-region:no-drag
+}
+/* The full-width top seam is independent of hover: no inset-looking shadow. */
+.app-statusbar::before{
+  content:'';position:absolute;top:-1px;left:0;right:0;height:1px;
+  background:var(--dkts-chrome-border);pointer-events:none
+}
+.statusbar-message,.statusbar-connection{
+  display:inline-flex;align-items:center;justify-content:flex-start;
+  box-sizing:border-box;height:24px;min-height:24px;
+  padding:0 9px;margin:0;border:1px solid transparent;border-radius:7px;
+  background:transparent;color:var(--dkts-chrome-text);
+  font-size:10.5px;font-weight:550;line-height:1;
+  cursor:pointer;app-region:no-drag;-webkit-app-region:no-drag;
+  transition:background-color .13s ease,border-color .13s ease,color .13s ease
+}
+.statusbar-message{
+  flex:0 1 auto;max-width:min(64vw,650px);
+  gap:7px;margin-left:0;margin-right:auto;min-width:0;text-align:left;overflow:hidden
+}
+.statusbar-message span:last-child{
+  display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  line-height:1.3
+}
+.statusbar-message-dot,.status-dot{
+  width:7px;height:7px;min-width:7px;border-radius:50%;background:#92a3bc;flex-shrink:0
+}
+.status-dot[data-phase="connected"]{background:#179a70}
+.status-dot[data-phase="error"]{background:#d27435}
+.status-dot[data-phase="connecting"]{background:#4d78d4}
+.statusbar-message-dot[data-level="info"]{background:#92a3bc}
+.statusbar-message-dot[data-level="success"]{background:#179a70}
+.statusbar-message-dot[data-level="error"]{background:#d27435}
+.statusbar-right{
+  display:flex;align-items:center;gap:5px;flex-shrink:0;min-width:0;
+  height:100%;app-region:no-drag;-webkit-app-region:no-drag
+}
+.statusbar-connection{flex:none;gap:6px;white-space:nowrap;min-width:0}
+.statusbar-connection #state-chip{display:block;line-height:1.3}
+.statusbar-connection .status-chevron{display:block;line-height:1;font-size:12px;opacity:.65}
+:is(.statusbar-message,.statusbar-connection):hover{
+  background:var(--dkts-hover-bg);border-color:var(--dkts-hover-border);color:#2e507a
+}
+:is(.statusbar-message,.statusbar-connection):active{background:#dbe7f6}
+:is(.statusbar-message,.statusbar-connection,.window-actions button):focus-visible{
+  outline:2px solid #477ac4;outline-offset:-2px
+}
+/* Log popup and diagnostics stay reachable from the bottom strip. */
+.status-log-dialog{
+  position:fixed;bottom:calc(var(--dkts-status-height) + 8px);top:auto;
+  left:12px;right:auto;margin:0;width:min(570px,calc(100vw - 24px));
+  max-height:60dvh;border:1px solid var(--dkts-chrome-border);border-radius:10px;
+  background:#fff;color:#344461;padding:0;
+  box-shadow:0 16px 55px rgba(10,25,51,.17);overflow:hidden
+}
+.status-log-dialog::backdrop{background:rgba(9,20,40,.12)}
+.status-log-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 13px;border-bottom:1px solid #e5eaf3
+}
+.status-log-header button{padding:5px 9px;font-size:11px}
+.status-log-entries{
+  margin:0;padding:8px 12px 10px;list-style:none;overflow:auto;
+  max-height:calc(60dvh - 54px);display:flex;flex-direction:column;gap:4px
+}
+.status-log-entries li{
+  display:flex;align-items:baseline;gap:11px;padding:5px 0;
+  font-size:11px;line-height:1.5;border-bottom:1px solid #f0f2f6;
+  overflow-wrap:anywhere
+}
+.status-log-entries time{color:#8b98ab;font-variant-numeric:tabular-nums;flex-shrink:0}
+.workspace-active .test-detail{
+  min-height:calc(100dvh - var(--dkts-title-height) - var(--dkts-status-height) - 16px)
+}
+.data-panel{
+  min-height:calc(100dvh - var(--dkts-title-height) - var(--dkts-status-height) - 85px)
+}
+.parameters-panel{
+  max-height:calc(100dvh - var(--dkts-title-height) - var(--dkts-status-height) - 85px)
+}
+@media(max-width:620px){
+  .app-titlebar{padding:0 8px}
+  .titlebar-brand{gap:6px}
+  .titlebar-brand .ui-version-badge{margin-left:1px}
+  .app-titlebar .window-actions button{width:31px;min-width:31px;height:30px}
+  .app-statusbar{padding:0 5px;gap:4px}
+  .statusbar-message{max-width:calc(100vw - 125px)}
+}
+@media(max-width:420px){
+  .titlebar-brand strong{font-size:11px}
+  .titlebar-brand .ui-version-badge{font-size:9px;padding:3px 4px}
+  .app-titlebar .window-actions button{width:29px;min-width:29px;height:29px}
+  .statusbar-message,.statusbar-connection{font-size:10px;padding:0 7px}
+  .statusbar-connection{gap:4px}
+}
+@media(prefers-reduced-motion:reduce){
+  .app-titlebar .window-actions button,.statusbar-message,.statusbar-connection{transition:none}
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --dkts-chrome-bg:#253143;--dkts-status-bg:#212e40;
+    --dkts-chrome-border:#3a4a60;--dkts-chrome-text:#b7c8e2;
+    --dkts-hover-bg:#344862;--dkts-hover-border:#49617f
+  }
+  .titlebar-brand .ui-version-badge{color:#a8b9d0}
+  .titlebar-brand .ui-version-badge:hover{color:#e6f0ff}
+  .app-titlebar .window-actions button:hover{color:#e9f2fe}
+  .app-titlebar .window-actions .window-close:hover{background:#623747;color:#ffe4e8}
+  .app-statusbar{box-shadow:0 -3px 12px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.04)}
+  :is(.statusbar-message,.statusbar-connection):hover{color:#eef4ff}
+  .status-log-dialog{background:#222d3f;color:#e0e8f6}
+  .status-log-header,.status-log-entries li{border-color:#3a485e}
+}
+
+/* Android: WebView shares UI assets, but has no Windows caption buttons.
+   API 35 edge-to-edge requires avoiding status/navigation bar and cutout overlap. */
+body.dkts-android-shell{
+  --dkts-title-height:44px;--dkts-status-height:42px;
+  --dkts-safe-top:env(safe-area-inset-top,0px);
+  --dkts-safe-bottom:env(safe-area-inset-bottom,0px);
+  --dkts-safe-left:env(safe-area-inset-left,0px);
+  --dkts-safe-right:env(safe-area-inset-right,0px);
+  padding-top:calc(var(--dkts-title-height) + var(--dkts-safe-top));
+  padding-bottom:calc(var(--dkts-status-height) + var(--dkts-safe-bottom))
+}
+body.dkts-android-shell .app-titlebar{
+  height:calc(var(--dkts-title-height) + var(--dkts-safe-top));
+  padding-top:var(--dkts-safe-top);
+  padding-left:calc(12px + var(--dkts-safe-left));
+  padding-right:calc(12px + var(--dkts-safe-right));
+  -webkit-app-region:no-drag;app-region:no-drag
+}
+body.dkts-android-shell .titlebar-drag-region{
+  -webkit-app-region:no-drag;app-region:no-drag
+}
+body.dkts-android-shell .app-statusbar{
+  height:calc(var(--dkts-status-height) + var(--dkts-safe-bottom));
+  padding-bottom:var(--dkts-safe-bottom);
+  padding-left:calc(5px + var(--dkts-safe-left));
+  padding-right:calc(5px + var(--dkts-safe-right))
+}
+body.dkts-android-shell :is(.statusbar-message,.statusbar-connection){
+  min-height:36px;height:36px;font-size:11px;
+}
+body.dkts-android-shell .statusbar-message{max-width:calc(100vw - 135px)}
+body.dkts-android-shell .titlebar-brand strong{font-size:12px}
+body.dkts-android-shell .workspace-active .test-detail{
+  min-height:calc(100dvh - var(--dkts-title-height) - var(--dkts-safe-top) -
+    var(--dkts-status-height) - var(--dkts-safe-bottom) - 16px)
+}
+body.dkts-android-shell .parameters-panel{max-height:none}
+body.dkts-android-shell .data-panel{min-height:440px}
+body.dkts-android-shell .connection-dialog{
+  max-height:calc(100dvh - var(--dkts-safe-top) - var(--dkts-safe-bottom) - 24px)
+}
+body.dkts-android-shell .status-log-dialog{
+  bottom:calc(var(--dkts-status-height) + var(--dkts-safe-bottom) + 8px);
+  max-height:min(60dvh,420px)
+}
+@media(max-width:480px){
+  body.dkts-android-shell .test-type-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.dkts-android-shell .types-card{padding:11px}
+  body.dkts-android-shell .app-statusbar{gap:3px}
+  body.dkts-android-shell .statusbar-message{max-width:calc(100vw - 122px)}
+}
+@media(max-height:530px) and (orientation:landscape){
+  body.dkts-android-shell{--dkts-title-height:39px;--dkts-status-height:38px}
+  body.dkts-android-shell :is(.statusbar-message,.statusbar-connection){height:34px;min-height:34px}
+  body.dkts-android-shell .measured-plot,
+  body.dkts-android-shell .measured-plot svg{min-height:210px;height:210px}
+}
+
+/* Icon-only navigation and panel controls, shared by Windows and Android. */
+.detail-icon-action{
+  display:inline-grid;place-items:center;flex:none;
+  width:30px;min-width:30px;height:30px;margin:0;padding:0;
+  border:1px solid transparent;border-radius:8px;
+  background:transparent;color:#607697;cursor:pointer;
+  transition:background-color .13s,color .13s,border-color .13s
+}
+.detail-icon-action svg{display:block;pointer-events:none}
+.detail-icon-action:hover{background:var(--dkts-hover-bg,#e7eef9);border-color:var(--dkts-hover-border,#d4e2f3);color:#2e507a}
+.detail-icon-action:active{background:#dbe7f6}
+.detail-icon-action:focus-visible{outline:2px solid #477ac4;outline-offset:1px}
+.detail-heading .detail-back{
+  display:inline-grid;place-items:center;width:34px;min-width:34px;height:34px;
+  border:1px solid transparent;padding:0;border-radius:9px;white-space:normal
+}
+.parameter-heading-actions{display:flex;gap:6px;align-items:center;margin-left:auto;min-width:0}
+.parameter-heading-actions .small-action{padding:7px 9px;font-size:11px}
+.data-heading-title{display:flex;align-items:center;min-width:0;gap:7px}
+.data-heading-title > div{min-width:0}
+#restore-parameters:not([hidden]){display:inline-grid}
+@media(max-width:500px){
+  .detail-heading .detail-back{height:32px;width:32px;min-width:32px}
+  .detail-icon-action{height:32px;width:32px;min-width:32px}
+  .parameter-heading-actions{gap:3px}
+}
+@media(prefers-color-scheme:dark){
+  .detail-icon-action{color:#adbed8}
+  .detail-icon-action:hover{color:#e5f0ff}
+}
+
+/* DKDS-style compact working tabs immediately after the UI revision. */
+.titlebar-version-divider{
+  display:block;flex:none;width:1px;height:22px;margin:0 9px 0 10px;
+  background:var(--dkts-chrome-border,#dfe6f0);pointer-events:none
+}
+.workspace-tabs{
+  display:flex;align-items:center;gap:3px;height:100%;max-width:min(54vw,780px);
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;
+  -webkit-app-region:no-drag;app-region:no-drag;min-width:0
+}
+.workspace-tabs::-webkit-scrollbar{display:none}
+.workspace-tab-item{display:flex;align-items:center;height:32px;flex:none;border-radius:8px;max-width:195px}
+.workspace-tab,.workspace-tab-close{
+  flex:none;height:30px;margin:0;border:0;background:transparent;
+  color:var(--dkts-chrome-text,#516681);cursor:pointer;
+  -webkit-app-region:no-drag;app-region:no-drag
+}
+.workspace-tab{
+  max-width:157px;padding:0 10px;border-radius:8px;font-size:11px;font-weight:550;
+  white-space:nowrap;text-overflow:ellipsis;overflow:hidden
+}
+.workspace-tab-item .workspace-tab{padding-right:3px}
+.workspace-tab-item:has(.workspace-tab.is-active){
+  background:var(--dkts-hover-bg,#e7eef9)
+}
+.workspace-tab.is-active{background:var(--dkts-hover-bg,#e7eef9);color:#2d568a;font-weight:700}
+.workspace-tab:hover,.workspace-tab-close:hover{background:#dbe6f5;color:#28598f}
+.workspace-tab-close{
+  width:24px;font-size:16px;line-height:1;border-radius:6px
+}
+.workspace-tab-item .workspace-tab.is-active{background:transparent}
+.workspace-tab:focus-visible,.workspace-tab-close:focus-visible{
+  outline:2px solid #477ac4;outline-offset:-2px
+}
+@media(max-width:760px){
+  .workspace-tabs{max-width:50vw}
+  .workspace-tab{max-width:113px;padding:0 7px}
+  .workspace-tab-item{max-width:145px}
+  .titlebar-version-divider{margin:0 6px}
+}
+@media(max-width:480px){
+  .titlebar-brand strong{display:none}
+  .titlebar-brand .ui-version-badge{margin-left:0}
+  .workspace-tabs{max-width:65vw}
+  .workspace-tab{max-width:100px;font-size:10px}
+  .workspace-tab-close{width:20px}
+}
+body.dkts-android-shell{
+  /* Status bar is hidden natively; no white inset strip remains above our title. */
+  --dkts-title-height:39px;
+  --dkts-safe-top:0px;
+}
+body.dkts-android-shell .app-titlebar{
+  height:var(--dkts-title-height);padding-top:0;
+}
+body.dkts-android-shell .workspace-tabs{max-width:65vw}
+body.dkts-android-shell .titlebar-drag-region{min-width:0}
+body.dkts-android-shell .titlebar-version-divider{margin-left:6px;margin-right:5px}
+body.dkts-android-shell .workspace-tab,
+body.dkts-android-shell .workspace-tab-close{height:33px}
+@media(max-width:480px){
+  body.dkts-android-shell .titlebar-brand{gap:5px}
+  body.dkts-android-shell .titlebar-brand .ui-version-badge{font-size:9px}
+  body.dkts-android-shell .workspace-tabs{max-width:65vw}
+}
+@media(prefers-color-scheme:dark){
+  .workspace-tab.is-active,.workspace-tab-item:has(.workspace-tab.is-active){
+    color:#e0ebfb;background:#344961
+  }
+  .workspace-tab:hover,.workspace-tab-close:hover{background:#3b5170;color:#fff}
+}
+
+/* Native package version and independent UI SHA remain visible on every platform. */
+.titlebar-brand .native-version-badge{
+  font-size:10px;color:#657991;font-variant-numeric:tabular-nums;
+  white-space:nowrap;cursor:help;margin-left:3px;font-weight:600
+}
+.titlebar-brand .ui-version-badge{margin-left:0}
+@media(max-width:500px){
+  .titlebar-brand .native-version-badge{font-size:9px;margin-left:0}
+}
+@media(prefers-color-scheme:dark){
+  .titlebar-brand .native-version-badge{color:#afc3da}
+}
+
+/* Icon-only add-test action; "test selection" is a destination, not an open tab. */
+.workspace-tab-add{
+  display:inline-grid;place-items:center;flex:none;width:30px;height:30px;
+  min-width:30px;padding:0;margin:0 3px 0 0;
+  border:1px solid transparent;border-radius:8px;background:transparent;
+  color:var(--dkts-chrome-text,#516681);cursor:pointer;
+  -webkit-app-region:no-drag;app-region:no-drag
+}
+.workspace-tab-add svg{display:block;pointer-events:none}
+.workspace-tab-add:hover,.workspace-tab-add.is-active{background:var(--dkts-hover-bg,#e7eef9);color:#2d568a}
+.workspace-tab-add:focus-visible{outline:2px solid #477ac4;outline-offset:0}
+.workspace-tab-close{
+  display:inline-grid;place-items:center;align-self:center;
+  padding:0!important;margin:0;min-width:24px;width:24px;height:28px;
+  border:0;border-radius:6px;line-height:1;
+}
+.workspace-tab-close svg{display:block;width:14px;height:14px;flex:none;pointer-events:none}
+.workspace-tab-item{align-items:center}
+@media(max-width:480px){
+  .workspace-tab-add{width:29px;min-width:29px;height:29px}
+  .workspace-tab-close{min-width:22px;width:22px;height:28px}
+}
+body.dkts-android-shell .workspace-tab-add{
+  min-width:36px;width:36px;height:36px
+}
+body.dkts-android-shell .workspace-tab-close{
+  min-width:32px;width:32px;height:34px
+}
+
+
+/* DKDS-inspired field controls and quiet modern scrollbars.
+   Consistent in Electron Chromium, Chrome and Android WebView. */
+:root{
+  --dkts-field-bg:#fff;
+  --dkts-field-border:#d8e2f0;
+  --dkts-field-ink:#263954;
+  --dkts-field-hover:#bdcfe6;
+  --dkts-field-focus:#4079ca;
+  --dkts-field-ring:rgba(64,121,202,.12);
+  --dkts-scroll-thumb:rgba(115,140,174,.30);
+  --dkts-scroll-hover:rgba(115,140,174,.58);
+  --dkts-popover-bg:#fff;
+  --dkts-popover-border:#d9e3f0;
+  --dkts-popover-hover:#edf4ff;
+}
+:where(html,body,*){scrollbar-color:var(--dkts-scroll-thumb) transparent;scrollbar-width:thin}
+/* Modern Chromium ignores ::-webkit-scrollbar when scrollbar-width/color are
+   explicitly set. Reset just these native properties where custom thumbs work,
+   otherwise the requested 5px geometry may never appear in Electron/WebView. */
+@supports selector(::-webkit-scrollbar){
+  :where(html,body,*){scrollbar-width:auto;scrollbar-color:auto}
+  .workspace-tabs{scrollbar-width:none}
+}
+:where(html,body,*)::-webkit-scrollbar{width:5px;height:5px;background:transparent}
+:where(html,body,*)::-webkit-scrollbar-track{background:transparent;border:0}
+:where(html,body,*)::-webkit-scrollbar-thumb{
+  background:var(--dkts-scroll-thumb);border:1px solid transparent;
+  background-clip:padding-box;border-radius:999px;min-height:28px
+}
+:where(html,body,*)::-webkit-scrollbar-thumb:hover{
+  background:var(--dkts-scroll-hover);border:1px solid transparent;
+  background-clip:padding-box
+}
+:where(html,body,*)::-webkit-scrollbar-corner{background:transparent}
+:where(html,body,*)::-webkit-scrollbar-button{display:none;width:0;height:0}
+.workspace-tabs{scrollbar-width:none}
+.workspace-tabs::-webkit-scrollbar{display:none}
+:where(.connection-dialog,.parameters-panel,.data-table-scroll,.status-log-entries,.dkts-select-popover){
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch
+}
+:is(.connection-dialog,.detail-panel .plan-form)
+:is(input:not([type="hidden"]),select,textarea,.dkts-select-trigger){
+  box-sizing:border-box;width:100%;min-width:0;
+  min-height:36px;border:1px solid var(--dkts-field-border);
+  border-radius:9px;background:var(--dkts-field-bg);
+  color:var(--dkts-field-ink);box-shadow:none;
+  padding:8px 11px;font:inherit;font-size:12px;
+  transition:border-color .13s ease,background-color .13s ease,box-shadow .13s ease
+}
+:is(.connection-dialog,.detail-panel .plan-form)
+:is(input:not([type="hidden"]),select,textarea,.dkts-select-trigger):hover:not(:disabled){
+  border-color:var(--dkts-field-hover)
+}
+:is(.connection-dialog,.detail-panel .plan-form)
+:is(input:not([type="hidden"]),select,textarea,.dkts-select-trigger):focus-visible{
+  outline:0;border-color:var(--dkts-field-focus);
+  box-shadow:0 0 0 3px var(--dkts-field-ring)
+}
+:is(.connection-dialog,.detail-panel .plan-form)
+:is(input:not([type="hidden"]),select,textarea,.dkts-select-trigger):disabled{
+  opacity:.6;cursor:not-allowed
+}
+:is(.connection-dialog,.detail-panel .plan-form) textarea{
+  height:auto;min-height:110px;resize:vertical
+}
+:is(.connection-dialog,.detail-panel .plan-form) select{
+  appearance:none;-webkit-appearance:none;
+  padding-right:35px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='m5 7.5 5 5 5-5' fill='none' stroke='%23647792' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;background-size:16px
+}
+.dkts-select-wrapper{display:block;position:relative;min-width:0;width:100%}
+.dkts-select-wrapper .dkts-select-trigger{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  text-align:left;cursor:pointer;font-weight:550;white-space:nowrap
+}
+.dkts-select-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.dkts-select-trigger svg{flex:none;opacity:.78;transition:transform .13s ease}
+.dkts-select-trigger[aria-expanded="true"]{
+  border-color:var(--dkts-field-focus)!important;
+  box-shadow:0 0 0 3px var(--dkts-field-ring)!important
+}
+.dkts-select-trigger[aria-expanded="true"] svg{transform:rotate(180deg)}
+.dkts-select-popover{
+  position:fixed;z-index:2147483000;box-sizing:border-box;
+  overflow-y:auto;overflow-x:hidden;
+  padding:5px;max-width:calc(100vw - 12px);
+  border:1px solid var(--dkts-popover-border);
+  border-radius:11px;background:var(--dkts-popover-bg);
+  box-shadow:0 12px 30px rgba(19,43,76,.16),0 2px 8px rgba(19,43,76,.06);
+  color:var(--dkts-field-ink)
+}
+.dkts-select-popover .dkts-select-option{
+  display:block;box-sizing:border-box;width:100%;
+  margin:0;padding:9px 11px;min-height:34px;
+  border:0;border-radius:7px;text-align:left;
+  background:transparent;color:inherit;cursor:pointer;
+  font-size:12px;font-weight:550;line-height:1.35;
+  overflow-wrap:anywhere
+}
+.dkts-select-popover .dkts-select-option:hover,
+.dkts-select-popover .dkts-select-option:focus-visible{
+  background:var(--dkts-popover-hover);outline:0
+}
+.dkts-select-popover .dkts-select-option[aria-selected="true"]{
+  color:#2359a5;background:#edf4ff;font-weight:700
+}
+.dkts-select-popover .dkts-select-option[aria-selected="true"]:focus-visible{
+  box-shadow:inset 0 0 0 1px #b9d1f5
+}
+.dkts-select-popover .dkts-select-option:disabled{opacity:.45;cursor:not-allowed}
+:where(.settings,#diagnostic-wrap) > summary{
+  display:flex;align-items:center;gap:7px;
+  min-height:30px;padding:5px 2px;border-radius:7px;
+  list-style:none;font-size:12px;color:#617895;
+  cursor:pointer;user-select:none
+}
+:where(.settings,#diagnostic-wrap) > summary::-webkit-details-marker{display:none}
+:where(.settings,#diagnostic-wrap) > summary::before{
+  content:'';display:block;flex:none;width:7px;height:7px;
+  border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;
+  transform:rotate(-45deg);transition:transform .15s ease
+}
+:where(.settings,#diagnostic-wrap)[open] > summary::before{transform:rotate(45deg)}
+:where(.settings,#diagnostic-wrap) > summary:hover{color:#2c578b;background:rgba(67,114,181,.05)}
+:where(.settings,#diagnostic-wrap) > summary:focus-visible{
+  outline:2px solid #5486ca;outline-offset:1px
+}
+@media(max-width:600px){
+  body.dkts-android-shell .dkts-select-wrapper .dkts-select-trigger{
+    min-height:42px;font-size:12px
+  }
+  body.dkts-android-shell .dkts-select-option{
+    min-height:43px;padding:12px;font-size:13px
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  :is(.connection-dialog,.detail-panel .plan-form)
+  :is(input,select,textarea,.dkts-select-trigger),
+  .dkts-select-trigger svg,
+  :where(.settings,#diagnostic-wrap) > summary::before{transition:none}
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --dkts-field-bg:#273346;
+    --dkts-field-border:#43536c;
+    --dkts-field-ink:#edf3fd;
+    --dkts-field-hover:#627895;
+    --dkts-field-focus:#84afe8;
+    --dkts-field-ring:rgba(132,175,232,.17);
+    --dkts-scroll-thumb:rgba(144,166,197,.34);
+    --dkts-scroll-hover:rgba(144,166,197,.65);
+    --dkts-popover-bg:#263549;
+    --dkts-popover-border:#4b5c76;
+    --dkts-popover-hover:#344b68
+  }
+  .dkts-select-popover .dkts-select-option[aria-selected="true"]{
+    background:#335178;color:#d6e9ff
+  }
+  :where(.settings,#diagnostic-wrap) > summary{color:#b2c6df}
+  :where(.settings,#diagnostic-wrap) > summary:hover{color:#e1eeff}
+}
+
+/* Place the "+" AFTER the open tabs.  As tabs accumulate it moves right;
+   once the tab strip fills the available space, only tabs scroll. */
+.workspace-tabs{
+  flex:0 1 auto;
+  width:max-content;
+  max-width:min(54vw,780px);
+  min-width:0;
+}
+.workspace-tab-add{
+  order:0;
+  flex:0 0 30px;
+  margin:0 4px 0 6px;
+}
+@media(max-width:480px){
+  .workspace-tab-add{flex-basis:29px}
+}
+body.dkts-android-shell .workspace-tab-add{flex-basis:36px}
+
+
+/* v0.2.5 — compact long-press versions, mobile alignment and relocated controls. */
+.titlebar-brand .version-hold-toggle{
+  position:relative;cursor:pointer;touch-action:manipulation;
+  -webkit-user-select:none;user-select:none;
+  -webkit-app-region:no-drag;app-region:no-drag
+}
+.titlebar-brand .version-hold-toggle:focus-visible{
+  outline:2px solid #477ac4;outline-offset:2px;border-radius:4px
+}
+.titlebar-brand .version-hold-toggle[data-expanded="true"]{z-index:2}
+.titlebar-brand .version-hold-toggle[data-expanded="true"]::after{
+  content:attr(data-version-detail);
+  position:absolute;left:0;top:calc(100% + 12px);
+  display:block;box-sizing:border-box;
+  min-width:150px;max-width:min(86vw,420px);width:max-content;
+  padding:10px 12px;border:1px solid var(--dkts-chrome-border);
+  border-radius:9px;background:var(--dkts-chrome-bg);
+  box-shadow:0 6px 22px rgba(18,34,55,.17);
+  color:var(--dkts-chrome-text);font-size:11px;font-weight:550;
+  white-space:normal;overflow-wrap:anywhere;line-height:1.5;
+  pointer-events:none
+}
+.detail-heading{
+  padding-right:0;
+}
+.detail-run-actions{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;
+  margin-left:auto;gap:7px;min-width:0
+}
+.detail-run-actions .measure-button{
+  display:inline-flex;align-items:center;justify-content:center;
+  box-sizing:border-box;width:auto;min-height:30px;
+  padding:6px 10px;border:1px solid #dce4f0;border-radius:7px;
+  font-size:11px;line-height:1.25;white-space:nowrap
+}
+.detail-run-actions .measure-button:disabled{cursor:not-allowed;opacity:.65}
+.data-panel-actions{
+  display:flex;align-items:center;justify-content:flex-end;
+  margin-left:auto;min-height:30px;flex:none
+}
+.data-panel-actions #restore-parameters:not([hidden]){
+  display:inline-grid;place-items:center;
+  border:1px solid var(--dkts-chrome-border);
+  background:var(--dkts-chrome-bg)
+}
+@media(max-width:760px){
+  .detail-heading{padding-right:0}
+}
+@media(max-width:660px){
+  .detail-heading{flex-wrap:wrap;gap:6px 9px}
+  .detail-heading-title{flex:1 1 calc(100% - 48px)}
+  .detail-run-actions{flex:1 1 100%;width:100%;justify-content:flex-end;gap:5px}
+  .detail-run-actions .measure-button{padding:6px 8px;font-size:10px}
+}
+@media(max-width:500px){
+  .detail-heading{padding-top:0;padding-right:0}
+  .detail-run-actions .acquisition-state{font-size:9px;padding:5px 6px}
+}
+/* Align Android top chrome to the left edge of “选择测试方式”.
+   Desktop Electron titlebar spacing remains unchanged. */
+body.dkts-android-shell .app-titlebar{
+  padding-left:calc(clamp(8px,1vw,18px) + 19px + var(--dkts-safe-left))
+}
+@media(max-width:500px){
+  body.dkts-android-shell .app-titlebar{
+    padding-left:calc(18px + var(--dkts-safe-left))
+  }
+}
+@media(prefers-color-scheme:dark){
+  .detail-run-actions .measure-button{border-color:#3b4a60}
+}
+
+/* v0.2.6: click-to-check version popover, quiet platform-specific states. */
+.titlebar-brand{position:relative}
+.titlebar-brand .native-version-badge{
+  appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;
+  margin-left:2px;padding:5px 6px;border:0;border-radius:5px;
+  background:transparent;color:var(--dkts-chrome-text);box-shadow:none!important;
+  font:inherit;font-size:10px;font-weight:650;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  app-region:no-drag;-webkit-app-region:no-drag;
+  transition:color .13s ease,background-color .13s ease
+}
+.titlebar-brand .native-version-badge:hover{background:rgba(118,144,176,.08);color:#365b86}
+.titlebar-brand .native-version-badge:active{background:transparent;box-shadow:none!important}
+.titlebar-brand .native-version-badge:focus{outline:none;box-shadow:none!important}
+.titlebar-brand .native-version-badge:focus-visible{outline:1px solid #8299b7;outline-offset:1px}
+body.dkts-android-shell .titlebar-brand .native-version-badge,
+body.dkts-android-shell .titlebar-brand .native-version-badge:hover,
+body.dkts-android-shell .titlebar-brand .native-version-badge:active,
+body.dkts-android-shell .titlebar-brand .native-version-badge:focus{
+  background:transparent!important;box-shadow:none!important;
+  outline:none!important;-webkit-tap-highlight-color:transparent
+}
+#ui-version-badge[hidden]{display:none!important}
+.titlebar-brand #ui-version-badge{
+  position:absolute;left:85%;top:calc(100% - 1px);z-index:150;
+  display:flex;flex-direction:column;align-items:flex-start;gap:6px;
+  box-sizing:border-box;width:max-content;min-width:210px;max-width:min(85vw,330px);
+  padding:11px 13px;margin:0;background:var(--dkts-chrome-bg);
+  border:1px solid var(--dkts-chrome-border);border-radius:10px;
+  color:var(--dkts-chrome-text);font-size:11px;line-height:1.45;
+  box-shadow:0 10px 28px rgba(23,42,68,.12);
+  app-region:no-drag;-webkit-app-region:no-drag
+}
+.titlebar-brand #ui-version-badge strong{font-size:11px;font-weight:700}
+#ui-update-state{font-size:10px;opacity:.8;white-space:normal;overflow-wrap:anywhere}
+#native-app-update-btn[hidden]{display:none!important}
+#native-app-update-btn{font:inherit;font-size:10px;font-weight:600;padding:5px 7px;border-radius:6px;border:1px solid var(--dkts-hover-border,#9eb5ce);background:var(--dkts-hover-bg,#eaf1fb);color:inherit;cursor:pointer;text-align:left}
+#native-app-update-btn:disabled{opacity:.6;cursor:default}
+@media(max-width:660px){.titlebar-brand #ui-version-badge{left:0;min-width:195px}}
+@media(prefers-color-scheme:dark){
+  .titlebar-brand .native-version-badge:hover{background:rgba(151,177,210,.07);color:#c9dcf4}
+}
+.detail-heading{padding-right:0}
+.detail-run-actions{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;
+  margin-left:auto;gap:6px;min-width:0
+}
+.detail-run-actions .measure-button{
+  display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;
+  width:auto;min-height:30px;padding:6px 10px;border:1px solid #dce4f0;
+  border-radius:7px;font-size:11px;line-height:1.25;white-space:nowrap
+}
+.detail-run-actions .measure-button:disabled{cursor:not-allowed;opacity:.65}
+.data-panel-actions{display:flex;align-items:center;justify-content:flex-end;margin-left:auto;flex:none}
+.panel-expand-control{
+  appearance:none;-webkit-appearance:none;display:inline-flex;
+  align-items:center;justify-content:center;min-width:52px;height:27px;
+  padding:0 9px;border:1px solid transparent;border-radius:7px;
+  background:transparent;color:var(--dkts-chrome-text);
+  font-size:11px;font-weight:600;cursor:pointer
+}
+.panel-expand-control:hover{background:rgba(118,144,176,.10);color:#3e628e}
+.panel-expand-control:focus-visible{outline:1px solid #8299b7}
+@media(max-width:760px){.detail-heading{padding-right:0}}
+@media(max-width:660px){
+  .detail-heading{flex-wrap:wrap;gap:6px 9px}
+  .detail-heading-title{flex:1 1 calc(100% - 48px)}
+  .detail-run-actions{flex:1 1 100%;width:100%;justify-content:flex-end;gap:5px}
+  .detail-run-actions .measure-button{padding:6px 8px;font-size:10px}
+}
+@media(max-width:500px){.detail-heading{padding-top:0;padding-right:0}}
+body.dkts-android-shell .app-titlebar{
+  padding-left:calc(clamp(8px,1vw,18px) + 19px + var(--dkts-safe-left))
+}
+@media(max-width:500px){
+  body.dkts-android-shell .app-titlebar{padding-left:calc(18px + var(--dkts-safe-left))}
+}
+.data-panel .readout-grid{gap:6px;margin:0 0 7px}
+.data-panel .readout{
+  box-sizing:border-box;display:grid;grid-template-columns:1fr auto;
+  grid-template-rows:14px 20px;align-content:center;gap:1px 4px;
+  height:49px;min-height:49px;padding:5px 10px;border-radius:9px
+}
+.data-panel .readout span{grid-column:1/-1;font-size:10px;line-height:1.2}
+.data-panel .readout strong{grid-column:1;grid-row:2;font-size:16px;line-height:1.1}
+.data-panel .readout small{grid-column:2;grid-row:2;font-size:9px;align-self:end}
+@media(max-width:500px){.data-panel .readout{height:46px;min-height:46px;padding:4px 9px}}
+
+/* Scientific plotting controls are quiet until hover/focus on desktop. */
+.measured-plot{position:relative}
+.measured-plot #measurement-plot{touch-action:none;outline:0;cursor:crosshair}
+.plot-tools{
+  position:absolute;right:8px;top:7px;z-index:3;
+  display:flex;align-items:center;gap:2px;padding:2px;
+  border:1px solid var(--dkts-chrome-border);border-radius:8px;
+  background:var(--dkts-chrome-bg);opacity:0;transition:opacity .16s
+}
+.measured-plot:hover .plot-tools,.measured-plot:focus-within .plot-tools{opacity:1}
+body.dkts-android-shell .plot-tools{opacity:.7}
+.plot-tools button{
+  display:grid;place-items:center;width:27px;height:27px;padding:0;
+  border:0;border-radius:6px;background:transparent;color:var(--dkts-chrome-text);
+  font-size:15px;cursor:pointer
+}
+.plot-tools button:hover{background:rgba(118,144,176,.12)}
+.plot-tools button:focus-visible{outline:1px solid #8299b7}
+.measurement-cursor-tooltip{
+  position:absolute;z-index:4;padding:5px 8px;pointer-events:none;
+  font-size:10px;line-height:1.3;white-space:nowrap;
+  border:1px solid var(--dkts-chrome-border);border-radius:6px;
+  background:var(--dkts-chrome-bg);color:var(--dkts-chrome-text)
+}
+.measurement-cursor-lines{
+  stroke:#5d8cc9;stroke-width:1;stroke-dasharray:4 4;fill:none;pointer-events:none
+}
+.plot-axis-label{fill:#8493a9;font-size:10px;pointer-events:none}
+.plot-actual-trace{
+  fill:none;stroke:#447bb7;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round
+}
+@media(prefers-reduced-motion:reduce){.plot-tools{transition:none}}
+
+/* v0.2.7 — DKDS native D3 scientific plot, independently owned by DKTS. */
+.titlebar-brand,.titlebar-brand *{-webkit-user-select:none;user-select:none}
+.titlebar-brand .native-version-badge{
+  -webkit-tap-highlight-color:transparent!important;
+  box-shadow:none!important;outline:0
+}
+.titlebar-brand .native-version-badge:hover{
+  color:var(--dkts-chrome-text);
+  background:color-mix(in srgb,currentColor 6%,transparent);
+  box-shadow:none!important
+}
+.titlebar-brand .native-version-badge:focus-visible{
+  outline:1px solid color-mix(in srgb,currentColor 35%,transparent);
+  outline-offset:1px
+}
+.measured-plot .dkts-scientific-plot{
+  position:relative;display:block;box-sizing:border-box;
+  width:100%;height:100%;min-height:250px;
+  touch-action:pan-y;overscroll-behavior:contain
+}
+.measured-plot .dkts-scientific-plot svg{
+  display:block;width:100%;height:100%;min-height:0;
+  touch-action:pan-y!important;user-select:none
+}
+body.dkts-android-shell .measured-plot,
+body.dkts-android-shell .measured-plot .dkts-scientific-plot{
+  touch-action:pan-y!important;overscroll-behavior-y:auto
+}
+body.dkts-android-shell .measured-plot svg{
+  touch-action:pan-y!important
+}
+.measured-plot .dkds-scientific-nav-tools{
+  position:absolute;z-index:15;top:8px;right:8px;left:auto;
+  display:flex;align-items:center;gap:1px;
+  padding:3px 4px;border-radius:11px;
+  border:1px solid color-mix(in srgb,var(--dkts-chrome-border) 50%,transparent);
+  background:color-mix(in srgb,var(--dkts-chrome-bg) 90%,transparent);
+  box-shadow:0 3px 13px rgba(25,42,64,.08);
+  opacity:.86;backdrop-filter:blur(10px);
+  transition:opacity .13s ease,box-shadow .13s ease;
+  touch-action:none
+}
+.measured-plot .dkds-scientific-nav-tools:is(:hover,:focus-within,.is-dragging){
+  opacity:1;box-shadow:0 5px 18px rgba(25,42,64,.13)
+}
+.measured-plot .dkds-scientific-nav-tools button{
+  appearance:none;-webkit-appearance:none;display:grid;place-items:center;
+  box-sizing:border-box;width:28px;height:28px;padding:5px;margin:0;
+  border:0;border-radius:7px;background:transparent;outline:0;
+  color:var(--dkts-chrome-text);box-shadow:none;
+  cursor:pointer;touch-action:none;
+  -webkit-tap-highlight-color:transparent
+}
+.measured-plot .dkds-scientific-nav-tools button:is(:hover,:focus-visible){
+  background:color-mix(in srgb,currentColor 7%,transparent)
+}
+.measured-plot .dkds-scientific-nav-tools button:active{
+  background:color-mix(in srgb,currentColor 12%,transparent)
+}
+.measured-plot .dkds-scientific-nav-tools button svg{
+  width:17px;height:17px;min-height:0;display:block;
+  fill:none;stroke:currentColor;stroke-width:1.6;
+  stroke-linecap:round;stroke-linejoin:round;pointer-events:none
+}
+.measured-plot .dkds-scientific-nav-tools .dkds-scientific-nav-drag{
+  cursor:grab;touch-action:none;color:color-mix(in srgb,var(--dkts-chrome-text) 68%,transparent)
+}
+.measured-plot .dkds-scientific-nav-tools .dkds-scientific-nav-drag:active,
+.measured-plot .dkds-scientific-nav-tools.is-dragging .dkds-scientific-nav-drag{cursor:grabbing}
+.measured-plot .dkds-scientific-nav-tools .dkds-scientific-nav-drag svg{
+  fill:currentColor;stroke:none
+}
+body.dkts-android-shell .dkds-scientific-nav-tools{opacity:.93}
+.measured-plot .dkds-d3-tooltip{
+  border-radius:8px!important;box-shadow:0 8px 22px rgba(22,35,52,.12)
+}
+
+/* DKDS mobile: scroll from anywhere on the plot surface except the
+   deliberate grip. The chart viewport must fit its mobile host. */
+body.dkts-android-shell .measured-plot .dkts-scientific-plot{
+  height:100%;min-height:0;touch-action:pan-y!important
+}
+body.dkts-android-shell .measured-plot .dkts-scientific-plot svg{
+  height:100%;min-height:0;touch-action:pan-y!important
+}
+body.dkts-android-shell .dkds-scientific-nav-tools .dkds-scientific-nav-drag{
+  touch-action:none!important
+}
+
+/* v0.2.8 — unified compact scientific controls, no browser-native label tooltips. */
+.workspace-tab-item{
+  display:inline-flex;align-items:center;gap:0;
+  padding:0 2px;box-sizing:border-box;border-radius:9px;
+  background:transparent;transition:background-color .15s ease
+}
+.workspace-tab-item:has(.workspace-tab.is-active){
+  background:color-mix(in srgb,var(--dkts-hover-bg) 72%,transparent)
+}
+.workspace-tab-item:hover{
+  background:transparent
+}
+.workspace-tab-item .workspace-tab,
+.workspace-tab-item .workspace-tab.is-active{
+  box-sizing:border-box;min-width:0;
+  padding-inline:9px!important;
+  background:transparent!important;box-shadow:none!important;
+  border:0!important;border-radius:7px;
+}
+.workspace-tab-item .workspace-tab:hover{
+  background:color-mix(in srgb,var(--dkts-hover-bg) 75%,transparent)!important;
+  color:var(--dkts-chrome-text)!important
+}
+.workspace-tab-item .workspace-tab-close,
+.workspace-tab-item .workspace-tab-close:hover{
+  flex:0 0 24px;box-sizing:border-box;
+  width:24px;min-width:24px;padding:0!important;
+  margin:0;background:transparent!important;
+  box-shadow:none!important;
+  color:color-mix(in srgb,var(--dkts-chrome-text) 75%,transparent);
+}
+.workspace-tab-item .workspace-tab-close:hover{
+  color:var(--dkts-chrome-text);
+}
+.workspace-tab-item :is(.workspace-tab,.workspace-tab-close):focus-visible{
+  outline:1px solid color-mix(in srgb,var(--dkts-chrome-text) 40%,transparent);
+  outline-offset:-2px
+}
+body.dkts-android-shell .workspace-tab-item .workspace-tab-close{
+  flex-basis:30px;width:30px;min-width:30px
+}
+.measured-plot .dkds-scientific-nav-tools{
+  gap:0!important;padding:2px 3px!important;
+  border-radius:9px!important;
+  border:1px solid color-mix(in srgb,var(--dkts-chrome-border) 32%,transparent)!important;
+  background:color-mix(in srgb,var(--dkts-chrome-bg) 86%,transparent)!important;
+  color:#8091a6!important;
+  box-shadow:0 2px 9px rgba(28,46,70,.045)!important;
+  opacity:.88!important;
+  backdrop-filter:blur(8px)
+}
+.measured-plot .dkds-scientific-nav-tools:is(:hover,:focus-within,.is-dragging){
+  opacity:1!important;
+  box-shadow:0 3px 11px rgba(28,46,70,.065)!important
+}
+.measured-plot .dkds-scientific-nav-tools button{
+  width:22px!important;height:22px!important;
+  min-width:22px!important;min-height:22px!important;
+  padding:4px!important;border-radius:5px!important;
+  color:#7f92aa!important;
+  background:transparent!important
+}
+.measured-plot .dkds-scientific-nav-tools button:is(:hover,:focus-visible){
+  background:rgba(118,142,177,.075)!important;
+  color:#657f9f!important
+}
+.measured-plot .dkds-scientific-nav-tools button svg{
+  width:13.6px!important;height:13.6px!important;
+  stroke-width:1.3!important
+}
+.measured-plot .dkds-scientific-nav-tools .dkds-scientific-nav-drag svg{
+  fill:#a5b2c3!important
+}
+@media(prefers-color-scheme:dark){
+  .measured-plot .dkds-scientific-nav-tools button{
+    color:#9eb0c7!important
+  }
+  .measured-plot .dkds-scientific-nav-tools .dkds-scientific-nav-drag svg{
+    fill:#9caec2!important
+  }
+}
+.workspace-tab-item:has(.workspace-tab.is-active):hover{
+  background:color-mix(in srgb,var(--dkts-hover-bg) 72%,transparent)
+}
+
+
+/* Independent workspace identity and inline rename editor. */
+.workspace-context-label{margin:4px 0 0;font-size:11px;line-height:1.35;color:var(--dkts-chrome-muted,#8492a6)}
+.workspace-tab{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:pan-x}
+.workspace-tab-rename{
+  flex:1 1 110px;width:124px;min-width:76px;max-width:157px;height:28px;
+  margin:0;padding:3px 7px;border:1px solid var(--dkts-chrome-border,#cfd9e8);
+  border-radius:6px;background:var(--dkts-field-bg,#fff);color:var(--dkts-chrome-text,#344361);
+  font:inherit;font-size:11px;line-height:1.2;outline:0
+}
+.workspace-tab-rename:focus{border-color:#7d9dcc;box-shadow:0 0 0 2px rgba(91,132,190,.12)}
+body.dkts-android-shell .workspace-tab-rename{height:32px;min-height:32px}
+
+/* Each workspace displays only the selected test mode's own run history. */
+.test-history{min-width:0;margin:9px 0 5px}
+.test-history .data-list-heading{margin:0 1px 5px}
+.test-history-list{
+  display:flex;align-items:center;gap:5px;min-width:0;max-width:100%;
+  overflow-x:auto;overflow-y:hidden;padding:1px 1px 4px;
+  scrollbar-width:none;overscroll-behavior-x:contain;overscroll-behavior-y:none
+}
+.test-history-list::-webkit-scrollbar{display:none;width:0;height:0}
+.history-run{
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  min-height:27px;padding:5px 8px;border:1px solid var(--dkts-chrome-border,#dce4ef);
+  border-radius:7px;background:var(--dkts-chrome-bg,#fff);
+  color:var(--dkts-chrome-text,#516681);font-size:10px;font-weight:550;white-space:nowrap
+}
+.history-run:hover,.history-run.is-active{
+  border-color:color-mix(in srgb,#477ac4 36%,var(--dkts-chrome-border));
+  background:color-mix(in srgb,#477ac4 8%,var(--dkts-chrome-bg));color:#315d91
+}
+.history-empty{display:block;padding:4px 2px;color:var(--dkts-chrome-muted,#8996aa);font-size:10px}
+@media(prefers-color-scheme:dark){
+  .history-run:hover,.history-run.is-active{color:#c8dcfa}
+}
+
+/* DKDS Mobile gesture contract: vertical scrolling is handed to the workspace
+   from content and blank panel areas; horizontal strips remain independently scrollable.
+   Only explicit chart controls/grips retain touch-action:none. */
+body.dkts-android-shell :where(.workspace,.test-library,.types-card,.test-detail,
+  .test-detail-inner,.detail-columns,.detail-panel,.parameters-panel,.data-panel,
+  .data-table-scroll){
+  touch-action:pan-y;
+  overscroll-behavior-x:contain;
+  overscroll-behavior-y:auto
+}
+body.dkts-android-shell .workspace-tabs{
+  touch-action:pan-x;
+  overscroll-behavior-x:contain;
+  overscroll-behavior-y:none;
+  -webkit-overflow-scrolling:touch
+}
+body.dkts-android-shell .test-history-list{
+  touch-action:pan-x;
+  overscroll-behavior-x:contain;
+  overscroll-behavior-y:none;
+  -webkit-overflow-scrolling:touch
+}
+body.dkts-android-shell .workspace-tab-close,
+body.dkts-android-shell .history-run{touch-action:manipulation}
+body.dkts-android-shell .workspace-tab-rename{touch-action:manipulation;user-select:text;-webkit-user-select:text}
+
+/* Archived workspaces are independent of the open tab strip. */
+.workspace-archive-trigger{
+  display:inline-flex;align-items:center;justify-content:center;gap:3px;
+  min-width:34px;height:30px;padding:0 4px;margin-left:3px;flex:none;
+  color:var(--dkts-chrome-text,#516681);border:0;border-radius:7px;
+  background:transparent;cursor:pointer;-webkit-app-region:no-drag;app-region:no-drag
+}
+.workspace-archive-trigger:hover{background:var(--dkts-hover-bg,#e7eef9);color:#28598f}
+.workspace-archive-trigger:focus-visible{outline:2px solid #477ac4;outline-offset:1px}
+.workspace-archive-count{font-size:10px;min-width:10px;font-variant-numeric:tabular-nums;opacity:.82}
+.workspace-archive-dialog{
+  width:min(560px,calc(100vw - 28px));max-height:min(80dvh,720px);
+  border:1px solid #dce4f1;border-radius:14px;padding:0;
+  background:var(--dkts-surface,#fff);color:var(--dkts-text,#243247);
+  box-shadow:0 20px 65px rgba(15,29,58,.18);overflow:auto
+}
+.workspace-archive-dialog::backdrop{background:rgba(16,27,45,.42);backdrop-filter:blur(3px)}
+.archive-dialog-heading{
+  padding:18px 20px 13px;display:flex;gap:16px;align-items:flex-start;
+  justify-content:space-between;border-bottom:1px solid #e7ecf4
+}
+.archive-dialog-heading h2{margin:0 0 7px;font-size:17px;font-weight:700}
+.archive-dialog-heading p{margin:0;color:#73839b;font-size:11px;line-height:1.5}
+.archive-workspace-list{padding:11px 15px 16px;display:grid;gap:7px}
+.archive-empty{padding:18px 8px;text-align:center;color:#78869b;font-size:12px}
+.archive-workspace-row{
+  display:flex;gap:8px;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;padding:11px 12px;border-radius:10px;border:1px solid #e5eaf3;
+  background:#f9fbfe
+}
+.archive-workspace-info{display:grid;gap:5px;min-width:0;flex:1}
+.archive-workspace-name{font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.archive-workspace-info span{font-size:10px;color:#7b8ca2}
+.archive-workspace-actions{display:flex;gap:6px;flex:none}
+.archive-action{
+  padding:7px 9px;font-size:11px;font-weight:600;border-radius:7px;
+  border:1px solid #dbe4f1;background:#fff;color:#425977;
+  cursor:pointer;white-space:nowrap
+}
+.archive-action:hover{background:#eaf1fb;border-color:#c5d6ec}
+.archive-reopen{color:#285a99}
+.archive-remove{color:#ab4651}
+.archive-remove:hover{background:#fff0f0;border-color:#efd2d3}
+.archive-action:focus-visible{outline:2px solid #477ac4;outline-offset:1px}
+.archive-delete-confirm{
+  flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  border-top:1px solid #e6d8dc;margin-top:6px;padding-top:10px;
+}
+.archive-delete-confirm span{flex-basis:100%;font-size:11px;color:#ab4651;line-height:1.5}
+@media(max-width:480px){
+  .workspace-archive-trigger{min-width:29px;gap:1px;margin-left:0}
+  .workspace-archive-count{font-size:9px}
+  .archive-dialog-heading{padding:15px 16px 12px}
+  .archive-workspace-list{padding:9px 10px 13px}
+}
+@media(prefers-color-scheme:dark){
+  .workspace-archive-dialog{background:#222936;color:#e3e8f3;border-color:#46516a}
+  .archive-dialog-heading{border-color:#3a4458}
+  .archive-dialog-heading p,.archive-workspace-info span,.archive-empty{color:#a2aec0}
+  .archive-workspace-row{background:#293244;border-color:#414d61}
+  .archive-action{background:#2c374b;border-color:#4b5a72;color:#dbe7fc}
+  .archive-action:hover{background:#374c68}
+  .archive-remove{color:#f0a5b0}
+  .archive-delete-confirm{border-color:#65505c}
+  .archive-delete-confirm span{color:#f1acb2}
+}
+
+/* v0.3.5 mobile gesture handoff: every non-interactive content surface
+   participates in document panning, including filled panels and data rows.
+   Only the DKDS plot navigation grip captures a one-finger drag. */
+body.dkts-android-shell{
+  -webkit-overflow-scrolling:touch;
+}
+body.dkts-android-shell :where(
+  .test-type-grid,.test-type-card,.detail-heading,.detail-heading-title,
+  .detail-section-heading,.plan-form,.plan-form label,.plan-form .settings,
+  .data-panel,.readout-grid,.readout,.test-history,.data-list-heading,
+  .data-table,.data-table thead,.data-table tbody,.data-table tr,
+  .data-table th,.data-table td,.archive-workspace-list,.archive-workspace-row,
+  .archive-workspace-info,.archive-workspace-name
+){
+  touch-action:pan-y;
+  overscroll-behavior-y:auto
+}
+body.dkts-android-shell :where(.test-type-card,.archive-action,
+  .workspace-archive-trigger,.dkts-select-trigger){
+  -webkit-tap-highlight-color:transparent
+}
+body.dkts-android-shell .archive-workspace-list{
+  -webkit-overflow-scrolling:touch
+}
+
+/* Android nine-key numeric editor: fixed above the status strip, thumb-sized
+   controls, native-like selection; desktop has no overlay or input changes. */
+.dkts-numeric-keypad[hidden]{display:none!important}
+.dkts-numeric-keypad{display:none}
+body.dkts-android-shell .dkts-numeric-keypad{
+  position:fixed;z-index:120;right:calc(8px + var(--dkts-safe-right));
+  bottom:calc(var(--dkts-status-height) + var(--dkts-safe-bottom) + 5px);
+  display:flex;flex-direction:column;gap:5px;width:min(326px,calc(100vw - 16px));
+  max-height:calc(100dvh - var(--dkts-safe-top) - var(--dkts-title-height) -
+    var(--dkts-status-height) - var(--dkts-safe-bottom) - 12px);
+  padding:9px;border-radius:13px;border:1px solid var(--dkts-chrome-border,#dfe6f0);
+  color:var(--dkts-chrome-text,#41536f);
+  background:var(--dkts-chrome-bg,#f4f7fb);box-shadow:0 8px 26px rgba(18,40,75,.19);
+  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch
+}
+.dkts-keypad-head{
+  display:grid;grid-template-columns:18px minmax(0,1fr) auto;
+  align-items:center;gap:7px;min-height:29px;padding:2px 4px;
+  border-radius:7px;cursor:grab;touch-action:none;user-select:none;
+  -webkit-user-select:none;-webkit-touch-callout:none;
+}
+.dkts-keypad-head.is-dragging{cursor:grabbing;background:var(--dkts-hover-bg,#e7eef9)}
+.dkts-keypad-grip{display:grid;place-items:center;color:var(--dkts-chrome-muted,#8393ac);
+  pointer-events:none;opacity:.9}
+.dkts-keypad-head :is(.dkts-keypad-label,.dkts-keypad-value){pointer-events:none}
+.dkts-keypad-label{font-size:11px;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;color:var(--dkts-chrome-muted,#7f8da3)}
+.dkts-keypad-value{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums;
+  color:var(--dkts-chrome-text,#41536f);max-width:178px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.dkts-keypad-functions,.dkts-keypad-grid,.dkts-keypad-foot{
+  display:grid;gap:5px;grid-template-columns:repeat(3,minmax(0,1fr))
+}
+body.dkts-android-shell .dkts-numeric-keypad button{
+  display:flex;align-items:center;justify-content:center;border-radius:7px;
+  border:1px solid var(--dkts-chrome-border,#dfe6f0);color:var(--dkts-chrome-text,#425777);
+  background:var(--dkts-surface,#fff);padding:0;margin:0;
+  font-variant-numeric:tabular-nums;font-size:18px;font-weight:550;
+  min-width:0;min-height:39px;cursor:pointer;user-select:none;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  box-shadow:0 1px 2px rgba(10,30,65,.035)
+}
+body.dkts-android-shell .dkts-keypad-functions button{min-height:30px;font-size:12px;font-weight:600}
+body.dkts-android-shell .dkts-keypad-foot button{min-height:33px;font-size:22px}
+body.dkts-android-shell .dkts-keypad-foot .dkts-keypad-done{
+  grid-column:auto;min-height:33px;font-size:12px;font-weight:650;
+  background:#e3ecfa;border-color:#b7cfef;color:#285992
+}
+body.dkts-android-shell .dkts-numeric-keypad button:active{
+  background:var(--dkts-hover-bg,#e7eef9);transform:translateY(1px)
+}
+body.dkts-android-shell .dkts-numeric-keypad button:disabled{
+  opacity:.25;box-shadow:none;cursor:default
+}
+.dkts-keypad-feedback{margin:0;min-height:0;font-size:10px;line-height:1.2;color:#bc4b57}
+.dkts-keypad-feedback:empty{display:none}
+body.dkts-android-shell.dkts-keypad-open .workspace{padding-bottom:350px}
+body.dkts-android-shell .dkts-numeric-input[readonly]{
+  cursor:pointer;opacity:1;-webkit-text-fill-color:inherit;
+  background:var(--dkts-surface,#fff);caret-color:transparent!important;
+  -webkit-user-select:none!important;user-select:none!important;
+  -webkit-touch-callout:none!important;touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent
+}
+body.dkts-android-shell .dkts-numeric-input::selection{
+  background:transparent;color:inherit
+}
+body.dkts-android-shell .dkts-numeric-input.dkts-numeric-active{
+  border-color:#6997d5!important;
+  background:color-mix(in srgb,#6997d5 7%,var(--dkts-surface,#fff))!important;
+  box-shadow:0 0 0 2px color-mix(in srgb,#6997d5 23%,transparent)!important;
+  outline:0!important;
+}
+@media(prefers-color-scheme:dark){
+  body.dkts-android-shell .dkts-keypad-foot .dkts-keypad-done{
+    background:#293f60;border-color:#425b7e;color:#c9dfff
+  }
+}
+@media(max-height:500px){
+  body.dkts-android-shell .dkts-numeric-keypad{gap:3px;padding:6px}
+  body.dkts-android-shell .dkts-numeric-keypad button{min-height:28px}
+  body.dkts-android-shell .dkts-keypad-functions button{min-height:26px}
+}
+
+
+/* DKDS owns the plugin identity and host title. Keep DKTS workspace tabs, but remove its duplicate app logo/name/version row inside the embedded plugin. */
+.dkds-plugin-host #app-titlebar .titlebar-brand,
+.dkds-plugin-host #app-titlebar .titlebar-version-divider{display:none!important;}
+
+.dkds-plugin-host #workspace-tabs,
+.dkds-plugin-host #tab-home{display:none!important;}

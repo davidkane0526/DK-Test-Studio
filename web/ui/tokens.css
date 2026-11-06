@@ -1,0 +1,27 @@
+:root{color-scheme:light;--dkui-canvas:#f3f6fa;--dkui-surface:#fff;--dkui-surface-soft:#f7f9fc;--dkui-surface-hover:#eef3f9;--dkui-surface-elevated:#fff;--dkui-surface-sidebar:#f5f8fc;--dkui-control-bg:#fff;--dkui-control-hover:#f4f7fb;--dkui-divider:rgba(102,132,168,.15);--dkui-divider-hover:rgba(102,132,168,.25);--dkui-control-border:#d7e0eb;--dkui-control-border-hover:#aabbd0;--dkui-scrollbar:rgba(100,119,145,.28);--dkui-scrollbar-hover:rgba(100,119,145,.52);--dkui-text:#202b3c;--dkui-text-soft:#526176;--dkui-muted:#7b899b;--dkui-accent:#4b74b9;--dkui-accent-hover:#416aae;--dkui-accent-soft:#eaf2ff;--dkui-accent-alt:#238d87;--dkui-accent-alt-hover:#197d77;--dkui-accent-alt-soft:#e7f5f3;--dkui-focus:rgba(75,116,185,.24);--dkui-success:#16835f;--dkui-success-soft:#e5f5ee;--dkui-warning:#a96f1d;--dkui-warning-soft:#fff4df;--dkui-danger:#bf4b4b;--dkui-danger-soft:#fbeaea;--dkui-info:#4b74b9;--dkui-info-soft:#eaf2ff;--dkui-selection-surface:#eaf2ff;--dkui-selection-text:#174ea6;--dkui-selection-border:#a9c1e5;--dkui-active-surface:#eaf2ff;--dkui-active-text:#174ea6;--dkui-disabled-surface:#f1f3f6;--dkui-disabled-text:#9aa5b3;--dkui-shadow-1:0 1px 2px rgba(28,46,70,.055);--dkui-shadow-2:0 4px 14px rgba(28,46,70,.075);--dkui-shadow-float:0 14px 40px rgba(24,38,58,.18);--dkui-radius:8px;--dkui-radius-lg:11px;--dkui-motion-fast:120ms;--dkui-motion-normal:180ms;--dkui-motion-slow:260ms;--dkui-ease-standard:cubic-bezier(.2,.7,.2,1);--dkui-ease-emphasized:cubic-bezier(.2,.8,.2,1);--dkui-hover-lift:-1px;--dkui-press-scale:.985;--dkts-font-family:"Segoe UI Variable Text","Microsoft YaHei UI","Segoe UI",system-ui,sans-serif;--dkts-font-body:12.5px;--dkts-font-label:11px;--dkts-font-meta:10.5px;--dkts-font-heading:13px;--dkts-control-height:32px;--dkts-touch-control-height:44px;--dkts-control-radius:8px;--dkts-control-gap:6px;--dkts-panel-gap:8px;--dkts-page-gap:10px;--dkts-panel-radius:10px;--dkts-panel-padding:12px;--dkts-titlebar-height:46px;--dkts-statusbar-height:28px;--dkts-parameter-width:356px}
+:root[data-dkds-theme="dark"]{color-scheme:dark;--dkui-canvas:#171c24;--dkui-surface:#202733;--dkui-surface-soft:#242d39;--dkui-surface-hover:#2c3745;--dkui-surface-elevated:#293340;--dkui-surface-sidebar:#1c242e;--dkui-control-bg:#202a35;--dkui-control-hover:#2a3542;--dkui-divider:rgba(198,209,222,.12);--dkui-divider-hover:rgba(198,209,222,.2);--dkui-control-border:#3c4a5b;--dkui-control-border-hover:#60748b;--dkui-scrollbar:rgba(174,189,207,.25);--dkui-scrollbar-hover:rgba(174,189,207,.5);--dkui-text:#e7ebf0;--dkui-text-soft:#bac4d0;--dkui-muted:#909bab;--dkui-accent:#789bc5;--dkui-accent-hover:#8eadd0;--dkui-accent-soft:rgba(120,155,197,.16);--dkui-accent-alt:#61b8ad;--dkui-accent-alt-hover:#7ac8bd;--dkui-accent-alt-soft:rgba(97,184,173,.14);--dkui-focus:rgba(120,155,197,.28);--dkui-success:#69c39b;--dkui-success-soft:rgba(105,195,155,.14);--dkui-warning:#e1b66e;--dkui-warning-soft:rgba(225,182,110,.14);--dkui-danger:#e28b8b;--dkui-danger-soft:rgba(226,139,139,.14);--dkui-info:#8eadd0;--dkui-info-soft:rgba(142,173,208,.15);--dkui-selection-surface:rgba(120,155,197,.2);--dkui-selection-text:#e8f0fb;--dkui-selection-border:#5e7da4;--dkui-active-surface:rgba(120,155,197,.2);--dkui-active-text:#e8f0fb;--dkui-disabled-surface:#242c36;--dkui-disabled-text:#7e8a9a;--dkui-shadow-1:0 1px 2px rgba(0,0,0,.2);--dkui-shadow-2:0 4px 14px rgba(0,0,0,.22);--dkui-shadow-float:0 14px 40px rgba(0,0,0,.42)}
+:root[data-dkds-theme="light"]{color-scheme:light}
+/* Legacy components consume these aliases until their theme ownership is migrated. */
+:root{
+  --dkts-title-height:var(--dkts-titlebar-height);
+  --dkts-status-height:var(--dkts-statusbar-height);
+  --dkts-chrome-bg:var(--dkui-surface);
+  --dkts-status-bg:var(--dkui-surface);
+  --dkts-chrome-border:var(--dkui-divider);
+  --dkts-chrome-text:var(--dkui-text-soft);
+  --dkts-hover-bg:var(--dkui-surface-hover);
+  --dkts-hover-border:var(--dkui-divider-hover);
+  --dkts-field-bg:var(--dkui-control-bg);
+  --dkts-field-border:var(--dkui-control-border);
+  --dkts-field-ink:var(--dkui-text);
+  --dkts-field-hover:var(--dkui-control-border-hover);
+  --dkts-field-focus:var(--dkui-accent);
+  --dkts-field-ring:var(--dkui-focus);
+  --dkts-scroll-thumb:var(--dkui-scrollbar);
+  --dkts-scroll-hover:var(--dkui-scrollbar-hover);
+  --dkts-popover-bg:var(--dkui-surface-elevated);
+  --dkts-popover-border:var(--dkui-divider);
+  --dkts-popover-hover:var(--dkui-surface-hover);
+  --dkts-surface:var(--dkui-surface);
+  --dkts-text:var(--dkui-text);
+}

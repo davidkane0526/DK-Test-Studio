@@ -4,6 +4,7 @@
 // No generated executable instrument commands or duplicate measurement logic.
 const fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
+require('./build-ui-system.cjs').buildUiSystem();
 const standaloneBuild=require.main===module;
 // Node tests execute files in parallel processes; give each worker private
 // staging files to prevent reading another worker's partial plugin writes.
@@ -15,6 +16,7 @@ const copy={
   'hardware-capabilities.js':'src/shared/hardware-capabilities.js',
   'kxci-protocol.js':'src/shared/kxci-protocol.js',
   'measurement-plan.js':'src/shared/measurement-plan.js',
+  'kxci-measurement.js':'src/shared/kxci-measurement.js',
   'waveform.js':'src/shared/waveform.js',
   'identity-core.js':'src/shared/identity-core.js',
   'interop.js':'src/shared/interop.js',
@@ -43,7 +45,7 @@ function adaptPluginSource(name,data){
     const marker="const PLUGIN_ID='"+ORIGINAL_OWNER+"';";
     if(!data.includes(marker))throw Error('Interop owner marker missing');
     data=data.replace(marker,"const PLUGIN_ID='"+EXTERNAL_OWNER+"';");
-  }else if(['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'].includes(name)){
+  }else if(['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','kxci-measurement.js','waveform.js','identity-core.js'].includes(name)){
     const marker="'"+ORIGINAL_OWNER+"'";
     if(!data.includes(marker))throw Error('Shared module registration owner missing: '+name);
     data=data.replace(marker,"'"+EXTERNAL_OWNER+"'");
@@ -97,7 +99,7 @@ function createSharedShellSource(){
 }
 
 const requireFiles=new Set(manifest.scripts);
-if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.6.16')
+if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.6.18')
   throw Error('Unexpected standalone DK Test Studio plugin identity / API / version');
 if(requireFiles.size!==Object.keys(copy).length||Object.keys(copy).some(x=>!requireFiles.has(x)))
   throw Error('Plugin manifest scripts must exactly match staging files');

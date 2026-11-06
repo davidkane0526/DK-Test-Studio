@@ -6,6 +6,7 @@
   const domain=registry.require('dkts-identity-core');
   const planner=registry.require('dkts-plan');
   const waveform=registry.require('dkts-waveform');
+  const kxciMeasurement=registry.require('dkts-kxci-measurement');
   const requests=new Map();
   let sequence=0;
   window.DKTSNativeBridgeResolve=serialized=>{
@@ -33,15 +34,27 @@
     close:async data=>{const reply=await native('close',data);return reply.closed===true;}
   });
   const controller=domain.createIdentityController(tcp,protocol);
+  const runner=kxciMeasurement.createRunner({controller,execution:planner.createExecutionCoordinator(),wait:ms=>new Promise(resolve=>window.setTimeout(resolve,ms))});
   async function post(route,payload={}){
     if(route==='/api/hardware/capabilities')return {ok:true,database:capabilities.exportDatabase()};
     if(route==='/api/workspaces')return saveWorkspace(payload.workspace);
+    if(route==='/api/measurement/start'){
+      try{return {ok:true,...runner.start(payload.plan,{inventory:controller.status().inventory,capabilities},payload.authorization)};}
+      catch(e){return {ok:false,error:String(e.message||e)};}
+    }
+    if(route==='/api/measurement/stop')return {ok:true,...runner.stop()};
+    if(route==='/api/measurement/status')return {ok:true,...runner.status(Number(payload.cursor||0))};
     if(route==='/api/connect'){
+      if(runner.status().running)return {ok:false,error:'测量期间不能重新连接'};
       try{return {ok:true,...await controller.connect(payload)};}
       catch(error){return {ok:false,...controller.status(),summary:domain.summarizeError(error)};}
     }
-    if(route==='/api/disconnect')return {ok:true,...await controller.disconnect()};
+    if(route==='/api/disconnect'){
+      if(runner.status().running){runner.stop();return {ok:false,error:'测试停止处理中'};}
+      return {ok:true,...await controller.disconnect()};
+    }
     if(route==='/api/modules/inspect'){
+      if(runner.status().running)return {ok:false,error:'测量期间不能重新读取模块信息'};
       try{return {ok:true,...await controller.inspectModules()};}
       catch(error){return {ok:false,error:domain.summarizeError(error),...controller.status()};}
     }
@@ -120,6 +133,7 @@
 
   window.DKTSClient=Object.freeze({
     post,loadWorkspace,status:()=>Promise.resolve(controller.status()),
+    measurementStatus:cursor=>Promise.resolve(runner.status(cursor)),
     nativeVersion:async()=>String((await native('version')).version||''),
     checkUiUpdate:async()=>native('ui-check'),
     uiUpdateStatus:async()=>native('ui-status'),

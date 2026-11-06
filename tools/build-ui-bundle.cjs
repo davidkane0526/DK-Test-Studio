@@ -9,6 +9,7 @@ const crypto=require('node:crypto');
 const fs=require('node:fs');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
+require('./build-ui-system.cjs').buildUiSystem();
 const releaseDir=path.join(root,'dist');
 const version=process.env.DKTS_BUILD_SHA||process.env.GITHUB_SHA||'local-dev';
 const packageVersion=require('../package.json').version;

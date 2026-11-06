@@ -36,7 +36,7 @@ function prepare(){
     }
   };
   vm.createContext(sandbox);
-  for(const file of ['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','waveform.js',
+  for(const file of ['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','kxci-measurement.js','waveform.js',
     'identity-core.js','interop.js','standalone-shell.js','presentation.js','plugin.js']){
     vm.runInContext(fs.readFileSync(path.join(staged,file),'utf8'),sandbox,
       {filename:file,timeout:10000});
@@ -103,7 +103,7 @@ function prepare(){
 }
 test('DKDS plugin displays the exact standalone app in a sandboxed workbench',async()=>{
   const env=prepare(),installed=await env.captured.activate(env.ctx),v=env.view;
-  assert.equal(env.captured.manifest.version,'0.6.16');
+  assert.equal(env.captured.manifest.version,'0.6.18');
   assert.equal(v.activity.openMode,'window');
   assert.equal(v.top.activity,'dkts-keithley-4200');
   assert.equal(v.statusSpec.icon,'');

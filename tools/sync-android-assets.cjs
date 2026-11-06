@@ -4,12 +4,14 @@
 const fs=require('node:fs');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
+require('./build-ui-system.cjs').buildUiSystem();
 const destination=path.join(root,'android/app/src/main/assets');
 const scripts=[
   'android/bootstrap.js',
   'shared/hardware-capabilities.js',
   'shared/kxci-protocol.js',
   'shared/measurement-plan.js',
+  'shared/kxci-measurement.js',
   'shared/waveform.js',
   'shared/identity-core.js',
   'android/native-client.js'
@@ -34,7 +36,7 @@ function syncAssets(){
   }
   for(const file of ['app.js','styles.css'])
     fs.copyFileSync(path.join(root,'web',file),path.join(destination,file));
-  for(const file of ['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','waveform.js','identity-core.js'])
+  for(const file of ['hardware-capabilities.js','kxci-protocol.js','measurement-plan.js','kxci-measurement.js','waveform.js','identity-core.js'])
     fs.copyFileSync(path.join(root,'src/shared',file),path.join(destination,'shared',file));
   for(const file of ['bootstrap.js','native-client.js'])
     fs.copyFileSync(path.join(root,'android/web',file),path.join(destination,'android',file));

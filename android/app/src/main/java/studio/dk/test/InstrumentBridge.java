@@ -263,17 +263,56 @@ public final class InstrumentBridge {
             Arrays.equals(request, DE);
     }
 
+    // Narrow native command whitelist. WebView cannot send arbitrary KXCI,
+    // even if an injected page calls the JavaScript bridge directly.
+    private static boolean isMeasurementKxciRequest(byte[] request) {
+        if (request.length < 3 || request.length > 180 ||
+            request[request.length - 1] != 0) return false;
+        for (int i = 0; i < request.length - 1; i++)
+            if (request[i] < 32 || request[i] > 126) return false;
+        final String cmd = new String(request, 0, request.length - 1, StandardCharsets.US_ASCII);
+        if (cmd.equals("US") || cmd.equals("DE") ||
+            cmd.equals(":ERROR:LAST:CLEAR") || cmd.equals(":ERROR:LAST:GET") ||
+            cmd.matches("TI[1-9]") || cmd.matches("DV[1-9]")) return true;
+        try {
+            if (cmd.matches("DV[1-9],0,[^,]+,[^,]+")) {
+                String[] v = cmd.split(",");
+                double volts = Double.parseDouble(v[2]), amps = Double.parseDouble(v[3]);
+                return Double.isFinite(volts) && Math.abs(volts) <= 210 &&
+                    Double.isFinite(amps) && amps > 0 && amps <= 1.05;
+            }
+            if (cmd.matches("RI [1-9],[^,]+,[^,]+")) {
+                String[] v = cmd.substring(3).split(",");
+                double range = Double.parseDouble(v[1]), amps = Double.parseDouble(v[2]);
+                return Double.isFinite(range) && range > 0 && range <= 1 &&
+                    Double.isFinite(amps) && amps > 0 && amps <= 1.05;
+            }
+            if (cmd.matches("RG [1-9],[^,]+")) {
+                double range = Double.parseDouble(cmd.split(",")[1]);
+                return Double.isFinite(range) && range > 0 && range <= 1;
+            }
+        } catch (RuntimeException ignored) { return false; }
+        return false;
+    }
+
     private JSONObject exchange(JSONObject args) throws Exception {
         if (socket == null || socket.isClosed() ||
             !args.optString("sessionId", "").equals(sessionId))
             throw new IllegalStateException("Instrument session unavailable");
         final byte[] request = Base64.getDecoder().decode(args.getString("base64"));
         // Exact allowlist: identity, logical slot mapping, and documented read-only SystemUtil metadata.
-        if (!isReadOnlyKxciRequest(request))
-            throw new SecurityException("Only fixed read-only KXCI identity and SystemUtil inventory queries are permitted");
+        if (!isReadOnlyKxciRequest(request) && !isMeasurementKxciRequest(request))
+            throw new SecurityException("KXCI command is not in the instrument safety allowlist");
         final boolean noReply = args.optBoolean("noReply", false);
-        if (noReply && !(Arrays.equals(request, UL) || Arrays.equals(request, DE)))
-            throw new SecurityException("Write-only mode is restricted to fixed KXCI UL/DE commands");
+        String command = new String(request, StandardCharsets.US_ASCII).replace("\u0000", "");
+        boolean querying = command.matches("TI[1-9]") || command.equals(":ERROR:LAST:GET") ||
+            Arrays.equals(request, IDN) || Arrays.equals(request, OPT) ||
+            Arrays.equals(request, GN_RESULT) || Arrays.equals(request, EX_INSTRUMENT_INFO) ||
+            Arrays.equals(request, EX_REMOTE_MODULE_INFO);
+        if (noReply && querying)
+            throw new SecurityException("Data queries must read their responses");
+        if (!noReply && isMeasurementKxciRequest(request) && !querying)
+            throw new SecurityException("KXCI setup and disable commands must use write-only mode");
         final int maxBytes = bounded(args, "maxBytes", 4096, 1, 8192);
         final int firstTimeout = bounded(args, "readTimeoutMs", 5000, 250, 30000);
         final int idleTimeout = bounded(args, "idleTimeoutMs", 120, 20, 10000);

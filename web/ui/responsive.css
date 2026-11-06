@@ -1,0 +1,25 @@
+@container dkts-workspace (max-width:1080px){
+.terminal-profiles{grid-template-columns:repeat(4,minmax(0,1fr))}.port-panel-heading h2{padding-bottom:8px}
+.terminal-profiles .port-panel-controls label,.terminal-profiles .port-preset-bar label{grid-column:span 1}.terminal-profiles .port-preset-bar button{grid-column:span 1}}
+@container dkts-workspace (max-width:760px){
+.detail-columns{grid-template-columns:minmax(0,1fr)}.parameters-panel{max-height:none}.data-panel{min-height:620px}
+}
+@media(max-width:620px){
+.app-titlebar{gap:5px;padding-inline:7px}.titlebar-brand{gap:5px}.titlebar-brand strong{font-size:11px}.titlebar-logo{width:23px;height:23px}
+.workspace{padding:8px 7px 12px;gap:8px}.terminal-profiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:9px}
+.port-panel-heading h2{grid-column:1/-1}.terminal-profiles .port-panel-controls label,.terminal-profiles .port-preset-bar label{grid-column:span 1}.terminal-profiles .port-preset-bar button{grid-column:span 1}
+.test-type-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.test-type-card{min-height:84px;padding:9px}
+.detail-heading{align-items:flex-start}.detail-run-actions{width:100%;margin-left:0}.heading-terminal-ports{width:100%}.heading-terminal-ports label{flex:1 1 28%;min-width:0}
+.readout-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.data-panel{min-height:560px;padding:9px}.measured-plot{min-height:260px}.parameters-panel{padding:9px}
+.plan-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+.sweep-terminal-row{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:6px;padding:7px 0}.sweep-terminal-row>strong{grid-column:1/-1;padding:0}
+.sweep-fixed-voltages{grid-template-columns:repeat(2,minmax(0,1fr))}.settings form{grid-template-columns:minmax(0,1fr)}.app-statusbar{padding-inline:5px}}
+body.dkts-android-shell{--dkts-titlebar-height:39px;--dkts-statusbar-height:42px;padding-top:calc(var(--dkts-titlebar-height) + var(--dkts-safe-top));padding-bottom:calc(var(--dkts-statusbar-height) + var(--dkts-safe-bottom))}
+body.dkts-android-shell .app-titlebar{height:calc(var(--dkts-titlebar-height) + var(--dkts-safe-top));min-height:calc(var(--dkts-titlebar-height) + var(--dkts-safe-top));padding-top:var(--dkts-safe-top)}
+body.dkts-android-shell .app-statusbar{height:calc(var(--dkts-statusbar-height) + var(--dkts-safe-bottom));min-height:calc(var(--dkts-statusbar-height) + var(--dkts-safe-bottom));padding-bottom:var(--dkts-safe-bottom)}
+body.dkts-android-shell .terminal-profiles :is(input,select,.dkts-select-trigger),body.dkts-android-shell .heading-terminal-ports :is(select,.dkts-select-trigger){min-height:44px;height:44px}
+body.dkts-android-shell .app-titlebar{padding-top:var(--dkts-safe-top)}
+body.dkts-android-shell .workspace{padding-bottom:max(12px,env(safe-area-inset-bottom,0px))}
+body.dkts-android-shell .plan-form input,body.dkts-android-shell .plan-form select,body.dkts-android-shell .sweep-configuration input:not([type="checkbox"]),body.dkts-android-shell .sweep-configuration select,body.dkts-android-shell .sweep-configuration .dkts-select-trigger{min-height:44px;height:44px}
+body.dkts-android-shell .sweep-segment-table input,body.dkts-android-shell .sweep-segment-table select{min-height:40px;height:40px}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}

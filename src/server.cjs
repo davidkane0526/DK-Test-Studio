@@ -9,6 +9,7 @@ const {createIdentityController,summarizeError}=require('./controller/identity.c
 const {createUiUpdater}=require('./ui-update.cjs');
 const workspaceStorage=require('./workspace-storage.cjs');
 const capabilities=require('./shared/hardware-capabilities.js');
+const {createRunner}=require('./shared/kxci-measurement.js');
 
 const root=path.resolve(__dirname,'..');
 const assets=Object.freeze({
@@ -54,6 +55,8 @@ async function createAppServer(options={}){
   // Reserved for the eventual real measurement runner: no output endpoint exists
   // at present. All future task execution must acquire this single lease.
   const execution=options.execution||createExecutionCoordinator();
+  const runner=options.runner||(typeof controller.measurementExchange==='function'?createRunner({controller,execution,wait:ms=>new Promise(resolve=>setTimeout(resolve,ms))}):null);
+  const measurementBusy=()=>Boolean(runner?.status(0).running);
   const updater=options.uiCacheDir?createUiUpdater({cacheDir:options.uiCacheDir}):null;
   const workspaceFile=options.workspaceFile||workspaceStorage.defaultFile();
   const server=http.createServer(async(req,res)=>{
@@ -64,6 +67,10 @@ async function createAppServer(options={}){
       // Host validation avoids DNS rebinding of the localhost-only instrument gateway.
       if(host!==expected)return json(res,403,{error:'拒绝非本机请求'});
       const urlPath=new URL(req.url,'http://'+expected).pathname;
+      if(req.method==='GET'&&urlPath==='/api/measurement/status'){
+        const cursor=Number(new URL(req.url,'http://'+expected).searchParams.get('cursor')||0);
+        return json(res,200,{ok:true,...(runner?.status(cursor)||{state:'unsupported',running:false,rows:[]})});
+      }
       if(req.method==='GET'&&urlPath==='/api/hardware/capabilities')
         return json(res,200,{ok:true,database:capabilities.exportDatabase()});
       if(req.method==='GET'&&urlPath==='/api/status')
@@ -82,7 +89,7 @@ async function createAppServer(options={}){
           'X-Content-Type-Options':'nosniff'});
         return res.end(bytes);
       }
-      if(req.method!=='POST'||!['/api/ui/check','/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect','/api/workspaces','/api/hardware/capabilities'].includes(urlPath))
+      if(req.method!=='POST'||!['/api/ui/check','/api/connect','/api/disconnect','/api/plan/validate','/api/waveform/validate','/api/modules/inspect','/api/workspaces','/api/hardware/capabilities','/api/measurement/start','/api/measurement/stop','/api/measurement/status'].includes(urlPath))
         return json(res,404,{error:'接口不存在'});
       // No arbitrary command endpoint exists; this only sends the hardcoded KXCI IDN query.
       if(req.headers['x-dkts-request']!=='1'||!String(req.headers['content-type']||'').startsWith('application/json'))
@@ -98,13 +105,28 @@ async function createAppServer(options={}){
         const saved=workspaceStorage.writeWorkspace(workspaceFile,payload.workspace);
         return json(res,200,{ok:true,...saved});
       }
-      if(urlPath==='/api/disconnect')
+      if(urlPath==='/api/measurement/status')
+        return json(res,200,{ok:true,...(runner?.status(Number(payload.cursor||0))||{state:'unsupported',running:false,rows:[]})});
+      if(urlPath==='/api/measurement/stop')
+        return json(res,200,{ok:true,...(runner?.stop()||{state:'unsupported'})});
+      if(urlPath==='/api/measurement/start'){
+        if(!runner)return json(res,501,{ok:false,error:'测量执行器不可用'});
+        const state=controller.status();
+        const hardware={inventory:state.inventory,capabilities};
+        const output=runner.start(payload.plan,hardware,payload.authorization);
+        return json(res,200,{ok:true,...output});
+      }
+      if(urlPath==='/api/disconnect'){
+        if(measurementBusy()){runner.stop();return json(res,409,{ok:false,error:'测试停止处理中，待输出关闭后再断开'});}
         return json(res,200,{ok:true,...await controller.disconnect()});
+      }
       if(urlPath==='/api/connect'){
+        if(measurementBusy())return json(res,409,{ok:false,error:'测试执行期间不能重连仪器'});
         try{return json(res,200,{ok:true,...await controller.connect(payload)});}
         catch(error){return json(res,200,{ok:false,...controller.status(),summary:summarizeError(error)});}
       }
       if(urlPath==='/api/modules/inspect'){
+        if(measurementBusy())return json(res,409,{ok:false,error:'测量期间不能重新枚举模块'});
         try{return json(res,200,{ok:true,...await controller.inspectModules()});}
         catch(error){return json(res,400,{ok:false,error:summarizeError(error),...controller.status()});}
       }
@@ -131,10 +153,11 @@ async function createAppServer(options={}){
   updater?.start();
   async function close(){
     updater?.stop();
+    await runner?.dispose();
     await controller.dispose();
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
-  return {server,port:address.port,url:'http://127.0.0.1:'+address.port+'/',close,controller,execution};
+  return {server,port:address.port,url:'http://127.0.0.1:'+address.port+'/',close,controller,execution,runner};
 }
 if(require.main===module){
   createAppServer({port:Number(process.env.DKTS_PORT||0)}).then(app=>{

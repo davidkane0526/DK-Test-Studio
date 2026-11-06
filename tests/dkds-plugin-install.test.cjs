@@ -15,7 +15,7 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 test('DK Test Studio installs as a distinct external DKDS plugin, not a builtin override',()=>{
   assert.equal(manifest.id,'com.dkts.keithley-4200');
   assert.notEqual(manifest.id,BUILTIN.id);
-  assert.equal(manifest.version,'0.6.16');
+  assert.equal(manifest.version,'0.6.18');
   assert.equal(manifest.apiVersion,'1.19.0');
   assert.equal(manifest.workspace.activity,'dkts-keithley-4200');
   assert.equal(manifest.window.activity,'dkts-keithley-4200');
@@ -40,7 +40,7 @@ test('all registered workspace/page/project/capability IDs are isolated from the
 test('generated plugin modules use external identity while standalone modules remain unchanged',()=>{
   const stage=require('../tools/build-dkds-plugin.cjs').folder;
   for(const source of ['kxci-protocol.js','measurement-plan.js',
-    'waveform.js','identity-core.js']){
+    'kxci-measurement.js','waveform.js','identity-core.js']){
     const original=read('src/shared/'+source),emitted=fs.readFileSync(path.join(stage,source),'utf8');
     assert(original.includes("com.dkds.keithley-4200"),source+' standalone source changed');
     assert(emitted.includes("com.dkts.keithley-4200"),source+' plugin source not adapted');
@@ -64,7 +64,7 @@ test('external module registrations replace stale definitions when the same pack
       throw Error('Plugin module already defined: '+key);
     registry.set(key,value);
   }}}};
-  const modules=['kxci-protocol.js','measurement-plan.js','waveform.js',
+  const modules=['kxci-protocol.js','measurement-plan.js','kxci-measurement.js','waveform.js',
     'identity-core.js','interop.js','standalone-shell.js','presentation.js'];
   for(let version=0;version<2;version++){
     for(const file of modules)
