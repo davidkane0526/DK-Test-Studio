@@ -190,7 +190,7 @@
             </div>
             <span class="run-actions-divider" aria-hidden="true">|</span>
             <button type="button" id="start-measurement" class="measure-button" disabled title="执行 KXCI 扫描并读取仪器原始数据">开始测试</button>
-            <button type="button" id="pause-measurement" class="measure-button" disabled title="实机采集尚未接入">暂停</button>
+            <button type="button" id="pause-measurement" class="measure-button" disabled title="当前逐点扫描不支持暂停，请使用停止">暂停</button>
             <button type="button" id="stop-measurement" class="measure-button" disabled title="停止扫描并关闭已配置的 SMU 输出">停止</button>
           </div>
         </div>
@@ -269,7 +269,7 @@
         </div>
         
       </form>
-            <p class="hint" id="plan-status" role="status">仅校验方案，尚未开放实机执行。</p>
+            <p class="hint" id="plan-status" role="status">设置参数后可校验扫描方案。</p>
             <div id="pending-parameters" class="pending-parameters" hidden>
               <strong id="pending-title">功能建设中</strong>
               <p id="pending-description">参数配置及仪器指令尚未接入。</p>

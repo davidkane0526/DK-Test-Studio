@@ -27,3 +27,28 @@ test('hot-update resource set remains compatible with existing native shells',()
  assert.match(android,/index\.html[\s\S]*app\.js[\s\S]*styles\.css/);
  assert.match(read('docs/UI_ARCHITECTURE.md'),/three-file set/);
 });
+
+test('application chrome uses one fixed positioning and viewport budget contract',()=>{
+ const base=read('web/ui/layout.css'),mobile=read('web/ui/responsive.css');
+ assert.match(base,/body\{[^}]*height:100dvh;min-height:0;padding:var\(--dkts-titlebar-height\) 0 var\(--dkts-statusbar-height\)/);
+ assert.match(base,/\.app-titlebar\{position:fixed;top:0;left:0;right:0;/);
+ assert.match(base,/\.app-statusbar\{position:fixed;bottom:0;left:0;right:0;/);
+ assert.match(base,/\.workspace\{[^}]*height:100%/);
+ assert.match(mobile,/body\.dkts-android-shell\{[^}]*padding-top:calc\(var\(--dkts-titlebar-height\) \+ var\(--dkts-safe-top\)\)/);
+ assert.match(mobile,/body\.dkts-android-shell \.app-statusbar\{height:calc\(/);
+});
+test('sweep fields are readable in the narrow parameter pane without 5-column compression',()=>{
+ const css=read('web/ui/measurement.css');
+ assert.match(css,/\.sweep-axis-heading\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+ assert.match(css,/\.sweep-axis-heading>label:not\(\.psweep-enable\)\{grid-row:2\}/);
+ assert.match(css,/\.sweep-terminal-row\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+ assert.match(css,/\.sweep-terminal-row>strong\{grid-column:1\/-1/);
+ const html=read('web/index.html');
+ assert.doesNotMatch(html,/实机采集尚未接入|仅校验方案，尚未开放实机执行/);
+});
+test('DKDS theme token aliases also cover legacy popovers, chrome and scrollbars',()=>{
+ const tokens=read('web/ui/tokens.css');
+ for(const key of ['chrome-bg','status-bg','field-bg','field-border','field-focus','popover-bg','scroll-thumb']){
+  assert.match(tokens,new RegExp('--dkts-'+key+':var\\(--dkui-'));
+ }
+});
