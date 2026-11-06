@@ -4,6 +4,7 @@
 // No generated executable instrument commands or duplicate measurement logic.
 const fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
+require('./build-ui-system.cjs').buildUiSystem();
 const standaloneBuild=require.main===module;
 // Node tests execute files in parallel processes; give each worker private
 // staging files to prevent reading another worker's partial plugin writes.
@@ -98,7 +99,7 @@ function createSharedShellSource(){
 }
 
 const requireFiles=new Set(manifest.scripts);
-if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.6.17')
+if(manifest.apiVersion!=='1.19.0'||manifest.id!=='com.dkts.keithley-4200'||manifest.version!=='0.6.18')
   throw Error('Unexpected standalone DK Test Studio plugin identity / API / version');
 if(requireFiles.size!==Object.keys(copy).length||Object.keys(copy).some(x=>!requireFiles.has(x)))
   throw Error('Plugin manifest scripts must exactly match staging files');

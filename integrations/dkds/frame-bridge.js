@@ -2,6 +2,7 @@
   'use strict';
   // Runs only in the sandboxed DK Test Studio frame, never in the DKDS host.
   const session=__DKTS_FRAME_TOKEN__,mobile=__DKTS_FRAME_MOBILE__;
+  window.DKTSFrameSession=session;
   const allowed=Object.freeze({
     GET:new Set(['/api/status','/api/measurement/status','/api/ui/version','/api/app/version','/api/workspaces','/api/hardware/capabilities']),
     POST:new Set(['/api/connect','/api/disconnect','/api/modules/inspect',
