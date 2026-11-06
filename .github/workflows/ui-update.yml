@@ -34,6 +34,16 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Run frontend and interoperability tests
         run: npm test
+      - name: Install browser test adapter
+        run: npm install --no-save --package-lock=false playwright-core@1.56.1
+      - name: Check real Chrome layout and Android keypad/dropdown interaction
+        run: node tools/ui-visual-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: DKTS-UI-Visual
+          path: dist/ui-visual/*.png
+          if-no-files-found: warn
       - name: Build UI bundle V${{ steps.identity.outputs.package_version }} ${{ steps.identity.outputs.hotfix_id }}
         run: node tools/build-ui-bundle.cjs
       - name: Prepare DKDS plugin from the shared-core sources
