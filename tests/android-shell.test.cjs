@@ -144,7 +144,7 @@ test('Android standalone hides system status bar while keeping navigation and em
   assert.match(activity,/controller\.setSystemBarsBehavior\(/);
   assert.doesNotMatch(activity,/getWindow\(\)\.setStatusBarColor\(/);
   assert.match(fs.readFileSync(path.join(root,'web/ui/responsive.css'),'utf8'),/body\.dkts-android-shell\{--dkts-titlebar-height:39px;/);
-  assert.match(source,/body\.dkts-android-shell \.app-titlebar\{padding-top:var\(--dkts-safe-top\)\}/);
+  assert.match(source,/body\.dkts-android-shell \.app-titlebar\{\s*height:calc\(var\(--dkts-title-height\) \+ var\(--dkts-safe-top\)\);[\s\S]*?padding-top:var\(--dkts-safe-top\);/);
   assert.match(workflow,/Stamp offline Android UI version/);
   assert.match(workflow,/Stamp offline bundled UI version/);
   const stamp=fs.readFileSync(path.join(root,'tools/stamp-native-ui.cjs'),'utf8');
