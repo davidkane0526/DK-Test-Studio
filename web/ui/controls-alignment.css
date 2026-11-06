@@ -114,3 +114,6 @@ body.dkts-android-shell .sweep-axis-heading>.sweep-add-row{min-height:44px;heigh
   .test-type-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .test-type-card{min-height:74px}
 }
+
+/* Keep the four-column test library compact with CJK text; full names remain in bold titles. */
+.test-type-card small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -56,7 +56,7 @@ async function main(){
   assert(card.h<165,'home terminal panel too tall '+card.h);
   assert(rows.every(r=>Math.abs(r.h-44)<3),'tablet heights not 44px '+JSON.stringify(rows));
   const cards=await p.locator('.test-type-card').evaluateAll(es=>es.map(e=>e.getBoundingClientRect().height));
-  assert(cards.length===8&&cards.every(h=>h<=95),'test cards too tall '+JSON.stringify(cards));
+  assert(cards.length===8&&cards.every(h=>h<=79),'test cards too tall '+JSON.stringify(cards));
   const trigger=p.locator('label:has(#home-terminal-source) .dkts-select-trigger');
   await trigger.click();await p.locator('.dkts-select-popover').waitFor({state:'visible'});
   const pop=await box(p,'.dkts-select-popover'),tr=await box(p,'label:has(#home-terminal-source) .dkts-select-trigger');
