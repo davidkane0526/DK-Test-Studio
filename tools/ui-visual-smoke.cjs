@@ -85,7 +85,7 @@ async function main(){
   await d.locator('[data-test-kind="iv"]').click();
   await d.screenshot({path:path.join(out,'desktop-iv-full.png'),fullPage:false});
   const desktopColumns=await Promise.all(['#parameters-panel','.data-panel'].map(s=>box(d,s)));
-  assert(desktopColumns[0].w>=500&&desktopColumns[1].x>desktopColumns[0].right,
+  assert(desktopColumns[0].w>=500&&desktopColumns[1].x>desktopColumns[0].x+desktopColumns[0].w,
     'Desktop configuration panel must be wide enough for complete sweep controls');
   const numeric=p.locator('#sweep-global-loops.dkts-numeric-input');
   await numeric.waitFor({state:'visible'});await numeric.click();
