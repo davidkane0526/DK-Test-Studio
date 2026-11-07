@@ -1717,3 +1717,101 @@ body.dkts-android-shell .sweep-axis-heading>.sweep-add-row{min-height:44px;heigh
 
 /* Keep the four-column test library compact with CJK text; full names remain in bold titles. */
 .test-type-card small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Measurement workspace visual QA: layout only; no changes to popup/keypad CSS. */
+@media(min-width:660px){
+  body.dkts-android-shell .test-detail{padding:10px 12px!important}
+  .detail-heading{
+    display:grid;grid-template-columns:30px minmax(93px,112px) minmax(0,1fr);
+    align-items:center;gap:8px;margin-bottom:9px;padding:0 0 8px;
+    min-height:52px;flex-wrap:nowrap
+  }
+  .detail-heading>.detail-back{align-self:center;width:30px;min-width:30px;height:34px}
+  .detail-heading-title{display:block;min-width:0;width:100%;flex:none}
+  .detail-heading-title h2{font-size:13px;line-height:1.2;white-space:nowrap;letter-spacing:0}
+  .detail-run-actions{
+    display:flex;flex-wrap:nowrap;min-width:0;width:100%;flex:1 1 auto;
+    margin:0;gap:5px;justify-content:flex-end
+  }
+  .heading-terminal-ports{
+    display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:5px;min-width:0;flex:1 1 auto;max-width:360px
+  }
+  .heading-terminal-ports>label{
+    min-width:0;display:flex;flex-direction:column;gap:3px;font-size:9px
+  }
+  .heading-terminal-ports :is(.dkts-select-trigger,select){
+    width:100%;min-width:0;max-width:100%;padding:4px 6px;font-size:10px
+  }
+  .detail-run-actions .measure-button{
+    flex:0 0 auto;min-width:48px;padding:5px 7px;font-size:10px
+  }
+  .detail-run-actions .run-actions-divider{margin:0 2px}
+  .sweep-main-line{
+    display:flex;align-items:center;gap:10px;padding:0 0 2px;min-height:42px
+  }
+  .sweep-main-line>strong{font-size:11px;white-space:nowrap}
+  .sweep-main-line>label{
+    display:flex;align-items:center;gap:7px;font-size:10px;white-space:nowrap;flex:0 0 auto
+  }
+  #sweep-global-loops{width:84px;min-width:84px;max-width:84px;flex:none}
+  .sweep-main-line .sweep-detail-tip{display:none}
+  .sweep-axis-heading{
+    display:grid;
+    grid-template-columns:85px minmax(90px,1fr) minmax(94px,.8fr) minmax(122px,1fr) 85px;
+    column-gap:7px;align-items:end;padding:7px 9px;min-height:60px
+  }
+  .sweep-axis-heading>strong{margin:0;align-self:center;font-size:12px}
+  .sweep-axis-heading>label:not(.psweep-enable){
+    display:flex;align-items:stretch;flex-direction:column;
+    gap:3px;min-width:0;font-size:10px;white-space:nowrap;line-height:1.2
+  }
+  .sweep-axis-heading>label:not(.psweep-enable) :is(input,.dkts-select-trigger,select){
+    box-sizing:border-box;min-width:0;max-width:100%;width:100%;
+    height:var(--dkts-unified-control-height);
+    min-height:var(--dkts-unified-control-height)
+  }
+  .sweep-axis-heading>.psweep-enable{
+    grid-column:1;display:flex;align-items:center;gap:4px;
+    min-width:0;margin:0;font-size:10px
+  }
+  .sweep-axis-heading>.psweep-enable strong{white-space:nowrap;font-size:12px}
+  .sweep-axis-heading>.psweep-enable small{display:none}
+  .sweep-axis-heading>.sweep-add-row{
+    width:100%;margin:0;white-space:nowrap;min-width:0;
+    padding:5px 6px;font-size:10px
+  }
+  .sweep-configuration{gap:9px}
+  .sweep-terminal-settings{gap:7px}
+  .sweep-terminal-row[data-assigned="false"]{display:none}
+  .sweep-terminal-row{
+    display:grid;grid-template-columns:90px repeat(4,minmax(0,1fr));
+    gap:7px;align-items:end;padding:6px 8px;
+    border:1px solid #e1e7f0;border-radius:8px
+  }
+  .sweep-terminal-row>strong{
+    grid-column:auto;align-self:center;padding:0;
+    font-size:10px;white-space:nowrap
+  }
+  .sweep-terminal-row>label{
+    display:flex;flex-direction:column;align-items:stretch;
+    gap:3px;min-width:0;font-size:9px;white-space:nowrap
+  }
+  .sweep-terminal-row :is(input,select,.dkts-select-trigger){
+    box-sizing:border-box;height:var(--dkts-unified-control-height);
+    min-height:var(--dkts-unified-control-height);
+    max-height:var(--dkts-unified-control-height);
+    width:100%;min-width:0;font-size:10px
+  }
+  .sweep-terminal-heading>span,.sweep-fixed-heading>span{display:none}
+  .sweep-terminal-heading,.sweep-fixed-heading{margin-top:3px}
+  #psweep-off-note{display:none}
+}
+@media(min-width:1100px){
+  .detail-columns{
+    grid-template-columns:minmax(510px,540px) minmax(0,1fr);align-items:start
+  }
+}
+@media(min-width:981px) and (max-width:1099px){
+  .detail-columns{grid-template-columns:minmax(0,1fr)}
+}

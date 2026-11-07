@@ -1530,6 +1530,7 @@ const portUi=(()=>{
       for(const field of row.querySelectorAll('input,select')){
         field.disabled=unavailable;
       }
+      row.dataset.assigned=unavailable?'false':'true';
       row.title=unavailable?'当前电极未使用可测量电流的 SMU 通道':'本端口独立设置电流测量范围与保护值';
     }
   }

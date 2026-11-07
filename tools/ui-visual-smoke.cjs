@@ -64,6 +64,29 @@ async function main(){
   await p.screenshot({path:path.join(out,'android-tablet-dropdown.png'),fullPage:true});
   await p.keyboard.press('Escape');
   await p.locator('[data-test-kind="iv"]').click();
+  // Assert the visible I-V workspace, not just the home selection cards.
+  const axis=await box(p,'#xsweep-card .sweep-axis-heading');
+  const add=await box(p,'#xsweep-add');
+  assert(axis.h<85,'Tablet Xsweep row should not wrap: '+JSON.stringify(axis));
+  assert(add.y>=axis.y-2&&add.bottom<=axis.bottom+3,
+    'Add-segment action must align with other Xsweep fields');
+  const portRows=await p.locator('.sweep-terminal-row').evaluateAll(items=>
+    items.map(el=>({role:el.dataset.role,assigned:el.dataset.assigned,
+      visible:getComputedStyle(el).display!=='none'})));
+  assert.equal(portRows.length,3);
+  for(const row of portRows)
+    assert.equal(row.visible,row.assigned==='true',
+      'Only unassigned channels are collapsed: '+JSON.stringify(portRows));
+  const settings=await box(p,'#sweep-terminal-settings');
+  assert(settings.h<120,'Tablet SMU settings should use one compact line');
+  const chart=await box(p,'.data-panel');
+  assert(chart.y<900,'Tablet chart should not be buried after redundant controls: '+chart.y);
+  await p.screenshot({path:path.join(out,'android-tablet-iv-full.png'),fullPage:true});
+  await d.locator('[data-test-kind="iv"]').click();
+  await d.screenshot({path:path.join(out,'desktop-iv-full.png'),fullPage:false});
+  const desktopColumns=await Promise.all(['#parameters-panel','.data-panel'].map(s=>box(d,s)));
+  assert(desktopColumns[0].w>=500&&desktopColumns[1].x>desktopColumns[0].right,
+    'Desktop configuration panel must be wide enough for complete sweep controls');
   const numeric=p.locator('#sweep-global-loops.dkts-numeric-input');
   await numeric.waitFor({state:'visible'});await numeric.click();
   await p.locator('#dkts-numeric-keypad').waitFor({state:'visible'});

@@ -47,3 +47,15 @@ test('DKDS plugin theme bridge and existing three-file hot-update contract remai
  assert.match(android,/index\.html[\s\S]*app\.js[\s\S]*styles\.css/);
  assert.match(read('docs/UI_ARCHITECTURE.md'),/three-file set/);
 });
+
+test('assigned-port rendering avoids three redundant disabled configuration grids',()=>{
+ const app=read('web/app-main.js');
+ const css=read('web/ui/controls-alignment.css');
+ assert.match(app,/row\.dataset\.assigned=unavailable\?'false':'true'/);
+ assert.match(css,/\.sweep-terminal-row\[data-assigned="false"\]\{display:none\}/);
+ assert.match(css,/\.sweep-axis-heading\{\s*display:grid/);
+ assert.match(css,/grid-template-columns:minmax\(510px,540px\) minmax\(0,1fr\)/);
+ const visual=read('tools/ui-visual-smoke.cjs');
+ assert.match(visual,/android-tablet-iv-full\.png/);
+ assert.match(visual,/desktop-iv-full\.png/);
+});
