@@ -1664,7 +1664,7 @@ const portUi=(()=>{
     const last=select.value;
     select.replaceChildren();
     if(allowAuto){
-      const opt=new Option('Auto（继承端口设置）','auto');
+      const opt=new Option('Auto','auto');
       select.append(opt);
     }
     for(const value of rangesForRole(role))select.append(new Option(scientific(value),scientific(value)));
