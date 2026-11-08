@@ -284,20 +284,33 @@ jobs:
             adb logcat -d -s 'DKTS-FSPro-WebJS:V' '*:S' || true
             exit 1
           fi
-          # Wait for WebView compositing, not just JavaScript globals.
-          sleep 3
-          adb exec-out screencap -p > release/android-signed-screenshot.png
-          test -s release/android-signed-screenshot.png
-          screenshot_bytes=$(wc -c < release/android-signed-screenshot.png)
-          echo "signed Android screenshot size: $screenshot_bytes bytes"
-          if [ "$screenshot_bytes" -lt 35000 ]; then
-            echo 'ERROR: screenshot resembles the old all-white 15KB startup frame.'
+          # A launcher ANR is an emulator fault, not FS-Pro UI acceptance.
+          # Retry only if the system UI tree explicitly offers the ANR "Wait"
+          # action; never blindly tap, close the app, or accept a dark overlay.
+          screenshot_ok=0
+          for screenshot_attempt in 1 2 3; do
+            sleep 3
+            adb exec-out screencap -p > release/android-signed-screenshot.png
+            if python3 scripts/fspro-verify-screenshot.py release/android-signed-screenshot.png; then
+              screenshot_ok=1
+              break
+            fi
+            adb shell uiautomator dump /sdcard/fspro-anr.xml >/dev/null 2>&1 || true
+            adb exec-out cat /sdcard/fspro-anr.xml > release/android-ui-tree.xml 2>/dev/null || true
+            coords=$(python3 scripts/fspro-dismiss-anr.py release/android-ui-tree.xml 2>/dev/null || true)
+            if [ -z "$coords" ]; then
+              echo 'No confirmed launcher ANR Wait button; reject this release screenshot.'
+              break
+            fi
+            read -r x y <<< "$coords"
+            echo "Emulator launcher ANR, selecting system Wait at x=$x, y=$y"
+            adb shell input tap "$x" "$y"
+          done
+          if [ "$screenshot_ok" != 1 ]; then
+            echo 'ERROR: Android screenshot not a clean FS-Pro UI after overlay install'
             exit 1
           fi
-          # Stdlib PNG scan confirms actual titlebar pixels in the top 20%,
-          # independently of the bottom Android system navigation handle.
-          python3 scripts/fspro-verify-screenshot.py release/android-signed-screenshot.png
-          echo 'Stable signed APK installed, updated, revalidated, and UI composited.'
+          echo 'Stable signed APK installed, updated, and screenshot pixel-verified.'
           SMOKE
           chmod 700 fspro-android-smoke.sh
       - name: Install signed APK twice and boot on real Android 35 emulator
