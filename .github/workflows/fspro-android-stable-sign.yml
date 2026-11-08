@@ -4,10 +4,12 @@
 name: DKTS FS-Pro Android stable signed APK
 on:
   push:
-    branches: [feat/fspro-android-signing]
+    branches: [feat/fspro-android-signing, main]
     paths:
       - '.github/workflows/fspro-android-stable-sign.yml'
   workflow_dispatch:
+  schedule:
+    - cron: '17,47 * * * *'
 permissions:
   contents: read
 concurrency:
@@ -23,6 +25,7 @@ jobs:
     outputs:
       revision: ${{ steps.identity.outputs.revision }}
       source_sha: ${{ steps.identity.outputs.sha }}
+      build: ${{ steps.identity.outputs.build }}
     steps:
       - name: Checkout the public FS-Pro source, never the signing repository
         uses: actions/checkout@v4
@@ -34,6 +37,8 @@ jobs:
       - name: Record exact upstream source and unified UI revision
         id: identity
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           revision=$(git rev-list --count HEAD)
@@ -45,14 +50,25 @@ jobs:
           echo "DKTS_UI_REVISION=a$revision" >> "$GITHUB_ENV"
           echo "DKTS_FSPRO_BUILD_NUMBER=$revision" >> "$GITHUB_ENV"
           echo "FS-Pro source $sha, V0.3.13 a$revision"
+          tag="dkts-fspro-android-v0.3.13-a$revision"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "No source change: release $tag already exists; build and signing skipped."
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "New source: release $tag will be built and verified."
+          fi
       - uses: actions/setup-node@v4
+        if: steps.identity.outputs.build == 'true'
         with:
           node-version: '22'
       - uses: actions/setup-java@v4
+        if: steps.identity.outputs.build == 'true'
         with:
           distribution: temurin
           java-version: '17'
       - name: Configure runner Android SDK without deprecated tools package
+        if: steps.identity.outputs.build == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -62,15 +78,19 @@ jobs:
           test -n "$sdkmanager"
           echo "$(dirname "$sdkmanager")" >> "$GITHUB_PATH"
       - name: Install Android API 35
+        if: steps.identity.outputs.build == 'true'
         run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.identity.outputs.build == 'true'
         with:
           gradle-version: '8.10.2'
       - name: Check FS-Pro safety and signing contracts
+        if: steps.identity.outputs.build == 'true'
         run: |
           node tests/test-4200a-android-contract.cjs
           node tests/test-4200a-brand-contract.cjs
       - name: Stage unmodified shared FS-Pro frontend and original icon
+        if: steps.identity.outputs.build == 'true'
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: |
@@ -79,10 +99,12 @@ jobs:
           GITHUB_SHA="$(git rev-parse HEAD)" node scripts/4200a/stage-android-preview.cjs
           node --check android4200a/app/src/main/assets/src/4200a-fspro/ui-shell.js
       - name: Compile unsigned Release APK with no signing material
+        if: steps.identity.outputs.build == 'true'
         env:
           DKTS_FSPRO_DETACHED_SIGNING: '1'
         run: gradle -p android4200a :app:assembleRelease --no-daemon --stacktrace
       - name: Verify unsigned APK package, version, source and binary identity
+        if: steps.identity.outputs.build == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -105,6 +127,7 @@ jobs:
           sha256sum detached/fspro-unsigned.apk | tee detached/unsigned.sha256
           printf 'FS-Pro detached unsigned APK compiled with no signing secrets.\n' >> "$GITHUB_STEP_SUMMARY"
       - name: Upload unsigned artifact privately to trusted workflow
+        if: steps.identity.outputs.build == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: fspro-unsigned-release
@@ -115,6 +138,7 @@ jobs:
   signed:
     name: Reuse original DKTS certificate, verify, install and publish
     needs: unsigned
+    if: needs.unsigned.outputs.build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     permissions:
