@@ -19,6 +19,7 @@ jobs:
       - name: Verify native plugin script and source safety contract
         run: |
           node --check integrations/dkds/native-top/plugin.js
+          node tests/dkds-native-top.test.cjs
           node -e "const m=require('./integrations/dkds/native-top/plugin.json');if(m.id!=='com.dkts.keithley-4200-native-preview'||m.apiVersion!=='1.19.0')process.exit(1)"
           if grep -Eq 'document\\.createElement|<iframe|srcdoc=|<input[^>]*type=["\\x27]?file|window\\.electronAPI' integrations/dkds/native-top/plugin.js; then
             echo "::error::Native TOP must use DKDS Core APIs and no iframe or raw file inputs"
