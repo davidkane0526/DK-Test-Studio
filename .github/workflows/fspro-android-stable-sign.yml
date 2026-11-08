@@ -294,6 +294,9 @@ jobs:
             echo 'ERROR: screenshot resembles the old all-white 15KB startup frame.'
             exit 1
           fi
+          # Stdlib PNG scan confirms actual titlebar pixels in the top 20%,
+          # independently of the bottom Android system navigation handle.
+          python3 scripts/fspro-verify-screenshot.py release/android-signed-screenshot.png
           echo 'Stable signed APK installed, updated, revalidated, and UI composited.'
           SMOKE
           chmod 700 fspro-android-smoke.sh
