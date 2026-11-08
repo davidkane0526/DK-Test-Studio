@@ -50,6 +50,7 @@ jobs:
           echo "DKTS_UI_REVISION=a$revision" >> "$GITHUB_ENV"
           echo "DKTS_FSPRO_BUILD_NUMBER=$revision" >> "$GITHUB_ENV"
           echo "FS-Pro source $sha, V0.3.13 a$revision"
+          echo "FS-Pro publication source: `$sha`; native V0.3.13, unified revision a$revision." >> "$GITHUB_STEP_SUMMARY"
           tag="dkts-fspro-android-v0.3.13-a$revision"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "build=false" >> "$GITHUB_OUTPUT"
