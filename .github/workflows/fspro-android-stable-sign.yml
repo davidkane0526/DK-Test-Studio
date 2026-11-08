@@ -210,6 +210,30 @@ jobs:
         if: steps.meta.outputs.exists == 'false'
         run: |
           if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Prepare one cohesive Bash smoke script (emulator action isolates shell lines)
+        if: steps.meta.outputs.exists == 'false'
+        shell: bash
+        run: |
+          cat > fspro-android-smoke.sh <<'SMOKE'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          apk=$(find release -maxdepth 1 -name '*.apk' -type f | head -n 1)
+          test -s "$apk"
+          adb install -r "$apk"
+          adb logcat -c
+          adb shell am start -W -n studio.dk.fspro.preview/studio.dk.fspro.preview.MainActivity
+          sleep 7
+          adb logcat -d -s 'DKTS-FSPro-Ready:I' '*:S' | tee release/android-boot.log
+          grep -q 'FS_PRO_READY' release/android-boot.log
+          adb install -r "$apk"
+          adb shell am force-stop studio.dk.fspro.preview
+          adb shell am start -W -n studio.dk.fspro.preview/studio.dk.fspro.preview.MainActivity
+          test -n "$(adb shell pidof studio.dk.fspro.preview | tr -d '\\r')"
+          adb exec-out screencap -p > release/android-signed-screenshot.png
+          test -s release/android-signed-screenshot.png
+          echo 'Stable signed APK installed, in-place updated, and launched.'
+          SMOKE
+          chmod 700 fspro-android-smoke.sh
       - name: Install signed APK twice and boot on real Android 35 emulator
         if: steps.meta.outputs.exists == 'false'
         uses: reactivecircus/android-emulator-runner@v2
@@ -221,23 +245,7 @@ jobs:
           ram-size: 3072M
           emulator-boot-timeout: 720
           disable-animations: true
-          script: |
-            set -eu
-            apk=$(find release -maxdepth 1 -name '*.apk' -type f | head -n 1)
-            test -s "$apk"
-            adb install -r "$apk"
-            adb logcat -c
-            adb shell am start -W -n studio.dk.fspro.preview/studio.dk.fspro.preview.MainActivity
-            sleep 7
-            adb logcat -d -s 'DKTS-FSPro-Ready:I' '*:S' | tee release/android-boot.log
-            grep -q 'FS_PRO_READY' release/android-boot.log
-            adb install -r "$apk"
-            adb shell am force-stop studio.dk.fspro.preview
-            adb shell am start -W -n studio.dk.fspro.preview/studio.dk.fspro.preview.MainActivity
-            test -n "$(adb shell pidof studio.dk.fspro.preview | tr -d '\r')"
-            adb exec-out screencap -p > release/android-signed-screenshot.png
-            test -s release/android-signed-screenshot.png
-            echo 'Stable signed APK installed, in-place updated, and launched.'
+          script: bash fspro-android-smoke.sh
       - name: Upload signed APK and emulator evidence
         if: steps.meta.outputs.exists == 'false'
         uses: actions/upload-artifact@v4
