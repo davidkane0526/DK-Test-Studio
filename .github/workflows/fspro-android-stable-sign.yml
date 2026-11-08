@@ -1,0 +1,278 @@
+# Trusted Android signer for the separate FS-Pro application.
+# The build job executes DK-Data-Studio code with NO signing credentials.
+# The signing job checks out only the original DK-Test-Studio repository.
+name: DKTS FS-Pro Android stable signed APK
+on:
+  push:
+    branches: [feat/fspro-android-signing]
+    paths:
+      - '.github/workflows/fspro-android-stable-sign.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dkts-fspro-android-signer-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  unsigned:
+    name: Build unsigned FS-Pro APK (no secrets)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      revision: ${{ steps.identity.outputs.revision }}
+      source_sha: ${{ steps.identity.outputs.sha }}
+    steps:
+      - name: Checkout the public FS-Pro source, never the signing repository
+        uses: actions/checkout@v4
+        with:
+          repository: davidkane0526/DK-Data-Studio
+          ref: feat/4200a-fspro-rebuild
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Record exact upstream source and unified UI revision
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-list --count HEAD)
+          sha=$(git rev-parse HEAD)
+          [[ "$revision" =~ ^[1-9][0-9]{0,9}$ ]]
+          [[ "$sha" =~ ^[a-f0-9]{40}$ ]]
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "DKTS_UI_REVISION=a$revision" >> "$GITHUB_ENV"
+          echo "DKTS_FSPRO_BUILD_NUMBER=$revision" >> "$GITHUB_ENV"
+          echo "FS-Pro source $sha, V0.3.13 a$revision"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Configure runner Android SDK without deprecated tools package
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+          sdkmanager=$(find "$sdk/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n 1)
+          test -n "$sdkmanager"
+          echo "$(dirname "$sdkmanager")" >> "$GITHUB_PATH"
+      - name: Install Android API 35
+        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Check FS-Pro safety and signing contracts
+        run: |
+          node tests/test-4200a-android-contract.cjs
+          node tests/test-4200a-brand-contract.cjs
+      - name: Stage unmodified shared FS-Pro frontend and original icon
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: |
+          npm install --no-save --ignore-scripts --no-audit --no-fund d3@7.9.0
+          node tools/4200a-generate-brand-icons.cjs
+          GITHUB_SHA="$(git rev-parse HEAD)" node scripts/4200a/stage-android-preview.cjs
+          node --check android4200a/app/src/main/assets/src/4200a-fspro/ui-shell.js
+      - name: Compile unsigned Release APK with no signing material
+        env:
+          DKTS_FSPRO_DETACHED_SIGNING: '1'
+        run: gradle -p android4200a :app:assembleRelease --no-daemon --stacktrace
+      - name: Verify unsigned APK package, version, source and binary identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android4200a/app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s "$apk"
+          aapt="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          test -x "$aapt"
+          "$aapt" dump badging "$apk" | grep -m1 "^package:" | tee "$RUNNER_TEMP/fspro-badging.txt"
+          grep -q "name='studio.dk.fspro.preview'" "$RUNNER_TEMP/fspro-badging.txt"
+          grep -q "versionCode='24'" "$RUNNER_TEMP/fspro-badging.txt"
+          grep -q "versionName='0.3.13'" "$RUNNER_TEMP/fspro-badging.txt"
+          if "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$apk" >/dev/null 2>&1; then
+            echo "::error::Detached compilation produced an unexpectedly signed APK"
+            exit 1
+          fi
+          mkdir -p detached
+          cp "$apk" detached/fspro-unsigned.apk
+          git rev-parse HEAD > detached/source-sha.txt
+          git rev-list --count HEAD > detached/revision.txt
+          sha256sum detached/fspro-unsigned.apk | tee detached/unsigned.sha256
+          printf 'FS-Pro detached unsigned APK compiled with no signing secrets.\n' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload unsigned artifact privately to trusted workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: fspro-unsigned-release
+          path: detached/
+          if-no-files-found: error
+          retention-days: 2
+
+  signed:
+    name: Reuse original DKTS certificate, verify, install and publish
+    needs: unsigned
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout trusted original DK Test Studio only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download unsigned asset without executing external code
+        uses: actions/download-artifact@v4
+        with:
+          name: fspro-unsigned-release
+          path: detached
+      - name: Verify source provenance and release eligibility
+        id: meta
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(cat detached/source-sha.txt)
+          revision=$(cat detached/revision.txt)
+          [[ "$sha" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$revision" =~ ^[1-9][0-9]{0,9}$ ]]
+          test "$sha" = '${{ needs.unsigned.outputs.source_sha }}'
+          test "$revision" = '${{ needs.unsigned.outputs.revision }}'
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$sha" >> "$GITHUB_OUTPUT"
+          tag="dkts-fspro-android-v0.3.13-a$revision"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Stable signed FS-Pro release $tag already exists, not replacing assets."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-java@v4
+        if: steps.meta.outputs.exists == 'false'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Configure signer Android build tools
+        if: steps.meta.outputs.exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+          sdkmanager=$(find "$sdk/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n 1)
+          test -n "$sdkmanager"
+          echo "$(dirname "$sdkmanager")" >> "$GITHUB_PATH"
+      - name: Install Android signing and verification utilities
+        if: steps.meta.outputs.exists == 'false'
+        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Sign ONLY validated unsigned package with existing fixed DKTS key
+        if: steps.meta.outputs.exists == 'false'
+        shell: bash
+        env:
+          DKTS_ANDROID_KEYSTORE_B64: ${{ secrets.DKTS_ANDROID_KEYSTORE_B64 }}
+          DKTS_ANDROID_SIGNING_PASSWORD: ${{ secrets.DKTS_ANDROID_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$DKTS_ANDROID_KEYSTORE_B64"
+          test -n "$DKTS_ANDROID_SIGNING_PASSWORD"
+          mkdir -p release
+          keypath="$RUNNER_TEMP/fspro-dkts-existing.p12"
+          trap 'rm -f "$keypath"' EXIT
+          printf '%s' "$DKTS_ANDROID_KEYSTORE_B64" | base64 --decode > "$keypath"
+          chmod 600 "$keypath"
+          test -s "$keypath"
+          revision='${{ steps.meta.outputs.revision }}'
+          apk="release/DK-Test-Studio-FSPro-Android-V0.3.13-a$revision.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+            --ks "$keypath" --ks-type PKCS12 --ks-key-alias dkts \
+            --ks-pass env:DKTS_ANDROID_SIGNING_PASSWORD \
+            --key-pass env:DKTS_ANDROID_SIGNING_PASSWORD \
+            --out "$apk" detached/fspro-unsigned.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk" \
+            | tee "$RUNNER_TEMP/fspro-signed-cert.txt"
+          actual=$(grep -m1 'certificate SHA-256 digest:' "$RUNNER_TEMP/fspro-signed-cert.txt" | awk '{print $NF}' | tr -d ':[:space:]' | tr 'A-F' 'a-f')
+          expected=$(tr -d ':[:space:]' < android/signing-certificate.sha256 | tr 'A-F' 'a-f')
+          test "${#actual}" -eq 64
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::Signing certificate does NOT match existing DKTS distribution identity"
+            exit 1
+          fi
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | grep -m1 "^package:" \
+            | grep -q "name='studio.dk.fspro.preview'"
+          sha256sum "$apk" | tee release/android.sha256
+          echo "Validated stable signer certificate SHA-256: $actual" >> "$GITHUB_STEP_SUMMARY"
+      - name: Enable Android emulator acceleration
+        if: steps.meta.outputs.exists == 'false'
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Install signed APK twice and boot on real Android 35 emulator
+        if: steps.meta.outputs.exists == 'false'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 3072M
+          emulator-boot-timeout: 720
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            apk=$(find release -maxdepth 1 -name '*.apk' -type f | head -n 1)
+            test -s "$apk"
+            adb install -r "$apk"
+            adb logcat -c
+            adb shell am start -W -n studio.dk.fspro.preview/studio.dk.fspro.preview.MainActivity
+            sleep 7
+            adb logcat -d -s 'DKTS-FSPro-Ready:I' '*:S' | tee release/android-boot.log
+            grep -q 'FS_PRO_READY' release/android-boot.log
+            adb install -r "$apk"
+            adb shell am force-stop studio.dk.fspro.preview
+            adb shell am start -W -n studio.dk.fspro.preview/studio.dk.fspro.preview.MainActivity
+            test -n "$(adb shell pidof studio.dk.fspro.preview | tr -d '\r')"
+            adb exec-out screencap -p > release/android-signed-screenshot.png
+            test -s release/android-signed-screenshot.png
+            echo 'Stable signed APK installed, in-place updated, and launched.'
+      - name: Upload signed APK and emulator evidence
+        if: steps.meta.outputs.exists == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-FSPro-Android-Stable-Signed-a${{ steps.meta.outputs.revision }}
+          path: |
+            release/*.apk
+            release/android.sha256
+            release/android-signed-screenshot.png
+            release/android-boot.log
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish distinct, non-latest DKTS FS-Pro Android prerelease
+        if: steps.meta.outputs.exists == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='${{ steps.meta.outputs.tag }}'
+          source_sha='${{ steps.meta.outputs.source_sha }}'
+          revision='${{ steps.meta.outputs.revision }}'
+          apk="release/DK-Test-Studio-FSPro-Android-V0.3.13-a$revision.apk"
+          cat > release-notes.md <<EOF
+          DK Test Studio FS-Pro 4200A standalone Android preview V0.3.13 a$revision.
+
+          - Separate Android package ID: studio.dk.fspro.preview. It coexists with the existing DK Test Studio application.
+          - Signed with the SAME pinned original DKTS certificate, checked against the original repository's public fingerprint.
+          - Tested on Android 35 emulator: fresh installation, in-place reinstall and FS_PRO_READY launch.
+          - Main branch of UI source: davidkane0526/DK-Data-Studio, commit $source_sha.
+          - Read-only instrument inspection only. NO real SMU/PMU output or emergency stop acceptance.
+          - Never install from a temporary GitHub Actions debug build. Future FS-Pro APKs use this same signing identity.
+          - Release published in original DKTS repository to use its existing protected signing secrets.
+          EOF
+          gh release create "$tag" "$apk" release/android.sha256 release/android-signed-screenshot.png \
+            --target "$GITHUB_SHA" --title "DKTS FS-Pro Android V0.3.13 a$revision (stable-signed preview)" \
+            --notes-file release-notes.md --prerelease --repo "$GITHUB_REPOSITORY"
+          echo "Published stable signed FS-Pro APK under tag $tag" >> "$GITHUB_STEP_SUMMARY"
