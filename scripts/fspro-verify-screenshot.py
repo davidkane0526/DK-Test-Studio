@@ -76,6 +76,11 @@ def verify(filename):
     print(f'Android PNG {width}x{height}: top-UI contrast pixels={dark}/{total}')
     if dark < max(300, total // 1000):
         raise ValueError('blank white WebView: UI did not visibly render')
+    # A full-screen dim overlay from Android's "Pixel Launcher isn't
+    # responding" dialog is not an acceptable released UI screenshot.
+    # Normal light-mode FS-Pro chrome covers only a small part of the header.
+    if dark > total // 2:
+        raise ValueError('system dialog or dark overlay obscures FS-Pro UI')
 
 
 if __name__ == '__main__':
