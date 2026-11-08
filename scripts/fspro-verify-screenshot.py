@@ -12,7 +12,7 @@ from pathlib import Path
 
 def verify(filename):
     data = Path(filename).read_bytes()
-    if data[:8] != b'\\x89PNG\\r\\n\\x1a\\n':
+    if data[:8] != b'\x89PNG\r\n\x1a\n':
         raise ValueError('not PNG')
     offset, width, height, channels, idats = 8, 0, 0, 0, []
     while offset < len(data):
