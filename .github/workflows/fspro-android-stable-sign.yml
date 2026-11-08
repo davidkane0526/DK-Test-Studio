@@ -246,9 +246,23 @@ jobs:
           adb install -r "$apk"
           adb logcat -c
           adb shell am start -W -n studio.dk.fspro.preview/studio.dk.fspro.preview.MainActivity
-          sleep 7
-          adb logcat -d -s 'DKTS-FSPro-Ready:I' '*:S' | tee release/android-boot.log
-          grep -q 'FS_PRO_READY' release/android-boot.log
+          # Wait until the native WebView validates the full read-only JS shell.
+          # A fixed seven-second delay can race first-load initialization.
+          ready=0
+          for attempt in $(seq 1 18); do
+            adb logcat -d -s 'DKTS-FSPro-Ready:V' '*:S' > release/android-boot.log
+            if grep -q 'FS_PRO_READY' release/android-boot.log; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != 1 ]; then
+            echo 'FS-Pro readiness failed after 36s; capture WebView diagnostics.'
+            adb logcat -d -s 'DKTS-FSPro-WebJS:V' '*:S' | tee release/android-webjs.log
+            cat release/android-boot.log
+            exit 1
+          fi
           adb install -r "$apk"
           adb shell am force-stop studio.dk.fspro.preview
           adb shell am start -W -n studio.dk.fspro.preview/studio.dk.fspro.preview.MainActivity
