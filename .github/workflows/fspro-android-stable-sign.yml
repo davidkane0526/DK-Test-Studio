@@ -222,7 +222,7 @@ jobs:
           emulator-boot-timeout: 720
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             apk=$(find release -maxdepth 1 -name '*.apk' -type f | head -n 1)
             test -s "$apk"
             adb install -r "$apk"
