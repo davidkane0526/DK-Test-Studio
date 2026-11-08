@@ -1,0 +1,43 @@
+name: DKTS DKDS Native TOP Preview (external plugin)
+on:
+  push:
+    branches: [feat/dkds-native-top-workspace]
+    paths:
+      - 'integrations/dkds/native-top/**'
+      - '.github/workflows/dkds-native-top-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  external-plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify native plugin script and source safety contract
+        run: |
+          node --check integrations/dkds/native-top/plugin.js
+          node -e "const m=require('./integrations/dkds/native-top/plugin.json');if(m.id!=='com.dkts.keithley-4200-native-preview'||m.apiVersion!=='1.19.0')process.exit(1)"
+          if grep -Eq 'document\\.createElement|<iframe|srcdoc=|<input[^>]*type=["\\x27]?file|window\\.electronAPI' integrations/dkds/native-top/plugin.js; then
+            echo "::error::Native TOP must use DKDS Core APIs and no iframe or raw file inputs"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          repository: davidkane0526/DK-Data-Studio
+          ref: '4200'
+          path: dkds-sdk-host
+      - name: Validate external plugin with DKDS SDK 1.19
+        run: node dkds-sdk-host/sdk/tools/dkds-plugin.js validate integrations/dkds/native-top
+      - name: Package installable external plugin
+        run: |
+          mkdir -p dist
+          node dkds-sdk-host/sdk/tools/dkds-plugin.js package integrations/dkds/native-top dist/DKTS-4200A-Native-TOP-Preview.dkplugin
+          test -s dist/DKTS-4200A-Native-TOP-Preview.dkplugin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-4200A-Native-DKDS-Top-Preview
+          path: dist/DKTS-4200A-Native-TOP-Preview.dkplugin
+          if-no-files-found: error
