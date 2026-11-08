@@ -265,11 +265,36 @@ jobs:
           fi
           adb install -r "$apk"
           adb shell am force-stop studio.dk.fspro.preview
+          adb logcat -c
           adb shell am start -W -n studio.dk.fspro.preview/studio.dk.fspro.preview.MainActivity
           test -n "$(adb shell pidof studio.dk.fspro.preview | tr -d '\\r')"
+          # A running WebView process is NOT proof that the UI painted.
+          # Wait for a new JS readiness signal after the actual overlay install.
+          ready2=0
+          for attempt in $(seq 1 18); do
+            adb logcat -d -s 'DKTS-FSPro-Ready:V' '*:S' > release/android-upgrade-boot.log
+            if grep -q 'FS_PRO_READY' release/android-upgrade-boot.log; then
+              ready2=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready2" != 1 ]; then
+            echo 'ERROR: upgraded signed APK never reached UI-ready state.'
+            adb logcat -d -s 'DKTS-FSPro-WebJS:V' '*:S' || true
+            exit 1
+          fi
+          # Wait for WebView compositing, not just JavaScript globals.
+          sleep 3
           adb exec-out screencap -p > release/android-signed-screenshot.png
           test -s release/android-signed-screenshot.png
-          echo 'Stable signed APK installed, in-place updated, and launched.'
+          screenshot_bytes=$(wc -c < release/android-signed-screenshot.png)
+          echo "signed Android screenshot size: $screenshot_bytes bytes"
+          if [ "$screenshot_bytes" -lt 35000 ]; then
+            echo 'ERROR: screenshot resembles the old all-white 15KB startup frame.'
+            exit 1
+          fi
+          echo 'Stable signed APK installed, updated, revalidated, and UI composited.'
           SMOKE
           chmod 700 fspro-android-smoke.sh
       - name: Install signed APK twice and boot on real Android 35 emulator
@@ -294,6 +319,7 @@ jobs:
             release/android.sha256
             release/android-signed-screenshot.png
             release/android-boot.log
+            release/android-upgrade-boot.log
           if-no-files-found: error
           retention-days: 90
       - name: Publish distinct, non-latest DKTS FS-Pro Android prerelease
