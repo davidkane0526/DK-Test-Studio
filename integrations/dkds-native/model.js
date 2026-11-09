@@ -71,7 +71,18 @@
    'resource','sourceMode','role','bias','start','stop','step','compliance','rangeMode','rangeValue'
   ].includes(key)))throw Error('Invalid terminal change');
   Object.assign(t,values);
-  if(values.sourceMode){t.rangeMode='auto';t.rangeValue=values.sourceMode==='current'?'2':'1e-6';}
+  if(values.sourceMode){
+   // Source units have changed (volts versus amperes), so retaining a
+   // voltage sweep 0..2 as a 0..2 A sweep would violate the hardware
+   // envelope. Reset ALL incompatible numeric quantities atomically.
+   if(values.sourceMode==='current')Object.assign(t,{
+    bias:'0',start:'0',stop:'0.01',step:'0.001',compliance:'2',
+    rangeMode:'auto',rangeValue:'2'
+   });else Object.assign(t,{
+    bias:'0',start:'0',stop:'2',step:'0.1',compliance:'0.01',
+    rangeMode:'auto',rangeValue:'1e-6'
+   });
+  }
   if(values.resource==='None')t.role='CONDITION';
   if(values.role&&values.role!=='CONDITION')for(const other of p.terminals)
    if(other!==t&&other.role===values.role)other.role='CONDITION';
