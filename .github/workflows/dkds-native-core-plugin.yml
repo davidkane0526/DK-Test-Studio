@@ -1,0 +1,47 @@
+name: DKTS Core-native DKDS Plugin
+on:
+  push:
+    branches: [feat/dkds-native-core-workbench]
+    paths:
+      - 'integrations/dkds-native/**'
+      - 'tools/build-dkds-native-plugin.cjs'
+      - 'tests/test-dkds-native-*.cjs'
+      - '.github/workflows/dkds-native-core-plugin.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dkts-native-plugin:
+    name: Build external DKDS TOP plugin from DK Test Studio sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check domain and host lifecycle tests
+        run: |
+          node --check integrations/dkds-native/plugin.js
+          node --check integrations/dkds-native/model.js
+          node tests/test-dkds-native-plugin.cjs
+          node tests/test-dkds-native-host.cjs
+      - name: Package plugin from DKTS repository
+        run: node tools/build-dkds-native-plugin.cjs
+      - name: Inspect resulting package
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict');
+          const p=JSON.parse(fs.readFileSync('dist/DKTS-4200A-native-v0.7.0.dkplugin','utf8'));
+          assert.equal(p.schema,1);
+          assert.equal(p.manifest.id,'com.dkts.keithley-4200');
+          assert.equal(p.manifest.workspace.role,'top');
+          assert.deepEqual(Object.keys(p.files),['model.js','plugin.js']);
+          console.log('DKTS native plugin package layout OK');
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-4200A-Core-native-Plugin-from-DKTS
+          path: dist/DKTS-4200A-native-v0.7.0.dkplugin
+          if-no-files-found: error

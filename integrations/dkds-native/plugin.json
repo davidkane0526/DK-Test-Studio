@@ -1,0 +1,74 @@
+{
+  "id": "com.dkts.keithley-4200",
+  "name": "DK Test Studio - Keithley 4200A",
+  "version": "0.7.0",
+  "apiVersion": "1.19.0",
+  "entry": "plugin.js",
+  "scripts": [
+    "model.js",
+    "plugin.js"
+  ],
+  "enabled": true,
+  "order": 82,
+  "description": "Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.",
+  "pluginType": "workbench",
+  "requiresCore": [
+    "status",
+    "events",
+    "workspace",
+    "project",
+    "state",
+    "modules",
+    "data.sources",
+    "data.artifacts",
+    "ui.workspace",
+    "ui.unit-templates",
+    "ui.scientific-plot",
+    "ui.activities",
+    "ui.top-workspace",
+    "ui.pages"
+  ],
+  "capabilities": [
+    "ui.page",
+    "ui.top-workspace",
+    "ui.plugin-workspace",
+    "ui.scientific-plot",
+    "data.scoped-sources",
+    "project.slice"
+  ],
+  "platformPresentation": {
+    "desktop": {
+      "mode": "shared"
+    },
+    "mobile": {
+      "mode": "adaptive"
+    }
+  },
+  "workspace": {
+    "role": "top",
+    "activity": "dkts-keithley-4200",
+    "icon": "▦",
+    "title": "4200A 测试"
+  },
+  "window": {
+    "activity": "dkts-keithley-4200",
+    "title": "DK Test Studio 4200A",
+    "width": 1380,
+    "height": 860,
+    "minWidth": 820,
+    "minHeight": 560,
+    "dependencies": [
+      "scientific-renderer"
+    ],
+    "prewarm": false,
+    "reuse": true,
+    "persistence": "project",
+    "artifactHydration": "live"
+  },
+  "data": {
+    "accepts": [
+      "science.transport.iv",
+      "data.table"
+    ]
+  }
+}
