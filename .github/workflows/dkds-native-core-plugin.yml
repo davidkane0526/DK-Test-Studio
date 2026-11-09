@@ -40,13 +40,13 @@ jobs:
         run: node tools/build-dkds-native-plugin.cjs
       - name: Repackage and verify using official DKDS SDK
         run: |
-          node dkds-sdk/sdk/tools/dkds-plugin.js package integrations/dkds-native dist/DKTS-4200A-native-v0.7.1.dkplugin
+          node dkds-sdk/sdk/tools/dkds-plugin.js package integrations/dkds-native dist/DKTS-4200A-native-v0.7.2.dkplugin
           node - <<'NODE'
           const fs=require('node:fs'),assert=require('node:assert/strict');
-          const p=JSON.parse(fs.readFileSync('dist/DKTS-4200A-native-v0.7.1.dkplugin','utf8'));
+          const p=JSON.parse(fs.readFileSync('dist/DKTS-4200A-native-v0.7.2.dkplugin','utf8'));
           assert.equal(p.schema,1);
           assert.equal(p.manifest.id,'com.dkts.keithley-4200');
-          assert.equal(p.manifest.version,'0.7.1');
+          assert.equal(p.manifest.version,'0.7.2');
           assert.equal(p.manifest.apiVersion,'1.19.0');
           assert.equal(p.manifest.workspace.role,'top');
           assert.equal(typeof p.files['model.js'],'string');
@@ -56,8 +56,8 @@ jobs:
           NODE
       - uses: actions/upload-artifact@v4
         with:
-          name: DKTS-4200A-DKDS-native-v0.7.1
-          path: dist/DKTS-4200A-native-v0.7.1.dkplugin
+          name: DKTS-4200A-DKDS-native-v0.7.2
+          path: dist/DKTS-4200A-native-v0.7.2.dkplugin
           if-no-files-found: error
   publish-preview:
     name: Publish validated native-plugin preview
@@ -69,13 +69,13 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: DKTS-4200A-DKDS-native-v0.7.1
+          name: DKTS-4200A-DKDS-native-v0.7.2
           path: artifacts
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: dkts-native-plugin-v0.7.1-preview
+          tag_name: dkts-native-plugin-v0.7.2-preview
           target_commitish: ${{ github.sha }}
-          name: DK Test Studio 4200A native DKDS plugin v0.7.1 (preview)
+          name: DK Test Studio 4200A native DKDS plugin v0.7.2 (preview)
           prerelease: true
           make_latest: false
           generate_release_notes: false
@@ -83,5 +83,5 @@ jobs:
             External DKDS Plugin API 1.19 TOP workspace; owned and built by DK Test Studio.
             Uses Core UI, theme, scientific chart and Data Center bounded Artifact reading.
             Real Keithley source output remains disabled. This is a preview, not the standalone APK updater.
-          files: artifacts/DKTS-4200A-native-v0.7.1.dkplugin
+          files: artifacts/DKTS-4200A-native-v0.7.2.dkplugin
           fail_on_unmatched_files: true
