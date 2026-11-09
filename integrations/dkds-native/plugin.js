@@ -5,7 +5,8 @@
   const model=ctx.modules.require('model'),units=ctx.ui.unitTemplates;
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
-  let wb=null,plot=null,plotView=null,nav=null,parameters=null,portFields=null,dataNote=null,kindField=null;
+  let wb=null,plot=null,plotView=null,nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null;
+  const touchNumeric=Boolean(window.matchMedia?.('(pointer: coarse)')?.matches);
   const state=()=>model.validate(store.get());
   const active=()=>{const s=state();return s.pages.find(x=>x.id===s.activeId);};
   const persist=value=>{store.patch(model.validate(value));ctx.project.capture?.();render();};
@@ -32,6 +33,46 @@
   function change(logical,key,value){
    try{persist(model.edit(state(),logical,{[key]:value}));}
    catch(error){ctx.status.set('参数无效：'+String(error.message||error));render();}
+  }
+  function openNumericPad(input,logical,key){
+   if(!touchNumeric||!input)return;
+   pad?.close?.();pad=null;
+   const pop=units.popover.create(null,{
+    variant:'picker',title:logical+' · '+key,role:'dialog',
+    ariaLabel:'科学计数法数字键盘',anchor:input,placement:'bottom-start',
+    dismissOnOutside:true,offset:4,
+    onClose:()=>{if(pad===pop)pad=null;}
+   });
+   pad=pop;
+   let buffer=String(input.value||'');
+   const display=units.field.create(pop.body,{kind:'input',label:'当前数值',
+    value:buffer,readOnly:true,inputMode:'none'});
+   const keys=units.layout.create(pop.body,{variant:'action-grid-4'});
+   for(const label of ['7','8','9','⌫','4','5','6','清除',
+    '1','2','3','±','0','.','E','完成']){
+    units.action.create(keys,{id:'numeric-'+label,label,variant:'quiet',
+     onInvoke:()=>{
+      if(label==='完成'){
+       if(buffer)change(logical,key,buffer);
+       pop.close();if(pad===pop)pad=null;
+       return;
+      }
+      if(label==='清除')buffer='';
+      else if(label==='⌫')buffer=buffer.slice(0,-1);
+      else if(label==='±')buffer=buffer.startsWith('-')?buffer.slice(1):'-'+buffer;
+      else if(label==='E'){if(!/[eE]/.test(buffer))buffer+=(buffer?'e':'1e');}
+      else buffer+=label;
+      display.control.value=buffer;
+     }
+    });
+   }
+  }
+  function numericField(host,logical,key,label,value,disabled=false){
+   return units.field.create(host,{kind:'input',label,value,
+    inputMode:touchNumeric?'none':'decimal',disabled,
+    onFocus:event=>openNumericPad(event.target,logical,key),
+    onChange:event=>change(logical,key,event.target.value)
+   });
   }
   function render(){
    if(!nav||!parameters)return;
@@ -73,8 +114,7 @@
      options:[{value:'CONDITION',label:'Condition'},{value:'X',label:'Xsweep'},{value:'P',label:'Psweep'}],
      onChange:e=>change(t.logical,'role',e.target.value)});
     for(const key of (t.role==='CONDITION'?['bias']:['start','stop','step']))
-     units.field.create(row1,{kind:'input',label:({bias:'偏压',start:'开始',stop:'结束',step:'步长'})[key],
-      value:t[key],inputMode:'decimal',onChange:e=>change(t.logical,key,e.target.value)});
+     numericField(row1,t.logical,key,({bias:'偏压',start:'开始',stop:'结束',step:'步长'})[key],t[key]);
     const row2=units.layout.create(panel.body,{variant:'identity',geometry:{
      display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(116px,1fr))',gap:'8px'}});
     units.field.create(row2,{kind:'select',label:'量程模式',value:t.rangeMode,
@@ -82,12 +122,11 @@
       ...(t.sourceMode==='voltage'?[{value:'minimum',label:'电流自动下限'}]:[]),
       {value:'fixed',label:'即时指定'}],
      onChange:e=>change(t.logical,'rangeMode',e.target.value)});
-    units.field.create(row2,{kind:'input',label:t.sourceMode==='voltage'?'电流档位 (A)':'电压档位 (V)',
-     value:t.rangeValue,disabled:t.rangeMode==='auto',inputMode:'decimal',
-     onChange:e=>change(t.logical,'rangeValue',e.target.value)});
-    units.field.create(row2,{kind:'input',label:t.sourceMode==='voltage'?'限流 (A)':'限压 (V)',
-     value:t.compliance,inputMode:'decimal',
-     onChange:e=>change(t.logical,'compliance',e.target.value)});
+    numericField(row2,t.logical,'rangeValue',
+     t.sourceMode==='voltage'?'电流档位 (A)':'电压档位 (V)',
+     t.rangeValue,t.rangeMode==='auto');
+    numericField(row2,t.logical,'compliance',
+     t.sourceMode==='voltage'?'限流 (A)':'限压 (V)',t.compliance);
    }
   }
   ctx.ui.activities.add({id:ACTIVITY,label:'4200A',contextLabel:'DK Test Studio',icon:'▦',
@@ -152,6 +191,6 @@
   const off=ctx.events?.on?.('data:artifacts-changed',refreshData);
   render();refreshData();
   ctx.status.set('4200A 工作区已加载；原生输出禁用');
-  return {deactivate(){off?.();plot?.dispose?.();plotView?.dispose?.();wb?.dispose?.();}};
+  return {deactivate(){pad?.close?.();off?.();plot?.dispose?.();plotView?.dispose?.();wb?.dispose?.();}};
  });
 })();
