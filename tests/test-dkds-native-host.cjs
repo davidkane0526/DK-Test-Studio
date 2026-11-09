@@ -6,19 +6,21 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const dir=path.resolve(__dirname,'../integrations/dkds-native');
 const registry=new Map(),definitions=[];
 const sandbox={
- window:{DKDSPluginModules:{define:(id,name,value)=>registry.set(id+':'+name,value)}},
+ window:{matchMedia:()=>({matches:true}),DKDSPluginModules:{define:(id,name,value)=>registry.set(id+':'+name,value)}},
  DKDSPlugins:{define:(manifest,activate)=>definitions.push({manifest,activate})},
  console
 };
 vm.runInNewContext(fs.readFileSync(dir+'/model.js','utf8'),sandbox,{filename:'model.js'});
 vm.runInNewContext(fs.readFileSync(dir+'/plugin.js','utf8'),sandbox,{filename:'plugin.js'});
 assert.equal(definitions.length,1);
-const record={actions:[],fields:[],panels:[],plots:[],plotViews:[],headers:[],top:null,activity:null,composed:null,disposals:0,captures:0,status:[]};
+const record={actions:[],fields:[],panels:[],plots:[],plotViews:[],headers:[],popovers:[],closedPads:0,top:null,activity:null,composed:null,disposals:0,captures:0,status:[]};
 const el=()=>({children:[],textContent:'',replaceChildren(){this.children=[];}});
 const units={
  pageHeader:{create:()=>({actions:el()})},page:{create:()=>({element:el()})},
  header:{create:(host,spec)=>{record.headers.push(spec);return{element:el(),actions:el()}}},
  plotView:{adopt:(id,card,spec)=>{record.plotViews.push({id,spec});return {dispose:()=>record.disposals++}}},
+ popover:{create:(host,spec)=>{record.popovers.push(spec);return {
+  body:el(),close:()=>{record.closedPads++;}}}},
  layout:{create:()=>el()},
  action:{create:(host,spec)=>{record.actions.push(spec);host.children.push(spec);return{element:el()}}},
  note:{create:(host,spec)=>{const n=el();n.textContent=spec.text;host.children.push(n);return n}},
@@ -111,6 +113,22 @@ const ctx={
  assert.equal(state.activeId,'page-1');
  const lastD=[...record.fields].reverse().find(x=>x.spec.label==='D 端口');
  assert.equal(lastD.control.value,'SMU1');
+ const numeric=[...record.fields].reverse().find(x=>x.spec.label==='偏压'&&x.spec.onFocus);
+ assert.ok(numeric,'a source bias field provides a DKDS Unit-hosted numeric keypad');
+ assert.equal(numeric.spec.inputMode,'none','coarse-pointer touch does not invoke a conflicting OS keyboard');
+ numeric.spec.onFocus({target:numeric.control});
+ assert.equal(record.popovers.at(-1).variant,'picker');
+ assert.equal(record.popovers.at(-1).role,'dialog');
+ assert.equal(record.popovers.at(-1).ariaLabel,'科学计数法数字键盘');
+ const press=label=>{
+  const action=[...record.actions].reverse().find(x=>x.id==='numeric-'+label);
+  assert.ok(action,'numeric key present: '+label);action.onInvoke();
+ };
+ press('清除');press('1');press('E');press('±');press('6');press('完成');
+ assert.equal(state.pages[0].terminals[0].bias,'1e-6');
+ assert.ok(record.closedPads>=1);
+ assert.equal([...record.actions].reverse().find(x=>x.id==='numeric-E').variant,'quiet',
+  'touch numeric keys use Core quiet actions and have no plugin-specific click shadow');
  record.activity.onActivate();
  assert.equal(record.opened,'dktsKeithley4200Page');
  record.onEvent.cb();
