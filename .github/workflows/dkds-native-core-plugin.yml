@@ -6,6 +6,7 @@ on:
       - 'integrations/dkds-native/**'
       - 'tools/build-dkds-native-plugin.cjs'
       - 'tests/test-dkds-native-*.cjs'
+      - 'tools/verify-native-dkds-install.cjs'
       - '.github/workflows/dkds-native-core-plugin.yml'
   pull_request:
     branches: [main]
@@ -54,6 +55,8 @@ jobs:
           assert.ok(!p.manifest.styles?.length,'no private theme overrides');
           console.log('Validated DKTS-owned native plugin package with DKDS SDK 1.19');
           NODE
+      - name: Check actual DKDS desktop plugin installer and TOP window parser
+        run: node tools/verify-native-dkds-install.cjs dkds-sdk dist/DKTS-4200A-native-v0.7.2.dkplugin
       - uses: actions/upload-artifact@v4
         with:
           name: DKTS-4200A-DKDS-native-v0.7.2
