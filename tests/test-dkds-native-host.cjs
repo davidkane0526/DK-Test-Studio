@@ -33,8 +33,23 @@ const units={
 let state;
 const artifacts=[{artifactId:'a1',name:'Raw IV'}];
 const table={name:'Raw IV',columns:[
- {key:'VdSet',values:[0,0.1,0.2]},{key:'Id',values:[1e-9,2e-9,3e-9]}
+ {id:'v',key:'VdSet',role:'x',values:[0,0.1,0.2]},
+ {id:'i',key:'Id',role:'y',values:[1e-9,2e-9,3e-9]}
 ]};
+const reads=[];
+let revision=1;
+const artifactStore={
+ get:()=>{throw Error('forbidden full Artifact copy')},
+ artifactRevision:()=>revision,
+ columnMetadata:id=>id==='a1'?table.columns.map(x=>({
+   id:x.id,key:x.key,role:x.role,length:x.values.length
+ })):null,
+ readColumnRange:(id,key,{start,limit})=>{
+  reads.push({id,key,start,limit});
+  const column=table.columns.find(x=>x.id===key||x.key===key);
+  return id==='a1'&&column?{values:column.values.slice(start,start+limit)}:null;
+ }
+};
 const ctx={
  modules:{require:name=>registry.get('com.dkts.keithley-4200:'+name)},
  state:{create:(init,options)=>{assert.equal(options.projectSlice,'settings');state=init;
@@ -43,7 +58,7 @@ const ctx={
  status:{set:text=>record.status.push(text)},
  workspace:{openPage:id=>record.opened=id},
  events:{on:(kind,cb)=>{record.onEvent={kind,cb};return()=>record.disposals++}},
- data:{sources:{list:()=>artifacts},artifacts:{get:id=>id==='a1'?table:null}},
+ data:{sources:{list:()=>artifacts},artifacts:artifactStore},
  ui:{unitTemplates:units,
   activities:{add:spec=>{record.activity=spec}},
   pages:{add:()=>el()},
@@ -59,6 +74,13 @@ const ctx={
  assert.equal(record.plots.length,1);
  assert.equal(record.plots[0].getCurves().length,1,'reads canonical DKDS artifact');
  assert.equal(record.plots[0].getCurves()[0].points.length,3);
+ assert.equal(reads.length,2,'first plot reads just two bounded data columns');
+ record.plots[0].getCurves();
+ assert.equal(reads.length,2,'unchanged Artifact revisions reuse the cached data');
+ revision++;
+ record.plots[0].getCurves();
+ assert.equal(reads.length,4,'Artifact revision change invalidates the chart cache');
+ assert.ok(reads.every(r=>r.limit<=65536));
  const map=record.fields.find(x=>x.spec.label==='D 端口');
  assert.ok(map,'port assignment is a Core field');
  map.spec.onChange({target:{value:'SMU1'}});
