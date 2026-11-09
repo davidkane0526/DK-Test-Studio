@@ -50,4 +50,45 @@ assert.equal(switched.pages[0].terminals[0].rangeMode,'auto');
 assert.equal(switched.pages[0].terminals[0].rangeValue,'2');
 assert.throws(()=>api.edit(mapped,'D',{compliance:'1000000000000e1000'}),/Invalid numeric input/);
 assert.throws(()=>api.add(orig,'invented'),/Unknown test type/);
+// Numeric safety is checked in the project model, before any native compiler.
+assert.throws(()=>api.edit(mapped,'D',{bias:'1000'}),/HARDWARE_ENVELOPE/);
+assert.throws(()=>api.edit(mapped,'D',{stop:'1000'}),/HARDWARE_ENVELOPE/);
+assert.throws(()=>api.edit(mapped,'D',{compliance:'2'}),/HARDWARE_ENVELOPE/);
+assert.throws(()=>api.edit(mapped,'D',{bias:'22',compliance:'0.2'}),/HARDWARE_POWER_ENVELOPE/);
+assert.throws(()=>api.edit(mapped,'D',{rangeMode:'fixed',rangeValue:'3'}),/HARDWARE_RANGE_ENVELOPE/);
+assert.throws(()=>api.edit(mapped,'D',{bias:''}),/Invalid numeric input/);
+assert.throws(()=>api.edit(mapped,'D',{bias:'NaN'}),/Invalid numeric input/);
+const safe210=api.edit(mapped,'D',{bias:'210',compliance:'0.1'});
+assert.equal(safe210.pages[0].terminals[0].bias,'210');
+assert.throws(()=>api.edit(switched,'D',{bias:'1.1',compliance:'25'}),/HARDWARE_POWER_ENVELOPE/);
+assert.throws(()=>api.edit(switched,'D',{bias:'2'}),/HARDWARE_ENVELOPE/);
+const legal=api.edit(mapped,'D',{bias:'-2.0e+1',compliance:'1.05'});
+assert.equal(legal.pages[0].terminals[0].bias,'-2.0e+1');
+// DKDS bounded raw reads: do not materialize the full Artifact via get().
+const x=[0,1,2,3,4,5,6,7],y=[0,5,2,-4,1,7,0,2];
+const calls=[];
+const artifactStore={
+ get(){throw Error('Whole Artifact get forbidden')},
+ columnMetadata(id){return id==='t1'?[
+  {id:'colX',key:'Vd',length:x.length,role:'x'},
+  {id:'colY',key:'Id',length:y.length,role:'y'}]:null},
+ readColumnRange(id,col,{start,limit}){
+  calls.push({id,col,start,limit});
+  return {values:(col==='colX'?x:y).slice(start,start+limit)}
+ }
+};
+const curves=api.curvesFromArtifacts([{artifactId:'t1',name:'Real 4200A'},
+ {artifactId:'skip',name:'excluded',excluded:true}],artifactStore,{maxRead:8,maxDisplay:4});
+assert.equal(curves.length,1);
+assert.equal(curves[0].artifactId,'t1');
+assert.equal(curves[0].points.some(p=>p.y===-4),true,'display sampling retains negative peak');
+assert.equal(curves[0].points.some(p=>p.y===7),true,'display sampling retains positive peak');
+assert.equal(calls.length,2);
+assert.ok(calls.every(row=>row.limit<=65536));
+const preview=api.curvesFromArtifacts([{artifactId:'t1',name:'A'}],artifactStore,
+ {maxRead:4,maxDisplay:16})[0];
+assert.equal(preview.source.truncated,true);
+assert.equal(preview.source.totalRows,8);
+assert.equal(preview.source.readRows,4);
+assert.match(preview.label,/preview 4\/8/);
 console.log('DKTS Core-native plugin: manifest, 5 types, project state, None/SMU mapping, range guards PASS');
