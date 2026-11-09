@@ -49,6 +49,8 @@ assert.equal(safeModeSwitch.pages[0].terminals[0].rangeMode,'auto',
 const switched=api.edit(floor,'D',{sourceMode:'current'});
 assert.equal(switched.pages[0].terminals[0].rangeMode,'auto');
 assert.equal(switched.pages[0].terminals[0].rangeValue,'2');
+assert.equal(switched.pages[0].terminals[0].stop,'0.01','2 V sweep cannot remain a 2 A sweep');
+assert.equal(switched.pages[0].terminals[0].compliance,'2','current-source requires voltage compliance units');
 assert.throws(()=>api.edit(mapped,'D',{compliance:'1000000000000e1000'}),/Invalid numeric input/);
 assert.throws(()=>api.add(orig,'invented'),/Unknown test type/);
 // Numeric safety is checked in the project model, before any native compiler.
@@ -61,7 +63,7 @@ assert.throws(()=>api.edit(mapped,'D',{bias:''}),/Invalid numeric input/);
 assert.throws(()=>api.edit(mapped,'D',{bias:'NaN'}),/Invalid numeric input/);
 const safe210=api.edit(mapped,'D',{bias:'210',compliance:'0.1'});
 assert.equal(safe210.pages[0].terminals[0].bias,'210');
-assert.throws(()=>api.edit(switched,'D',{bias:'1.1',compliance:'25'}),/HARDWARE_POWER_ENVELOPE/);
+assert.throws(()=>api.edit(switched,'D',{bias:'0.11',compliance:'25'}),/HARDWARE_POWER_ENVELOPE/);
 assert.throws(()=>api.edit(switched,'D',{bias:'2'}),/HARDWARE_ENVELOPE/);
 const legal=api.edit(mapped,'D',{bias:'-2.0e+1',compliance:'1.05'});
 assert.equal(legal.pages[0].terminals[0].bias,'-2.0e+1');
