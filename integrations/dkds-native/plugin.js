@@ -59,7 +59,16 @@
       }
       if(label==='清除')buffer='';
       else if(label==='⌫')buffer=buffer.slice(0,-1);
-      else if(label==='±')buffer=buffer.startsWith('-')?buffer.slice(1):'-'+buffer;
+      else if(label==='±'){
+       // Scientific notation requires a negative exponent, not just a
+       // negative mantissa. Toggle the exponent sign when E is present.
+       const eIndex=Math.max(buffer.indexOf('e'),buffer.indexOf('E'));
+       if(eIndex>=0){
+        const prefix=buffer.slice(0,eIndex+1),exp=buffer.slice(eIndex+1);
+        buffer=prefix+(exp.startsWith('-')?exp.slice(1):
+         exp.startsWith('+')?'-'+exp.slice(1):'-'+exp);
+       }else buffer=buffer.startsWith('-')?buffer.slice(1):'-'+buffer;
+      }
       else if(label==='E'){if(!/[eE]/.test(buffer))buffer+=(buffer?'e':'1e');}
       else buffer+=label;
       display.control.value=buffer;
