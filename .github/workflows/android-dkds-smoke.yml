@@ -15,7 +15,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - name: Install browser assets without unused desktop Electron binary
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: npm install --no-audit --no-fund
       - run: node tools/sync-android-assets.cjs
       - name: Generate Android launcher icons
         run: npm run icons:build
