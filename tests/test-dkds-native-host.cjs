@@ -13,10 +13,12 @@ const sandbox={
 vm.runInNewContext(fs.readFileSync(dir+'/model.js','utf8'),sandbox,{filename:'model.js'});
 vm.runInNewContext(fs.readFileSync(dir+'/plugin.js','utf8'),sandbox,{filename:'plugin.js'});
 assert.equal(definitions.length,1);
-const record={actions:[],fields:[],panels:[],plots:[],top:null,activity:null,composed:null,disposals:0,captures:0,status:[]};
+const record={actions:[],fields:[],panels:[],plots:[],plotViews:[],headers:[],top:null,activity:null,composed:null,disposals:0,captures:0,status:[]};
 const el=()=>({children:[],textContent:'',replaceChildren(){this.children=[];}});
 const units={
  pageHeader:{create:()=>({actions:el()})},page:{create:()=>({element:el()})},
+ header:{create:(host,spec)=>{record.headers.push(spec);return{element:el(),actions:el()}}},
+ plotView:{adopt:(id,card,spec)=>{record.plotViews.push({id,spec});return {dispose:()=>record.disposals++}}},
  layout:{create:()=>el()},
  action:{create:(host,spec)=>{record.actions.push(spec);host.children.push(spec);return{element:el()}}},
  note:{create:(host,spec)=>{const n=el();n.textContent=spec.text;host.children.push(n);return n}},
@@ -72,6 +74,14 @@ const ctx={
  assert.equal(record.composed.primes.length,2);
  assert.equal(record.panels.some(x=>x.title==='D · SMU1'),false,'None port does not render parameter panel');
  assert.equal(record.plots.length,1);
+ assert.equal(record.headers.some(x=>x.kind==='plot'&&x.variant==='plot'),true,
+   'DKDS Core owns the canonical chart title');
+ assert.equal(record.plotViews.length,1);
+ assert.equal(record.plotViews[0].spec.variant,'complete');
+ assert.deepEqual([...record.plotViews[0].spec.placements],['home','float','global']);
+ assert.equal(record.plotViews[0].spec.images,true);
+ assert.equal(record.plotViews[0].spec.csv,false,
+   'do not export downsampled chart points as instrument original CSV');
  assert.equal(record.plots[0].getCurves().length,1,'reads canonical DKDS artifact');
  assert.equal(record.plots[0].getCurves()[0].points.length,3);
  assert.equal(reads.length,2,'first plot reads just two bounded data columns');
