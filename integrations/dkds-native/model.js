@@ -31,7 +31,7 @@
        !['voltage','current'].includes(t.sourceMode)||!['CONDITION','X','P'].includes(t.role)||
        !['auto','minimum','fixed'].includes(t.rangeMode)||
        (t.rangeMode==='minimum'&&t.sourceMode!=='voltage'))throw Error('Invalid port mapping');
-    const numeric=/^[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?$/;
+    const numeric=/^[+-]?(?:[0-9]+[.]?[0-9]*|[.][0-9]+)(?:[eE][+-]?[0-9]+)?$/;
     for(const key of ['bias','start','stop','step','compliance','rangeValue']){
      const raw=String(t[key]??'').trim();
      if(!numeric.test(raw)||!Number.isFinite(Number(raw)))
