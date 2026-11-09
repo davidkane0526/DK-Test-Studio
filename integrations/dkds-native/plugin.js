@@ -10,28 +10,23 @@
   const active=()=>{const s=state();return s.pages.find(x=>x.id===s.activeId);};
   const persist=value=>{store.patch(model.validate(value));ctx.project.capture?.();render();};
   const sources=()=>{const rows=ctx.data.sources.list();return Array.isArray(rows)?rows:[];};
+  // Core's plugin-scoped sources facade enforces Data Center assignments.
+  // Revision-aware caching prevents full column clones on plot repaints.
+  let plotCacheKey='',plotCache=[];
   function curves(){
-   const out=[];
-   for(const row of sources()){
-    const table=ctx.data.artifacts.get(row.artifactId);
-    const cols=Array.isArray(table?.columns)?table.columns:[];
-    const byKeys=keys=>cols.find(c=>keys.includes(String(c.key||c.name||'').toLowerCase()));
-    const x=byKeys(['vdset','voltage','vds','vg','vgs','time']);
-    const y=byKeys(['id','current','ids']);
-    const xs=x?.values,ys=y?.values;
-    if(!xs||!ys||xs.length!==ys.length||!xs.length)continue;
-    const points=[];
-    for(let i=0;i<xs.length;i++){
-     const ax=Number(xs[i]),ay=Number(ys[i]);
-     if(Number.isFinite(ax)&&Number.isFinite(ay))points.push({x:ax,y:ay});
-    }
-    if(points.length)out.push({id:String(row.artifactId),artifactId:row.artifactId,
-     label:String(row.name||table.name||row.artifactId),points});
-   }
-   return out;
+   const rows=sources();
+   const key=JSON.stringify(rows.map(row=>[row.artifactId,row.name,
+     ctx.data.artifacts.artifactRevision?.(row.artifactId)||0]));
+   if(key===plotCacheKey)return plotCache;
+   plotCacheKey=key;
+   plotCache=model.curvesFromArtifacts(rows,ctx.data.artifacts);
+   return plotCache;
   }
   function refreshData(){
-   if(dataNote)dataNote.textContent='DKDS 数据中心分配：'+sources().length+' 组。4200A 原生输出禁用。';
+   plotCacheKey='';
+   const items=sources();
+   if(dataNote)dataNote.textContent='DKDS 数据中心分配：'+items.length+
+    ' 组。图像仅呈现有界预览；原始数据仍由 DKDS 保持。仪器输出禁用。';
    plot?.requestRender?.('data-artifacts');
   }
   function change(logical,key,value){
