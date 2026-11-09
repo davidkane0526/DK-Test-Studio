@@ -4,7 +4,7 @@ const root=require('node:path').resolve(__dirname,'../integrations/dkds-native')
 const manifest=JSON.parse(fs.readFileSync(root+'/plugin.json','utf8'));
 const js=fs.readFileSync(root+'/plugin.js','utf8'),model=fs.readFileSync(root+'/model.js','utf8');
 assert.equal(manifest.id,'com.dkts.keithley-4200');
-assert.equal(manifest.version,'0.7.0');
+assert.equal(manifest.version,'0.7.1');
 assert.equal(manifest.apiVersion,'1.19.0');
 assert.equal(manifest.pluginType,'workbench');
 assert.equal(manifest.workspace.role,'top');

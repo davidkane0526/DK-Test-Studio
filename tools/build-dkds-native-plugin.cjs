@@ -6,7 +6,7 @@ const root=path.resolve(__dirname,'..');
 const folder=path.join(root,'integrations','dkds-native');
 const manifest=JSON.parse(fs.readFileSync(path.join(folder,'plugin.json'),'utf8'));
 if(manifest.id!=='com.dkts.keithley-4200'||manifest.apiVersion!=='1.19.0'||
-   manifest.pluginType!=='workbench'||manifest.version!=='0.7.0')
+   manifest.pluginType!=='workbench'||manifest.version!=='0.7.1')
  throw Error('Unexpected DKTS native plugin identity');
 if(!manifest.workspace||manifest.workspace.role!=='top'||
    manifest.window?.activity!==manifest.workspace.activity)
@@ -22,7 +22,7 @@ for(const name of scripts){
 }
 const pkg={schema:1,manifest,files};
 const dist=path.join(root,'dist');fs.mkdirSync(dist,{recursive:true});
-const output=path.join(dist,'DKTS-4200A-native-v0.7.0.dkplugin');
+const output=path.join(dist,'DKTS-4200A-native-v0.7.1.dkplugin');
 fs.writeFileSync(output,JSON.stringify(pkg,null,2)+'\n','utf8');
 console.log('DKTS-generated DKDS Plugin API 1.19 package: '+output);
 module.exports={artifact:output,manifest};
