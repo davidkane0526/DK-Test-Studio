@@ -5,7 +5,7 @@
   const model=ctx.modules.require('model'),units=ctx.ui.unitTemplates;
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
-  let wb=null,plot=null,nav=null,parameters=null,portFields=null,dataNote=null,kindField=null;
+  let wb=null,plot=null,plotView=null,nav=null,parameters=null,portFields=null,dataNote=null,kindField=null;
   const state=()=>model.validate(store.get());
   const active=()=>{const s=state();return s.pages.find(x=>x.id===s.activeId);};
   const persist=value=>{store.patch(model.validate(value));ctx.project.capture?.();render();};
@@ -108,7 +108,18 @@
    geometry:{display:'flex',flexWrap:'wrap',gap:'6px',alignItems:'center'}});
   dataNote=units.note.create(main,{variant:'meta',text:'从 DKDS 数据中心读取工程数据'});
   const graphic=units.panel.create(main,{variant:'plot-card',header:false,sizing:'content'});
+  const graphicHeader=units.header.create(graphic.element,{
+   kind:'plot',variant:'plot',title:'4200A 电学特性',actionHost:true
+  });
   const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
+  // Adopt DKDS PlotView header/actions so title, image export, portable
+  // placement and scientific-toolbar chrome are not reimplemented in DKTS.
+  plotView=units.plotView.adopt('dkts-4200a-main-plot',graphic.element,{
+   variant:'complete',title:'4200A 电学特性',
+   plot:plotHost,header:graphicHeader.element,actionsHost:graphicHeader.actions,
+   fileStem:'DKTS_4200A_plot',images:true,copy:false,csv:false,
+   placements:['home','float','global'],stateVersion:'dkts-native-v2'
+  });
   plot=units.scientificPlot.create(plotHost,{variant:'curve',source:'dkts-native',
    xTitle:'Voltage / Time',yTitle:'Current (A)',getCurves:curves,getMarkers:()=>[]});
   const params=units.layout.create(null,{variant:'stack-comfortable'});
@@ -141,6 +152,6 @@
   const off=ctx.events?.on?.('data:artifacts-changed',refreshData);
   render();refreshData();
   ctx.status.set('4200A 工作区已加载；原生输出禁用');
-  return {deactivate(){off?.();plot?.dispose?.();wb?.dispose?.();}};
+  return {deactivate(){off?.();plot?.dispose?.();plotView?.dispose?.();wb?.dispose?.();}};
  });
 })();
