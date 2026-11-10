@@ -53,3 +53,9 @@
 ## 2026-11-10 / 自包含网页 Demo 与中文截图可读性
 - 已用 GitHub Actions Chromium 渲染桌面 I–V 和平板 I–V/Psweep 页面，交互检查及无仪器请求检查通过；生成 4 张截图。容器截图审查发现 Ubuntu 浏览器环境缺少中文 CJK 字体，中文标题显示方框；已在 CI 浏览器步骤增加 `fonts-noto-cjk` 安装，待下一轮验证。
 - 增加单文件 HTML 构建器，将当前网页、CSS、DKDS/D3 脚本和安全离线适配器打包为一个无需 Web 服务器的 HTML 文件，Actions 输出单独可下载工件；本地导出的首份 HTML 另已生成。该工件不替代未来真正 DKDS Core Host 开发。
+
+## 2026-11-10 / 用户拒绝网页回退，FS-Pro 工作区纠正
+- 需求 R-20261110-004。此前 `ce90a57c` 静态网页 Demo 的 build 脚本直接拷贝旧 `web/index.html` 及被拒绝的 a97 视觉回退样式；虽然 CI/Pages 成功，但**网页 UI 选型错误**。用户明确拒绝，必须保留此失败记录，不得再把旧界面作为新 Demo 首页。
+- 基于 LabExpress/FS-Pro 公开界面资料和既有用户层级要求，新增 `web/fspro-workbench/` 的独立可复用 Page/Scan 编辑器：Project Explorer、Routine/Page、Info/Sweep/Target/Strategy/Limits/Page Var/Associate Spec、嵌套 X/P 扫描、端口独立量程/限流和固定偏置。构建器改从该新页面生成 Pages/单文件 HTML，完全阻止旧卡片 UI 误发。
+- 运行时仅规划，不允许仪器连接或虚构原始数据。数据绘图视图继续引入现有 DKDS 科学绘图分发内核（空数据），规划曲线有清楚标识。FS-Pro 外观/层级尚须与完整厂商手册和用户确认截图进一步核对，不把此次演示当作 1:1 完成，也不把它称为真正的 DKDS Core Host 应用。
+- 增加 Node 规划/安全边界回归、真实 Chromium 桌面/平板截图与交互测试。实际测试/Pages/附件以 GitHub Actions 报告为准；未合并的 Core Host 预览 PR #18、Windows/Android 新宿主应用仍是后续工作。没有修改 DKDS。

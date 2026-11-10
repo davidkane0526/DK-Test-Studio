@@ -51,3 +51,11 @@
 
 **验收**：提供 GitHub 可访问的静态 Web UI Demo（及 Actions 可下载网页打包产物），复用实际 DKTS Web UI、DKDS 图表资源与测试参数编辑器，支持桌面/移动端视图、标签/端口/扫描参数等 UI 评审。Demo 不访问仪器、不输出电压、不合成或伪装原始测量数据。网页部署需 GitHub Pages 配置并通过 Actions 核验。
 
+
+## 2026-11-10 原话 [R-20261110-004]
+> 恕我直言，这个网业ui版本是非常老的、我明确拒绝的，所以你是回退了么？我要求和fs-pro一致
+
+**错误根因**：网页构建脚本 `tools/build-web-demo.cjs` 直接拷贝已经被拒绝的 `web/index.html` 和 `web/styles.css` a97 回退基线，只套用演示适配器。用户之前明确拒绝了该老版卡片工作区。网页成功发布并不代表新版 UI 通过验收。
+
+**立即验收**：GitHub Pages 根路径不再使用旧卡片式测试选择页，必须改为 FS-Pro/LabExpress 形式的 Project → Device → Routine → Page/Spec、Edit Page（Info、Sweep、Target、Strategy、Limits、Page Var、Associate Spec）、端口矩阵、多段 Xsweep/Psweep、科学档位、固定偏置、右侧数据/绘图。支持桌面和 Android 平板响应式布局，至少真实浏览器截图验收。不能编造已完成的 1:1 像素匹配或完整 DKDS Core 迁移。所有后续真实宿主开发必须复用并集成这一 Page/Scan 领域设计；上游 DKDS 不得修改。
+

@@ -1,66 +1,65 @@
 #!/usr/bin/env node
 'use strict';
-/* Screenshot/interaction regression for the exact static GitHub Pages output. */
+const fs=require('node:fs'),path=require('node:path'),http=require('node:http');
 const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const path=require('node:path');
-const http=require('node:http');
 const {chromium}=require('playwright-core');
-const root=path.resolve(__dirname,'../dist/web-ui-demo');
-const out=path.resolve(__dirname,'../dist/web-demo-visual');
-fs.mkdirSync(out,{recursive:true});
-const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
+const root=path.resolve(__dirname,'../dist/web-ui-demo'),shots=path.resolve(__dirname,'../dist/web-demo-visual');
+fs.mkdirSync(shots,{recursive:true});
 const server=http.createServer((req,res)=>{
-  const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
-  const file=path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname));
-  if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){
-    res.writeHead(404);res.end('Not found');return;
-  }
-  res.writeHead(200,{'Content-Type':mime[path.extname(file)]||'application/octet-stream'});
-  fs.createReadStream(file).pipe(res);
+ const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
+ const file=path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname));
+ if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){
+  res.writeHead(404);res.end();return;
+ }
+ const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
+ res.writeHead(200,{'Content-Type':mime[path.extname(file)]||'application/octet-stream'});
+ fs.createReadStream(file).pipe(res);
 });
-async function open(browser,url,width,height,mobile){
-  const context=await browser.newContext({viewport:{width,height},isMobile:mobile,hasTouch:mobile,deviceScaleFactor:mobile?2:1});
-  const page=await context.newPage(),errors=[],backend=[];
-  page.on('pageerror',e=>errors.push(e.message));
-  page.on('request',request=>{
-    if(new URL(request.url()).pathname.startsWith('/api/'))backend.push(request.url());
-  });
-  await page.goto(url,{waitUntil:'load'});
-  await page.waitForFunction(()=>Boolean(window.DKTSClient?.isDemo&&window.DKTSEnhanceNewSelects),null,{timeout:15000});
-  assert.equal(await page.locator('#dkts-demo-banner').innerText(),'UI DEMO · OFFLINE');
-  assert.equal(await page.locator('.test-type-card').count(),8);
-  assert.equal(await page.locator('#start-measurement').isDisabled(),true);
-  await page.screenshot({path:path.join(out,mobile?'tablet-home.png':'desktop-home.png'),fullPage:true});
-  await page.locator('[data-test-kind="iv"]').click();
-  await page.locator('#xsweep-segments .sweep-segment').first().waitFor({state:'visible'});
-  assert.equal(await page.locator('#start-measurement').isDisabled(),true);
-  assert.equal(await page.locator('#psweep-fields').isHidden(),true);
-  await page.locator('#psweep-enabled').check({force:true});
-  assert.equal(await page.locator('#psweep-fields').isVisible(),true);
-  assert.equal(await page.locator('#measurement-rows tr').count(),1,'No synthetic acquisition rows in demo');
-  assert.match(await page.locator('#measurement-rows').innerText(),/暂无该测试方式的实测数据|等待仪器返回原始数据/);
-  await page.screenshot({path:path.join(out,mobile?'tablet-scans.png':'desktop-scans.png'),fullPage:true});
-  assert.deepEqual(errors,[],'Unhandled browser page errors');
-  assert.deepEqual(backend,[],'Offline preview must never request an instrument backend');
-  const columns=await page.locator('#detail-columns').boundingBox();
-  assert(columns&&columns.width>300,'Scan editor should remain visible');
-  await context.close();
-  return {mobile,width,height,noBackend:backend.length,errors:errors.length};
+async function inspect(browser,url,width,height,mobile){
+ const context=await browser.newContext({viewport:{width,height},isMobile:mobile,hasTouch:mobile,deviceScaleFactor:mobile?2:1});
+ const page=await context.newPage(),errors=[],api=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ page.on('request',r=>{if(new URL(r.url()).pathname.startsWith('/api/'))api.push(r.url());});
+ await page.goto(url,{waitUntil:'load'});
+ await page.waitForFunction(()=>window.DKTSFSProDemo?.preview===true,null,{timeout:15000});
+ assert.equal(await page.locator('.page-tree').count(),3);
+ assert.equal(await page.locator('.page-tabs [role="tab"]').count(),7);
+ assert.equal(await page.locator('#x-segments tr').count(),1);
+ assert.equal(await page.locator('#start').isDisabled(),true);
+ assert.equal(await page.locator('#p-fields').isHidden(),true);
+ assert.match(await page.locator('#plan-summary').innerText(),/21 点/);
+ await page.screenshot({path:path.join(shots,mobile?'tablet-fspro-home.png':'desktop-fspro-home.png'),fullPage:true});
+ await page.locator('#p-enabled').check();
+ assert.equal(await page.locator('#p-fields').isVisible(),true);
+ assert.match(await page.locator('#plan-summary').innerText(),/Psweep/);
+ await page.locator('#x-add').click();
+ assert.equal(await page.locator('#x-segments tr').count(),2);
+ await page.locator('#port-gate').selectOption('None');
+ assert.equal(await page.locator('.terminal-row[data-role="gate"]').count(),0,'None ports must hide');
+ assert.match(await page.locator('#plan-summary').innerText(),/未分配|错误/);
+ await page.locator('#port-gate').selectOption('SMU2');
+ await page.locator('[data-section="target"]').click();
+ assert.equal(await page.locator('[data-panel="target"]').isVisible(),true);
+ await page.locator('[data-section="sweep"]').click();
+ assert.equal(await page.locator('[data-panel="sweep"]').isVisible(),true);
+ await page.screenshot({path:path.join(shots,mobile?'tablet-fspro-sweep.png':'desktop-fspro-sweep.png'),fullPage:true});
+ if(mobile){await page.locator('#nav-toggle').click();assert.equal(await page.locator('.shell.nav-open').count(),1);
+   await page.screenshot({path:path.join(shots,'tablet-fspro-navigation.png'),fullPage:true});}
+ assert.deepEqual(errors,[],'Browser errors '+errors.join(' | '));
+ assert.deepEqual(api,[],'Static FS-Pro UI must not call a backend');
+ await context.close();
+ console.log(JSON.stringify({width,height,mobile,errors:errors.length,backendCalls:api.length}));
 }
 async function main(){
-  const chrome=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium'].find(fs.existsSync);
-  assert(chrome,'Chrome is required for real viewport validation');
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-  let browser;
-  try{
-    browser=await chromium.launch({executablePath:chrome,args:['--no-sandbox','--disable-dev-shm-usage']});
-    const url='http://127.0.0.1:'+server.address().port+'/';
-    console.log(JSON.stringify(await open(browser,url,1440,900,false)));
-    console.log(JSON.stringify(await open(browser,url,744,496,true)));
-  }finally{
-    await browser?.close();
-    await new Promise(resolve=>server.close(resolve));
-  }
+ const executable=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium'].find(fs.existsSync);
+ assert.ok(executable,'Chromium missing');
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ let browser;
+ try{
+  browser=await chromium.launch({executablePath:executable,args:['--no-sandbox','--disable-dev-shm-usage']});
+  const url='http://127.0.0.1:'+server.address().port+'/';
+  await inspect(browser,url,1440,900,false);
+  await inspect(browser,url,744,496,true);
+ }finally{await browser?.close();await new Promise(r=>server.close(r));}
 }
-main().catch(error=>{console.error(error.stack||error);process.exitCode=1;});
+main().catch(e=>{console.error(e.stack||e);process.exitCode=1;});

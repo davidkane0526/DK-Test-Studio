@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>DK Test Studio · FS-Pro Workbench Preview</title>
+<link rel="stylesheet" href="./styles.css">
+<script defer src="./vendor/d3.min.js"></script>
+<script defer src="./vendor/dkds/theme-bridge.js"></script>
+<script defer src="./vendor/dkds/style-gate.js"></script>
+<script defer src="./vendor/dkds/native-touch-drag.js"></script>
+<script defer src="./vendor/dkds/chart-export.js"></script>
+<script defer src="./vendor/dkds/display.js"></script>
+<script defer src="./vendor/dkds/heatmap-canvas.js"></script>
+<script defer src="./vendor/dkds/heatmap-selection.js"></script>
+<script defer src="./vendor/dkds/presentation.js"></script>
+<script defer src="./vendor/dkds/d3-renderer.js"></script>
+<script defer src="./vendor/dkds/chart-runtime.js"></script>
+<script defer src="./plan.js"></script>
+<script defer src="./app.js"></script>
+</head>
+<body data-theme="light">
+<header class="appbar">
+  <button class="icon-button mobile-menu" id="nav-toggle" aria-label="打开项目导航" title="项目导航">☰</button>
+  <div class="brand"><span class="dk-mark">DK</span><strong>Test Studio</strong><button id="version" class="version" title="程序版本；网页预览不执行热更新">V0.3.13</button></div>
+  <span class="appbar-separator"></span>
+  <nav class="host-tabs" aria-label="DKDS 工作区入口">
+    <button class="host-tab selected" data-workspace="test">测试工程</button>
+    <button class="host-tab" data-workspace="center">数据中心</button>
+    <button class="host-tab" data-workspace="history">历史</button>
+    <button class="host-tab" data-workspace="communication">通信</button>
+    <button class="host-tab" data-workspace="memory">内存</button>
+    <button class="host-tab" data-workspace="smb">SMB</button>
+    <button class="host-tab" data-workspace="ai">AI</button>
+    <button class="host-tab" data-workspace="web">网页服务</button>
+  </nav>
+  <div class="appbar-right"><span class="offline-chip"><i></i>离线预览</span><button id="theme-toggle" class="icon-button" aria-label="切换主题" title="明暗主题">◐</button></div>
+</header>
+<div class="chrome-row">
+  <div class="toolbar-left"><span class="compact-caption">PROJECT</span><button id="new-routine" class="tool-button" title="新增 Routine">＋ Routine</button><button id="new-page" class="tool-button" title="新增 Page">＋ Page</button></div>
+  <div class="toolbar-right"><span class="breadcrumb" id="breadcrumb">Project / Device / Routine / Page</span><span class="readonly-tag">UI DEMO · NO HARDWARE</span></div>
+</div>
+<div class="shell" id="shell">
+  <aside class="tree-pane" id="tree-pane">
+    <div class="pane-title"><strong>Project Explorer</strong><button class="icon-button" id="collapse-tree" title="关闭项目导航">‹</button></div>
+    <div class="tree-group">
+      <div class="tree-root"><span class="tree-icon">▣</span> Research Project</div>
+      <div class="tree-node tree-device"><span class="tree-guide">└</span><span class="tree-icon">▤</span> Device / MOSFET</div>
+      <div class="tree-node tree-routine"><span class="tree-guide">└</span><span class="tree-icon">▦</span> Routine</div>
+      <div id="routine-list" class="routine-list"></div>
+    </div>
+    <div class="tree-section-title">Test Library</div>
+    <div class="library">
+      <button data-kind="iv">I–V Sweep</button><button data-kind="transfer">Transfer</button>
+      <button data-kind="output">Output</button><button data-kind="it">I–t</button>
+      <button data-kind="pund">PMU / PUND</button><button data-kind="pulse">Pulse</button>
+      <button data-kind="endurance">Endurance</button><button data-kind="retention">Retention</button>
+      <button data-kind="arb">Arbitrary Waveform</button>
+    </div>
+    <div class="tree-foot"><span>已保存：<strong id="saved-state">本会话</strong></span><button id="export-project" class="subtle-button">导出工程 JSON</button></div>
+  </aside>
+  <main class="main-pane">
+    <div class="page-header">
+      <div><div class="eyebrow">EDIT PAGE</div><div class="page-name-line"><h1 id="page-heading">I–V Sweep</h1><span id="kind-tag" class="type-tag">SMU</span></div></div>
+      <div class="page-actions"><button id="validate" class="primary-button">校验规划</button><button id="save" class="secondary-button">保存</button><button class="secondary-button" id="start" disabled title="网页 Demo 禁止仪器输出">▶ 测试</button><button class="secondary-button" disabled>■ 停止</button></div>
+    </div>
+    <div class="terminal-strip" id="terminal-strip">
+      <strong>Terminal</strong>
+      <label>Source<select id="port-source" data-port="source"><option>GNDU</option><option>None</option><option>SMU1</option><option>SMU2</option><option>SMU3</option><option>SMU4</option><option>PMU1-1</option></select></label>
+      <label>Drain<select id="port-drain" data-port="drain"><option>None</option><option>SMU1</option><option>SMU2</option><option>SMU3</option><option>SMU4</option><option>PMU1-1</option></select></label>
+      <label>Gate<select id="port-gate" data-port="gate"><option>None</option><option>SMU1</option><option>SMU2</option><option>SMU3</option><option>SMU4</option><option>PMU1-1</option></select></label>
+      <button id="ports-toggle" class="mini-link" aria-controls="terminal-strip" aria-expanded="true">隐藏</button>
+    </div>
+    <nav class="page-tabs" role="tablist" id="page-tabs" aria-label="Edit Page">
+      <button role="tab" data-section="info" aria-selected="false">Info</button>
+      <button role="tab" data-section="sweep" aria-selected="true">Sweep</button>
+      <button role="tab" data-section="target" aria-selected="false">Target</button>
+      <button role="tab" data-section="strategy" aria-selected="false">Strategy</button>
+      <button role="tab" data-section="limits" aria-selected="false">Limits</button>
+      <button role="tab" data-section="variables" aria-selected="false">Page Var</button>
+      <button role="tab" data-section="spec" aria-selected="false">Associate Spec</button>
+    </nav>
+    <div class="work-split">
+      <section class="editor-pane" id="editor-pane" aria-label="测试参数">
+        <div data-panel="info" hidden>
+          <div class="section-card"><div class="section-head"><h2>Page Information</h2></div><div class="form-grid">
+            <label>Page 名称<input id="page-name" type="text" value="I–V Sweep" maxlength="60"></label>
+            <label>测试类型<select id="test-kind"><option value="iv">I–V Sweep</option><option value="transfer">Transfer</option><option value="output">Output</option><option value="it">I–t</option><option value="pund">PUND</option><option value="pulse">Pulse</option><option value="endurance">Endurance</option><option value="retention">Retention</option><option value="arb">Arbitrary Waveform</option></select></label>
+            <label>循环次数<input id="loops" type="number" min="1" max="10000" value="1"></label>
+            <label>设备名称<input value="MOSFET" aria-label="设备名称" disabled></label>
+            <label class="span-full">备注<textarea id="note" rows="3" placeholder="测试说明"></textarea></label>
+          </div></div>
+        </div>
+        <div data-panel="sweep">
+          <div class="section-card scan-card" id="xsweep-card">
+            <div class="section-head"><div class="section-label"><span class="axis-tag">X</span><h2>Xsweep</h2><span>Inner Sweep</span></div>
+              <div class="inline-controls"><label>扫描端口<select id="x-terminal"><option value="drain">Drain</option><option value="gate">Gate</option><option value="source">Source</option></select></label>
+                <label>重复<input id="x-repeats" type="number" value="1" min="1" max="10000"></label><button id="x-add" class="tiny-button" aria-label="新增 Xsweep 扫描段">＋</button></div>
+            </div>
+            <div class="table-wrap"><table class="compact-table" aria-label="Xsweep segments"><thead><tr><th>#</th><th>Start (V)</th><th>Stop (V)</th><th>Step (V)</th><th>Range (A)</th><th>Speed</th><th></th></tr></thead><tbody id="x-segments"></tbody></table></div>
+          </div>
+          <div class="section-card scan-card" id="psweep-card">
+            <div class="section-head"><div class="section-label"><span class="axis-tag p">P</span><h2>Psweep</h2><span>Outer Sweep</span></div>
+              <div class="inline-controls"><label class="toggle"><input type="checkbox" id="p-enabled"><span>启用</span></label><label>扫描端口<select id="p-terminal"><option value="gate">Gate</option><option value="drain">Drain</option><option value="source">Source</option></select></label>
+                <label>重复<input id="p-repeats" type="number" value="1" min="1" max="10000"></label><button id="p-add" class="tiny-button" aria-label="新增 Psweep 扫描段">＋</button></div>
+            </div>
+            <div class="table-wrap" id="p-fields" hidden><table class="compact-table" aria-label="Psweep segments"><thead><tr><th>#</th><th>Start (V)</th><th>Stop (V)</th><th>Step (V)</th><th>Range (A)</th><th>Speed</th><th></th></tr></thead><tbody id="p-segments"></tbody></table></div>
+            <div class="empty-sweep" id="p-off">固定偏置 · Psweep 未启用</div>
+          </div>
+          <div class="section-card">
+            <div class="section-head"><div class="section-label"><h2>Terminal Settings</h2></div></div>
+            <div id="terminal-settings" class="terminal-settings"></div>
+          </div>
+          <div class="section-card">
+            <div class="section-head"><h2>Fixed Bias</h2></div><div class="form-grid bias-grid" id="fixed-biases"></div>
+          </div>
+        </div>
+        <div data-panel="target" hidden><div class="section-card"><div class="section-head"><h2>Measurement Target</h2><button id="target-add" class="tiny-button">＋ Target</button></div>
+          <div class="table-wrap"><table class="compact-table"><thead><tr><th>名称</th><th>通道</th><th>参数</th><th>测量档位</th><th></th></tr></thead><tbody id="target-rows"></tbody></table></div></div></div>
+        <div data-panel="strategy" hidden><div class="section-card"><div class="section-head"><h2>Measurement Strategy</h2></div>
+          <div class="form-grid"><label>扫描模式<select id="scan-mode"><option value="linear">Linear</option><option value="bidirectional">Forward / Reverse</option><option value="hysteresis">Hysteresis</option></select></label>
+          <label>测试速度<select id="speed-global"><option>Normal</option><option>Fast</option><option>Quiet</option></select></label>
+          <label>点间延迟 (ms)<input type="number" id="point-delay" value="20" min="0"></label><label>扫描循环<input type="number" id="strategy-loops" value="1" min="1" max="10000"></label></div>
+        </div></div>
+        <div data-panel="limits" hidden><div class="section-card"><div class="section-head"><h2>Limits</h2></div>
+          <div class="form-grid"><label>电压软件输入预检上界 (V)<input value="210" disabled></label><label>仪器输出<select disabled><option>未连接，禁止输出</option></select></label></div>
+          <p class="table-note">具体电压、电流、功率与时序限制必须由 4200A 实际安装模块能力数据库验证，网页预览不代表安全执行许可。</p>
+        </div></div>
+        <div data-panel="variables" hidden><div class="section-card"><div class="section-head"><h2>Page Var</h2><button id="var-add" class="tiny-button">＋ Variable</button></div><div class="table-wrap"><table class="compact-table"><thead><tr><th>Name</th><th>Value</th><th>Unit</th><th></th></tr></thead><tbody id="var-rows"></tbody></table></div></div></div>
+        <div data-panel="spec" hidden><div class="section-card"><div class="section-head"><h2>Associate Spec</h2></div><label class="inline-spec"><input type="checkbox" id="associate-spec"> 将当前 Page 关联至器件 Spec</label><p class="table-note">关联关系保存在本地工程草稿中。</p></div></div>
+      </section>
+      <aside class="data-pane" id="data-pane">
+        <div class="data-header"><div class="section-label"><h2>Data / Graph</h2></div>
+          <div class="data-tabs"><button class="active" data-data-view="plan">Plan</button><button data-data-view="graph">Graph</button><button data-data-view="raw">Raw</button></div>
+        </div>
+        <div id="plan-view" class="data-view">
+          <div class="plot-caption">Sweep Program · 仅规划波形</div>
+          <svg id="plan-plot" viewBox="0 0 680 310" role="img" aria-label="规划电压波形"></svg>
+          <div class="plan-count" id="plan-summary">Xsweep: 21 点 · Psweep: Off · 1 Loop</div>
+        </div>
+        <div id="graph-view" class="data-view" hidden>
+          <div class="plot-caption">DKDS Scientific Plot</div><div id="measurement-plot" class="dkds-scientific-chart-host" aria-label="DKDS 实测绘图区域"></div>
+          <div class="empty-chart" id="data-empty">暂无仪器实测数据</div>
+        </div>
+        <div id="raw-view" class="data-view" hidden><div class="raw-placeholder">尚无仪器原始采样数据</div></div>
+        <div class="data-bottom"><strong>Result</strong><div class="run-stats"><div><span>Samples</span><strong>—</strong></div><div><span>Run</span><strong>—</strong></div><div><span>Elapsed</span><strong>—</strong></div></div></div>
+      </aside>
+    </div>
+  </main>
+</div>
+<footer class="statusbar"><div><span class="status-led"></span><span id="status-text">工程就绪 · 网页预览不执行仪器命令</span></div><div class="status-right"><span id="points-summary">21 planned points</span><span class="foot-sep"></span><span>4200A · Offline</span><button id="lang-toggle" title="语言">中 / EN</button></div></footer>
+<dialog id="choose-kind"><div class="dialog-head"><strong>添加测试 Page</strong><button id="choose-close" class="icon-button" aria-label="关闭">×</button></div><div id="choose-grid" class="choose-grid"></div></dialog>
+<dialog id="notice-dialog"><div class="dialog-head"><strong>信息</strong><button id="notice-close" class="icon-button">×</button></div><p id="notice-message"></p><div class="dialog-bottom"><button id="notice-ok" class="primary-button">确定</button></div></dialog>
+</body>
+</html>

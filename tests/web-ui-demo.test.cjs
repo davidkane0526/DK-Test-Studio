@@ -1,51 +1,59 @@
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const {buildWebDemo}=require('../tools/build-web-demo.cjs');
-test('demo builds the actual DKTS web assets with safe relative paths',()=>{
-  const out=buildWebDemo(path.join(root,'dist','web-ui-demo-test'));
-  const html=fs.readFileSync(path.join(out.out,'index.html'),'utf8');
-  assert.match(html,/src="\.\/demo-adapter\.js"/);
-  assert.ok(html.indexOf('src="./demo-adapter.js"')<html.indexOf('src="./app.js"'));
-  assert.match(html,/href="\.\/styles\.css"/);
-  assert.match(html,/UI DEMO · OFFLINE/);
-  for(const file of ['app.js','styles.css','demo-adapter.js','vendor/dkds/chart-runtime.js','vendor/d3.min.js'])
-    assert.ok(fs.existsSync(path.join(out.out,file)),file);
-  assert.doesNotMatch(html,/(?:href|src)="\/(?:app\.js|styles\.css|vendor\/)/);
+const planner=require('../web/fspro-workbench/plan.js');
+function sample(){
+ return {loops:2,terminals:{source:'GNDU',drain:'SMU1',gate:'SMU2'},
+  xSweep:{terminal:'drain',repeats:1,segments:[{startV:0,stopV:2,stepV:.1}]},
+  pSweep:{enabled:true,terminal:'gate',repeats:1,segments:[{startV:0,stopV:1,stepV:1}]}};
+}
+test('Pages publishes FS-Pro Edit Page hierarchy, never rejected legacy cards',()=>{
+ const out=buildWebDemo(path.join(root,'dist','web-ui-demo-test'));
+ const html=fs.readFileSync(path.join(out.out,'index.html'),'utf8');
+ for(const expected of ['Project Explorer','EDIT PAGE','Routine','Xsweep','Psweep',
+   'Terminal Settings','Target','Strategy','Limits','Page Var','Associate Spec','Data / Graph'])
+  assert.ok(html.includes(expected),expected);
+ assert.doesNotMatch(html,/test-type-card|demo-adapter\.js|src="\/app\.js"/);
+ assert.match(html,/src="\.\/plan\.js"/);
+ assert.match(html,/src="\.\/app\.js"/);
+ for(const file of ['app.js','plan.js','styles.css','vendor/dkds/chart-runtime.js','vendor/d3.min.js'])
+   assert.ok(fs.existsSync(path.join(out.out,file)),file);
 });
-test('web demo cannot connect to or start 4200A measurement',async()=>{
-  const source=fs.readFileSync(path.join(root,'web','demo-adapter.js'),'utf8');
-  const document={documentElement:{dataset:{}},getElementById:()=>null};
-  const window={addEventListener(){}};
-  const store=new Map(),sessionStorage={getItem:key=>store.get(key)||null,setItem:(k,v)=>store.set(k,v)};
-  vm.runInNewContext(source,{window,document,sessionStorage,MutationObserver:undefined});
-  assert.equal(window.DKTSWebDemo.hardwareOutput,false);
-  assert.equal((await window.DKTSClient.status()).phase,'disconnected');
-  assert.equal((await window.DKTSClient.post('/api/connect')).phase,'disconnected');
-  assert.equal((await window.DKTSClient.post('/api/measurement/start')).ok,false);
-  assert.equal((await window.DKTSClient.post('/api/measurement/stop')).ok,false);
-  const preview=await window.DKTSClient.post('/api/plan/validate',{
-    kind:'iv',sweepProgram:{loops:1,xSweep:{repeats:2,segments:[{startV:0,stopV:1,stepV:0.1}]},pSweep:{enabled:false}}
-  });
-  assert.equal(preview.plan.totalPoints,22);
-  assert.equal(preview.hardwareVerified,false);
-  const invalid=await window.DKTSClient.post('/api/plan/validate',{
-    kind:'iv',sweepProgram:{loops:1,xSweep:{repeats:1,segments:[{startV:0,stopV:1000,stepV:1}]}}
-  });
-  assert.equal(invalid.ok,false);
-  await window.DKTSClient.post('/api/workspaces',{workspace:{tabs:[]}});
-  assert.equal((await window.DKTSClient.loadWorkspace()).workspace.tabs.length,0);
+test('X inner and P outer loops return planned points and never hardware permission',()=>{
+ const result=planner.calculate(sample());
+ assert.equal(result.xPoints,21);assert.equal(result.pPoints,2);
+ assert.equal(result.totalPoints,84);
+ assert.equal(result.provenance,'planned-only');
+ assert.equal(result.executable,false);assert.equal(result.hardwareVerified,false);
+ assert.deepEqual(Object.keys(result.sample[0]).sort(),['index','pV','xV']);
 });
-
-test('single HTML contains all offline assets with no external script or stylesheet links',()=>{
-  const {buildSingleHtml}=require('../tools/build-web-demo-single-file.cjs');
-  const result=buildSingleHtml(path.join(root,'dist','web-ui-demo-test'),
-    path.join(root,'dist','web-ui-demo-test-single.html'));
-  const html=fs.readFileSync(result.output,'utf8');
-  assert.ok(result.bytes>500000);
-  assert.match(html,/data-src="vendor\/d3\.min\.js"/);
-  assert.match(html,/data-src="demo-adapter\.js"/);
-  assert.match(html,/data-src="app\.js"/);
-  assert.ok(html.indexOf('data-src="demo-adapter.js"')<html.indexOf('data-src="app.js"'));
-  assert.doesNotMatch(html,/(?:src|href)="\.\/(?:app\.js|styles\.css|vendor\/)/);
+test('invalid voltage, conflicting ports and scan direction fail closed',()=>{
+ const tooHigh=sample();tooHigh.xSweep.segments[0].stopV=1000;
+ assert.throws(()=>planner.calculate(tooHigh),/210/);
+ const reused=sample();reused.terminals.gate='SMU1';
+ assert.throws(()=>planner.calculate(reused),/重复分配/);
+ const reversed=sample();reversed.xSweep.segments[0].stepV=-.1;
+ assert.throws(()=>planner.calculate(reversed),/步长不一致/);
+ const same=sample();same.pSweep.terminal='drain';
+ assert.throws(()=>planner.calculate(same),/另一条/);
+});
+test('the web UI contains no instrument transport or writable backend',()=>{
+ const app=fs.readFileSync(path.join(root,'web/fspro-workbench/app.js'),'utf8');
+ assert.doesNotMatch(app,/\/api\/measurement\/start|\/api\/connect|KXCI\s+US|net\.connect|WebSocket|fetch\(/);
+ assert.match(app,/instrumentOutput:false/);
+ assert.match(app,/syntheticRawData:false/);
+});
+test('single HTML bundles the FS-Pro preview and DKDS scientific renderer',()=>{
+ const {buildSingleHtml}=require('../tools/build-web-demo-single-file.cjs');
+ const result=buildSingleHtml(path.join(root,'dist','web-ui-demo-test'),
+  path.join(root,'dist','web-ui-demo-test-single.html'));
+ const html=fs.readFileSync(result.output,'utf8');
+ assert.ok(result.bytes>500000);
+ assert.match(html,/data-src="vendor\/d3\.min\.js"/);
+ assert.match(html,/data-src="plan\.js"/);
+ assert.match(html,/data-src="app\.js"/);
+ assert.ok(html.indexOf('data-src="plan.js"')<html.indexOf('data-src="app.js"'));
+ assert.doesNotMatch(html,/(?:src|href)="\.\/(?:app\.js|styles\.css|vendor\/)/);
+ assert.doesNotMatch(html,/data-src="demo-adapter\.js"/);
 });
