@@ -112,7 +112,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..')}={}){
   "const PREVIEW=/^dkts-preview-v(\\d+\\.\\d+\\.\\d+)-(a\\d+)$/;");
  replaceExact('desktop/native-update.js',
   "const PORTABLE=/^DK-Data-Studio-Portable-(\\d+\\.\\d+\\.\\d+)-(a\\d{4,})-x64\\.exe$/;",
-  "const PORTABLE=/^DK-Test-Studio-Portable-(\\d+\\.\\d+\\.\\d+)-x64\\.exe$/;");
+  "const PORTABLE=/^DKTS-Core-Preview-(\\d+\\.\\d+\\.\\d+)-x64\\.exe$/;");
  // For now, no release asset targets the temporary corepreview native package,
  // so installer signature/package validation must reject stable-app binaries.
  replaceExact('desktop/ui-hot-update.js',
@@ -123,7 +123,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..')}={}){
   'private static final String REPO = "davidkane0526/DK-Test-Studio";');
  replaceExact('mobile/plugins/DkdsAppUpdate.template',
   'private static final String APK_ASSET = "DK-Data-Studio-arm64-v8a-release.apk";',
-  'private static final String APK_ASSET = "DK-Test-Studio-Android-Preview.apk";');
+  'private static final String APK_ASSET = "DKTS-Core-Preview-Android.apk";');
  replaceExact('mobile/plugins/DkdsAppUpdate.template',
   'Pattern.compile("dkds-android-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d{4,})")',
   'Pattern.compile("dkts-preview-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d+)")');
