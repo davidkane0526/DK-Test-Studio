@@ -12,12 +12,19 @@
 - 目前尚未恢复独立版热更新；切勿将离线的 manifest 选择规则称为已上线的更新器。
 
 验证：`node sdk/tools/dkds-plugin.js validate tools/4200a/dkds-native-workspace`。
-打包：`node sdk/tools/dkds-plugin.js package tools/4200a/dkds-native-workspace dist/DKTS-4200A-native-v0.8.0.dkplugin`。
+打包：`node sdk/tools/dkds-plugin.js package tools/4200a/dkds-native-workspace dist/DKTS-4200A-native-v0.8.1.dkplugin`。
 
-## v0.8.0：FS-Pro 风格离线 X/P 双层扫描草稿
+## v0.8.1：FS-Pro 风格离线 X/P 双层扫描草稿
 
 - 独立配置 Xsweep、可选 Psweep、各轴重复次数、整体循环与各段起止/步长/量程/点间延迟。
 - 新项目与既有 schema 1 项目可以迁移至带有 sweep 字段的状态；编辑始终返回新快照。
 - 降序步长、非法数值、过限源量/量程及同一 SMU 重复分配由模型拒绝；总点数仅做离线预览。
 - 仅真实分配的 SMU 端口进入参数编辑器，全部控制使用 DKDS Core 的 Unit / PRIME / TOP / PlotView。
 - 本版本不能将计划解释为经过现场硬件认证的指令，也不会通过插件执行 KXCI 输出。
+
+## v0.8.1：全范围预览与精确 KXCI 规划契约
+
+- 使用覆盖前、中、尾的有界分段列读取，最多读取每列 65,536 条，避免大数据集仅显示开头的误导性曲线。
+- 绘图附有 totalRows、readRows、coverage 和 windows 元数据。预览并不构成原始数据的完整重采样或真实输出。
+- 扫描段端点必须被步长准确覆盖。单点段要求 0 步长，每段最多 4,096 点，延迟 0–6553 ms。
+- 同一个 ID 的 v0.6.18（兼容旧插件）和 v0.8.1（原生 Core 插件）互斥，不可同时安装；旧插件仍承担原有功能，v0.8.1 继续禁止未经实机验收的 KXCI 输出。
