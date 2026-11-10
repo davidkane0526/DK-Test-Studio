@@ -101,7 +101,7 @@
   });
   function renderSweep(parameters,p){
    const sw=p.sweep;
-   const config=units.panel.create(parameters,{variant:'standard',
+   const config=units.panel.create(parameters,{variant:'headed',
      title:'扫描结构',sizing:'content'});
    const top=units.layout.create(config.body,{variant:'identity',
      geometry:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:'8px'}});
@@ -121,14 +121,14 @@
     if(!t)continue; // Never create a parameter editor for a None port.
     const segments=axis==='X'?sw.xSegments:sw.pSegments;
     const repeatKey=axis==='X'?'xRepeats':'pRepeats';
-    const panel=units.panel.create(parameters,{variant:'standard',
+    const panel=units.panel.create(parameters,{variant:'headed',
       title:axis+'sweep · '+t.logical+' / '+t.resource,sizing:'content'});
     const layout=units.layout.create(panel.body,{variant:'identity',
       geometry:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:'8px'}});
     scalarField(layout,'重复次数',sw[repeatKey],v=>changeSweep(repeatKey,v));
     for(const [index,seg] of segments.entries()){
      const group=units.panel.create(panel.body,{
-      variant:'standard',title:'第 '+(index+1)+' 段',sizing:'content'});
+      variant:'headed',title:'第 '+(index+1)+' 段',sizing:'content'});
      const controls=units.layout.create(group.body,{variant:'identity',
       geometry:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(106px,1fr))',gap:'8px'}});
      const unit=t.sourceMode==='current'?'A':'V';
@@ -197,7 +197,7 @@
     message:'未分配端口。None 端口只在「端口映射」面板显示。'
    });
    for(const t of ports){
-    const panel=units.panel.create(parameters,{variant:'standard',title:t.logical+' · '+t.resource,sizing:'content'});
+    const panel=units.panel.create(parameters,{variant:'headed',title:t.logical+' · '+t.resource,sizing:'content'});
     // Single FS-Pro-style row on wide screens; Core grid wraps naturally on tablets.
     const controls=units.layout.create(panel.body,{variant:'identity',geometry:{
      display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(122px,1fr))',gap:'8px'}});

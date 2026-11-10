@@ -46,6 +46,10 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
     };
    })()`,true);
    lastProbe=state;
+   // A failed plugin activation is deterministic; fail fast and report the
+   // actual Core error instead of making developers wait for a generic timeout.
+   if(attempts>=3&&state.manager4200?.status==='error')
+    throw Error('4200A runtime activation rejected: '+state.manager4200.error);
    if(state.readyState!=='complete'||!state.hasCoreShell||
        !state.has4200Workspace||!state.keptDataCenter||
        !state.keptConnectivity||!state.keptTheme||!state.removedAnalysis||
@@ -69,7 +73,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
    console.log('DKTS real Core host boot/screenshot PASS:',JSON.stringify(report));
    complete=true;
    app.exit(0);
-  }catch(error){lastProbeError=String(error?.stack||error);if(attempts>=24)fail(error);}
+  }catch(error){lastProbeError=String(error?.stack||error);if(attempts>=24||lastProbe?.manager4200?.status==='error')fail(error);}
   finally{busy=false;}
  };
  app.whenReady().then(()=>{
