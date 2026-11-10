@@ -120,7 +120,12 @@ jobs:
       - name: Install derived host dependencies
         shell: pwsh
         working-directory: dist/dkts-framework-staging
-        run: npm install --no-audit --no-fund
+        run: |
+          npm install --include=dev --no-audit --no-fund
+          npm ls electron
+          if (-not (Test-Path "node_modules/electron/dist/electron.exe")) {
+            throw "Derived DKTS Core Preview has no Electron runtime after including development dependencies."
+          }
       - name: Generate Core runtime, DKTS-only plugin catalog and brand
         shell: pwsh
         working-directory: dist/dkts-framework-staging
