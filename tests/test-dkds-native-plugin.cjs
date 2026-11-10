@@ -26,7 +26,7 @@ assert.ok(!portPrimeSource.includes("header:{mode:'generate'"),
 assert.ok(/if\(t\.role==='CONDITION'\)numericField\(controls/.test(js),
  'the port row must not duplicate the X/P start-stop-step controls');
 assert.ok(/units\.scientificPlot\.create/.test(js));
-assert.ok(!/units\\.panel\\.create\\([\\s\\S]{0,100}?variant:'standard'/.test(js),
+assert.ok(js.split('units.panel.create(').slice(1).every(x=>!x.slice(0,130).includes("variant:'standard'")),
  'DKDS panel Unit supports headed/plot-card, never the nonexistent standard variant');
 assert.ok(/ctx\.data\.sources\.list/.test(js));
 assert.ok(/model\.curvesFromArtifacts\(rows,ctx\.data\.artifacts\)/.test(js));
