@@ -13,7 +13,8 @@ const sandbox={
 vm.runInNewContext(fs.readFileSync(dir+'/model.js','utf8'),sandbox,{filename:'model.js'});
 vm.runInNewContext(fs.readFileSync(dir+'/plugin.js','utf8'),sandbox,{filename:'plugin.js'});
 assert.equal(definitions.length,1);
-const record={actions:[],fields:[],panels:[],plots:[],plotViews:[],headers:[],popovers:[],closedPads:0,top:null,activity:null,composed:null,disposals:0,captures:0,status:[]};
+const record={actions:[],fields:[],panels:[],plots:[],plotViews:[],headers:[],
+ listItems:[],popovers:[],closedPads:0,top:null,activity:null,composed:null,disposals:0,captures:0,status:[]};
 const el=()=>({children:[],textContent:'',replaceChildren(){this.children=[];}});
 const units={
  pageHeader:{create:()=>({actions:el()})},page:{create:()=>({element:el()})},
@@ -37,6 +38,9 @@ const units={
  action:{create:(host,spec)=>{record.actions.push(spec);host.children.push(spec);return{element:el()}}},
  tabs:{create:(host,spec)=>{record.tabs=record.tabs||[];record.tabs.push(spec);
   host.children.push(spec);return{element:el()}}},
+ list:{create:host=>{const list=el();host.children.push(list);return {
+  item:spec=>{record.listItems.push(spec);list.children.push(spec);return spec;}
+ }}},
  note:{create:(host,spec)=>{const n=el();n.textContent=spec.text;host.children.push(n);return n}},
  emptyState:{create:(host,spec)=>{host.children.push(spec);return{element:el()}}},
  panel:{create:(host,spec)=>{
@@ -157,7 +161,7 @@ const ctx={
  assert.ok(record.captures>=2,'project history captured on mutation');
  // Navigating back must refresh the current Page's port selector, not reuse
  // the previous Page's stale None/SMU assignment.
- const select=[...record.actions].reverse().find(x=>x.id==='open-page-1');
+ const select=[...record.listItems].reverse().find(x=>x.title==='I–V Sweep');
  select.onInvoke();
  assert.equal(state.activeId,'page-1');
  const lastD=[...record.fields].reverse().find(x=>x.spec.label==='D 端口');
@@ -189,7 +193,7 @@ const ctx={
  assert.equal(state.pages.length,2);
  assert.equal(state.pages[1].routineId,state.routines[1].id);
  assert.equal(state.activeRoutineId,state.routines[1].id);
- const oldRoutine=[...record.actions].reverse().find(x=>x.id==='routine-routine-1');
+ const oldRoutine=[...record.listItems].reverse().find(x=>x.title==='Routine 1');
  assert.ok(oldRoutine,'Routine navigation is registered as a host-owned Unit action');
  oldRoutine.onInvoke();
  assert.equal(state.activeId,'page-1');

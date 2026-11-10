@@ -80,3 +80,7 @@
 
 ### 测试约束调整
 - 七标签迁移后的 Terminal Settings 使用一块紧凑 DKDS Panel 管理所有已分配端口，故原 mock 断言单端口独立 Panel（D · SMU1）失效。已将断言调整为真实设计意图；不是隐藏真实错误。仍以后续实机 UI 启动 smoke 为准。
+
+## 2026-11-10 / Core Project Explorer 视觉层级与组件纠正
+- 旧原生项目导航用多层 headed Panel + 独立按钮，截图中出现重复 Routine 标题、拉伸按钮及无意义空边距。替换为 DKDS 原生 List Unit 的 Research Project → Routine → Page、Spec 导航；主操作区域采用 Row-Wrap Unit，当前 Page 的删除动作用统一工具行承载。
+- 仍使用 DKDS Core 的 Theme/Action/List/PlotView 基础，不创建独立网页或手写样式。模拟测试增加原生 list mock 并保留项目选择、关闭和所有权校验。仅修改 DKTS。

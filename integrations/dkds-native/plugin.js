@@ -170,62 +170,45 @@
    const s=state(),p=active();
    const selectedKind=kindField?.control?.value||'iv';
    nav.replaceChildren();
-   // Native DKDS Core Unit widgets own the actual Project/Routine/Page tree.
-   const explorer=units.panel.create(nav,{
-    variant:'headed',title:'Project Explorer / Device / MOSFET',sizing:'content'
-   });
+   // DKDS Core List Unit, not nested headed cards with stretched actions.
+   units.header.create(nav,{kind:'panel',variant:'content',
+    eyebrow:'PROJECT',title:'Research Project',meta:'Device / MOSFET'});
+   const tree=units.list.create(nav,{});
    for(const routine of s.routines){
-    const branch=units.panel.create(explorer.body,{
-     variant:'headed',title:routine.name,sizing:'content'
-    });
-    units.action.create(branch.body,{
-     id:'routine-'+routine.id,label:'▦ '+routine.name,variant:'quiet',
-     onInvoke:()=>persist(model.selectRoutine(state(),routine.id))
-    });
-    const pages=s.pages.filter(page=>page.routineId===routine.id);
-    for(const page of pages){
-     units.action.create(branch.body,{
-      id:'open-'+page.id,label:'  ▧ '+page.name,
-      variant:page.id===s.activeId?'primary':'quiet',
-      onInvoke:()=>persist(model.select(state(),page.id))
-     });
-     if(s.pages.length>1)units.action.create(branch.body,{
-      id:'close-'+page.id,label:'×',variant:'quiet',
-      ariaLabel:'关闭 '+page.name,
-      onInvoke:()=>persist(model.remove(state(),page.id))
-     });
-    }
+    tree.item({leading:'▦',title:routine.name,meta:'Routine',
+     selected:routine.id===s.activeRoutineId,
+     onInvoke:()=>persist(model.selectRoutine(state(),routine.id))});
+    for(const page of s.pages.filter(page=>page.routineId===routine.id))
+     tree.item({leading:'  ▧',title:page.name,meta:page.testType,
+      selected:page.id===s.activeId,
+      onInvoke:()=>persist(model.select(state(),page.id))});
    }
-   const specPanel=units.panel.create(explorer.body,{
-    variant:'headed',title:'Associate Spec',sizing:'content'
-   });
-   for(const spec of s.specs)units.action.create(specPanel.body,{
-    id:'spec-'+spec.id,label:'◇ '+spec.name,
-    variant:spec.id===p.associateSpecId?'primary':'quiet',
-    onInvoke:()=>persist(model.associateSpec(state(),spec.id))
-   });
-   units.action.create(nav,{
-    id:'add-routine',label:'＋ Routine',variant:'quiet',
-    onInvoke:()=>persist(model.addRoutine(state()))
-   });
-   units.action.create(nav,{
-    id:'add-spec',label:'＋ Spec',variant:'quiet',
-    onInvoke:()=>persist(model.addSpec(state()))
-   });
    if(s.specs.length){
-    units.field.create(nav,{
-     kind:'select',label:'Associate Spec',value:p.associateSpecId||'',
-     options:[{value:'',label:'未关联'},
-       ...s.specs.map(spec=>({value:spec.id,label:spec.name}))],
-     onChange:event=>persist(model.associateSpec(state(),event.target.value||null))
-    });
+    units.note.create(nav,{variant:'meta',text:'SPEC'});
+    const specs=units.list.create(nav,{});
+    for(const spec of s.specs)
+     specs.item({leading:'◇',title:spec.name,
+      selected:spec.id===p.associateSpecId,
+      onInvoke:()=>persist(model.associateSpec(state(),spec.id))});
    }
-   kindField=units.field.create(nav,{
-    kind:'select',label:'新增类型',value:selectedKind,
-    options:model.KINDS.map(x=>({value:x.id,label:x.label}))
-   });
-   units.action.create(nav,{id:'add-test',label:'＋ 新增测试',
-    onInvoke:()=>persist(model.add(state(),kindField?.control?.value||'iv'))});
+   const actions=units.layout.create(nav,{variant:'row-wrap'});
+   units.action.create(actions,{id:'add-routine',label:'＋ Routine',
+    variant:'quiet',onInvoke:()=>persist(model.addRoutine(state()))});
+   units.action.create(actions,{id:'add-spec',label:'＋ Spec',
+    variant:'quiet',onInvoke:()=>persist(model.addSpec(state()))});
+   if(s.pages.length>1)
+    units.action.create(actions,{id:'close-'+p.id,label:'× Page',
+     variant:'quiet',onInvoke:()=>persist(model.remove(state(),p.id))});
+   if(s.specs.length)
+    units.field.create(nav,{kind:'select',label:'Associate Spec',
+     value:p.associateSpecId||'',options:[{value:'',label:'None'},
+      ...s.specs.map(spec=>({value:spec.id,label:spec.name}))],
+     onChange:e=>persist(model.associateSpec(state(),e.target.value||null))});
+   kindField=units.field.create(nav,{kind:'select',label:'New Page',
+    value:selectedKind,options:model.KINDS.map(x=>({value:x.id,label:x.label}))});
+   units.action.create(nav,{id:'add-test',label:'＋ Page',
+    variant:'quiet',onInvoke:()=>persist(model.add(state(),
+     kindField?.control?.value||'iv'))});
    if(portFields){
     portFields.replaceChildren();
     for(const term of p.terminals)units.field.create(portFields,{
