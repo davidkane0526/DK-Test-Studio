@@ -83,6 +83,11 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..')}={}){
   "const APP_NAME = 'DK Test Studio Core Preview';");
  replaceExact('desktop/main.js',"const APP_ID = 'com.dk.datastudio';",
   "const APP_ID = 'studio.dk.test.corepreview';");
+ // On first launch, DKTS should open its 4200A testing workspace, not Data
+ // Center. Existing explicit SUPER preferences still override this default.
+ replaceExact('src/core/plugins/kernel/modules/workspace/top.js',
+  "const selected=String(saved||preferredId||defaultSuperCandidate()||'').trim();",
+  "const selected=String(saved||preferredId||'com.dkts.keithley-4200'||defaultSuperCandidate()||'').trim();");
  const hostMain=path.join(tmp,'desktop/main.js');
  fs.appendFileSync(hostMain,"\nif(process.env.DKTS_CORE_BOOT_SMOKE==='1')require('./dkts-core-boot-smoke.cjs')({app,BrowserWindow,APP_ROOT});\n");
  fs.copyFileSync(path.join(dktsRoot,'tools/dkts-core-boot-smoke.cjs'),
