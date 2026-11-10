@@ -68,3 +68,7 @@
 - 根据用户 R-20261110-006，将 Page 基础信息（名称、备注）、Target（通道与测量量）、Page Var（名称/数值/单位）加入 DKTS 唯一项目模型；历史已保存的 Project 自动增加安全默认值，不修改原始快照。
 - 提供经过统一 validate 的 `editPage/editTarget/addVariable/editVariable/removeVariable` API，并增加不可变操作/非法输入/数据迁移回归测试。所有内容仅作为离线测试规划，不发送任何 KXCI 指令。
 - 原生编辑器后续使用 DKDS Core Unit 层调用这些 API，在主工作区展示 Page 分区与字段，不再将重要参数默认隐藏为 PRIME 标签。无 DKDS 修改。
+
+## 2026-11-10 / Core UI 主界面内嵌 FS-Pro 编辑器
+- R-20261110-006：将当前在 PRIME 中默认隐藏的参数编辑器移到 DKDS Core 主工作区，使用正式 `sidebar-main-compact`、`responsive-two-column`、`form-grid-4` 实现项目导航 / 参数编辑 / 科学 Data/Graph；端口选择主屏可见，保留可停靠的 Port PRIME，不复制网页独立运行壳，绝不修改 DKDS。
+- 新增 mock 断言 primary 双列与 Terminal 面板可见。该提交不代表 FS-Pro 全部标签或视觉验收完成，后续以 Electron 实际截图/Android 编译与 Android 真机为准。

@@ -5,7 +5,7 @@
   const model=ctx.modules.require('model'),units=ctx.ui.unitTemplates;
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
-  let wb=null,plot=null,plotView=null,nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null;
+  let wb=null,plot=null,plotView=null,nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null;
   const touchNumeric=Boolean(window.matchMedia?.('(pointer: coarse)')?.matches);
   const state=()=>model.validate(store.get());
   const active=()=>{const s=state();return s.pages.find(x=>x.id===s.activeId);};
@@ -225,6 +225,19 @@
      onChange:event=>change(term.logical,'resource',event.target.value)
     });
    }
+   // Terminal assignment is now part of the visible native Main workspace.
+   if(inlineTerminals){
+    inlineTerminals.replaceChildren();
+    const panel=units.panel.create(inlineTerminals,{
+     variant:'headed',title:'Terminal',sizing:'content'});
+    const form=units.layout.create(panel.body,{variant:'form-grid-4'});
+    for(const term of p.terminals)units.field.create(form,{
+     kind:'select',label:term.logical+' 端口',value:term.resource,
+     options:['None','SMU1','SMU2','SMU3','SMU4','SMU5','SMU6',
+      'SMU7','SMU8'].map(value=>({value,label:value})),
+     onChange:e=>change(term.logical,'resource',e.target.value)
+    });
+   }
    parameters.replaceChildren();
    units.note.create(parameters,{variant:'meta',text:p.name+' · '+p.testType});
    const ports=model.visible(p);
@@ -271,58 +284,52 @@
   const container=units.layout.create(body,{variant:'identity'});
   wb=units.workspace.create(container,{variant:'standard',header:false,
    activity:ACTIVITY,primaryScroll:'safe'});
-  // FS-Pro hierarchy requires a stable Project Explorer on the left and a
-  // scientific Data/Graph workspace on the right. Use only DKDS Core's
-  // canonical responsive layout recipes (no plugin-authored CSS geometry).
+  // Core SDK owns the native Page editor + real PlotView; no iframe or CSS shell.
   const main=units.layout.create(null,{variant:'sidebar-main-compact'});
   nav=units.layout.create(main,{variant:'stack-compact'});
-  const plotArea=units.layout.create(main,{variant:'stack-comfortable'});
-  dataNote=units.note.create(plotArea,{variant:'meta',text:'数据中心：0 组'});
-  const graphic=units.panel.create(plotArea,{variant:'plot-card',header:false,sizing:'content'});
-  const graphicHeader=units.header.create(graphic.element,{
-   kind:'plot',variant:'plot',title:'4200A 电学特性',actionHost:true
-  });
+  const work=units.layout.create(main,{variant:'stack-compact'});
+  const content=units.layout.create(work,{variant:'responsive-two-column'});
+  const editor=units.layout.create(content,{variant:'stack-compact'});
+  const editHeading=units.header.create(editor,{kind:'panel',variant:'content',
+   eyebrow:'EDIT PAGE',title:'测试参数'});
+  units.action.create(editHeading.actions,{id:'run-disabled',label:'▶ 测试',
+   variant:'secondary',enabled:false});
+  inlineTerminals=units.layout.create(editor,{variant:'identity'});
+  parameters=units.layout.create(editor,{variant:'stack-compact'});
+  const plotArea=units.layout.create(content,{variant:'stack-comfortable'});
+  const graphic=units.panel.create(plotArea,{variant:'plot-card',
+   header:false,sizing:'content'});
+  const graphicHeader=units.header.create(graphic.element,{kind:'plot',
+   variant:'plot',title:'Data / Graph',actionHost:true});
   const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
-  // Adopt DKDS PlotView header/actions so title, image export, portable
-  // placement and scientific-toolbar chrome are not reimplemented in DKTS.
   plotView=units.plotView.adopt('dkts-4200a-main-plot',graphic.element,{
-   variant:'complete',title:'4200A 电学特性',
-   plot:plotHost,header:graphicHeader.element,actionsHost:graphicHeader.actions,
+   variant:'complete',title:'Data / Graph',plot:plotHost,
+   header:graphicHeader.element,actionsHost:graphicHeader.actions,
    fileStem:'DKTS_4200A_plot',images:true,copy:false,csv:false,
-   placements:['home','float','global'],stateVersion:'dkts-native-v2'
-  });
-  plot=units.scientificPlot.create(plotHost,{variant:'curve',source:'dkts-native',
-   xTitle:'Voltage / Time',yTitle:'Current (A)',getCurves:curves,getMarkers:()=>[]});
-  const params=units.layout.create(null,{variant:'stack-comfortable'});
-  parameters=units.layout.create(params,{variant:'stack-comfortable'});
-  const ports=units.layout.create(null,{variant:'stack-comfortable'});
+   placements:['home','float','global'],stateVersion:'dkts-native-v3'});
+  plot=units.scientificPlot.create(plotHost,{variant:'curve',
+   source:'dkts-native',xTitle:'Voltage / Time',yTitle:'Current (A)',
+   getCurves:curves,getMarkers:()=>[]});
+  dataNote=units.note.create(plotArea,{variant:'meta',text:'Data Center · 0'});
+  // Keep optional dockable Port PRIME; editing of Page is always visible.
+  const ports=units.layout.create(null,{variant:'stack-compact'});
   portFields=ports;
-  const paramPrime=units.prime.build({id:'parameters',label:'参数',title:'FS-Pro 参数设置',
-   variant:'canonical-header',presentationRole:'data-control',presentationPurpose:'parameters',
-   semanticKind:'panel',placementControl:'host',priority:92,collapsible:true,existingNode:params,
-   defaultPlacement:'right',placements:['inline','right','bottom','float'],
-   stateVersion:'native-dkts-v1'});
   const portPrime=units.prime.build({id:'ports',label:'端口',title:'端口映射',
-   variant:'canonical-header',presentationRole:'inspector',semanticKind:'inspector',
-   placementControl:'surface',chrome:'auto',
-   priority:65,collapsible:true,existingNode:ports,
-   defaultPlacement:'bottom',placements:['inline','right','bottom','float'],
-   stateVersion:'native-dkts-v1'});
-  // DKDS SDK requires surface-controlled inspector chrome. Its Unit builder
-  // currently normalizes generated chrome to boolean true, but the movable
-  // existingNode runtime accepts the literal "auto" (or a custom handle).
-  // Preserve the canonical Core-generated header and its movable controls.
+   variant:'canonical-header',presentationRole:'inspector',
+   semanticKind:'inspector',placementControl:'surface',chrome:'auto',
+   priority:65,collapsible:true,existingNode:ports,defaultPlacement:'bottom',
+   placements:['inline','right','bottom','float'],stateVersion:'native-dkts-v2'});
   portPrime.chrome='auto';
-  wb.compose({primary:{id:'main',label:'数据图',presentationRole:'scientific-primary',
-   scroll:'safe',titlePolicy:'host-only',mainNode:main},
-   primes:[paramPrime,portPrime],subs:[]});
-  ctx.ui.topWorkspace.register({id:ACTIVITY,activity:ACTIVITY,label:'4200A',icon:'▦',
-   layout:{mode:'native',root:{selector:'#'+PAGE+' .dkds-plugin-workspace'},
-    primary:{id:'main',role:'analysis-primary',presentationRole:'scientific-primary',
-     priority:100,collapsible:false},
-    prime:[{id:'parameters',label:'参数',presentationRole:'data-control',
-     presentationPurpose:'parameters',priority:92,collapsible:true},
-     {id:'ports',label:'端口',presentationRole:'inspector',priority:65,collapsible:true}],sub:[]}});
+  wb.compose({primary:{id:'main',label:'测试工程',
+   presentationRole:'scientific-primary',scroll:'safe',
+   titlePolicy:'host-only',mainNode:main},primes:[portPrime],subs:[]});
+  ctx.ui.topWorkspace.register({id:ACTIVITY,activity:ACTIVITY,
+   label:'4200A',icon:'▦',layout:{mode:'native',
+    root:{selector:'#'+PAGE+' .dkds-plugin-workspace'},
+    primary:{id:'main',role:'analysis-primary',
+     presentationRole:'scientific-primary',priority:100,collapsible:false},
+    prime:[{id:'ports',label:'端口',presentationRole:'inspector',
+     priority:65,collapsible:true}],sub:[]}});
   const off=ctx.events?.on?.('data:artifacts-changed',refreshData);
   render();refreshData();
   ctx.status.set('4200A 工作区已加载；原生输出禁用');

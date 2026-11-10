@@ -27,6 +27,7 @@ const units={
    // values are not guaranteed and previously failed real Core activation.
    assert.ok(['identity','form-grid-2','form-grid-4','row-wrap',
      'stack-comfortable','stack-compact','sidebar-main-compact',
+     'responsive-two-column',
      'plot-card-fill','action-grid-4'].includes(spec.variant),
      'Unknown DKDS Unit layout recipe: '+String(spec.variant));
    assert.equal(spec.geometry,undefined,
@@ -93,9 +94,12 @@ const ctx={
   'native DKDS workbench must use host-managed FS-Pro project sidebar');
  assert.ok(record.layouts.includes('stack-compact'),
   'Project Explorer uses compact native DKDS Unit sizing');
- assert.equal(record.top.layout.prime.length,2);
+ assert.equal(record.top.layout.prime.length,1);
  assert.equal(record.composed.primary.titlePolicy,'host-only');
- assert.equal(record.composed.primes.length,2);
+ assert.equal(record.composed.primes.length,1);
+ assert.ok(record.layouts.includes('responsive-two-column'));
+ assert.ok(record.panels.some(x=>x.title==='Terminal'));
+
  assert.equal(record.panels.some(x=>x.title==='D · SMU1'),false,'None port does not render parameter panel');
  assert.equal(record.plots.length,1);
  assert.equal(record.headers.some(x=>x.kind==='plot'&&x.variant==='plot'),true,
