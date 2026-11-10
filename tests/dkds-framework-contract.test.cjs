@@ -37,6 +37,28 @@ function fixture(){
  ];
  for(const [folder,id,pluginType,capabilities=[]] of [...keep,...analysis])
   write('src/plugins/'+folder+'/plugin.json',JSON.stringify({id,pluginType,capabilities}));
+ // Minimal pinned-DKDS compatibility fixtures exercise each derived-host patch.
+ write('desktop/main.js',[
+  "const APP_NAME = 'DK Data Studio';",
+  "const APP_ID = 'com.dk.datastudio';"
+ ].join('\n'));
+ write('desktop/native-update.js',[
+  "const RELEASES='https://api.github.com/repos/davidkane0526/DK-Data-Studio/releases?per_page=100';",
+  'const PREVIEW=/^dkds-windows-v(\\d+\\.\\d+\\.\\d+)-(a\\d{4,})$/;',
+  'const PORTABLE=/^DK-Data-Studio-Portable-(\\d+\\.\\d+\\.\\d+)-(a\\d{4,})-x64\\.exe$/;'
+ ].join('\n'));
+ write('desktop/ui-hot-update.js',"const REPO='davidkane0526/DK-Data-Studio';");
+ write('mobile/plugins/DkdsAppUpdate.template',[
+  'private static final String REPO = "davidkane0526/DK-Data-Studio";',
+  'private static final String APK_ASSET = "DK-Data-Studio-arm64-v8a-release.apk";',
+  'Pattern.compile("dkds-android-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d{4,})")'
+ ].join('\n'));
+ write('mobile/plugins/DkdsUiHotUpdate.template',
+  'private static final String REPO="davidkane0526/DK-Data-Studio";');
+ write('scripts/generate-brand-assets.js','// fixture branding generator');
+ write('src/index.html',
+  '<title>DK Data Studio</title><span class="brand-full">DK Data Studio</span>'+
+  '<span>V3.72.3</span><img src="../assets/dkds-mark.svg">');
  write('src/generated/plugin-index.js','OLD-CATALOG');
  return {top,root,write};
 }
