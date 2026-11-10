@@ -88,3 +88,8 @@
 ## 2026-11-10 / DKDS PlotView 真实截图标题栏顺序修正
 - 在 Windows 真截图 `08c0a294` 中发现“Data / Graph”标题栏显示在空白曲线区域下方，原因是 DKTS 插件把 Core Header 挂到 Panel.element（body 之后），与 Panel.body 内的 PlotHost 形成错误 DOM 顺序。
 - 改为在 Panel.body 内先建立 DKDS Core Plot Header，再放入 PlotHost，仍通过 DKDS `units.plotView.adopt` 共享标题栏/导出/移动功能；此修改只发生在 DKTS 原生插件，不修改 DKDS。需后续真 Electron 截图确认。
+
+## 2026-11-10 / 原生视觉回归闸门：FS-Pro 七标签 + 窄屏截图
+- 原先 Electron smoke 只判断 SUPER 与截图非空，可能让只有项目树和空图的粗糙屏幕错误通过。现增加 `hasNativePageTabs`、`hasTerminalEditor` 真实 DOM 断言，七标签与 Terminal 主屏不在则不能标记成功。
+- 增加 Windows Electron 实际 UI 的 744×600 窄屏捕获 `core-host-narrow.png` 并加入 CI Artifacts，与 1200px 桌面截图并列评审。该截图仅模拟响应式桌面窗口，**不是 Android 实机界面验收**。
+- 所有新测试和布局代码仍只在 DKTS 分支；上游 DKDS 坚持只读固定 SHA。

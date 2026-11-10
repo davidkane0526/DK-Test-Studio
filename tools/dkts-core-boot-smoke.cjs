@@ -38,6 +38,12 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      hasCoreShell:!!document.getElementById('primaryActivityBar'),
      hasStatusBar:!!document.querySelector('[id*="statusBar"],footer,.statusbar'),
      has4200Workspace:ids.includes('com.dkts.keithley-4200'),
+     hasNativePageTabs:[...document.querySelectorAll('[data-dkds-unit-template="tabs-v2"]')]
+      .some(node=>node.textContent.includes('Sweep')&&
+       node.textContent.includes('Target')&&node.textContent.includes('Page Var')),
+     hasTerminalEditor:[...document.querySelectorAll('[data-dkds-unit-template="panel-v2"]')]
+      .some(node=>node.textContent.includes('Terminal'))||
+      document.body.innerText.includes('Terminal'),
      keptDataCenter:ids.includes('builtin.data-center'),
      keptConnectivity:ids.includes('builtin.connectivity-center'),
      keptTheme:ids.some(x=>x.startsWith('com.dkds.theme.')),
@@ -56,7 +62,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        !state.keptConnectivity||!state.keptTheme||!state.removedAnalysis||
        state.brand!=='DK Test Studio'||
        state.selectedSuper!=='com.dkts.keithley-4200'||!state.superAvailable||
-       state.activeActivity!=='dkts-keithley-4200'||state.neutralMainVisible)return;
+       state.activeActivity!=='dkts-keithley-4200'||state.neutralMainVisible||
+       !state.hasNativePageTabs||!state.hasTerminalEditor)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();
@@ -68,7 +75,26 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
    }
    if(unique.size<8)throw Error('Electron app screenshot is blank/flat');
    fs.writeFileSync(path.join(dir,'core-host.png'),img.toPNG());
+   // Secondary responsive proof runs on real Electron renderer, not a static
+   // HTML screenshot. This is not a substitute for Android device testing.
+   const oldMin=win.getMinimumSize(),oldSize=win.getSize();
+   let narrowSize=null;
+   try{
+    win.setMinimumSize(640,400);
+    win.setSize(744,600);
+    await new Promise(resolve=>setTimeout(resolve,450));
+    const narrow=await win.webContents.capturePage();
+    if(narrow.isEmpty())throw Error('Responsive Core screenshot is empty');
+    narrowSize=narrow.getSize();
+    if(narrowSize.width>850||narrowSize.width<630)
+     throw Error('Responsive Core screenshot width out of expected range');
+    fs.writeFileSync(path.join(dir,'core-host-narrow.png'),narrow.toPNG());
+   }finally{
+    win.setSize(...oldSize);
+    win.setMinimumSize(...oldMin);
+   }
    const report={ok:true,kind:'DKTS-derived-real-DKDS-Electron-host',
+    narrowScreenshot:narrowSize,
     ...state,screenSize:size,uniqueSampleColors:unique.size,
     previewOnly:true,hasOutputVerification:false,attempts,elapsedMs:Date.now()-started};
    fs.writeFileSync(path.join(dir,'report.json'),JSON.stringify(report,null,2)+'\n');

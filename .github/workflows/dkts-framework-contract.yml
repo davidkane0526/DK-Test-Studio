@@ -165,6 +165,7 @@ jobs:
           path: |
             dist/core-smoke-evidence/report.json
             dist/core-smoke-evidence/core-host.png
+            dist/core-smoke-evidence/core-host-narrow.png
             dist/dkts-framework-staging/dist/*.exe
           if-no-files-found: error
           retention-days: 15
