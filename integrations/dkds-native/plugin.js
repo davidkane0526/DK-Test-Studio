@@ -137,7 +137,10 @@
     for(const [index,seg] of segments.entries()){
      const group=units.panel.create(panel.body,{
       variant:'headed',title:'第 '+(index+1)+' 段',sizing:'content'});
-     const controls=units.layout.create(group.body,{variant:'form-grid-4'});
+     const controls=units.layout.create(group.body,{variant:'form-grid-4',
+    responsiveGeometry:[{maxWidth:620,geometry:{
+     gridTemplateColumns:'repeat(4,minmax(0,1fr))'}},
+     {maxWidth:520,geometry:{gridTemplateColumns:'repeat(2,minmax(0,1fr))'}}]});
      const unit=t.sourceMode==='current'?'A':'V';
      for(const [key,label] of [['start','起始'],['stop','结束'],['step','步长']]){
       scalarField(controls,label+' ('+unit+')',seg[key],
@@ -358,7 +361,12 @@
   const main=units.layout.create(null,{variant:'sidebar-main-compact'});
   nav=units.layout.create(main,{variant:'stack-compact'});
   const work=units.layout.create(main,{variant:'stack-compact'});
-  const content=units.layout.create(work,{variant:'responsive-two-column'});
+  // Core-accepted geometry widens the parameter editor; a Core-managed
+  // 680px responsive override stacks editor / plot on narrow screens.
+  const content=units.layout.create(work,{variant:'responsive-two-column',
+   geometry:{gridTemplateColumns:'minmax(0,1.25fr) minmax(320px,.75fr)'},
+   responsiveGeometry:[{maxWidth:680,
+    geometry:{gridTemplateColumns:'minmax(0,1fr)'}}]});
   const editor=units.layout.create(content,{variant:'stack-compact'});
   editorHeading=units.layout.create(editor,{variant:'identity'});
   inlineTerminals=units.layout.create(editor,{variant:'identity'});

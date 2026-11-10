@@ -93,3 +93,7 @@
 - 原先 Electron smoke 只判断 SUPER 与截图非空，可能让只有项目树和空图的粗糙屏幕错误通过。现增加 `hasNativePageTabs`、`hasTerminalEditor` 真实 DOM 断言，七标签与 Terminal 主屏不在则不能标记成功。
 - 增加 Windows Electron 实际 UI 的 744×600 窄屏捕获 `core-host-narrow.png` 并加入 CI Artifacts，与 1200px 桌面截图并列评审。该截图仅模拟响应式桌面窗口，**不是 Android 实机界面验收**。
 - 所有新测试和布局代码仍只在 DKTS 分支；上游 DKDS 坚持只读固定 SHA。
+
+## 2026-11-10 / 与网页版尺寸比例一致的原生编辑区
+- 真 Electron 1200px 截图显示编辑区和空数据图被平均分配，前者过窄导致 Xsweep 的起止步长/量程控件频繁折行。改用 DKDS 官方 Layout Unit `responsive-two-column` 和 DKDS 固定 SDK 已注册的 `minmax(0,1.25fr) minmax(320px,.75fr)` 比例，并增加 680px 下自动单列布局。
+- 对扫描段使用 Core `form-grid-4` 的注册响应式几何覆盖：620px 以内优先四列，520px 内自动两列。这些值均在固定上游 `sdk/unit-template-geometry-values.json` 允许列表内，仍由 DKDS Core Layout 统一执行。新 mock 校验只容许这几项已注册值，禁止任意手写 CSS/几何。

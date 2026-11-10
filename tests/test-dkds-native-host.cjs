@@ -31,8 +31,18 @@ const units={
      'responsive-two-column',
      'plot-card-fill','action-grid-4'].includes(spec.variant),
      'Unknown DKDS Unit layout recipe: '+String(spec.variant));
-   assert.equal(spec.geometry,undefined,
+   if(spec.variant==='responsive-two-column'){
+    assert.equal(spec.geometry?.gridTemplateColumns,
+     'minmax(0,1.25fr) minmax(320px,.75fr)');
+    assert.equal(spec.responsiveGeometry?.[0]?.maxWidth,680);
+    assert.equal(spec.responsiveGeometry?.[0]?.geometry?.gridTemplateColumns,
+     'minmax(0,1fr)');
+   }else{
+    assert.equal(spec.geometry,undefined,
      'DKTS native plugin must not introduce unregistered layout geometry');
+    if(spec.responsiveGeometry)
+     assert.deepEqual(spec.responsiveGeometry.map(row=>row.maxWidth),[620,520]);
+   }
    return el();
  }},
  action:{create:(host,spec)=>{record.actions.push(spec);host.children.push(spec);return{element:el()}}},
