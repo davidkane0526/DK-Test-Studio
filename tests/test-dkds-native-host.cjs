@@ -105,6 +105,8 @@ const ctx={
  assert.equal(state.pages.length,2);
  assert.equal(state.pages[1].testType,'Pulse');
  assert.equal(state.activeId,'page-2');
+ assert.ok([...record.actions].reverse().some(x=>x.id==='close-page-2'),
+  'project tabs can be closed');
  assert.ok(record.captures>=2,'project history captured on mutation');
  // Navigating back must refresh the current Page's port selector, not reuse
  // the previous Page's stale None/SMU assignment.
@@ -126,6 +128,12 @@ const ctx={
  };
  press('清除');press('1');press('E');press('±');press('6');press('完成');
  assert.equal(state.pages[0].terminals[0].bias,'1e-6');
+ const close=[...record.actions].reverse().find(x=>x.id==='close-page-2');
+ close.onInvoke();
+ assert.equal(state.pages.length,1);
+ assert.equal(state.activeId,'page-1');
+ assert.equal(state.pages[0].terminals[0].resource,'SMU1',
+  'closing other test preserves active port assignment');
  assert.ok(record.closedPads>=1);
  assert.equal([...record.actions].reverse().find(x=>x.id==='numeric-E').variant,'quiet',
   'touch numeric keys use Core quiet actions and have no plugin-specific click shadow');

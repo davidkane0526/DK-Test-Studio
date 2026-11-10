@@ -12,4 +12,4 @@
 - 目前尚未恢复独立版热更新；切勿将离线的 manifest 选择规则称为已上线的更新器。
 
 验证：`node sdk/tools/dkds-plugin.js validate tools/4200a/dkds-native-workspace`。
-打包：`node sdk/tools/dkds-plugin.js package tools/4200a/dkds-native-workspace dist/DKTS-4200A-native-v0.7.2.dkplugin`。
+打包：`node sdk/tools/dkds-plugin.js package tools/4200a/dkds-native-workspace dist/DKTS-4200A-native-v0.7.3.dkplugin`。

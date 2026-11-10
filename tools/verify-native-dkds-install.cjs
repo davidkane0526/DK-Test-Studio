@@ -10,7 +10,7 @@ const {normalizeExternalPluginWindow}=require(path.join(root,'desktop','plugin-w
 const raw=JSON.parse(fs.readFileSync(path.resolve(pkgFile),'utf8'));
 const pkg=normalizePluginPackage(raw,{allowBuiltinId:false});
 assert.equal(pkg.manifest.id,'com.dkts.keithley-4200','external DKTS plugin identity');
-assert.equal(pkg.manifest.version,'0.7.2');
+assert.equal(pkg.manifest.version,'0.7.3');
 assert.equal(pkg.manifest.apiVersion,'1.19.0');
 assert.equal(pkg.manifest.pluginType,'workbench');
 assert.equal(pkg.manifest.workspace?.role,'top');
@@ -27,4 +27,4 @@ for(const name of ['model.js','plugin.js']){
  assert.equal(typeof win?.packageFiles?.[name],'string','missing packaged '+name);
  assert.ok(win.packageFiles[name].length>500,'truncated '+name);
 }
-console.log('DKDS official host package normalizer and dedicated TOP window accept DKTS v0.7.2');
+console.log('DKDS official host package normalizer and dedicated TOP window accept DKTS v0.7.3');

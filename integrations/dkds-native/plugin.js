@@ -1,6 +1,6 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.7.2","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试"},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]}};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.7.3","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试"},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]}};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),units=ctx.ui.unitTemplates;
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
@@ -26,8 +26,7 @@
   function refreshData(){
    plotCacheKey='';
    const items=sources();
-   if(dataNote)dataNote.textContent='DKDS 数据中心分配：'+items.length+
-    ' 组。图像仅呈现有界预览；原始数据仍由 DKDS 保持。仪器输出禁用。';
+   if(dataNote)dataNote.textContent='数据中心：'+items.length+' 组';
    plot?.requestRender?.('data-artifacts');
   }
   function change(logical,key,value){
@@ -86,18 +85,28 @@
   function render(){
    if(!nav||!parameters)return;
    const s=state(),p=active();
+   const selectedKind=kindField?.control?.value||'iv';
    nav.replaceChildren();
-   for(const page of s.pages)units.action.create(nav,{
-    id:'open-'+page.id,label:page.name,
-    variant:page.id===s.activeId?'primary':'quiet',
-    onInvoke:()=>persist(model.select(state(),page.id))
+   for(const page of s.pages){
+    units.action.create(nav,{
+     id:'open-'+page.id,label:page.name,
+     variant:page.id===s.activeId?'primary':'quiet',
+     onInvoke:()=>persist(model.select(state(),page.id))
+    });
+    if(s.pages.length>1)units.action.create(nav,{
+     id:'close-'+page.id,label:'×',variant:'quiet',
+     ariaLabel:'关闭 '+page.name,
+     onInvoke:()=>persist(model.remove(state(),page.id))
+    });
+   }
+   kindField=units.field.create(nav,{
+    kind:'select',label:'新增类型',value:selectedKind,
+    options:model.KINDS.map(x=>({value:x.id,label:x.label}))
    });
    units.action.create(nav,{id:'add-test',label:'＋ 新增测试',
     onInvoke:()=>persist(model.add(state(),kindField?.control?.value||'iv'))});
    if(portFields){
     portFields.replaceChildren();
-    units.note.create(portFields,{variant:'meta',
-     text:'以下均为离线端口规划。只有仪器完成型号识别及输出安全验收后才允许真实测试。'});
     for(const term of p.terminals)units.field.create(portFields,{
      kind:'select',label:term.logical+' 端口',value:term.resource,
      options:['None','SMU1','SMU2','SMU3','SMU4','SMU5','SMU6','SMU7','SMU8']
@@ -106,8 +115,7 @@
     });
    }
    parameters.replaceChildren();
-   units.note.create(parameters,{variant:'meta',text:p.name+' · '+p.testType+
-    ' · 离线参数模式；设备输出尚未通过安全验收'});
+   units.note.create(parameters,{variant:'meta',text:p.name+' · '+p.testType});
    const ports=model.visible(p);
    if(!ports.length)units.emptyState.create(parameters,{
     message:'未分配端口。None 端口只在「端口映射」面板显示。'
@@ -144,7 +152,7 @@
   const page=ctx.ui.pages.add({id:'dkts-4200a-page',pageId:PAGE,activity:ACTIVITY,
    label:'4200A',title:'',toolbar:false,html:''});
   const header=units.pageHeader.create(page,{variant:'page-owned',activity:ACTIVITY,
-   title:'DK Test Studio · 4200A',subtitle:'DKDS Core 工作区 · 不执行未经验证的仪器输出'});
+   title:'4200A',subtitle:''});
   units.layout.create(header.actions,{tagName:'span',variant:'identity',
    dataset:{dkdsSlot:'workbench-import'}});
   const body=units.page.create(page,{variant:'analysis'}).element;
@@ -154,7 +162,7 @@
   const main=units.layout.create(null,{variant:'stack-comfortable'});
   nav=units.layout.create(main,{variant:'identity',
    geometry:{display:'flex',flexWrap:'wrap',gap:'6px',alignItems:'center'}});
-  dataNote=units.note.create(main,{variant:'meta',text:'从 DKDS 数据中心读取工程数据'});
+  dataNote=units.note.create(main,{variant:'meta',text:'数据中心：0 组'});
   const graphic=units.panel.create(main,{variant:'plot-card',header:false,sizing:'content'});
   const graphicHeader=units.header.create(graphic.element,{
    kind:'plot',variant:'plot',title:'4200A 电学特性',actionHost:true
@@ -171,9 +179,6 @@
   plot=units.scientificPlot.create(plotHost,{variant:'curve',source:'dkts-native',
    xTitle:'Voltage / Time',yTitle:'Current (A)',getCurves:curves,getMarkers:()=>[]});
   const params=units.layout.create(null,{variant:'stack-comfortable'});
-  const picker=units.panel.create(params,{variant:'standard',title:'测试类型',sizing:'content'});
-  kindField=units.field.create(picker.body,{kind:'select',label:'新增类型',value:'iv',
-   options:model.KINDS.map(x=>({value:x.id,label:x.label}))});
   parameters=units.layout.create(params,{variant:'stack-comfortable'});
   const ports=units.layout.create(null,{variant:'stack-comfortable'});
   portFields=ports;

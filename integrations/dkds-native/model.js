@@ -9,7 +9,7 @@
  ]);
  const clone=x=>JSON.parse(JSON.stringify(x));
  const ports=()=>['D','G','S','B'].map((logical,i)=>({
-  logical,resource:'None',sourceMode:'voltage',role:i===1?'X':'CONDITION',
+  logical,resource:'None',sourceMode:'voltage',role:i===0?'X':'CONDITION',
   bias:'0',start:'0',stop:'2',step:'0.1',compliance:'0.01',rangeMode:'auto',rangeValue:'1e-6'
  }));
  const page=(kind='iv',id='page-1')=>{
@@ -26,7 +26,18 @@
    if(!/^page-[1-9]\d*$/.test(p?.id||'')||ids.has(p.id)||!KINDS.some(k=>k.id===p.kind)||
       !Array.isArray(p.terminals)||p.terminals.length!==4)throw Error('Invalid Page');
    ids.add(p.id);
+   const resources=new Set(),roles=new Set(),logicals=new Set();
    for(const t of p.terminals){
+    if(logicals.has(t.logical))throw Error('Duplicate logical terminal: '+t.logical);
+    logicals.add(t.logical);
+    if(t.resource!=='None'){
+     if(resources.has(t.resource))throw Error('Duplicate SMU assignment: '+t.resource);
+     resources.add(t.resource);
+     if(t.role!=='CONDITION'){
+      if(roles.has(t.role))throw Error('Duplicate sweep role: '+t.role);
+      roles.add(t.role);
+     }
+    }
     if(!['D','G','S','B'].includes(t.logical)||!/^None$|^SMU[1-8]$/.test(t.resource)||
        !['voltage','current'].includes(t.sourceMode)||!['CONDITION','X','P'].includes(t.role)||
        !['auto','minimum','fixed'].includes(t.rangeMode)||
@@ -59,6 +70,15 @@
  function add(s,kind){
   s=validate(s);const id='page-'+(s.sequence+1);
   s.sequence++;s.pages.push(page(kind,id));s.activeId=id;return validate(s);
+ }
+ function remove(s,id){
+  s=validate(s);
+  if(s.pages.length===1)throw Error('Cannot remove the last test');
+  const index=s.pages.findIndex(x=>x.id===id);
+  if(index<0)throw Error('Page missing');
+  s.pages.splice(index,1);
+  if(s.activeId===id)s.activeId=s.pages[Math.min(index,s.pages.length-1)].id;
+  return validate(s);
  }
  function select(s,id){
   s=validate(s);if(!s.pages.some(x=>x.id===id))throw Error('Page missing');
@@ -138,6 +158,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,initial,validate,add,select,edit,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,initial,validate,add,remove,select,edit,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api);
 })();
