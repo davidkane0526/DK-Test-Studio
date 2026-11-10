@@ -119,7 +119,9 @@
  }));
  const page=(kind='iv',id='page-1',routineId='routine-1')=>{
   const type=KINDS.find(x=>x.id===kind);if(!type)throw Error('Unknown test type');
-  return {id,routineId,kind,name:type.label,testType:type.testType,terminals:ports(),sweep:defaultSweep()};
+  return {id,routineId,kind,name:type.label,testType:type.testType,note:'',
+   terminals:ports(),sweep:defaultSweep(),
+   target:{logical:'D',quantity:'Current'},variables:[]};
  };
  const initial=()=>({schema:1,sequence:1,activeId:'page-1',
   activeRoutineId:'routine-1',routines:[{id:'routine-1',name:'Routine 1'}],
@@ -159,6 +161,25 @@
    if(!/^page-[1-9]\d*$/.test(p?.id||'')||ids.has(p.id)||!KINDS.some(k=>k.id===p.kind)||
       !Array.isArray(p.terminals)||p.terminals.length!==4)throw Error('Invalid Page');
    ids.add(p.id);
+   if(typeof p.name!=='string'||!p.name.trim()||p.name.length>64)
+    throw Error('Invalid Page name');
+   if(p.note===undefined)p.note='';
+   if(typeof p.note!=='string'||p.note.length>512)throw Error('Invalid Page note');
+   // UI planning metadata is never a hardware execution permission.
+   if(!p.target)p.target={logical:'D',quantity:'Current'};
+   if(!['D','G','S','B'].includes(p.target.logical)||
+      !['Current','Voltage'].includes(p.target.quantity))throw Error('Invalid Target plan');
+   if(!Array.isArray(p.variables))p.variables=[];
+   if(p.variables.length>32)throw Error('Too many Page variables');
+   const variableNames=new Set();
+   for(const variable of p.variables){
+    if(!/^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(variable?.name||'')||
+       variableNames.has(variable.name))throw Error('Invalid or duplicate Page variable name');
+    variableNames.add(variable.name);
+    numeric(variable.value,'Page variable');
+    if(typeof variable.unit!=='string'||variable.unit.length>12)
+     throw Error('Invalid Page variable unit');
+   }
    const resources=new Set(),roles=new Set(),logicals=new Set();
    for(const t of p.terminals){
     if(logicals.has(t.logical))throw Error('Duplicate logical terminal: '+t.logical);
@@ -253,6 +274,49 @@
  function select(s,id){
   s=validate(s);if(!s.pages.some(x=>x.id===id))throw Error('Page missing');
   s.activeId=id;s.activeRoutineId=s.pages.find(p=>p.id===id).routineId;return s;
+ }
+ function editPage(s,changes){
+  s=validate(s);
+  if(!changes||typeof changes!=='object'||
+     Object.keys(changes).some(k=>!['name','note'].includes(k)))
+   throw Error('Invalid Page metadata change');
+  Object.assign(s.pages.find(p=>p.id===s.activeId),changes);
+  return validate(s);
+ }
+ function editTarget(s,changes){
+  s=validate(s);
+  if(!changes||typeof changes!=='object'||
+     Object.keys(changes).some(k=>!['logical','quantity'].includes(k)))
+   throw Error('Invalid Target change');
+  Object.assign(s.pages.find(p=>p.id===s.activeId).target,changes);
+  return validate(s);
+ }
+ function addVariable(s){
+  s=validate(s);
+  const vars=s.pages.find(p=>p.id===s.activeId).variables;
+  if(vars.length>=32)throw Error('Maximum 32 Page variables');
+  let index=vars.length+1;
+  while(vars.some(row=>row.name==='var'+index))index++;
+  vars.push({name:'var'+index,value:'0',unit:'V'});
+  return validate(s);
+ }
+ function editVariable(s,index,changes){
+  s=validate(s);
+  if(!Number.isInteger(index)||!changes||typeof changes!=='object'||
+     Object.keys(changes).some(k=>!['name','value','unit'].includes(k)))
+   throw Error('Invalid Page variable change');
+  const vars=s.pages.find(p=>p.id===s.activeId).variables;
+  if(index<0||index>=vars.length)throw Error('Page variable missing');
+  Object.assign(vars[index],changes);
+  return validate(s);
+ }
+ function removeVariable(s,index){
+  s=validate(s);
+  const vars=s.pages.find(p=>p.id===s.activeId).variables;
+  if(!Number.isInteger(index)||index<0||index>=vars.length)
+   throw Error('Page variable missing');
+  vars.splice(index,1);
+  return validate(s);
  }
  function edit(s,logical,values){
   s=validate(s);
@@ -405,6 +469,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,initial,validate,add,addRoutine,selectRoutine,addSpec,associateSpec,remove,select,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,initial,validate,add,addRoutine,selectRoutine,addSpec,associateSpec,remove,select,editPage,editTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

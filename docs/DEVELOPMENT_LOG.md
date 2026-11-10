@@ -63,3 +63,8 @@
 ## 2026-11-10 / 实机截图复核：FS-Pro 树与图布局改善
 - 修复默认 SUPER 后的 [真实 Windows Core 截图](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/42804640677) 显示 4200A 工作区确实可进入，但 Project Explorer 和新建操作仍是横向拉伸的大块按钮，不符合用户明确要求的 FS-Pro 层级。
 - 仅在 DKTS 原生插件中把 primary 内容改用 DKDS Core SDK 的 `sidebar-main-compact` 栅格，在左侧放 `stack-compact` 工程树，右侧放继承 DKDS PlotView 的 Data/Graph 内容。不增加手写 CSS 或重复框架。新增 Mock 布局断言并继续以真实 Electron 截图验证，不能预先宣称达到像素级一致。
+
+## 2026-11-10 / FS-Pro 原生 Page 编辑器业务数据与旧项目兼容
+- 根据用户 R-20261110-006，将 Page 基础信息（名称、备注）、Target（通道与测量量）、Page Var（名称/数值/单位）加入 DKTS 唯一项目模型；历史已保存的 Project 自动增加安全默认值，不修改原始快照。
+- 提供经过统一 validate 的 `editPage/editTarget/addVariable/editVariable/removeVariable` API，并增加不可变操作/非法输入/数据迁移回归测试。所有内容仅作为离线测试规划，不发送任何 KXCI 指令。
+- 原生编辑器后续使用 DKDS Core Unit 层调用这些 API，在主工作区展示 Page 分区与字段，不再将重要参数默认隐藏为 PRIME 标签。无 DKDS 修改。

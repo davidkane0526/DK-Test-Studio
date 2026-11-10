@@ -64,6 +64,26 @@ assert.equal(oldSingle.pages[0].sweep.xSegments[1].step,'0.1',
 assert.equal(orig.pages[0].terminals[0].role,'X','drain is default Xsweep');
 assert.equal(orig.pages[0].terminals[1].role,'CONDITION','gate is fixed unless Psweep is selected');
 assert.equal(api.visible(orig.pages[0]).length,0,'None terminals never appear in parameter editor');
+// Native FS-Pro Page tabs store real validated project data.
+const renamed=api.editPage(orig,{name:'Neuromorphic I–V',note:'Sweep protocol'});
+assert.equal(renamed.pages[0].name,'Neuromorphic I–V');
+assert.equal(orig.pages[0].name,'I–V Sweep','metadata edit is immutable');
+assert.throws(()=>api.editPage(orig,{name:''}),/Invalid Page name/);
+assert.throws(()=>api.editPage(orig,{name:'x'.repeat(65)}),/Invalid Page name/);
+const target=api.editTarget(orig,{logical:'G',quantity:'Voltage'});
+assert.equal(target.pages[0].target.logical,'G');
+assert.throws(()=>api.editTarget(orig,{quantity:'Invented'}),/Invalid Target plan/);
+const variable=api.addVariable(orig);
+assert.equal(variable.pages[0].variables[0].name,'var1');
+const variableEdited=api.editVariable(variable,0,{name:'threshold',value:'1e-3',unit:'V'});
+assert.equal(variableEdited.pages[0].variables[0].value,'1e-3');
+assert.throws(()=>api.editVariable(variable,0,{value:'1000x'}),/Invalid numeric input/);
+assert.throws(()=>api.editVariable(variable,0,{name:'1invalid'}),/Invalid or duplicate/);
+assert.equal(api.removeVariable(variableEdited,0).pages[0].variables.length,0);
+const legacyMetadata=api.initial();
+delete legacyMetadata.pages[0].target;delete legacyMetadata.pages[0].variables;
+assert.equal(api.validate(legacyMetadata).pages[0].target.logical,'D');
+assert.deepEqual(Array.from(api.validate(legacyMetadata).pages[0].variables),[]);
 const generated=api.add(orig,'pulse');
 assert.equal(generated.pages.length,2);
 assert.equal(generated.pages[1].testType,'Pulse');
