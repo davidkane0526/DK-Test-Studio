@@ -39,6 +39,17 @@ const legacy=api.initial();
 delete legacy.pages[0].sweep;
 assert.equal(api.validate(legacy).pages[0].sweep.xSegments.length,1,'migrate v0.7 project snapshots');
 assert.equal(legacy.pages[0].sweep,undefined,'migration does not mutate stored input');
+const oldSingle=api.initial();
+oldSingle.pages[0].sweep.xSegments.push({
+ start:'2',stop:'2',step:'0.1',delayMs:'20',range:'auto'
+});
+delete oldSingle.pages[0].sweep.contractVersion;
+const migrated=api.validate(oldSingle);
+assert.equal(migrated.pages[0].sweep.contractVersion,2);
+assert.equal(migrated.pages[0].sweep.xSegments[1].step,'0',
+ 'legacy appended one-point scan is normalized exactly once');
+assert.equal(oldSingle.pages[0].sweep.xSegments[1].step,'0.1',
+ 'migration must not modify the source snapshot');
 assert.equal(orig.pages[0].terminals[0].role,'X','drain is default Xsweep');
 assert.equal(orig.pages[0].terminals[1].role,'CONDITION','gate is fixed unless Psweep is selected');
 assert.equal(api.visible(orig.pages[0]).length,0,'None terminals never appear in parameter editor');
