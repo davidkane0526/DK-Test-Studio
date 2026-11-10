@@ -1608,6 +1608,7 @@ const portUi=(()=>{
       select.value=chosen&&workspaceStore.listTerminalProfiles().includes(chosen)?chosen:'';
     }finally{settingUp=false;}
     syncCurrentRangeMenus();
+    updateFixedRoles();
   }
   function onTerminalChange(event){
     if(settingUp)return;
@@ -1871,10 +1872,14 @@ const portUi=(()=>{
   function updateFixedRoles(){
     const active=new Set([axisFields.x.terminal.value]);
     if($('psweep-enabled').checked)active.add(axisFields.p.terminal.value);
+    const config=workspaceStore.getTerminalConfig();
     for(const role of ROLES){
-      $('fixed-'+role).disabled=active.has(role);
-      $('fixed-'+role).closest('label').title=active.has(role)?
-        '该端口由 Xsweep/Psweep 直接控制':'固定偏置电压';
+      const input=$('fixed-'+role),label=input.closest('label');
+      const unassigned=['None','GNDU'].includes(config[role]);
+      label.hidden=unassigned;
+      input.disabled=unassigned||active.has(role);
+      label.title=unassigned?'未分配端口不显示固定偏置参数':
+        active.has(role)?'该端口由 Xsweep/Psweep 直接控制':'固定偏置电压';
     }
     for(const role of ROLES){
       const row=scan.querySelector('.sweep-terminal-row[data-role="'+role+'"]');

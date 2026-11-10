@@ -1,6 +1,6 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.7.3","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试"},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]}};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.0","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试"},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]}};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),units=ctx.ui.unitTemplates;
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
@@ -29,15 +29,24 @@
    if(dataNote)dataNote.textContent='数据中心：'+items.length+' 组';
    plot?.requestRender?.('data-artifacts');
   }
-  function change(logical,key,value){
-   try{persist(model.edit(state(),logical,{[key]:value}));}
+  function commitTransaction(fn){
+   try{persist(fn());}
    catch(error){ctx.status.set('参数无效：'+String(error.message||error));render();}
   }
-  function openNumericPad(input,logical,key){
+  function change(logical,key,value){
+   commitTransaction(()=>model.edit(state(),logical,{[key]:value}));
+  }
+  function changeSweep(key,value){
+   commitTransaction(()=>model.editSweep(state(),{[key]:value}));
+  }
+  function changeSegment(axis,index,key,value){
+   commitTransaction(()=>model.editSegment(state(),axis,index,{[key]:value}));
+  }
+  function openNumericPad(input,title,commit){
    if(!touchNumeric||!input)return;
    pad?.close?.();pad=null;
    const pop=units.popover.create(null,{
-    variant:'picker',title:logical+' · '+key,role:'dialog',
+    variant:'picker',title,role:'dialog',
     ariaLabel:'科学计数法数字键盘',anchor:input,placement:'bottom-start',
     dismissOnOutside:true,offset:4,
     onClose:()=>{if(pad===pop)pad=null;}
@@ -52,7 +61,7 @@
     units.action.create(keys,{id:'numeric-'+label,label,variant:'quiet',
      onInvoke:()=>{
       if(label==='完成'){
-       if(buffer)change(logical,key,buffer);
+       if(buffer)commit(buffer);
        pop.close();if(pad===pop)pad=null;
        return;
       }
@@ -75,12 +84,79 @@
     });
    }
   }
-  function numericField(host,logical,key,label,value,disabled=false){
+  function scalarField(host,label,value,commit,disabled=false){
    return units.field.create(host,{kind:'input',label,value,
     inputMode:touchNumeric?'none':'decimal',disabled,
-    onFocus:event=>openNumericPad(event.target,logical,key),
-    onChange:event=>change(logical,key,event.target.value)
+    onFocus:event=>openNumericPad(event.target,label,commit),
+    onChange:event=>commit(event.target.value)
    });
+  }
+  function numericField(host,logical,key,label,value,disabled=false){
+   return scalarField(host,label,value,v=>change(logical,key,v),disabled);
+  }
+  const axisRanges=Object.freeze({
+   voltage:['1e-12','1e-11','1e-10','1e-9','1e-8','1e-7','1e-6',
+     '1e-5','1e-4','1e-3','1e-2','1e-1','1e0'],
+   current:['0.2','2','20','200']
+  });
+  function renderSweep(parameters,p){
+   const sw=p.sweep;
+   const config=units.panel.create(parameters,{variant:'standard',
+     title:'扫描结构',sizing:'content'});
+   const top=units.layout.create(config.body,{variant:'identity',
+     geometry:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:'8px'}});
+   scalarField(top,'整体循环',sw.loops,v=>changeSweep('loops',v));
+   units.field.create(top,{kind:'select',label:'Psweep',value:String(sw.pEnabled),
+    options:[{value:'false',label:'关闭'},{value:'true',label:'启用'}],
+    onChange:event=>changeSweep('pEnabled',event.target.value==='true')});
+   const preview=model.summary(p);
+   units.note.create(config.body,{variant:'meta',text:preview.ready?
+    '离线扫描规划：Xsweep '+preview.xPoints+' 点 × '+preview.xRepeats+
+      ' 次'+(sw.pEnabled?' × Psweep '+preview.pPoints+' 点 × '+preview.pRepeats+' 次':'')+
+      ' × '+preview.loops+' 轮 = '+preview.total+' 点。未输出至仪器。':
+    preview.reason+'。未输出至仪器。'});
+   for(const axis of ['X','P']){
+    if(axis==='P'&&!sw.pEnabled)continue;
+    const t=p.terminals.find(t=>t.resource!=='None'&&t.role===axis);
+    if(!t)continue; // Never create a parameter editor for a None port.
+    const segments=axis==='X'?sw.xSegments:sw.pSegments;
+    const repeatKey=axis==='X'?'xRepeats':'pRepeats';
+    const panel=units.panel.create(parameters,{variant:'standard',
+      title:axis+'sweep · '+t.logical+' / '+t.resource,sizing:'content'});
+    const layout=units.layout.create(panel.body,{variant:'identity',
+      geometry:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:'8px'}});
+    scalarField(layout,'重复次数',sw[repeatKey],v=>changeSweep(repeatKey,v));
+    for(const [index,seg] of segments.entries()){
+     const group=units.panel.create(panel.body,{
+      variant:'standard',title:'第 '+(index+1)+' 段',sizing:'content'});
+     const controls=units.layout.create(group.body,{variant:'identity',
+      geometry:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(106px,1fr))',gap:'8px'}});
+     const unit=t.sourceMode==='current'?'A':'V';
+     for(const [key,label] of [['start','起始'],['stop','结束'],['step','步长']]){
+      scalarField(controls,label+' ('+unit+')',seg[key],
+       v=>changeSegment(axis,index,key,v));
+     }
+     const rangeOptions=[{value:'auto',label:'Auto'},
+      ...axisRanges[t.sourceMode].map(value=>({value,label:value}))];
+     if(seg.range!=='auto'&&!rangeOptions.some(row=>row.value===seg.range)){
+      rangeOptions.push({value:seg.range,label:seg.range});
+     }
+     units.field.create(controls,{kind:'select',
+      label:t.sourceMode==='current'?'电压档位 (V)':'电流档位 (A)',
+      value:seg.range,options:rangeOptions,
+      onChange:e=>changeSegment(axis,index,'range',e.target.value)});
+     scalarField(controls,'点间延迟 (ms)',seg.delayMs,
+      v=>changeSegment(axis,index,'delayMs',v));
+     if(segments.length>1)units.action.create(controls,{
+      id:'remove-'+axis+'-'+index,label:'删除本段',variant:'quiet',
+      onInvoke:()=>commitTransaction(()=>model.removeSegment(state(),axis,index))
+     });
+    }
+    units.action.create(panel.body,{
+     id:'add-segment-'+axis,label:'＋ 添加扫描段',variant:'quiet',
+     onInvoke:()=>commitTransaction(()=>model.addSegment(state(),axis))
+    });
+   }
   }
   function render(){
    if(!nav||!parameters)return;
@@ -145,6 +221,9 @@
     numericField(row2,t.logical,'compliance',
      t.sourceMode==='voltage'?'限流 (A)':'限压 (V)',t.compliance);
    }
+   if(['iv','transfer'].includes(p.kind))renderSweep(parameters,p);
+   else units.note.create(parameters,{variant:'meta',
+    text:'该测试类型目前只提供离线参数草稿，尚未实现仪器执行。'});
   }
   ctx.ui.activities.add({id:ACTIVITY,label:'4200A',contextLabel:'DK Test Studio',icon:'▦',
    order:82,primary:true,openMode:'window',artifactHydration:'live',

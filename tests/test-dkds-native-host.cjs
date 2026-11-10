@@ -98,6 +98,20 @@ const ctx={
  map.spec.onChange({target:{value:'SMU1'}});
  assert.equal(state.pages[0].terminals[0].resource,'SMU1');
  assert.ok(record.panels.some(x=>x.title==='D · SMU1'));
+ assert.ok(record.panels.some(x=>x.title==='Xsweep · D / SMU1'),
+  'assigned X port has its own Core-rendered scan segments');
+ const addSegment=[...record.actions].reverse().find(x=>x.id==='add-segment-X');
+ assert.ok(addSegment,'each assigned sweep has add-segment action');
+ addSegment.onInvoke();
+ assert.equal(state.pages[0].sweep.xSegments.length,2);
+ const removeSegment=[...record.actions].reverse().find(x=>x.id==='remove-X-1');
+ assert.ok(removeSegment);
+ removeSegment.onInvoke();
+ assert.equal(state.pages[0].sweep.xSegments.length,1);
+ const scalar=[...record.fields].reverse().find(x=>x.spec.label==='整体循环');
+ assert.ok(scalar,'global cycles are editable in Core inspector');
+ scalar.spec.onChange({target:{value:'2'}});
+ assert.equal(state.pages[0].sweep.loops,'2');
  const choice=[...record.fields].reverse().find(x=>x.spec.label==='新增类型');
  choice.control.value='pulse';
  const add=[...record.actions].reverse().find(x=>x.id==='add-test');
