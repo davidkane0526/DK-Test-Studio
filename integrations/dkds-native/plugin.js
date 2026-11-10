@@ -271,10 +271,14 @@
   const container=units.layout.create(body,{variant:'identity'});
   wb=units.workspace.create(container,{variant:'standard',header:false,
    activity:ACTIVITY,primaryScroll:'safe'});
-  const main=units.layout.create(null,{variant:'stack-comfortable'});
-  nav=units.layout.create(main,{variant:'row-wrap'});
-  dataNote=units.note.create(main,{variant:'meta',text:'数据中心：0 组'});
-  const graphic=units.panel.create(main,{variant:'plot-card',header:false,sizing:'content'});
+  // FS-Pro hierarchy requires a stable Project Explorer on the left and a
+  // scientific Data/Graph workspace on the right. Use only DKDS Core's
+  // canonical responsive layout recipes (no plugin-authored CSS geometry).
+  const main=units.layout.create(null,{variant:'sidebar-main-compact'});
+  nav=units.layout.create(main,{variant:'stack-compact'});
+  const plotArea=units.layout.create(main,{variant:'stack-comfortable'});
+  dataNote=units.note.create(plotArea,{variant:'meta',text:'数据中心：0 组'});
+  const graphic=units.panel.create(plotArea,{variant:'plot-card',header:false,sizing:'content'});
   const graphicHeader=units.header.create(graphic.element,{
    kind:'plot',variant:'plot',title:'4200A 电学特性',actionHost:true
   });

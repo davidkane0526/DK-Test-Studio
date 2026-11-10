@@ -22,10 +22,12 @@ const units={
  popover:{create:(host,spec)=>{record.popovers.push(spec);return {
   body:el(),close:()=>{record.closedPads++;}}}},
  layout:{create:(host,spec)=>{
+   record.layouts=(record.layouts||[]);record.layouts.push(spec.variant);
    // The pinned SDK allows canonical layout recipes; arbitrary geometry
    // values are not guaranteed and previously failed real Core activation.
    assert.ok(['identity','form-grid-2','form-grid-4','row-wrap',
-     'stack-comfortable','plot-card-fill','action-grid-4'].includes(spec.variant),
+     'stack-comfortable','stack-compact','sidebar-main-compact',
+     'plot-card-fill','action-grid-4'].includes(spec.variant),
      'Unknown DKDS Unit layout recipe: '+String(spec.variant));
    assert.equal(spec.geometry,undefined,
      'DKTS native plugin must not introduce unregistered layout geometry');
@@ -87,6 +89,10 @@ const ctx={
 (async()=>{
  const instance=await definitions[0].activate(ctx);
  assert.equal(record.top.activity,'dkts-keithley-4200');
+ assert.ok(record.layouts.includes('sidebar-main-compact'),
+  'native DKDS workbench must use host-managed FS-Pro project sidebar');
+ assert.ok(record.layouts.includes('stack-compact'),
+  'Project Explorer uses compact native DKDS Unit sizing');
  assert.equal(record.top.layout.prime.length,2);
  assert.equal(record.composed.primary.titlePolicy,'host-only');
  assert.equal(record.composed.primes.length,2);

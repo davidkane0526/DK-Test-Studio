@@ -59,3 +59,7 @@
 - 检查成功构建 #42801595891 的真实 1200×760 Electron 截图，画面显示“尚未指定 / 当前主界面不可用”，尽管 4200A 插件状态为 active、SUPER identity 正确。早期 smoke 只检查加载状态和非空截图，没有检查当前真实 Activity，因此通过得过早。
 - 根因：固定 SHA 的 DKDS `package-runtime.js` 通过 manifest `workspace.defaultSuper===true` 决定启动关键插件，而 DKTS 原生插件未声明该字段。即使派生文件里注入 fallback SUPER ID，插件可被延期加载，宿主启动选择时仍可能显示中性页面。故只在 **DKTS 自己的原生插件 manifest** 及内嵌 manifest 中设置 `workspace.defaultSuper:true`，保证首次启动进入关键加载序列。未修改 DKDS。
 - 加强真 Electron smoke：必须确认 `activeActivity==='dkts-keithley-4200'`，而且中性主界面不可见，否则不再把构建判为成功。下一轮完整 Windows/Android 预览结果以 CI 为准。
+
+## 2026-11-10 / 实机截图复核：FS-Pro 树与图布局改善
+- 修复默认 SUPER 后的 [真实 Windows Core 截图](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/42804640677) 显示 4200A 工作区确实可进入，但 Project Explorer 和新建操作仍是横向拉伸的大块按钮，不符合用户明确要求的 FS-Pro 层级。
+- 仅在 DKTS 原生插件中把 primary 内容改用 DKDS Core SDK 的 `sidebar-main-compact` 栅格，在左侧放 `stack-compact` 工程树，右侧放继承 DKDS PlotView 的 Data/Graph 内容。不增加手写 CSS 或重复框架。新增 Mock 布局断言并继续以真实 Electron 截图验证，不能预先宣称达到像素级一致。
