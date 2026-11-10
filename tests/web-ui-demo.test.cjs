@@ -36,3 +36,16 @@ test('web demo cannot connect to or start 4200A measurement',async()=>{
   await window.DKTSClient.post('/api/workspaces',{workspace:{tabs:[]}});
   assert.equal((await window.DKTSClient.loadWorkspace()).workspace.tabs.length,0);
 });
+
+test('single HTML contains all offline assets with no external script or stylesheet links',()=>{
+  const {buildSingleHtml}=require('../tools/build-web-demo-single-file.cjs');
+  const result=buildSingleHtml(path.join(root,'dist','web-ui-demo-test'),
+    path.join(root,'dist','web-ui-demo-test-single.html'));
+  const html=fs.readFileSync(result.output,'utf8');
+  assert.ok(result.bytes>500000);
+  assert.match(html,/data-src="vendor\/d3\.min\.js"/);
+  assert.match(html,/data-src="demo-adapter\.js"/);
+  assert.match(html,/data-src="app\.js"/);
+  assert.ok(html.indexOf('data-src="demo-adapter.js"')<html.indexOf('data-src="app.js"'));
+  assert.doesNotMatch(html,/(?:src|href)="\.\/(?:app\.js|styles\.css|vendor\/)/);
+});
