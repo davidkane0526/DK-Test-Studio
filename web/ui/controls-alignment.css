@@ -187,7 +187,7 @@ body.dkts-android-shell .sweep-axis-heading>.sweep-add-row{min-height:44px;heigh
   .sweep-terminal-row{
     display:grid;grid-template-columns:90px repeat(4,minmax(0,1fr));
     gap:7px;align-items:end;padding:6px 8px;
-    border:1px solid #e1e7f0;border-radius:8px
+    border:1px solid var(--dkui-divider);border-radius:8px
   }
   .sweep-terminal-row>strong{
     grid-column:auto;align-self:center;padding:0;
@@ -214,4 +214,32 @@ body.dkts-android-shell .sweep-axis-heading>.sweep-add-row{min-height:44px;heigh
 }
 @media(min-width:981px) and (max-width:1099px){
   .detail-columns{grid-template-columns:minmax(0,1fr)}
+}
+
+/* a121: None/GNDU ports must never consume parameter rows on mobile or desktop. */
+.sweep-terminal-row[data-assigned="false"],
+.sweep-fixed-voltages>label[hidden]{display:none!important}
+.sweep-fixed-voltages{
+  grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
+}
+.sweep-terminal-row{
+  background:var(--dkui-surface);
+  border-color:var(--dkui-divider);
+  box-shadow:none;
+}
+/* Match DKDS quiet actions: no press-induced elevation, preserve focus rings. */
+:where(.test-type-card,.workspace-tab,.measure-button,.small-action,
+       .sweep-add-row,.dkts-select-trigger):active{
+  box-shadow:none!important;
+  transform:none!important;
+}
+@media(max-width:659px){
+  .sweep-terminal-settings{gap:6px}
+  .sweep-terminal-row{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:7px;
+    padding:8px;
+  }
+  .sweep-terminal-row>strong{grid-column:1/-1}
+  .sweep-fixed-voltages{grid-template-columns:repeat(2,minmax(0,1fr))}
 }

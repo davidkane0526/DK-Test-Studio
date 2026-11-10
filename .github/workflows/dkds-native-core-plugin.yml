@@ -1,0 +1,90 @@
+name: DKTS Core-native DKDS Plugin
+on:
+  push:
+    branches: [feat/dkds-native-core-workbench]
+    paths:
+      - 'integrations/dkds-native/**'
+      - 'tools/build-dkds-native-plugin.cjs'
+      - 'tests/test-dkds-native-*.cjs'
+      - 'tools/verify-native-dkds-install.cjs'
+      - '.github/workflows/dkds-native-core-plugin.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dkts-native-plugin:
+    name: Validate against actual DKDS SDK 1.19 and build plugin from DKTS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check domain invariants and DKDS-host behavior contract
+        run: |
+          node --check integrations/dkds-native/plugin.js
+          node --check integrations/dkds-native/model.js
+          node tests/test-dkds-native-plugin.cjs
+          node tests/test-dkds-native-host.cjs
+      - name: Obtain pinned official DKDS SDK (not instrument code)
+        uses: actions/checkout@v4
+        with:
+          repository: davidkane0526/DK-Data-Studio
+          ref: 5424cdbec972d5e7d7c6f206695a40258326df56
+          path: dkds-sdk
+          persist-credentials: false
+      - name: Validate against DKDS official Plugin API 1.19 SDK
+        run: node dkds-sdk/sdk/tools/dkds-plugin.js validate integrations/dkds-native
+      - name: Build package using DKTS-owned generation
+        run: node tools/build-dkds-native-plugin.cjs
+      - name: Repackage and verify using official DKDS SDK
+        run: |
+          node dkds-sdk/sdk/tools/dkds-plugin.js package integrations/dkds-native dist/DKTS-4200A-native-v0.8.0.dkplugin
+          node - <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict');
+          const p=JSON.parse(fs.readFileSync('dist/DKTS-4200A-native-v0.8.0.dkplugin','utf8'));
+          assert.equal(p.schema,1);
+          assert.equal(p.manifest.id,'com.dkts.keithley-4200');
+          assert.equal(p.manifest.version,'0.8.0');
+          assert.equal(p.manifest.apiVersion,'1.19.0');
+          assert.equal(p.manifest.workspace.role,'top');
+          assert.equal(typeof p.files['model.js'],'string');
+          assert.equal(typeof p.files['plugin.js'],'string');
+          assert.ok(!p.manifest.styles?.length,'no private theme overrides');
+          console.log('Validated DKTS-owned native plugin package with DKDS SDK 1.19');
+          NODE
+      - name: Check actual DKDS desktop plugin installer and TOP window parser
+        run: node tools/verify-native-dkds-install.cjs dkds-sdk dist/DKTS-4200A-native-v0.8.0.dkplugin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-4200A-DKDS-native-v0.8.0
+          path: dist/DKTS-4200A-native-v0.8.0.dkplugin
+          if-no-files-found: error
+  publish-preview:
+    name: Publish validated native-plugin preview
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/dkds-native-core-workbench'
+    needs: dkts-native-plugin
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: DKTS-4200A-DKDS-native-v0.8.0
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dkts-native-plugin-v0.8.0-preview
+          target_commitish: ${{ github.sha }}
+          name: DK Test Studio 4200A native DKDS plugin v0.8.0 (preview)
+          prerelease: true
+          make_latest: false
+          generate_release_notes: false
+          body: |
+            External DKDS Plugin API 1.19 TOP workspace; owned and built by DK Test Studio.
+            Uses Core UI, theme, scientific chart and Data Center bounded Artifact reading.
+            Real Keithley source output remains disabled. This is a preview, not the standalone APK updater.
+          files: artifacts/DKTS-4200A-native-v0.8.0.dkplugin
+          fail_on_unmatched_files: true

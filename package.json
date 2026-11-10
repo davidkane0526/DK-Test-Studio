@@ -14,7 +14,8 @@
     "icons:build": "node tools/generate-app-icons.cjs",
     "prepare:plot-vendor": "node tools/prepare-dkds-plot-vendor.cjs",
     "hardware:export": "node tools/export-hardware-capabilities.cjs",
-    "build:ui": "node tools/build-ui-system.cjs"
+    "build:ui": "node tools/build-ui-system.cjs",
+    "plugin:native": "node tools/build-dkds-native-plugin.cjs"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -53,6 +53,9 @@ test('assigned-port rendering avoids three redundant disabled configuration grid
  const css=read('web/ui/controls-alignment.css');
  assert.match(app,/row\.dataset\.assigned=unavailable\?'false':'true'/);
  assert.match(css,/\.sweep-terminal-row\[data-assigned="false"\]\{display:none\}/);
+ assert.match(css,/\.sweep-fixed-voltages>label\[hidden\]\{display:none!important\}/);
+ assert.match(app,/label\.hidden=unassigned/);
+ assert.match(app,/input\.disabled=unassigned\|\|active\.has\(role\)/);
  assert.match(css,/\.sweep-axis-heading\{\s*display:grid/);
  assert.match(css,/grid-template-columns:minmax\(510px,540px\) minmax\(0,1fr\)/);
  const visual=read('tools/ui-visual-smoke.cjs');

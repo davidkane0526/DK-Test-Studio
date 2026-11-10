@@ -20,7 +20,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install scientific plot dependencies
+      - name: Install scientific plot dependencies (no unused Electron binary)
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: npm install --no-audit --no-fund
       - name: Validate portable updater PowerShell syntax
         if: runner.os == 'Windows'
