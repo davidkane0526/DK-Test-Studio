@@ -15,7 +15,7 @@
   step:mode==='current'?'0.001':'0.1',delayMs:'20',range:'auto'
  });
  const defaultSweep=()=>({
-  loops:'1',xRepeats:'1',pRepeats:'1',pEnabled:false,
+  contractVersion:2,loops:'1',xRepeats:'1',pRepeats:'1',pEnabled:false,
   xSegments:[segment()],pSegments:[segment('voltage','P')]
  });
  const sweepKeys=Object.freeze(['loops','xRepeats','pRepeats','pEnabled']);
@@ -51,8 +51,19 @@
  }
  function validateSweep(p){
   const defaults=defaultSweep();
+  const legacy=!p.sweep||p.sweep.contractVersion===undefined;
   p.sweep={...defaults,...(p.sweep||{})};
   const sw=p.sweep;
+  if(sw.contractVersion!==2)throw Error('Unsupported sweep contract version');
+  if(legacy){
+   // v0.8.0 created a one-point append with a nonzero default step.
+   // Normalize only snapshots without an explicit contract version.
+   for(const key of ['xSegments','pSegments'])
+    if(Array.isArray(sw[key]))for(const row of sw[key]){
+     if(row&&Number.isFinite(Number(row.start))&&
+         Number(row.start)===Number(row.stop))row.step='0';
+    }
+  }
   for(const key of ['loops','xRepeats','pRepeats'])positiveInt(sw[key],10000,key);
   if(typeof sw.pEnabled!=='boolean')throw Error('Invalid Psweep enable state');
   for(const axis of ['X','P']){
