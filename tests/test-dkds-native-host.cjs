@@ -41,7 +41,7 @@ const units={
     assert.equal(spec.geometry,undefined,
      'DKTS native plugin must not introduce unregistered layout geometry');
     if(spec.responsiveGeometry)
-     assert.deepEqual(spec.responsiveGeometry.map(row=>row.maxWidth),[620,520]);
+     assert.deepEqual(Array.from(spec.responsiveGeometry,row=>Number(row.maxWidth)),[620,520]);
    }
    return el();
  }},
