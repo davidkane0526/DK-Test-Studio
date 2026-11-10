@@ -45,3 +45,9 @@
 
 **验收与治理**：此句含对 DKDS 写保护的再次明确确认，属于非单纯“继续”的要求。无论开发何种 DKTS UI、Core 派生宿主、GitHub Actions、Windows/Android 安装包，都不得修改 `davidkane0526/DK-Data-Studio` 的源码、提交、分支、插件、更新源及 Releases。只可在 DKTS 仓库创建派生复制、对只读上游执行检查，并在 DKTS 自己的暂存目录构建。任何 DKDS 直接写入必须另获用户明确授权。“继续”本身永不授权对 DKDS 的修改。
 
+
+## 2026-11-10 原话 [R-20261110-006]
+> 继续吧 当前移动和桌面端UI太粗糙了，甚至比不上网页端
+
+**验收**：以已通过网页截图评审的 FS-PRO 工作区为最低视觉与交互基线，重点完善 Windows 与 Android 的真正 DKDS Core 宿主，而非重复构造离线页面。首次进入 4200A 即可看到结构清晰的 Project / Device / Routine / Page 导航、展开可编辑的 Sweep/Terminal/Target/Strategy/Limit 等 Page 参数、与 DKDS Scientific Plot 并列的数据区；统一控件间距/尺寸/标题层级，适配 1200px 桌面与约 744px 平板，不能将重要参数默认藏在 PRIME 标签下。必须使用 DKDS 正式 Unit SDK 组件与主题/数据契约，不添加独立假宿主，不改 DKDS 上游。真实 Electron 截图和 Android 产物通过 CI 验证，明确区分 UI 验收、模拟测试和物理硬件验证。
+
