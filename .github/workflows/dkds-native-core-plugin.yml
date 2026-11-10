@@ -63,8 +63,8 @@ jobs:
           path: dist/DKTS-4200A-native-v0.8.1.dkplugin
           if-no-files-found: error
   publish-preview:
-    name: Publish validated native-plugin preview
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Publish optional external-plugin preview on explicit dispatch
+    if: github.event_name == 'workflow_dispatch'
     needs: dkts-native-plugin
     runs-on: ubuntu-latest
     permissions:

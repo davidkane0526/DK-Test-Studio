@@ -1,28 +1,32 @@
-# 开发路线与验收边界
+# DKTS 2026-11-10 起的执行路线（最新）
 
-## 定位
-DK Test Studio 是独立科研测试控制系统，不复制 DK Data Studio 的全部框架，也不主张卸载 4200A 的原厂驱动、KXCI 或其他必需组件。Clarius 和 KXCI 的运行互斥约束必须遵守。
+**唯一业务仓库 DK Test Studio。DKDS 只读框架来源，不允许顺手修改 DKDS 代码。**
 
-## 已进入代码库（第一阶段）
-- KXCI 只读 KI4200A 身份识别与模块识别。`*OPT?` 直接报告 SMU 中/高功率、PA、PMU/RPM 等类别；固定调用 SystemUtil `instrumentinfo`/`remotemoduleinfo` 补充物理型号、序列号和附件信息。Android 原生桥接严格限制为身份、模块查询及恢复模式所需的精确命令字节。
-- Windows/Node 原生 TCP 连接，多网卡自动选择、手动网卡/本地 IP、超时与故障关闭。
-- Windows Electron 桌面壳；本地 127.0.0.1 Web UI；自动连接与单按钮断开。
-- 两个主要卡片、折叠诊断、不持久保存连接参数、无需手动触发 TCP 与身份识别两步。
-- 用户输入时间-电压数据点，验证时序及规划范围，生成非仪器原始的波形方案预览。
-- Node.js 模拟仪器/HTTP 接口测试。构建成功不意味着真实设备已经通过验证。
+## P0 — 需求、归属、版本修正（进行中）
+- [x] 明确 DKDS 只允许通用通信、UI 热更、本地完整包更新，不再开发 4200A 测量业务。
+- [x] 关闭 DKDS 的 4200A FS-Pro 开发 PR，不合并到 DKDS。
+- [x] 在 DKTS GitHub 创建需求台账、开发日志、AGENTS.md，未来每次非“继续”用户要求必须记录。
+- [x] DKTS 正式 Release 不再双发相同插件 ID 的 legacy/native .dkplugin；实验插件独立。
+- [ ] 清理确认属于此项目的多余 DKDS 历史分支；已关闭 PR，但删除 GitHub 分支的操作当前不可用，不能假装已完成。
+- [ ] 检查用户已安装 DKDS 的旧 4200 插件是内置、历史缓存还是手动安装，并根据实际来源清理。
 
-## 下一阶段：必须按顺序完成
-1. 在真实 KI4200A 的 KXCI 服务上测试以太网和 Wi-Fi，验证断线、连接复用、超时、输入变更。
-2. 已建立共享硬件能力数据库和输入安全策略；下一步在真实 4200A 上验收 `*OPT?`、`instrumentinfo`、`remotemoduleinfo` 的返回格式及模块关联，逐项核对数据库额定值。
-3. 引入可审计的实验执行状态机，输出开启前对电压、限流、接线与通道互斥进行校验；故障/停止/断连必须明确关闭输出。
-4. 优先实现 SMU I–V、I–t、双向扫描和循环；然后转移/输出特性、多 SMU 协同。
-5. 实现 PMU/PUND/脉冲与时间-电压任意波形的真实命令编译和采样。时间分辨率必须基于装机模块与手册核实，不能用 GUI 插值代替硬件采集。
-6. Endurance/Retention、断点追踪、实验日志与可恢复存储。
-7. 仪器返回原始字节与原生文件按字节保存；仪器原生图片须另行验证可用的文件访问方法。软件重绘曲线不得冒充仪器图。
-8. 独立 Android 原生网络适配、可选无 Root USB Ethernet、平板 LAN 网关以及 Windows 经平板中继；多客户端必须有独占控制和认证机制。
+## P1 — DKDS 框架成为 DKTS 真正的单一宿主
+- [x] 只读上游检查、按 manifest 保留全部非分析插件并临时排除分析插件、独立 DKTS 源码暂存流程。
+- [ ] 实际从 DKDS Core 构建 **DKTS 品牌** Windows Portable 和 Android APK，继承官方组件、主题、数据中心、图表、内存、SMB、AI、历史、网页服务。
+- [ ] 将更新源改为 DKTS Release，修复 V/a、Windows 本地全量替换、Android 本地 APK 安装与 UI 热更；测试 403/504/签名兼容/回滚。
+- [ ] 对用户设备进行真正的 Windows/Android 视觉验证，逐项保留 DKDS 控件交互。
 
-## 安全边界
-本阶段**禁止**发送任何执行输出的真实仪器指令。只允许固定的 `*IDN?`、`*OPT?`、`UL`、两条 SystemUtil 模块元数据查询、`GN result` 和恢复模式的 `DE`，不开放任意 KXCI 指令。波形规划范围不是任一 SMU/PMU 的额定值、默认测试电压或使用许可。
+## P2 — FS-Pro 界面与同一套业务状态
+- [ ] Project → Device → Routine → Page/Spec；Edit Page: Info/tools、Sweep/Target/Strategy、Limits/Page Var/Associate Spec。
+- [ ] Xsweep/Psweep 多段表、各轴循环、各端口独立量程/限流/时间设置；不重复编辑同一参数。
+- [ ] 项目导航增选测试；窗口关闭/Tab 恢复与参数面板开闭独立；None 端口不占参数空间；无点击阴影/默认锁定。
+- [ ] DKDS PlotView/Unit/科学键盘/Theme/数据中心的完整继承与移动端手势验证。
 
-## 来源
-通信与解析迁移自 davidkane0526/DK-Data-Studio 的 4200 分支，迁移基线 6a2596dd1840cd8607c58d2c401ad66119bf975e。
+## P3 — 4200A 原生测量与原始数据
+- [ ] 按最新 KXCI Rev. F 正文及实机校核能力数据库和模块清单，遵守硬件理论能力且同时按接口限制报告兼容性。
+- [ ] 原生 SMU/PMU/CVU 的起停、断线、限流/量程、安全关闭、禁止同时执行两个测试。
+- [ ] 真实仪器原始数据/原生文件与绘图分离；不得将软件重绘图称为仪器原生图片。
+- [ ] Ethernet/Wi-Fi、Android USB LAN、Windows 和平板 LAN 网关按目标机验证。
+
+## 通过条件
+只有 P1/P2/P3 各自证据充分时才可宣称完成。每轮提交必须附日志、截图/测试、GitHub SHA 和实际发布资产；流程失败记录不能删。

@@ -1,17 +1,16 @@
-# DK Test Studio version identity
+# DKTS 单一发行路线（2026-11-10 起）
 
-DKTS uses two independent identifiers for every development commit.
+## 命名
+- 发行应用版本：`Vx.y.z`。来源为 DKTS `package.json`，用于 Windows/Android 的主版本。
+- 本次构建/热更号：`aNNN`。同一次 main 提交的 UI 包和完整安装包使用相同 `Vx.y.z aNNN` 与 Git SHA。
+- DKDS 上游版本（例如 3.72.3）仅是 **只读框架依赖版本**，绝不作为 DKTS UI、APK、EXE 版本。
+- 历史外部插件内部版本（例如 0.8.1）只标识 Plugin API 兼容预览，不能称为 DKTS 应用版本，不能自动覆盖主程序。
 
-- **Program version `Vx.y.z`** is the complete downloadable package version. It is the Android `versionName` and the Electron package version. A UI-only hot update never changes it. Increment it, and Android `versionCode`, only when a new full-package version is intentionally released.
-- **UI hot-update ID `aN`** is assigned from the `Fast UI Hot Update` GitHub Actions `run_number`. It advances for each UI development run and is independent of the program version.
-
-For a given successful main-branch development run, both Actions workflows and both Releases must use the same pair, for example `V0.3.12 a1234`:
-
-1. `Fast UI Hot Update` builds and publishes the UI bundle under a title containing `V0.3.12 a1234`.
-2. `Native Shell Windows Android and DKDS Release` is triggered by `workflow_run`. It reuses the upstream run number and commit SHA, then publishes the complete Windows Portable, Android APK, DKDS plugin, UI bundle, and exportable 4200A hardware capability database under the same `V0.3.12 a1234` identity.
-3. The installed application checks and installs **only** the `aN` UI hot update. It never presents a full-package upgrade prompt.
-4. The full package remains available for manual download from GitHub Releases.
-
-The UI bundle stores the full commit SHA for ancestry and rollback protection, `uiVersion` for the visible short hot-update ID, and `packageVersion` for the complete package identity. The app's header shows `Vx.y.z`; the `aN` identifier appears only inside the normally hidden update panel.
-
-When bumping the complete program version, update `package.json`, Android `versionName` and `versionCode`, and the workflow `run-name` labels together. For UI-only commits, leave all three package-version fields unchanged.
+## 交付逻辑
+- **UI 可热更新**：只替换允许的 index.html/app.js/styles.css，保持 V 不变，更新 aNNN；不要求用户下载完整包。
+- **原生宿主/驱动变更**：发布具有相同 V/a 的完整 Windows Portable 和 Android APK；检查兼容后在应用内的更新面板走本地完整安装。不能用 UI 热更假装修改了原生二进制。
+- 每次 main 成功提交仍应发布完整的 DKTS 包，供需要重装者下载；不强制 UI 热更用户升级完整包。
+- 标题只显示 V；aNNN 仅在版本/更新面板显示。Release/Actions 展示完整 V+a。
+- **正式 DKTS 发布资产**：Windows Portable EXE、Android APK、UI bundle、可导出的硬件能力数据库。旧 DKDS `.dkplugin` 与实验性 Core-native `.dkplugin` 不再作为正式 DKTS Release 附件，也不放入 DKDS 内置目录。
+- 仍需完成 DKDS-host 的 DKTS 更新服务器来源与 full installer 适配才可发新架构安装包，不能把临时 staging 视作已交付。
+- 已发布的 a121/a122 历史 Release 保留用于对照，不追改删除和掩盖其历史双插件问题。
