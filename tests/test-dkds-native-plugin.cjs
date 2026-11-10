@@ -191,6 +191,7 @@ assert.equal(typedCurve.source.readRows,48,
  'Data Center may provide typed numeric column slices');
 assert.ok(longCurve.points.length<=256,'display budget respected');
 assert.ok(sampleCalls.every(c=>c.limit<=65536));
-assert.equal(sampleCalls.filter(c=>c.key==='xx').reduce((n,c)=>n+c.limit,0),4096);
+assert.equal(sampleCalls.filter(c=>c.key==='xx').reduce((n,c)=>n+c.limit,0),4096+48,
+ 'separate 4096-row preview and 48-row TypedArray smoke each honor their budget');
 assert.match(preview.label,/preview 4\/8/);
 console.log('DKTS Core-native plugin: manifest, 5 types, project state, None/SMU mapping, range guards PASS');
