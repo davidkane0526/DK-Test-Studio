@@ -58,13 +58,22 @@ jobs:
       - name: Validate DKDS Plugin API 1.19
         run: node compat/dkds/sdk/tools/dkds-plugin.js validate dist/dkds-plugin
       - name: Package DKDS plugin without rebuilding DK Data Studio
-        run: node compat/dkds/sdk/tools/dkds-plugin.js package dist/dkds-plugin dist/DK-Test-Studio-4200.dkplugin
+        run: node compat/dkds/sdk/tools/dkds-plugin.js package dist/dkds-plugin dist/DKTS-4200A-legacy-v0.6.18.dkplugin
+      - name: Build and validate the DKDS Core-native plugin
+        run: |
+          node tests/test-dkds-native-plugin.cjs
+          node tests/test-dkds-native-host.cjs
+          node compat/dkds/sdk/tools/dkds-plugin.js validate integrations/dkds-native
+          node tools/build-dkds-native-plugin.cjs
+          node compat/dkds/sdk/tools/dkds-plugin.js package integrations/dkds-native dist/DKTS-4200A-native-v0.8.1.dkplugin
+          node tools/verify-native-dkds-install.cjs compat/dkds dist/DKTS-4200A-native-v0.8.1.dkplugin
       - uses: actions/upload-artifact@v4
         with:
           name: DKTS-Fast-UI-Update-${{ steps.identity.outputs.package_version }}-${{ steps.identity.outputs.hotfix_id }}
           path: |
             dist/DKTS-UI-bundle.json
-            dist/DK-Test-Studio-4200.dkplugin
+            dist/DKTS-4200A-legacy-v0.6.18.dkplugin
+            dist/DKTS-4200A-native-v0.8.1.dkplugin
           if-no-files-found: error
       - name: Publish V${{ steps.identity.outputs.package_version }} ${{ steps.identity.outputs.hotfix_id }} UI Hot Update
         if: github.ref == 'refs/heads/main'
@@ -84,8 +93,8 @@ jobs:
           UI hot-update ID: $HOTFIX_ID
           Commit: $GITHUB_SHA
 
-          This Release contains the UI-only hot-update bundle and DKDS plugin. The UI hot update does not replace the native Android bridge or the standalone desktop server. This commit changes both native paths, so Windows and Android users need the matching full V$PACKAGE_VERSION $HOTFIX_ID package to activate the complete hardware-specific validation. DKDS users can install the updated external plugin through DKDS Plugin Manager. Installed DKTS applications still do not prompt for a full-package upgrade; the complete package is available as a separate GitHub Release."
-          files=(dist/DKTS-UI-bundle.json dist/DK-Test-Studio-4200.dkplugin)
+          This Release contains a UI-only hot-update bundle and TWO MUTUALLY EXCLUSIVE DKDS plugin alternatives with the SAME plugin ID: DKTS-4200A-native-v0.8.1.dkplugin (DKDS Core-native layout, offline-only KXCI), and DKTS-4200A-legacy-v0.6.18.dkplugin (older full shared-standalone interface). Never install both; installing the legacy alternative replaces the native plugin. For an Android/Windows native-runtime change download the full package separately. UI-only updates preserve V$PACKAGE_VERSION and advance only $HOTFIX_ID."
+          files=(dist/DKTS-UI-bundle.json dist/DKTS-4200A-legacy-v0.6.18.dkplugin dist/DKTS-4200A-native-v0.8.1.dkplugin)
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes "$notes"
@@ -95,7 +104,7 @@ jobs:
               --prerelease --latest=false
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > published.txt
-          printf '%s\n' DK-Test-Studio-4200.dkplugin DKTS-UI-bundle.json | sort > expected.txt
+          printf '%s\n' DKTS-4200A-legacy-v0.6.18.dkplugin DKTS-4200A-native-v0.8.1.dkplugin DKTS-UI-bundle.json | sort > expected.txt
           diff -u expected.txt published.txt
           url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
           echo "UI hot update published: $url"

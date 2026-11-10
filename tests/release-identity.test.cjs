@@ -69,6 +69,6 @@ test('Windows desktop releases build and publish only the Portable executable',(
   assert.match(workflow,/Build Windows Portable/);
   assert.match(workflow,/electron-builder --win portable/);
   assert.match(workflow,/release\/windows -name '\*Portable\*\.exe'/);
-  assert.match(workflow,/release -type f \| wc -l\)" -eq 5/);
+  assert.match(workflow,/release -type f \| wc -l\)" -eq 6/);
   assert.doesNotMatch(workflow,/Setup.*\.exe|--win nsis/);
 });

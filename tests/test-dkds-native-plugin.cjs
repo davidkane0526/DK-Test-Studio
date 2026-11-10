@@ -4,7 +4,7 @@ const root=require('node:path').resolve(__dirname,'../integrations/dkds-native')
 const manifest=JSON.parse(fs.readFileSync(root+'/plugin.json','utf8'));
 const js=fs.readFileSync(root+'/plugin.js','utf8'),model=fs.readFileSync(root+'/model.js','utf8');
 assert.equal(manifest.id,'com.dkts.keithley-4200');
-assert.equal(manifest.version,'0.8.0');
+assert.equal(manifest.version,'0.8.1');
 assert.equal(manifest.apiVersion,'1.19.0');
 assert.equal(manifest.pluginType,'workbench');
 assert.equal(manifest.workspace.role,'top');
@@ -39,6 +39,17 @@ const legacy=api.initial();
 delete legacy.pages[0].sweep;
 assert.equal(api.validate(legacy).pages[0].sweep.xSegments.length,1,'migrate v0.7 project snapshots');
 assert.equal(legacy.pages[0].sweep,undefined,'migration does not mutate stored input');
+const oldSingle=api.initial();
+oldSingle.pages[0].sweep.xSegments.push({
+ start:'2',stop:'2',step:'0.1',delayMs:'20',range:'auto'
+});
+delete oldSingle.pages[0].sweep.contractVersion;
+const migrated=api.validate(oldSingle);
+assert.equal(migrated.pages[0].sweep.contractVersion,2);
+assert.equal(migrated.pages[0].sweep.xSegments[1].step,'0',
+ 'legacy appended one-point scan is normalized exactly once');
+assert.equal(oldSingle.pages[0].sweep.xSegments[1].step,'0.1',
+ 'migration must not modify the source snapshot');
 assert.equal(orig.pages[0].terminals[0].role,'X','drain is default Xsweep');
 assert.equal(orig.pages[0].terminals[1].role,'CONDITION','gate is fixed unless Psweep is selected');
 assert.equal(api.visible(orig.pages[0]).length,0,'None terminals never appear in parameter editor');
@@ -70,7 +81,14 @@ assert.equal(dualSummary.total,180,'X 5 × 2 repeats × P 3 × 2 repeats × 3 cy
 assert.equal(dualSummary.pTerminal,'G');
 assert.throws(()=>api.editSegment(programmed,'X',0,{step:'-0.1'}),/SWEEP_DIRECTION/);
 assert.throws(()=>api.editSegment(programmed,'X',0,{stop:'300'}),/HARDWARE_ENVELOPE/);
-assert.throws(()=>api.editSegment(programmed,'X',0,{delayMs:'-1'}),/Invalid sweep step\/delay/);
+assert.throws(()=>api.editSegment(programmed,'X',0,{delayMs:'-1'}),/Invalid sweep delay/);
+assert.throws(()=>api.editSegment(programmed,'X',0,{delayMs:'6554'}),/Invalid sweep delay/);
+assert.throws(()=>api.editSegment(programmed,'X',0,{step:'0.3'}),/SWEEP_ENDPOINT/);
+assert.throws(()=>api.editSegment(programmed,'X',0,{start:'0',stop:'210',step:'0.01'}),/SWEEP_POINTS/);
+const onePoint=api.addSegment(programmed,'X');
+assert.equal(onePoint.pages[0].sweep.xSegments[1].step,'0');
+assert.equal(api.summary(onePoint.pages[0]).total,36);
+assert.throws(()=>api.editSegment(onePoint,'X',1,{step:'0.1'}),/SWEEP_STEP/);
 assert.throws(()=>api.editSegment(programmed,'X',0,{range:'2'}),/HARDWARE_RANGE_ENVELOPE/);
 assert.throws(()=>api.editSweep(programmed,{loops:'0'}),/positive integer/);
 assert.throws(()=>api.editSweep(programmed,{xRepeats:'10001'}),/planning bound/);
@@ -140,5 +158,51 @@ const preview=api.curvesFromArtifacts([{artifactId:'t1',name:'A'}],artifactStore
 assert.equal(preview.source.truncated,true);
 assert.equal(preview.source.totalRows,8);
 assert.equal(preview.source.readRows,4);
+assert.equal(preview.source.coverage,'stratified-intervals');
+assert.equal(preview.source.windows.length,2);
+assert.equal(preview.source.windows[0].start,0);
+assert.equal(preview.source.windows[1].start,6);
+assert.equal(preview.points.at(-1).x,7,'the preview includes the final raw row');
+// Large data tables MUST show start/middle/end, while never fetching a whole
+// Artifact or exceeding maxRead samples per column. Unread gaps stay disclosed.
+const sampleCalls=[],N=1000000;
+const virtual={
+ get(){throw Error('forbidden full-table read')},
+ columnMetadata(){return [
+  {id:'xx',key:'VdSet',role:'x',length:N},
+  {id:'yy',key:'Id',role:'y',length:N}
+ ]},
+ readColumnRange(id,key,{start,limit}){
+  sampleCalls.push({id,key,start,limit});
+  return {values:Array.from({length:limit},(_,i)=>key==='xx'?
+   start+i:(start+i===N-1?999:Math.sin((start+i)/35000)))};
+ }
+};
+const longCurve=api.curvesFromArtifacts([{artifactId:'big',name:'Million rows'}],virtual,
+ {maxRead:4096,maxDisplay:256})[0];
+assert.ok(longCurve);
+assert.equal(longCurve.source.totalRows,N);
+assert.equal(longCurve.source.readRows,4096);
+assert.equal(longCurve.source.coverage,'stratified-intervals');
+assert.ok(longCurve.source.windows.length>2,'read multiple distant table regions');
+assert.equal(longCurve.source.windows[0].start,0);
+assert.equal(longCurve.source.windows.at(-1).start+
+ longCurve.source.windows.at(-1).rows,N,'the tail region reaches the final row');
+assert.equal(longCurve.points[0].x,0);
+assert.equal(longCurve.points.at(-1).x,N-1);
+assert.equal(longCurve.points.at(-1).y,999,'include latest extreme, not first-only preview');
+const typed={
+ columnMetadata:virtual.columnMetadata,
+ readColumnRange:(id,key,span)=>({values:Float64Array.from(
+  virtual.readColumnRange(id,key,span).values)})
+};
+const typedCurve=api.curvesFromArtifacts([{artifactId:'typed'}],typed,
+ {maxRead:48,maxDisplay:32})[0];
+assert.equal(typedCurve.source.readRows,48,
+ 'Data Center may provide typed numeric column slices');
+assert.ok(longCurve.points.length<=256,'display budget respected');
+assert.ok(sampleCalls.every(c=>c.limit<=65536));
+assert.equal(sampleCalls.filter(c=>c.key==='xx').reduce((n,c)=>n+c.limit,0),4096+48,
+ 'separate 4096-row preview and 48-row TypedArray smoke each honor their budget');
 assert.match(preview.label,/preview 4\/8/);
 console.log('DKTS Core-native plugin: manifest, 5 types, project state, None/SMU mapping, range guards PASS');

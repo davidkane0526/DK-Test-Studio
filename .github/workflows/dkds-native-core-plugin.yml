@@ -1,7 +1,7 @@
 name: DKTS Core-native DKDS Plugin
 on:
   push:
-    branches: [feat/dkds-native-core-workbench]
+    branches: [main, feat/native-artifact-coverage-release]
     paths:
       - 'integrations/dkds-native/**'
       - 'tools/build-dkds-native-plugin.cjs'
@@ -41,13 +41,13 @@ jobs:
         run: node tools/build-dkds-native-plugin.cjs
       - name: Repackage and verify using official DKDS SDK
         run: |
-          node dkds-sdk/sdk/tools/dkds-plugin.js package integrations/dkds-native dist/DKTS-4200A-native-v0.8.0.dkplugin
+          node dkds-sdk/sdk/tools/dkds-plugin.js package integrations/dkds-native dist/DKTS-4200A-native-v0.8.1.dkplugin
           node - <<'NODE'
           const fs=require('node:fs'),assert=require('node:assert/strict');
-          const p=JSON.parse(fs.readFileSync('dist/DKTS-4200A-native-v0.8.0.dkplugin','utf8'));
+          const p=JSON.parse(fs.readFileSync('dist/DKTS-4200A-native-v0.8.1.dkplugin','utf8'));
           assert.equal(p.schema,1);
           assert.equal(p.manifest.id,'com.dkts.keithley-4200');
-          assert.equal(p.manifest.version,'0.8.0');
+          assert.equal(p.manifest.version,'0.8.1');
           assert.equal(p.manifest.apiVersion,'1.19.0');
           assert.equal(p.manifest.workspace.role,'top');
           assert.equal(typeof p.files['model.js'],'string');
@@ -56,15 +56,15 @@ jobs:
           console.log('Validated DKTS-owned native plugin package with DKDS SDK 1.19');
           NODE
       - name: Check actual DKDS desktop plugin installer and TOP window parser
-        run: node tools/verify-native-dkds-install.cjs dkds-sdk dist/DKTS-4200A-native-v0.8.0.dkplugin
+        run: node tools/verify-native-dkds-install.cjs dkds-sdk dist/DKTS-4200A-native-v0.8.1.dkplugin
       - uses: actions/upload-artifact@v4
         with:
-          name: DKTS-4200A-DKDS-native-v0.8.0
-          path: dist/DKTS-4200A-native-v0.8.0.dkplugin
+          name: DKTS-4200A-DKDS-native-v0.8.1
+          path: dist/DKTS-4200A-native-v0.8.1.dkplugin
           if-no-files-found: error
   publish-preview:
     name: Publish validated native-plugin preview
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/dkds-native-core-workbench'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: dkts-native-plugin
     runs-on: ubuntu-latest
     permissions:
@@ -72,13 +72,13 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: DKTS-4200A-DKDS-native-v0.8.0
+          name: DKTS-4200A-DKDS-native-v0.8.1
           path: artifacts
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: dkts-native-plugin-v0.8.0-preview
+          tag_name: dkts-native-plugin-v0.8.1-preview
           target_commitish: ${{ github.sha }}
-          name: DK Test Studio 4200A native DKDS plugin v0.8.0 (preview)
+          name: DK Test Studio 4200A native DKDS plugin v0.8.1 (preview)
           prerelease: true
           make_latest: false
           generate_release_notes: false
@@ -86,5 +86,5 @@ jobs:
             External DKDS Plugin API 1.19 TOP workspace; owned and built by DK Test Studio.
             Uses Core UI, theme, scientific chart and Data Center bounded Artifact reading.
             Real Keithley source output remains disabled. This is a preview, not the standalone APK updater.
-          files: artifacts/DKTS-4200A-native-v0.8.0.dkplugin
+          files: artifacts/DKTS-4200A-native-v0.8.1.dkplugin
           fail_on_unmatched_files: true

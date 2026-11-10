@@ -15,7 +15,7 @@
   step:mode==='current'?'0.001':'0.1',delayMs:'20',range:'auto'
  });
  const defaultSweep=()=>({
-  loops:'1',xRepeats:'1',pRepeats:'1',pEnabled:false,
+  contractVersion:2,loops:'1',xRepeats:'1',pRepeats:'1',pEnabled:false,
   xSegments:[segment()],pSegments:[segment('voltage','P')]
  });
  const sweepKeys=Object.freeze(['loops','xRepeats','pRepeats','pEnabled']);
@@ -35,15 +35,35 @@
  };
  function segmentPoints(seg){
   const a=Number(seg.start),b=Number(seg.stop),step=Number(seg.step);
-  if(a!==b&&Math.sign(b-a)!==Math.sign(step))throw Error('SWEEP_DIRECTION: step direction differs from endpoint');
-  const count=a===b?1:Math.floor(Math.abs((b-a)/step)+1e-9)+1;
-  if(!Number.isSafeInteger(count)||count<1)throw Error('SWEEP_POINTS: segment point count overflow');
-  return count;
+  if(a===b){
+   if(step!==0)throw Error('SWEEP_STEP: identical endpoints require zero step');
+   return 1;
+  }
+  if(step===0||Math.sign(b-a)!==Math.sign(step))
+   throw Error('SWEEP_DIRECTION: step direction differs from endpoint');
+  // Mirror the standalone KXCI planner: no silently shortened final step.
+  const interval=(b-a)/step,nearest=Math.round(interval);
+  if(!Number.isSafeInteger(nearest)||nearest<1||
+      Math.abs(interval-nearest)>1e-8*Math.max(1,Math.abs(interval)))
+   throw Error('SWEEP_ENDPOINT: step cannot exactly reach requested stop');
+  if(nearest+1>4096)throw Error('SWEEP_POINTS: KXCI segment exceeds 4096 points');
+  return nearest+1;
  }
  function validateSweep(p){
   const defaults=defaultSweep();
+  const legacy=!p.sweep||p.sweep.contractVersion===undefined;
   p.sweep={...defaults,...(p.sweep||{})};
   const sw=p.sweep;
+  if(sw.contractVersion!==2)throw Error('Unsupported sweep contract version');
+  if(legacy){
+   // v0.8.0 created a one-point append with a nonzero default step.
+   // Normalize only snapshots without an explicit contract version.
+   for(const key of ['xSegments','pSegments'])
+    if(Array.isArray(sw[key]))for(const row of sw[key]){
+     if(row&&Number.isFinite(Number(row.start))&&
+         Number(row.start)===Number(row.stop))row.step='0';
+    }
+  }
   for(const key of ['loops','xRepeats','pRepeats'])positiveInt(sw[key],10000,key);
   if(typeof sw.pEnabled!=='boolean')throw Error('Invalid Psweep enable state');
   for(const axis of ['X','P']){
@@ -56,7 +76,8 @@
    for(const [i,row] of list.entries()){
     if(!row||typeof row!=='object'||Array.isArray(row))throw Error('Invalid '+axis+' segment');
     for(const key of ['start','stop','step','delayMs'])numeric(row[key],axis+'['+i+'].'+key);
-    if(Number(row.step)===0||Number(row.delayMs)<0)throw Error('Invalid sweep step/delay');
+    if(Number(row.delayMs)<0||Number(row.delayMs)>6553)
+     throw Error('Invalid sweep delay (0..6553 ms)');
     if(Math.max(Math.abs(Number(row.start)),Math.abs(Number(row.stop)))>sourceMax)
      throw Error('HARDWARE_ENVELOPE: scan source exceeds theoretical SMU envelope');
     if(terminal&&Math.max(Math.abs(Number(row.start)),Math.abs(Number(row.stop)))>
@@ -221,6 +242,7 @@
   const last=list[list.length-1];
   next.start=last.stop;
   next.stop=next.start;
+  next.step='0'; // A one-point segment must use step=0, per the KXCI planner.
   list.push(next);
   return validate(s);
  }
@@ -252,37 +274,69 @@
    const y=choose(['id','current','ids','i','y'],'y');
    if(!x||!y||x===y)continue;
    const total=Math.min(Number(x.length)||0,Number(y.length)||0);
-   if(total<=0)continue;
+   if(!Number.isSafeInteger(total)||total<=0)continue;
+   // Span the entire raw table, not just the first 65536 rows. All accesses
+   // use the DKDS Data Center bounded column-read interface; no artifacts.get().
    const limit=Math.min(budget,total);
-   const xc=store.readColumnRange(id,x.id||x.key,{start:0,limit});
-   const yc=store.readColumnRange(id,y.id||y.key,{start:0,limit});
-   if(!xc||!yc||!Array.isArray(xc.values)||!Array.isArray(yc.values))continue;
-   const count=Math.min(limit,xc.values.length,yc.values.length),pts=[];
-   if(!count)continue;
-   const step=Math.max(1,Math.ceil(count/Math.max(1,Math.floor(display/2))));
-   for(let start=0;start<count;start+=step){
-    const end=Math.min(count,start+step);
-    let lo=null,hi=null;
-    for(let i=start;i<end;i++){
-     const vx=Number(xc.values[i]),vy=Number(yc.values[i]);
-     if(!Number.isFinite(vx)||!Number.isFinite(vy))continue;
-     const point={x:vx,y:vy};
-     if(!lo||point.y<lo.point.y)lo={index:i,point};
-     if(!hi||point.y>hi.point.y)hi={index:i,point};
-    }
-    for(const entry of [lo,hi].filter(Boolean).sort((a,b)=>a.index-b.index)){
-     if(!pts.length||pts[pts.length-1].index!==entry.index)pts.push(entry);
+   const windows=total<=limit?1:Math.min(32,Math.max(2,Math.ceil(total/limit)));
+   const baseSize=Math.floor(limit/windows),extra=limit%windows;
+   const spans=[];
+   let cursor=0;
+   for(let i=0;i<windows;i++){
+    const size=baseSize+(i<extra?1:0);
+    if(!size)continue;
+    const ideal=windows===1?0:Math.round(i*(total-size)/(windows-1));
+    const start=Math.max(cursor,Math.min(total-size,ideal));
+    spans.push({start,limit:size});
+    cursor=start+size;
+   }
+   const sampled=[];
+   let readRows=0;
+   for(const span of spans){
+    const xc=store.readColumnRange(id,x.id||x.key,span);
+    const yc=store.readColumnRange(id,y.id||y.key,span);
+    const isColumn=v=>Array.isArray(v)||ArrayBuffer.isView(v);
+    if(!isColumn(xc?.values)||!isColumn(yc?.values))continue;
+    const count=Math.min(span.limit,xc.values.length,yc.values.length);
+    readRows+=count;
+    for(let j=0;j<count;j++){
+     const vx=Number(xc.values[j]),vy=Number(yc.values[j]);
+     if(Number.isFinite(vx)&&Number.isFinite(vy))
+      sampled.push({index:span.start+j,point:{x:vx,y:vy}});
     }
    }
-   if(!pts.length)continue;
-   const points=pts.map(entry=>entry.point);
-   const partial=total>limit;
-   out.push({id,artifactId:id,label:String(ref.name||id)+(partial?' (preview '+limit+'/'+total+')':''),
-    points,source:{artifactId:id,kind:'dkds-artifact-bounded-preview',
-     totalRows:total,readRows:count,displayRows:points.length,truncated:partial}});
+   if(!sampled.length)continue;
+   const chosen=[],seen=new Set();
+   function keep(entry){
+    if(entry&&!seen.has(entry.index)){seen.add(entry.index);chosen.push(entry);}
+   }
+   // Chronological min/max decimation retains local extrema of the rows
+   // actually inspected. Unsampled gaps are NEVER represented as full coverage.
+   keep(sampled[0]);
+   const groups=Math.max(1,Math.floor((display-2)/2));
+   const groupStep=Math.max(1,Math.ceil(sampled.length/groups));
+   for(let start=0;start<sampled.length;start+=groupStep){
+    const block=sampled.slice(start,start+groupStep);
+    let lo=block[0],hi=block[0];
+    for(const point of block){
+     if(point.point.y<lo.point.y)lo=point;
+     if(point.point.y>hi.point.y)hi=point;
+    }
+    for(const entry of [lo,hi].sort((a,b)=>a.index-b.index))keep(entry);
+   }
+   keep(sampled[sampled.length-1]);
+   chosen.sort((a,b)=>a.index-b.index);
+   const partial=readRows<total;
+   out.push({id,artifactId:id,label:String(ref.name||id)+
+     (partial?' (preview '+readRows+'/'+total+')':''),
+    points:chosen.map(x=>x.point),
+    source:{artifactId:id,kind:'dkds-artifact-bounded-preview',
+     totalRows:total,readRows,displayRows:chosen.length,truncated:partial,
+     coverage:partial?'stratified-intervals':'all-rows',
+     windows:spans.map(x=>({start:x.start,rows:x.limit}))}});
   }
   return out;
  }
  const api=Object.freeze({KINDS,initial,validate,add,remove,select,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
- window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api);
+ window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();
