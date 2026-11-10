@@ -25,8 +25,12 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
    if(!win||win.webContents.isLoadingMainFrame())return;
    const state=await win.webContents.executeJavaScript(`(()=>{
     const ids=(window.DKDS_BUILTIN_PLUGINS||[]).map(p=>p.id);
+    const superState=window.DKDSPlugins?.workspace?.super?.()||null;
     return {
      readyState:document.readyState,title:document.title,
+     selectedSuper:superState?.pluginId||'',
+     superAvailable:superState?.available===true,
+     activeActivity:window.DKDSPlugins?.activities?.active?.()||'',
      brand:document.querySelector('.brand-full')?.textContent||'',
      hasCoreShell:!!document.getElementById('primaryActivityBar'),
      hasStatusBar:!!document.querySelector('[id*="statusBar"],footer,.statusbar'),
@@ -42,7 +46,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
    if(state.readyState!=='complete'||!state.hasCoreShell||
        !state.has4200Workspace||!state.keptDataCenter||
        !state.keptConnectivity||!state.keptTheme||!state.removedAnalysis||
-       state.brand!=='DK Test Studio')return;
+       state.brand!=='DK Test Studio'||
+       state.selectedSuper!=='com.dkts.keithley-4200'||!state.superAvailable)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();
