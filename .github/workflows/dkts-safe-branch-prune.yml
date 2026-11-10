@@ -17,25 +17,36 @@ jobs:
           script: |
             const {owner,repo}=context.repo;
             const branches=await github.paginate(github.rest.repos.listBranches,{owner,repo,per_page:100});
-            const openPRs=await github.paginate(github.rest.pulls.list,{owner,repo,state:'open',per_page:100});
-            const protectedHeads=new Set(['main','dev']);
-            for(const p of openPRs)if(p.head.repo?.full_name===owner+'/'+repo)protectedHeads.add(p.head.ref);
+            const allPRs=await github.paginate(github.rest.pulls.list,{owner,repo,state:'all',per_page:100});
+            const activeHeads=new Set(allPRs.filter(p=>p.state==='open'&&p.head.repo?.full_name===owner+'/'+repo).map(p=>p.head.ref));
             let removed=[],retained=[],errors=[];
-            for(const b of branches){
-              if(protectedHeads.has(b.name)||b.protected||/^(backup|archive|release|safety)\//.test(b.name)){
-                retained.push(b.name+' [protected]');continue;
+            for(const b of branches) {
+              if(b.name==='main'||b.name==='dev'||b.protected||/^(backup|archive|release)\//.test(b.name)||activeHeads.has(b.name)){
+                retained.push(b.name+' [protected / active]');continue;
               }
               try{
-                const result=await github.rest.repos.compareCommits({owner,repo,base:'main',head:b.name});
-                if(result.data.ahead_by===0 && result.data.behind_by>0){
+                // A squash merge can leave an old branch "ahead" despite all its PR changes
+                // having been merged. Only prune when the merged PR still references the
+                // exact same head SHA; do not discard post-merge commits.
+                const merged=allPRs.find(p=>p.merged_at&&p.head.repo?.full_name===owner+'/'+repo&&
+                  p.head.ref===b.name&&p.head.sha===b.commit.sha);
+                if(merged){
                   await github.rest.git.deleteRef({owner,repo,ref:'heads/'+b.name});
-                  removed.push(b.name);
+                  removed.push(b.name+' [merged PR #'+merged.number+']');
+                  continue;
+                }
+                const result=await github.rest.repos.compareCommits({owner,repo,base:'main',head:b.name});
+                if(result.data.ahead_by===0&&result.data.behind_by>0){
+                  await github.rest.git.deleteRef({owner,repo,ref:'heads/'+b.name});
+                  removed.push(b.name+' [already in main]');
                 }else retained.push(b.name+' [ahead '+result.data.ahead_by+', behind '+result.data.behind_by+']');
               }catch(error){errors.push(b.name+': '+error.message);}
             }
-            const summary=['### DKTS branch audit','Removed (fully contained in main): '+(removed.join(', ')||'none'),
-              'Retained: '+retained.length,'Errors: '+(errors.join(' | ')||'none'),
-              'No unmerged commits or open PR branches were deleted.',
-              ...retained.map(s=>'- '+s)].join('\n\n');
-            core.summary.addRaw(summary).write();
+            const summary=['### DKTS purpose-based branch cleanup',
+              'Removed: '+(removed.length?removed.join(', '):'none'),
+              'Retained '+retained.length+' branches:',
+              ...retained.map(s=>'- '+s),
+              'Errors: '+(errors.join(' | ')||'none'),
+              'Rules: protected/backup/active PR heads preserved; merged PRs require unchanged SHA; divergent unreviewed work preserved.'].join('\n\n');
+            await core.summary.addRaw(summary).write();
             if(errors.length)core.warning(errors.join('\n'));

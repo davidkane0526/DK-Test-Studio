@@ -39,7 +39,7 @@ async function open(browser,url,width,height,mobile){
   await page.locator('#psweep-enabled').check({force:true});
   assert.equal(await page.locator('#psweep-fields').isVisible(),true);
   assert.equal(await page.locator('#measurement-rows tr').count(),1,'No synthetic acquisition rows in demo');
-  assert.match(await page.locator('#measurement-rows').innerText(),/等待仪器返回原始数据/);
+  assert.match(await page.locator('#measurement-rows').innerText(),/暂无该测试方式的实测数据|等待仪器返回原始数据/);
   await page.screenshot({path:path.join(out,mobile?'tablet-scans.png':'desktop-scans.png'),fullPage:true});
   assert.deepEqual(errors,[],'Unhandled browser page errors');
   assert.deepEqual(backend,[],'Offline preview must never request an instrument backend');

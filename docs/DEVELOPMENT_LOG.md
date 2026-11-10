@@ -45,3 +45,7 @@
 - Pages 部署**失败（404）**，明确为仓库尚未启用 GitHub Pages：需有权限的维护者从 GitHub Settings > Pages 将 Source 设置为 GitHub Actions。网页打包产物已在本次构建工件可下载，不可声称线上地址已可访问。
 - [分支治理 #42784784170](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/42784784170) 成功删除已完全并入 main 的 `feat/kxci-native-smu-runner-ui-compact`，从 19 条减到 18 条；17 条有独有提交或保护关系的分支暂保留，不能把删除工作视为全部完成。
 - 继续新增真实 Chromium 桌面和平板视觉交互测试：检查测试卡片、Xsweep/Psweep、禁用测量输出、无模拟 raw 行及无 `/api` 仪器请求；产出截图工件。测试结果以后续 CI 为准。
+
+## 2026-11-10 / Chromium 回归与分支清理补充
+- 初次 Chromium 运行进入真实桌面端 I–V 工作区，但断言只接受“等待仪器返回原始数据”，实际 UI 空数据提示为“暂无该测试方式的实测数据”。属测试文案匹配问题，不能据此声称网页功能通过；现已修正并重新触发测试。
+- 分支清理升级为两项可核查的删除依据：① 已完全合并于 main 的历史分支；② 已合并 PR 对应分支、合并记录证明且该分支 HEAD 与合并时 PR HEAD 完全一致。活跃 PR、保护分支、备份和未审查的独有提交均保留。删除结果仍以 workflow 回报为准。
