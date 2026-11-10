@@ -189,10 +189,30 @@
      });
     }
    }
+   const specPanel=units.panel.create(explorer.body,{
+    variant:'standard',title:'Associate Spec',sizing:'content'
+   });
+   for(const spec of s.specs)units.action.create(specPanel.body,{
+    id:'spec-'+spec.id,label:'◇ '+spec.name,
+    variant:spec.id===p.associateSpecId?'primary':'quiet',
+    onInvoke:()=>persist(model.associateSpec(state(),spec.id))
+   });
    units.action.create(nav,{
     id:'add-routine',label:'＋ Routine',variant:'quiet',
     onInvoke:()=>persist(model.addRoutine(state()))
    });
+   units.action.create(nav,{
+    id:'add-spec',label:'＋ Spec',variant:'quiet',
+    onInvoke:()=>persist(model.addSpec(state()))
+   });
+   if(s.specs.length){
+    units.field.create(nav,{
+     kind:'select',label:'Associate Spec',value:p.associateSpecId||'',
+     options:[{value:'',label:'未关联'},
+       ...s.specs.map(spec=>({value:spec.id,label:spec.name}))],
+     onChange:event=>persist(model.associateSpec(state(),event.target.value||null))
+    });
+   }
    kindField=units.field.create(nav,{
     kind:'select',label:'新增类型',value:selectedKind,
     options:model.KINDS.map(x=>({value:x.id,label:x.label}))

@@ -123,7 +123,7 @@
  };
  const initial=()=>({schema:1,sequence:1,activeId:'page-1',
   activeRoutineId:'routine-1',routines:[{id:'routine-1',name:'Routine 1'}],
-  pages:[page()]});
+  specs:[],pages:[page()]});
  function validate(state){
   if(state?.schema!==1||!Array.isArray(state.pages)||!state.pages.length||
      state.pages.length>128||!Number.isSafeInteger(state.sequence)||state.sequence<1)
@@ -140,10 +140,22 @@
       !routine.name.trim()||routine.name.length>64)throw Error('Invalid Routine');
    routineIds.add(routine.id);
   }
+  if(!Array.isArray(state.specs))state.specs=[];
+  if(state.specs.length>100)throw Error('Too many Specs');
+  const specIds=new Set();
+  for(const spec of state.specs){
+   if(!/^spec-[A-Za-z0-9-]+$/.test(spec?.id||'')||
+      specIds.has(spec.id)||typeof spec.name!=='string'||
+      !spec.name.trim()||spec.name.length>64)throw Error('Invalid Spec');
+   specIds.add(spec.id);
+  }
   const ids=new Set();
   for(const p of state.pages){
    if(!p.routineId)p.routineId=state.routines[0].id;
    if(!routineIds.has(p.routineId))throw Error('Page references an unknown Routine');
+   if(p.associateSpecId===undefined)p.associateSpecId=null;
+   if(p.associateSpecId!==null&&!specIds.has(p.associateSpecId))
+    throw Error('Page references an unknown Spec');
    if(!/^page-[1-9]\d*$/.test(p?.id||'')||ids.has(p.id)||!KINDS.some(k=>k.id===p.kind)||
       !Array.isArray(p.terminals)||p.terminals.length!==4)throw Error('Invalid Page');
    ids.add(p.id);
@@ -211,6 +223,22 @@
   const first=s.pages.find(p=>p.routineId===routineId);
   if(!first)return add(s,'iv',routineId);
   s.activeId=first.id;s.activeRoutineId=routineId;
+  return validate(s);
+ }
+ function addSpec(s){
+  s=validate(s);
+  if(s.specs.length>=100)throw Error('Maximum 100 Specs');
+  const id='spec-'+(s.specs.length+1);
+  if(s.specs.some(spec=>spec.id===id))throw Error('Duplicate Spec ID');
+  s.specs.push({id,name:'Spec '+(s.specs.length+1)});
+  return associateSpec(s,id);
+ }
+ function associateSpec(s,specId){
+  s=validate(s);
+  if(specId!==null&&!s.specs.some(spec=>spec.id===specId))
+   throw Error('Unknown Spec');
+  const active=s.pages.find(p=>p.id===s.activeId);
+  active.associateSpecId=specId;
   return validate(s);
  }
  function remove(s,id){
@@ -377,6 +405,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,initial,validate,add,addRoutine,selectRoutine,remove,select,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,initial,validate,add,addRoutine,selectRoutine,addSpec,associateSpec,remove,select,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

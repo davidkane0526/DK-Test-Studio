@@ -161,6 +161,15 @@ const ctx={
  oldRoutine.onInvoke();
  assert.equal(state.activeId,'page-1');
  assert.equal(state.activeRoutineId,'routine-1');
+ const createSpec=[...record.actions].reverse().find(x=>x.id==='add-spec');
+ assert.ok(createSpec,'Core host must expose separate Spec creation');
+ createSpec.onInvoke();
+ assert.equal(state.specs.length,1);
+ assert.equal(state.pages[0].associateSpecId,'spec-1');
+ const specField=[...record.fields].reverse().find(x=>x.spec.label==='Associate Spec');
+ assert.ok(specField,'Page↔Spec association must use DKDS Unit selector');
+ specField.spec.onChange({target:{value:''}});
+ assert.equal(state.pages[0].associateSpecId,null,'Spec link can be cleared');
  assert.ok(record.closedPads>=1);
  assert.equal([...record.actions].reverse().find(x=>x.id==='numeric-E').variant,'quiet',
   'touch numeric keys use Core quiet actions and have no plugin-specific click shadow');
