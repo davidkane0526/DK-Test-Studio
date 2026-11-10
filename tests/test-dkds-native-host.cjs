@@ -21,7 +21,16 @@ const units={
  plotView:{adopt:(id,card,spec)=>{record.plotViews.push({id,spec});return {dispose:()=>record.disposals++}}},
  popover:{create:(host,spec)=>{record.popovers.push(spec);return {
   body:el(),close:()=>{record.closedPads++;}}}},
- layout:{create:()=>el()},
+ layout:{create:(host,spec)=>{
+   // The pinned SDK allows canonical layout recipes; arbitrary geometry
+   // values are not guaranteed and previously failed real Core activation.
+   assert.ok(['identity','form-grid-2','form-grid-4','row-wrap',
+     'stack-comfortable','plot-card-fill','action-grid-4'].includes(spec.variant),
+     'Unknown DKDS Unit layout recipe: '+String(spec.variant));
+   assert.equal(spec.geometry,undefined,
+     'DKTS native plugin must not introduce unregistered layout geometry');
+   return el();
+ }},
  action:{create:(host,spec)=>{record.actions.push(spec);host.children.push(spec);return{element:el()}}},
  note:{create:(host,spec)=>{const n=el();n.textContent=spec.text;host.children.push(n);return n}},
  emptyState:{create:(host,spec)=>{host.children.push(spec);return{element:el()}}},

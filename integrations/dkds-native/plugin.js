@@ -103,8 +103,7 @@
    const sw=p.sweep;
    const config=units.panel.create(parameters,{variant:'headed',
      title:'扫描结构',sizing:'content'});
-   const top=units.layout.create(config.body,{variant:'identity',
-     geometry:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:'8px'}});
+   const top=units.layout.create(config.body,{variant:'form-grid-2'});
    scalarField(top,'整体循环',sw.loops,v=>changeSweep('loops',v));
    units.field.create(top,{kind:'select',label:'Psweep',value:String(sw.pEnabled),
     options:[{value:'false',label:'关闭'},{value:'true',label:'启用'}],
@@ -123,14 +122,12 @@
     const repeatKey=axis==='X'?'xRepeats':'pRepeats';
     const panel=units.panel.create(parameters,{variant:'headed',
       title:axis+'sweep · '+t.logical+' / '+t.resource,sizing:'content'});
-    const layout=units.layout.create(panel.body,{variant:'identity',
-      geometry:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:'8px'}});
+    const layout=units.layout.create(panel.body,{variant:'form-grid-4'});
     scalarField(layout,'重复次数',sw[repeatKey],v=>changeSweep(repeatKey,v));
     for(const [index,seg] of segments.entries()){
      const group=units.panel.create(panel.body,{
       variant:'headed',title:'第 '+(index+1)+' 段',sizing:'content'});
-     const controls=units.layout.create(group.body,{variant:'identity',
-      geometry:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(106px,1fr))',gap:'8px'}});
+     const controls=units.layout.create(group.body,{variant:'form-grid-4'});
      const unit=t.sourceMode==='current'?'A':'V';
      for(const [key,label] of [['start','起始'],['stop','结束'],['step','步长']]){
       scalarField(controls,label+' ('+unit+')',seg[key],
@@ -237,8 +234,7 @@
    for(const t of ports){
     const panel=units.panel.create(parameters,{variant:'headed',title:t.logical+' · '+t.resource,sizing:'content'});
     // Single FS-Pro-style row on wide screens; Core grid wraps naturally on tablets.
-    const controls=units.layout.create(panel.body,{variant:'identity',geometry:{
-     display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(122px,1fr))',gap:'8px'}});
+    const controls=units.layout.create(panel.body,{variant:'form-grid-4'});
     units.field.create(controls,{kind:'select',label:'源模式',value:t.sourceMode,
      options:[{value:'voltage',label:'Voltage'},{value:'current',label:'Current'}],
      onChange:e=>change(t.logical,'sourceMode',e.target.value)});
@@ -276,8 +272,7 @@
   wb=units.workspace.create(container,{variant:'standard',header:false,
    activity:ACTIVITY,primaryScroll:'safe'});
   const main=units.layout.create(null,{variant:'stack-comfortable'});
-  nav=units.layout.create(main,{variant:'identity',
-   geometry:{display:'flex',flexWrap:'wrap',gap:'6px',alignItems:'center'}});
+  nav=units.layout.create(main,{variant:'row-wrap'});
   dataNote=units.note.create(main,{variant:'meta',text:'数据中心：0 组'});
   const graphic=units.panel.create(main,{variant:'plot-card',header:false,sizing:'content'});
   const graphicHeader=units.header.create(graphic.element,{
