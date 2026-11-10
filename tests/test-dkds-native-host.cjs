@@ -25,7 +25,14 @@ const units={
  action:{create:(host,spec)=>{record.actions.push(spec);host.children.push(spec);return{element:el()}}},
  note:{create:(host,spec)=>{const n=el();n.textContent=spec.text;host.children.push(n);return n}},
  emptyState:{create:(host,spec)=>{host.children.push(spec);return{element:el()}}},
- panel:{create:(host,spec)=>{record.panels.push(spec);const body=el();host.children.push(body);return{body,element:el()}}},
+ panel:{create:(host,spec)=>{
+   // Pinned DKDS Core 20f05685 SDK: panel variants do NOT include "standard".
+   // Workspace "standard" is valid, but panel "standard" fails real activation.
+   assert.ok(['plain','headed','portable','control-card','plot-card','accepted-portable']
+     .includes(spec.variant||'plain'),'Unknown DKDS SDK panel variant: '+String(spec.variant));
+   record.panels.push(spec);
+   const body=el();host.children.push(body);return{body,element:el()}
+ }},
  field:{create:(host,spec)=>{const control={value:spec.value,disabled:spec.disabled};
    record.fields.push({spec,control});host.children.push(control);return{control,element:el()}}},
  scientificPlot:{create:(host,spec)=>{record.plots.push(spec);return{

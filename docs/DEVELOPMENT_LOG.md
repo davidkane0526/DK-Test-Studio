@@ -41,3 +41,8 @@
 ## 2026-11-10 / 原生 Core Spec 实体与 Page 关联（开发分支）
 - 在 PR #18 内增加真正的 `specs` 项目对象、`associateSpecId` 关联、老 schema-1 快照缺省值迁移及 Spec ID/名称校验，不只是占位复选框。
 - 采用 DKDS 原生 UnitTemplates 面板/选择器展现独立 Spec 列表、新建及取消 Page 关联动作。扩展实际 mock Core 宿主测试，网页与原生业务对象结构保持可逐步映射。仍不具备真实 4200A 测量或最终用户机器的 UI 验证。
+
+## 2026-11-10 / 真实 DKDS Core Electron 启动错误及修复
+- 在 [Windows/Android 真实 Core 预览 CI #42800809168](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/42800809168) 中，Windows Electron 实际启动未通过，错误为 `UNIT_TEMPLATE_UNKNOWN_VARIANT: panel:standard`。此前仅用简化 mock 测试，未校验 DKDS SDK 组件变体。
+- 查阅上游只读 DKDS SHA `20f05685` 的 `sdk/unit-template-catalog.json`，确认 Panel 合法变体为 plain、headed、portable、control-card、plot-card、accepted-portable；Workspace 的 standard 是合法变体，必须区分。现将新建的 Project Explorer、Routine、Spec 三个 Panel 改为 `headed`，保留 Workspace `standard`。
+- 将 SDK 变体约束加入 DKTS 自有 Core mock 测试，后续若回归 panel:standard 则直接失败。Android 预览和其他真实启动后续继续验证；不提前宣称修复完成。

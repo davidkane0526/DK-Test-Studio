@@ -165,11 +165,11 @@
    nav.replaceChildren();
    // Native DKDS Core Unit widgets own the actual Project/Routine/Page tree.
    const explorer=units.panel.create(nav,{
-    variant:'standard',title:'Project Explorer / Device / MOSFET',sizing:'content'
+    variant:'headed',title:'Project Explorer / Device / MOSFET',sizing:'content'
    });
    for(const routine of s.routines){
     const branch=units.panel.create(explorer.body,{
-     variant:'standard',title:routine.name,sizing:'content'
+     variant:'headed',title:routine.name,sizing:'content'
     });
     units.action.create(branch.body,{
      id:'routine-'+routine.id,label:'▦ '+routine.name,variant:'quiet',
@@ -190,7 +190,7 @@
     }
    }
    const specPanel=units.panel.create(explorer.body,{
-    variant:'standard',title:'Associate Spec',sizing:'content'
+    variant:'headed',title:'Associate Spec',sizing:'content'
    });
    for(const spec of s.specs)units.action.create(specPanel.body,{
     id:'spec-'+spec.id,label:'◇ '+spec.name,
