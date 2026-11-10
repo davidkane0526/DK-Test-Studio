@@ -267,7 +267,7 @@
    stateVersion:'native-dkts-v1'});
   const portPrime=units.prime.build({id:'ports',label:'端口',title:'端口映射',
    variant:'canonical-header',presentationRole:'inspector',semanticKind:'inspector',
-   priority:65,collapsible:true,existingNode:ports,chrome:'auto',header:{mode:'generate',title:'端口映射'},
+   placementControl:'host',priority:65,collapsible:true,existingNode:ports,
    defaultPlacement:'bottom',placements:['inline','right','bottom','float'],
    stateVersion:'native-dkts-v1'});
   wb.compose({primary:{id:'main',label:'数据图',presentationRole:'scientific-primary',
