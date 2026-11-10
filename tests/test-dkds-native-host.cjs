@@ -148,6 +148,19 @@ const ctx={
  assert.equal(state.activeId,'page-1');
  assert.equal(state.pages[0].terminals[0].resource,'SMU1',
   'closing other test preserves active port assignment');
+ // True Routine/Page ownership in the DKDS Core host, not a separate web-only sketch.
+ const routineAction=[...record.actions].reverse().find(x=>x.id==='add-routine');
+ assert.ok(routineAction,'native DKDS Unit Project Explorer provides + Routine');
+ routineAction.onInvoke();
+ assert.equal(state.routines.length,2);
+ assert.equal(state.pages.length,2);
+ assert.equal(state.pages[1].routineId,state.routines[1].id);
+ assert.equal(state.activeRoutineId,state.routines[1].id);
+ const oldRoutine=[...record.actions].reverse().find(x=>x.id==='routine-routine-1');
+ assert.ok(oldRoutine,'Routine navigation is registered as a host-owned Unit action');
+ oldRoutine.onInvoke();
+ assert.equal(state.activeId,'page-1');
+ assert.equal(state.activeRoutineId,'routine-1');
  assert.ok(record.closedPads>=1);
  assert.equal([...record.actions].reverse().find(x=>x.id==='numeric-E').variant,'quiet',
   'touch numeric keys use Core quiet actions and have no plugin-specific click shadow');

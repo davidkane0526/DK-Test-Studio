@@ -3,6 +3,11 @@
  const KINDS=Object.freeze([
   {id:'iv',label:'I–V Sweep',testType:'DC'},
   {id:'transfer',label:'Transfer Sweep',testType:'DC'},
+  {id:'output',label:'Output Sweep',testType:'DC'},
+  {id:'pund',label:'PUND',testType:'Pulse'},
+  {id:'endurance',label:'Endurance',testType:'Cycle'},
+  {id:'retention',label:'Retention',testType:'Time'},
+  {id:'arb',label:'Arbitrary Waveform',testType:'Pulse'},
   {id:'time',label:'Time Sweep',testType:'IVT'},
   {id:'pulse',label:'Pulse Sweep',testType:'Pulse'},
   {id:'cv',label:'C–V Sweep',testType:'CV'}
@@ -112,18 +117,33 @@
   logical,resource:'None',sourceMode:'voltage',role:i===0?'X':'CONDITION',
   bias:'0',start:'0',stop:'2',step:'0.1',compliance:'0.01',rangeMode:'auto',rangeValue:'1e-6'
  }));
- const page=(kind='iv',id='page-1')=>{
+ const page=(kind='iv',id='page-1',routineId='routine-1')=>{
   const type=KINDS.find(x=>x.id===kind);if(!type)throw Error('Unknown test type');
-  return {id,kind,name:type.label,testType:type.testType,terminals:ports(),sweep:defaultSweep()};
+  return {id,routineId,kind,name:type.label,testType:type.testType,terminals:ports(),sweep:defaultSweep()};
  };
- const initial=()=>({schema:1,sequence:1,activeId:'page-1',pages:[page()]});
+ const initial=()=>({schema:1,sequence:1,activeId:'page-1',
+  activeRoutineId:'routine-1',routines:[{id:'routine-1',name:'Routine 1'}],
+  pages:[page()]});
  function validate(state){
   if(state?.schema!==1||!Array.isArray(state.pages)||!state.pages.length||
      state.pages.length>128||!Number.isSafeInteger(state.sequence)||state.sequence<1)
    throw Error('Invalid DKTS project state');
   state=clone(state);
+  // Migrate schema-1 projects saved before Routine/Page ownership existed.
+  if(!Array.isArray(state.routines)||!state.routines.length)
+   state.routines=[{id:'routine-1',name:'Routine 1'}];
+  if(state.routines.length>100)throw Error('Too many Routines');
+  const routineIds=new Set();
+  for(const routine of state.routines){
+   if(!/^routine-[A-Za-z0-9-]+$/.test(routine?.id||'')||
+      routineIds.has(routine.id)||typeof routine.name!=='string'||
+      !routine.name.trim()||routine.name.length>64)throw Error('Invalid Routine');
+   routineIds.add(routine.id);
+  }
   const ids=new Set();
   for(const p of state.pages){
+   if(!p.routineId)p.routineId=state.routines[0].id;
+   if(!routineIds.has(p.routineId))throw Error('Page references an unknown Routine');
    if(!/^page-[1-9]\d*$/.test(p?.id||'')||ids.has(p.id)||!KINDS.some(k=>k.id===p.kind)||
       !Array.isArray(p.terminals)||p.terminals.length!==4)throw Error('Invalid Page');
    ids.add(p.id);
@@ -167,11 +187,31 @@
    validateSweep(p);
   }
   if(!ids.has(state.activeId))throw Error('Active Page missing');
+  state.activeRoutineId=state.pages.find(p=>p.id===state.activeId).routineId;
   return state;
  }
- function add(s,kind){
+ function add(s,kind,routineId){
   s=validate(s);const id='page-'+(s.sequence+1);
-  s.sequence++;s.pages.push(page(kind,id));s.activeId=id;return validate(s);
+  const target=routineId||s.activeRoutineId;
+  if(!s.routines.some(r=>r.id===target))throw Error('Unknown Routine');
+  s.sequence++;s.pages.push(page(kind,id,target));
+  s.activeId=id;s.activeRoutineId=target;return validate(s);
+ }
+ function addRoutine(s){
+  s=validate(s);
+  if(s.routines.length>=100)throw Error('Maximum 100 Routines');
+  const routineId='routine-'+(s.routines.length+1);
+  if(s.routines.some(r=>r.id===routineId))throw Error('Duplicate Routine ID');
+  s.routines.push({id:routineId,name:'Routine '+(s.routines.length+1)});
+  return add(s,'iv',routineId);
+ }
+ function selectRoutine(s,routineId){
+  s=validate(s);
+  if(!s.routines.some(r=>r.id===routineId))throw Error('Unknown Routine');
+  const first=s.pages.find(p=>p.routineId===routineId);
+  if(!first)return add(s,'iv',routineId);
+  s.activeId=first.id;s.activeRoutineId=routineId;
+  return validate(s);
  }
  function remove(s,id){
   s=validate(s);
@@ -184,7 +224,7 @@
  }
  function select(s,id){
   s=validate(s);if(!s.pages.some(x=>x.id===id))throw Error('Page missing');
-  s.activeId=id;return s;
+  s.activeId=id;s.activeRoutineId=s.pages.find(p=>p.id===id).routineId;return s;
  }
  function edit(s,logical,values){
   s=validate(s);
@@ -337,6 +377,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,initial,validate,add,remove,select,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,initial,validate,add,addRoutine,selectRoutine,remove,select,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

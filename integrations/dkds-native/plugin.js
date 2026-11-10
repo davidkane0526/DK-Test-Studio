@@ -163,18 +163,36 @@
    const s=state(),p=active();
    const selectedKind=kindField?.control?.value||'iv';
    nav.replaceChildren();
-   for(const page of s.pages){
-    units.action.create(nav,{
-     id:'open-'+page.id,label:page.name,
-     variant:page.id===s.activeId?'primary':'quiet',
-     onInvoke:()=>persist(model.select(state(),page.id))
+   // Native DKDS Core Unit widgets own the actual Project/Routine/Page tree.
+   const explorer=units.panel.create(nav,{
+    variant:'standard',title:'Project Explorer / Device / MOSFET',sizing:'content'
+   });
+   for(const routine of s.routines){
+    const branch=units.panel.create(explorer.body,{
+     variant:'standard',title:routine.name,sizing:'content'
     });
-    if(s.pages.length>1)units.action.create(nav,{
-     id:'close-'+page.id,label:'×',variant:'quiet',
-     ariaLabel:'关闭 '+page.name,
-     onInvoke:()=>persist(model.remove(state(),page.id))
+    units.action.create(branch.body,{
+     id:'routine-'+routine.id,label:'▦ '+routine.name,variant:'quiet',
+     onInvoke:()=>persist(model.selectRoutine(state(),routine.id))
     });
+    const pages=s.pages.filter(page=>page.routineId===routine.id);
+    for(const page of pages){
+     units.action.create(branch.body,{
+      id:'open-'+page.id,label:'  ▧ '+page.name,
+      variant:page.id===s.activeId?'primary':'quiet',
+      onInvoke:()=>persist(model.select(state(),page.id))
+     });
+     if(s.pages.length>1)units.action.create(branch.body,{
+      id:'close-'+page.id,label:'×',variant:'quiet',
+      ariaLabel:'关闭 '+page.name,
+      onInvoke:()=>persist(model.remove(state(),page.id))
+     });
+    }
    }
+   units.action.create(nav,{
+    id:'add-routine',label:'＋ Routine',variant:'quiet',
+    onInvoke:()=>persist(model.addRoutine(state()))
+   });
    kindField=units.field.create(nav,{
     kind:'select',label:'新增类型',value:selectedKind,
     options:model.KINDS.map(x=>({value:x.id,label:x.label}))
