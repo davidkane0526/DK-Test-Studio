@@ -198,27 +198,26 @@
    });
    for(const t of ports){
     const panel=units.panel.create(parameters,{variant:'standard',title:t.logical+' · '+t.resource,sizing:'content'});
-    const row1=units.layout.create(panel.body,{variant:'identity',geometry:{
-     display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(116px,1fr))',gap:'8px'}});
-    units.field.create(row1,{kind:'select',label:'源模式',value:t.sourceMode,
+    // Single FS-Pro-style row on wide screens; Core grid wraps naturally on tablets.
+    const controls=units.layout.create(panel.body,{variant:'identity',geometry:{
+     display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(122px,1fr))',gap:'8px'}});
+    units.field.create(controls,{kind:'select',label:'源模式',value:t.sourceMode,
      options:[{value:'voltage',label:'Voltage'},{value:'current',label:'Current'}],
      onChange:e=>change(t.logical,'sourceMode',e.target.value)});
-    units.field.create(row1,{kind:'select',label:'扫描角色',value:t.role,
+    units.field.create(controls,{kind:'select',label:'扫描角色',value:t.role,
      options:[{value:'CONDITION',label:'Condition'},{value:'X',label:'Xsweep'},{value:'P',label:'Psweep'}],
      onChange:e=>change(t.logical,'role',e.target.value)});
-    for(const key of (t.role==='CONDITION'?['bias']:['start','stop','step']))
-     numericField(row1,t.logical,key,({bias:'偏压',start:'开始',stop:'结束',step:'步长'})[key],t[key]);
-    const row2=units.layout.create(panel.body,{variant:'identity',geometry:{
-     display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(116px,1fr))',gap:'8px'}});
-    units.field.create(row2,{kind:'select',label:'量程模式',value:t.rangeMode,
+    if(t.role==='CONDITION')numericField(controls,t.logical,'bias','固定偏置',t.bias);
+    // Scanned start/stop/step live ONLY in the X/P segment editor below.
+    units.field.create(controls,{kind:'select',label:'量程模式',value:t.rangeMode,
      options:[{value:'auto',label:'自动'},
       ...(t.sourceMode==='voltage'?[{value:'minimum',label:'电流自动下限'}]:[]),
       {value:'fixed',label:'即时指定'}],
      onChange:e=>change(t.logical,'rangeMode',e.target.value)});
-    numericField(row2,t.logical,'rangeValue',
+    numericField(controls,t.logical,'rangeValue',
      t.sourceMode==='voltage'?'电流档位 (A)':'电压档位 (V)',
      t.rangeValue,t.rangeMode==='auto');
-    numericField(row2,t.logical,'compliance',
+    numericField(controls,t.logical,'compliance',
      t.sourceMode==='voltage'?'限流 (A)':'限压 (V)',t.compliance);
    }
    if(['iv','transfer'].includes(p.kind))renderSweep(parameters,p);

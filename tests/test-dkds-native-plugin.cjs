@@ -16,6 +16,8 @@ assert.ok(manifest.requiresCore.includes('ui.scientific-plot'));
 assert.ok(!manifest.styles?.length,'global CSS/visual themes belong to DKDS');
 assert.ok(/ctx\.ui\.topWorkspace\.register/.test(js));
 assert.ok(/units\.prime\.build/.test(js));
+assert.ok(/if\(t\.role==='CONDITION'\)numericField\(controls/.test(js),
+ 'the port row must not duplicate the X/P start-stop-step controls');
 assert.ok(/units\.scientificPlot\.create/.test(js));
 assert.ok(/ctx\.data\.sources\.list/.test(js));
 assert.ok(/model\.curvesFromArtifacts\(rows,ctx\.data\.artifacts\)/.test(js));
