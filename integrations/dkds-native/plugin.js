@@ -5,7 +5,9 @@
   const model=ctx.modules.require('model'),units=ctx.ui.unitTemplates;
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
-  let wb=null,plot=null,plotView=null,nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null;
+  let wb=null,plot=null,plotView=null,nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
+  let editorSection='sweep';
+  const PAGE_TABS=[['info','Info'],['sweep','Sweep'],['target','Target'],['strategy','Strategy'],['limits','Limits'],['variables','Page Var'],['spec','Associate Spec']];
   const touchNumeric=Boolean(window.matchMedia?.('(pointer: coarse)')?.matches);
   const state=()=>model.validate(store.get());
   const active=()=>{const s=state();return s.pages.find(x=>x.id===s.activeId);};
@@ -104,6 +106,13 @@
    const config=units.panel.create(parameters,{variant:'headed',
      title:'扫描结构',sizing:'content'});
    const top=units.layout.create(config.body,{variant:'form-grid-2'});
+   const opts=p.terminals.map(t=>({value:t.logical,label:t.logical+' / '+t.resource}));
+   const xPort=p.terminals.find(t=>t.role==='X')||p.terminals[0];
+   const pPort=p.terminals.find(t=>t.role==='P')||p.terminals[1];
+   units.field.create(top,{kind:'select',label:'Xsweep 端口',value:xPort.logical,
+    options:opts,onChange:e=>change(e.target.value,'role','X')});
+   units.field.create(top,{kind:'select',label:'Psweep 端口',value:pPort.logical,
+    options:opts,onChange:e=>change(e.target.value,'role','P')});
    scalarField(top,'整体循环',sw.loops,v=>changeSweep('loops',v));
    units.field.create(top,{kind:'select',label:'Psweep',value:String(sw.pEnabled),
     options:[{value:'false',label:'关闭'},{value:'true',label:'启用'}],
@@ -116,8 +125,9 @@
     preview.reason+'。未输出至仪器。'});
    for(const axis of ['X','P']){
     if(axis==='P'&&!sw.pEnabled)continue;
-    const t=p.terminals.find(t=>t.resource!=='None'&&t.role===axis);
-    if(!t)continue; // Never create a parameter editor for a None port.
+    const t=p.terminals.find(t=>t.role===axis)||
+      p.terminals.find(t=>t.logical===(axis==='X'?'D':'G'));
+    if(!t)continue; // Offline sweep plan remains visible before allocation.
     const segments=axis==='X'?sw.xSegments:sw.pSegments;
     const repeatKey=axis==='X'?'xRepeats':'pRepeats';
     const panel=units.panel.create(parameters,{variant:'headed',
@@ -238,38 +248,115 @@
      onChange:e=>change(term.logical,'resource',e.target.value)
     });
    }
-   parameters.replaceChildren();
-   units.note.create(parameters,{variant:'meta',text:p.name+' · '+p.testType});
-   const ports=model.visible(p);
-   if(!ports.length)units.emptyState.create(parameters,{
-    message:'未分配端口。None 端口只在「端口映射」面板显示。'
+   editorHeading.replaceChildren();
+   const title=units.header.create(editorHeading,{
+    kind:'panel',variant:'content',eyebrow:'EDIT PAGE',title:p.name,meta:p.testType
    });
-   for(const t of ports){
-    const panel=units.panel.create(parameters,{variant:'headed',title:t.logical+' · '+t.resource,sizing:'content'});
-    // Single FS-Pro-style row on wide screens; Core grid wraps naturally on tablets.
-    const controls=units.layout.create(panel.body,{variant:'form-grid-4'});
-    units.field.create(controls,{kind:'select',label:'源模式',value:t.sourceMode,
-     options:[{value:'voltage',label:'Voltage'},{value:'current',label:'Current'}],
-     onChange:e=>change(t.logical,'sourceMode',e.target.value)});
-    units.field.create(controls,{kind:'select',label:'扫描角色',value:t.role,
-     options:[{value:'CONDITION',label:'Condition'},{value:'X',label:'Xsweep'},{value:'P',label:'Psweep'}],
-     onChange:e=>change(t.logical,'role',e.target.value)});
-    if(t.role==='CONDITION')numericField(controls,t.logical,'bias','固定偏置',t.bias);
-    // Scanned start/stop/step live ONLY in the X/P segment editor below.
-    units.field.create(controls,{kind:'select',label:'量程模式',value:t.rangeMode,
-     options:[{value:'auto',label:'自动'},
-      ...(t.sourceMode==='voltage'?[{value:'minimum',label:'电流自动下限'}]:[]),
-      {value:'fixed',label:'即时指定'}],
-     onChange:e=>change(t.logical,'rangeMode',e.target.value)});
-    numericField(controls,t.logical,'rangeValue',
-     t.sourceMode==='voltage'?'电流档位 (A)':'电压档位 (V)',
-     t.rangeValue,t.rangeMode==='auto');
-    numericField(controls,t.logical,'compliance',
-     t.sourceMode==='voltage'?'限流 (A)':'限压 (V)',t.compliance);
+   units.action.create(title.actions,{id:'check-plan',label:'校验规划',
+    variant:'secondary',onInvoke:()=>{
+     const result=model.summary(active());
+     ctx.status.set(result.ready?'离线规划 '+result.total+' 点':result.reason);
+    }});
+   units.action.create(title.actions,{id:'run-disabled',label:'▶ 测试',
+    variant:'secondary',enabled:false});
+   editorTabs.replaceChildren();
+   units.tabs.create(editorTabs,{variant:'compact',value:editorSection,
+    items:PAGE_TABS.map(([id,label])=>({id,label,selected:id===editorSection})),
+    onChange:value=>{
+     const id=String(typeof value==='object'?value?.id||value?.value||'':value);
+     if(PAGE_TABS.some(row=>row[0]===id)){editorSection=id;render();}
+    }});
+   parameters.replaceChildren();
+   const section=(name)=>units.panel.create(parameters,{
+    variant:'headed',title:name,sizing:'content'});
+   if(editorSection==='info'){
+    const grid=units.layout.create(section('Page Information').body,{variant:'form-grid-2'});
+    units.field.create(grid,{kind:'input',label:'Page 名称',value:p.name,
+     onChange:e=>commitTransaction(()=>model.editPage(state(),{name:e.target.value}))});
+    units.field.create(grid,{kind:'textarea',label:'备注',value:p.note||'',
+     onChange:e=>commitTransaction(()=>model.editPage(state(),{note:e.target.value}))});
+    scalarField(grid,'循环次数',p.sweep.loops,v=>changeSweep('loops',v));
+   }else if(editorSection==='sweep'){
+    if(['iv','transfer','output'].includes(p.kind))renderSweep(parameters,p);
+    else units.note.create(parameters,{variant:'meta',
+     text:'当前类型只允许离线配置；仪器输出禁用。'});
+    const ports=model.visible(p);
+    if(ports.length){
+     const panel=section('Terminal Settings');
+     for(const term of ports){
+      units.note.create(panel.body,{variant:'meta',text:term.logical+' · '+term.resource});
+      const grid=units.layout.create(panel.body,{variant:'form-grid-4'});
+      units.field.create(grid,{kind:'select',label:'Source Mode',value:term.sourceMode,
+       options:[{value:'voltage',label:'Voltage'},{value:'current',label:'Current'}],
+       onChange:e=>change(term.logical,'sourceMode',e.target.value)});
+      units.field.create(grid,{kind:'select',label:'Role',value:term.role,
+       options:[{value:'CONDITION',label:'Fixed'},{value:'X',label:'Xsweep'},
+        {value:'P',label:'Psweep'}],onChange:e=>change(term.logical,'role',e.target.value)});
+      units.field.create(grid,{kind:'select',label:'Range Mode',value:term.rangeMode,
+       options:[{value:'auto',label:'Auto'},
+        ...(term.sourceMode==='voltage'?[{value:'minimum',label:'Limited Auto'}]:[]),
+        {value:'fixed',label:'Fixed'}],
+       onChange:e=>change(term.logical,'rangeMode',e.target.value)});
+      numericField(grid,term.logical,'rangeValue',
+       term.sourceMode==='voltage'?'Current Range (A)':'Voltage Range (V)',
+       term.rangeValue,term.rangeMode==='auto');
+      numericField(grid,term.logical,'compliance',
+       term.sourceMode==='voltage'?'Compliance (A)':'Compliance (V)',term.compliance);
+      if(term.role==='CONDITION')numericField(grid,term.logical,'bias','Fixed Bias',term.bias);
+     }
+    }
+   }else if(editorSection==='target'){
+    const grid=units.layout.create(section('Measurement Target').body,{variant:'form-grid-2'});
+    units.field.create(grid,{kind:'select',label:'Terminal',value:p.target.logical,
+     options:p.terminals.map(t=>({value:t.logical,label:t.logical+' / '+t.resource})),
+     onChange:e=>commitTransaction(()=>model.editTarget(state(),{logical:e.target.value}))});
+    units.field.create(grid,{kind:'select',label:'Quantity',value:p.target.quantity,
+     options:[{value:'Current',label:'Current (A)'},{value:'Voltage',label:'Voltage (V)'}],
+     onChange:e=>commitTransaction(()=>model.editTarget(state(),{quantity:e.target.value}))});
+   }else if(editorSection==='strategy'){
+    const grid=units.layout.create(section('Measurement Strategy').body,{variant:'form-grid-2'});
+    for(const [label,key] of [['Loops','loops'],['Xsweep Repeats','xRepeats'],
+      ['Psweep Repeats','pRepeats']])
+     scalarField(grid,label,p.sweep[key],v=>changeSweep(key,v));
+    units.field.create(grid,{kind:'select',label:'Psweep',value:String(p.sweep.pEnabled),
+     options:[{value:'false',label:'Off'},{value:'true',label:'On'}],
+     onChange:e=>changeSweep('pEnabled',e.target.value==='true')});
+   }else if(editorSection==='limits'){
+    const panel=section('Terminal Limits');
+    if(!model.visible(p).length)units.emptyState.create(panel.body,{
+     message:'先在 Terminal 中分配端口'});
+    for(const term of model.visible(p)){
+     const grid=units.layout.create(panel.body,{variant:'form-grid-2'});
+     numericField(grid,term.logical,'compliance',
+      term.logical+' / '+term.resource+' Compliance',term.compliance);
+     numericField(grid,term.logical,'rangeValue',
+      term.logical+' / '+term.resource+' Range',term.rangeValue,term.rangeMode==='auto');
+    }
+    units.note.create(panel.body,{variant:'meta',
+     text:'仅离线规划；真实硬件输出禁用。'});
+   }else if(editorSection==='variables'){
+    const panel=section('Page Var');
+    for(const [index,variable] of p.variables.entries()){
+     const row=units.layout.create(panel.body,{variant:'form-grid-4'});
+     units.field.create(row,{kind:'input',label:'Name',value:variable.name,
+      onChange:e=>commitTransaction(()=>model.editVariable(state(),index,{name:e.target.value}))});
+     scalarField(row,'Value',variable.value,v=>commitTransaction(
+      ()=>model.editVariable(state(),index,{value:v})));
+     units.field.create(row,{kind:'input',label:'Unit',value:variable.unit,
+      onChange:e=>commitTransaction(()=>model.editVariable(state(),index,{unit:e.target.value}))});
+     units.action.create(row,{id:'remove-var-'+index,label:'×',variant:'quiet',
+      onInvoke:()=>commitTransaction(()=>model.removeVariable(state(),index))});
+    }
+    units.action.create(panel.body,{id:'add-var',label:'＋ Variable',variant:'quiet',
+     onInvoke:()=>commitTransaction(()=>model.addVariable(state()))});
+   }else if(editorSection==='spec'){
+    const grid=units.layout.create(section('Associate Spec').body,{variant:'form-grid-2'});
+    units.field.create(grid,{kind:'select',label:'Spec',value:p.associateSpecId||'',
+     options:[{value:'',label:'None'},...s.specs.map(x=>({value:x.id,label:x.name}))],
+     onChange:e=>commitTransaction(()=>model.associateSpec(state(),e.target.value||null))});
+    units.action.create(grid,{id:'new-spec-inline',label:'＋ Spec',variant:'quiet',
+     onInvoke:()=>commitTransaction(()=>model.addSpec(state()))});
    }
-   if(['iv','transfer','output'].includes(p.kind))renderSweep(parameters,p);
-   else units.note.create(parameters,{variant:'meta',
-    text:'该测试类型目前只提供离线参数草稿，尚未实现仪器执行。'});
   }
   ctx.ui.activities.add({id:ACTIVITY,label:'4200A',contextLabel:'DK Test Studio',icon:'▦',
    order:82,primary:true,openMode:'window',artifactHydration:'live',
@@ -290,11 +377,9 @@
   const work=units.layout.create(main,{variant:'stack-compact'});
   const content=units.layout.create(work,{variant:'responsive-two-column'});
   const editor=units.layout.create(content,{variant:'stack-compact'});
-  const editHeading=units.header.create(editor,{kind:'panel',variant:'content',
-   eyebrow:'EDIT PAGE',title:'测试参数'});
-  units.action.create(editHeading.actions,{id:'run-disabled',label:'▶ 测试',
-   variant:'secondary',enabled:false});
+  editorHeading=units.layout.create(editor,{variant:'identity'});
   inlineTerminals=units.layout.create(editor,{variant:'identity'});
+  editorTabs=units.layout.create(editor,{variant:'identity'});
   parameters=units.layout.create(editor,{variant:'stack-compact'});
   const plotArea=units.layout.create(content,{variant:'stack-comfortable'});
   const graphic=units.panel.create(plotArea,{variant:'plot-card',

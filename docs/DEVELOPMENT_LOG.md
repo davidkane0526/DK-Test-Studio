@@ -72,3 +72,8 @@
 ## 2026-11-10 / Core UI 主界面内嵌 FS-Pro 编辑器
 - R-20261110-006：将当前在 PRIME 中默认隐藏的参数编辑器移到 DKDS Core 主工作区，使用正式 `sidebar-main-compact`、`responsive-two-column`、`form-grid-4` 实现项目导航 / 参数编辑 / 科学 Data/Graph；端口选择主屏可见，保留可停靠的 Port PRIME，不复制网页独立运行壳，绝不修改 DKDS。
 - 新增 mock 断言 primary 双列与 Terminal 面板可见。该提交不代表 FS-Pro 全部标签或视觉验收完成，后续以 Electron 实际截图/Android 编译与 Android 真机为准。
+
+## 2026-11-10 / FS-Pro 七项 Edit Page 迁移至原生 DKDS Unit
+- 在 Primary 主屏通过 DKDS Unit Tabs 展示 Info / Sweep / Target / Strategy / Limits / Page Var / Associate Spec 7 项；Page 名称备注、Target、变量和 Spec 与工程持久化数据模型相连。参数默认直接展开，不再默认锁定或隐藏在 PRIME。
+- Xsweep 在 SMU 尚未分配时仍允许离线编辑规划（真实硬件输出保持禁用）；独立 Terminal Settings 只显示已分配端口。复用 DKDS Field、Panel、Tabs、Scientific Plot，不建立 iframe/独立 WebUI 壳。
+- 本变更仅修改 DKTS Core Preview 分支；CI 和真实截图是验收依据，不能视为已经达到 FS-Pro 1:1 像素对应，更未验证硬件。

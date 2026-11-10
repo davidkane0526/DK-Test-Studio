@@ -35,6 +35,8 @@ const units={
    return el();
  }},
  action:{create:(host,spec)=>{record.actions.push(spec);host.children.push(spec);return{element:el()}}},
+ tabs:{create:(host,spec)=>{record.tabs=record.tabs||[];record.tabs.push(spec);
+  host.children.push(spec);return{element:el()}}},
  note:{create:(host,spec)=>{const n=el();n.textContent=spec.text;host.children.push(n);return n}},
  emptyState:{create:(host,spec)=>{host.children.push(spec);return{element:el()}}},
  panel:{create:(host,spec)=>{
@@ -99,6 +101,10 @@ const ctx={
  assert.equal(record.composed.primes.length,1);
  assert.ok(record.layouts.includes('responsive-two-column'));
  assert.ok(record.panels.some(x=>x.title==='Terminal'));
+ assert.equal(record.tabs.at(-1).items.length,7);
+ record.tabs.at(-1).onChange('info');
+ assert.ok(record.panels.some(x=>x.title==='Page Information'));
+ record.tabs.at(-1).onChange('sweep');
 
  assert.equal(record.panels.some(x=>x.title==='D · SMU1'),false,'None port does not render parameter panel');
  assert.equal(record.plots.length,1);
