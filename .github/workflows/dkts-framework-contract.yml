@@ -124,7 +124,13 @@ jobs:
           npm install --include=dev --no-audit --no-fund
           npm ls electron
           if (-not (Test-Path "node_modules/electron/dist/electron.exe")) {
-            throw "Derived DKTS Core Preview has no Electron runtime after including development dependencies."
+            # The upstream SDK/CI environment may skip Electron's binary postinstall.
+            # Fetch the exact installed npm Electron binary for real startup testing.
+            Remove-Item Env:ELECTRON_SKIP_BINARY_DOWNLOAD -ErrorAction SilentlyContinue
+            node node_modules/electron/install.js
+          }
+          if (-not (Test-Path "node_modules/electron/dist/electron.exe")) {
+            throw "Electron npm package exists, but its matching Windows binary is missing."
           }
       - name: Generate Core runtime, DKTS-only plugin catalog and brand
         shell: pwsh
