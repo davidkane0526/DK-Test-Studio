@@ -367,7 +367,7 @@
   const plotArea=units.layout.create(content,{variant:'stack-comfortable'});
   const graphic=units.panel.create(plotArea,{variant:'plot-card',
    header:false,sizing:'content'});
-  const graphicHeader=units.header.create(graphic.element,{kind:'plot',
+  const graphicHeader=units.header.create(graphic.body,{kind:'plot',
    variant:'plot',title:'Data / Graph',actionHost:true});
   const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
   plotView=units.plotView.adopt('dkts-4200a-main-plot',graphic.element,{

@@ -84,3 +84,7 @@
 ## 2026-11-10 / Core Project Explorer 视觉层级与组件纠正
 - 旧原生项目导航用多层 headed Panel + 独立按钮，截图中出现重复 Routine 标题、拉伸按钮及无意义空边距。替换为 DKDS 原生 List Unit 的 Research Project → Routine → Page、Spec 导航；主操作区域采用 Row-Wrap Unit，当前 Page 的删除动作用统一工具行承载。
 - 仍使用 DKDS Core 的 Theme/Action/List/PlotView 基础，不创建独立网页或手写样式。模拟测试增加原生 list mock 并保留项目选择、关闭和所有权校验。仅修改 DKTS。
+
+## 2026-11-10 / DKDS PlotView 真实截图标题栏顺序修正
+- 在 Windows 真截图 `08c0a294` 中发现“Data / Graph”标题栏显示在空白曲线区域下方，原因是 DKTS 插件把 Core Header 挂到 Panel.element（body 之后），与 Panel.body 内的 PlotHost 形成错误 DOM 顺序。
+- 改为在 Panel.body 内先建立 DKDS Core Plot Header，再放入 PlotHost，仍通过 DKDS `units.plotView.adopt` 共享标题栏/导出/移动功能；此修改只发生在 DKTS 原生插件，不修改 DKDS。需后续真 Electron 截图确认。
