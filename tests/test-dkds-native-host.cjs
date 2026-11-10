@@ -98,7 +98,7 @@ const ctx={
  map.spec.onChange({target:{value:'SMU1'}});
  assert.equal(state.pages[0].terminals[0].resource,'SMU1');
  assert.ok(record.panels.some(x=>x.title==='D · SMU1'));
- const choice=record.fields.find(x=>x.spec.label==='新增类型');
+ const choice=[...record.fields].reverse().find(x=>x.spec.label==='新增类型');
  choice.control.value='pulse';
  const add=[...record.actions].reverse().find(x=>x.id==='add-test');
  add.onInvoke();
