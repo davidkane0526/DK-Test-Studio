@@ -57,3 +57,41 @@ test('single HTML bundles the FS-Pro preview and DKDS scientific renderer',()=>{
  assert.doesNotMatch(html,/(?:src|href)="\.\/(?:app\.js|styles\.css|vendor\/)/);
  assert.doesNotMatch(html,/data-src="demo-adapter\.js"/);
 });
+
+test('web planner and DKDS native plugin agree on exact segment endpoints and nested totals',()=>{
+  const vm=require('node:vm');
+  const registry=new Map(),ctx={
+    window:{DKDSPluginModules:{define:(id,name,model)=>registry.set(name,model)}}
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(root,'integrations/dkds-native/model.js'),'utf8'),ctx);
+  const native=registry.get('model');
+  assert.ok(native);
+  let project=native.initial();
+  project=native.edit(project,'D',{resource:'SMU1'});
+  project=native.edit(project,'G',{resource:'SMU2',role:'P'});
+  project=native.editSweep(project,{pEnabled:true,loops:'2',xRepeats:'2',pRepeats:'1'});
+  const summary=native.summary(project.pages[0]);
+  const page={loops:2,terminals:{source:'GNDU',drain:'SMU1',gate:'SMU2'},
+    xSweep:{terminal:'drain',repeats:2,segments:[{startV:0,stopV:2,stepV:0.1}]},
+    pSweep:{enabled:true,terminal:'gate',repeats:1,segments:[{startV:0,stopV:1,stepV:0.1}]}};
+  const web=require('../web/fspro-workbench/plan.js').calculate(page);
+  assert.equal(web.xPoints,summary.xPoints*summary.xRepeats);
+  assert.equal(web.pPoints,summary.pPoints*summary.pRepeats);
+  assert.equal(web.totalPoints,summary.total);
+  assert.equal(web.executable,false);
+});
+test('web planner does not silently truncate sweep endpoints or relax KXCI segment bounds',()=>{
+  const planner=require('../web/fspro-workbench/plan.js');
+  const page={loops:1,terminals:{source:'GNDU',drain:'SMU1',gate:'SMU2'},
+    xSweep:{terminal:'drain',repeats:1,segments:[{startV:0,stopV:2,stepV:0.3}]},
+    pSweep:{enabled:false,terminal:'gate',repeats:1,segments:[{startV:0,stopV:1,stepV:0.1}]}};
+  assert.throws(()=>planner.calculate(page),/精确到达/);
+  page.xSweep.segments=[{startV:0,stopV:210,stepV:0.05}];
+  assert.throws(()=>planner.calculate(page),/4096/);
+  page.xSweep.segments=[{startV:0.75,stopV:0.75,stepV:0}];
+  const single=planner.calculate(page);
+  assert.equal(single.xPoints,1);
+  assert.equal(single.sample[0].xV,0.75);
+  page.xSweep.segments[0].stepV=1;
+  assert.throws(()=>planner.calculate(page),/单点段必须使用 0 步长/);
+});

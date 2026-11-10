@@ -59,3 +59,7 @@
 - 基于 LabExpress/FS-Pro 公开界面资料和既有用户层级要求，新增 `web/fspro-workbench/` 的独立可复用 Page/Scan 编辑器：Project Explorer、Routine/Page、Info/Sweep/Target/Strategy/Limits/Page Var/Associate Spec、嵌套 X/P 扫描、端口独立量程/限流和固定偏置。构建器改从该新页面生成 Pages/单文件 HTML，完全阻止旧卡片 UI 误发。
 - 运行时仅规划，不允许仪器连接或虚构原始数据。数据绘图视图继续引入现有 DKDS 科学绘图分发内核（空数据），规划曲线有清楚标识。FS-Pro 外观/层级尚须与完整厂商手册和用户确认截图进一步核对，不把此次演示当作 1:1 完成，也不把它称为真正的 DKDS Core Host 应用。
 - 增加 Node 规划/安全边界回归、真实 Chromium 桌面/平板截图与交互测试。实际测试/Pages/附件以 GitHub Actions 报告为准；未合并的 Core Host 预览 PR #18、Windows/Android 新宿主应用仍是后续工作。没有修改 DKDS。
+
+## 2026-11-10 / FS-Pro 与原生 DKDS 扫描契约对齐
+- 网页 Xsweep/Psweep 规划器此前采用 `Math.floor(...)` 估算点数，可能默默截断无法到达的指定终点，例如 0→2 V、0.3 V 步长。这会造成网页预览与原生 DKDS/KXCI 规划不一致。
+- 修正为与 `integrations/dkds-native/model.js` 一致的严格终点整除检查；单点段必须 0 步长；单段上限 4096 点。新增网页与 DKDS 原生插件模型双层循环总点数一致性测试。仍为离线规划，未授权仪器输出。

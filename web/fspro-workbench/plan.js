@@ -25,11 +25,26 @@
       const from=finite(segment.startV,label+'第'+(i+1)+'段起点');
       const to=finite(segment.stopV,label+'第'+(i+1)+'段终点');
       const step=finite(segment.stepV,label+'第'+(i+1)+'段步长',-420,420);
-      if(step===0)throw Error(label+'步长不能为 0');
-      if(from!==to&&Math.sign(to-from)!==Math.sign(step))throw Error(label+'起止方向与步长不一致');
-      const count=Math.floor(Math.abs((to-from)/step)+1e-8)+1;
-      if(count>10001)throw Error(label+'单段点数不得超过 10001');
-      for(let k=0;k<count;k++)values.push(Number((from+k*step).toPrecision(13)));
+      // Match the native DKDS/KXCI planning contract. A segment cannot stop
+      // short of its requested end point; a single-point segment uses step=0.
+      let count;
+      if(from===to){
+        if(step!==0)throw Error(label+'单点段必须使用 0 步长');
+        count=1;
+      }else{
+        if(step===0||Math.sign(to-from)!==Math.sign(step))
+          throw Error(label+'起止方向与步长不一致');
+        const steps=(to-from)/step,nearest=Math.round(steps);
+        if(!Number.isSafeInteger(nearest)||nearest<1||
+           Math.abs(steps-nearest)>1e-8*Math.max(1,Math.abs(steps)))
+          throw Error(label+'步长不能精确到达扫描终点');
+        count=nearest+1;
+      }
+      if(count>4096)throw Error(label+'单段扫描点数不得超过 4096');
+      for(let k=0;k<count;k++){
+        const voltage=k===count-1?to:from+k*step;
+        values.push(Number(voltage.toPrecision(13)));
+      }
     }
     const repeats=integer(axis.repeats,label+'重复次数',1,10000);
     return {values,repeats,points:values.length*repeats};
@@ -39,7 +54,7 @@
     const active=roles.map(role=>String(terminals[role]||'None')).filter(x=>x!=='None'&&x!=='GNDU');
     if(new Set(active).size!==active.length)throw Error('不同端口不能重复分配同一仪器通道');
     const xRole=input.xSweep?.terminal;
-    if(!roles.includes(xRole)||terminals[xRole]==='None'||terminals[xRole]==='GNDU')
+    if(!roles.includes(xRole)||!terminals[xRole]||terminals[xRole]==='None'||terminals[xRole]==='GNDU')
       throw Error('Xsweep 的扫描端口未分配可用源模块');
     const x=expandAxis(input.xSweep,'Xsweep');
     const pOn=input.pSweep?.enabled===true;
