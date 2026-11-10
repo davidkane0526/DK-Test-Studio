@@ -23,6 +23,7 @@ async function inspect(browser,url,width,height,mobile){
  await page.goto(url,{waitUntil:'load'});
  await page.waitForFunction(()=>window.DKTSFSProDemo?.preview===true,null,{timeout:15000});
  assert.equal(await page.locator('.page-tree').count(),3);
+ assert.equal(await page.locator('.routine-heading').count(),1);
  assert.equal(await page.locator('.page-tabs [role="tab"]').count(),7);
  assert.equal(await page.locator('#x-segments tr').count(),1);
  assert.equal(await page.locator('#start').isDisabled(),true);
@@ -43,6 +44,16 @@ async function inspect(browser,url,width,height,mobile){
  await page.locator('[data-section="sweep"]').click();
  assert.equal(await page.locator('[data-panel="sweep"]').isVisible(),true);
  await page.screenshot({path:path.join(shots,mobile?'tablet-fspro-sweep.png':'desktop-fspro-sweep.png'),fullPage:true});
+ await page.locator('#new-routine').click();
+ assert.equal(await page.locator('.routine-heading').count(),2);
+ assert.equal(await page.locator('.page-tree').count(),4);
+ assert.match(await page.locator('#breadcrumb').innerText(),/Routine 2/);
+ await page.locator('#new-page').click();
+ await page.locator('#choose-grid [data-kind="retention"]').click();
+ assert.equal(await page.locator('.page-tree').count(),5);
+ const grouped=await page.evaluate(()=>window.DKTSFSProDemo.snapshot());
+ assert.equal(grouped.pages[4].routineId,grouped.routines[1].id);
+ assert.ok(await page.evaluate(()=>Boolean(localStorage.getItem('dkts.fspro.workbench.v1'))));
  if(mobile){await page.locator('#nav-toggle').click();assert.equal(await page.locator('.shell.nav-open').count(),1);
    await page.screenshot({path:path.join(shots,'tablet-fspro-navigation.png'),fullPage:true});}
  assert.deepEqual(errors,[],'Browser errors '+errors.join(' | '));

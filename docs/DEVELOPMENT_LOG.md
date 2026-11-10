@@ -63,3 +63,7 @@
 ## 2026-11-10 / FS-Pro 与原生 DKDS 扫描契约对齐
 - 网页 Xsweep/Psweep 规划器此前采用 `Math.floor(...)` 估算点数，可能默默截断无法到达的指定终点，例如 0→2 V、0.3 V 步长。这会造成网页预览与原生 DKDS/KXCI 规划不一致。
 - 修正为与 `integrations/dkds-native/model.js` 一致的严格终点整除检查；单点段必须 0 步长；单段上限 4096 点。新增网页与 DKDS 原生插件模型双层循环总点数一致性测试。仍为离线规划，未授权仪器输出。
+
+## 2026-11-10 / FS-Pro Project→Routine→Page 实体化
+- 修复网页 Demo「＋ Routine」此前复用「＋ Page」弹窗、没有真正 Routine 对象的错误。新增 `routines` 数据模型、`routineId` 页面所有权、按 Routine 分组的项目树、真实 Breadcrumb 与新增 Routine / Page 操作。
+- 规划草稿改存 localStorage，兼容旧 sessionStorage；导出项目包含 Routine 与 Page 的归属关系。新增桌面、平板 Chromium 交互断言，以 CI 为最终判定。此项仅在 DKTS 网页工作区实现，Core 宿主尚需进一步集成，未修改 DKDS。

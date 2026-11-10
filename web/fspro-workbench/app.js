@@ -13,7 +13,7 @@ const roles=['source','drain','gate'],roleNames={source:'Source',drain:'Drain',g
 const portChoices=['None','GNDU','SMU1','SMU2','SMU3','SMU4','SMU5','SMU6','PMU1-1','PMU1-2'];
 const ranges=['Auto','1e-12','1e-11','1e-10','1e-9','1e-8','1e-7','1e-6','1e-5','1e-4','1e-3','1e-2','1e-1','1e0'];
 const defaults=kind=>({
- id:'page-'+Math.random().toString(36).slice(2,9),kind,name:KINDS[kind][0],note:'',
+ id:'page-'+Math.random().toString(36).slice(2,9),routineId:'routine-1',kind,name:KINDS[kind][0],note:'',
  loops:1,terminals:{source:'GNDU',drain:'SMU1',gate:'SMU2'},
  xSweep:{terminal:kind==='transfer'?'gate':'drain',repeats:1,segments:[{startV:0,stopV:2,stepV:.1,rangeA:'Auto',speed:'Normal'}]},
  pSweep:{enabled:false,terminal:kind==='transfer'?'drain':'gate',repeats:1,segments:[{startV:0,stopV:1,stepV:.1,rangeA:'Auto',speed:'Normal'}]},
@@ -23,20 +23,25 @@ const defaults=kind=>({
  variables:[],associateSpec:false,scanMode:'linear',speed:'Normal',pointDelay:20
 });
 let state={
+ routines:[{id:'routine-1',name:'Routine 1'}],activeRoutineId:'routine-1',
  pages:[defaults('iv'),defaults('transfer'),defaults('pund')],
  activePage:0,section:'sweep',dataView:'plan',navOpen:false,
  theme:'light',lang:'zh',portsVisible:true
 };
 try{
- const stored=JSON.parse(sessionStorage.getItem(STORAGE)||'null');
+ const stored=JSON.parse(localStorage.getItem(STORAGE)||sessionStorage.getItem(STORAGE)||'null');
  if(stored&&Array.isArray(stored.pages)&&stored.pages.length&&stored.pages.length<100){
   const pages=stored.pages.filter(p=>p&&Object.hasOwn(KINDS,p.kind));
   if(pages.length){state={...state,...stored,pages};state.activePage=Math.max(0,Math.min(pages.length-1,Number(state.activePage)||0));}
  }
 }catch{}
+if(!Array.isArray(state.routines)||!state.routines.length||state.routines.length>100)
+ state.routines=[{id:'routine-1',name:'Routine 1'}];
+for(const page of state.pages)
+ if(!state.routines.some(r=>r.id===page.routineId))page.routineId=state.routines[0].id;
 const current=()=>state.pages[state.activePage];
 const save=()=>{
- try{sessionStorage.setItem(STORAGE,JSON.stringify(state));$('saved-state').textContent='已保存';}
+ try{localStorage.setItem(STORAGE,JSON.stringify(state));$('saved-state').textContent='已保存';}
  catch{$('saved-state').textContent='内存会话';}
 };
 const text=(value)=>String(value??'');
@@ -57,13 +62,33 @@ function ensureShape(page){
 state.pages.forEach(ensureShape);
 function tree(){
  const parent=$('routine-list');parent.replaceChildren();
- state.pages.forEach((page,i)=>{
-  const b=document.createElement('button');b.type='button';b.className='page-tree'+(i===state.activePage?' active':'');
-  b.dataset.pageIndex=String(i);
-  b.innerHTML='<span>▧</span><strong>'+esc(page.name||KINDS[page.kind][0])+'</strong>';
-  b.addEventListener('click',()=>{state.activePage=i;renderPage();save();closeNav();});
-  parent.append(b);
- });
+ for(const routine of state.routines){
+  const block=document.createElement('div');block.className='routine-block';
+  const title=document.createElement('button');title.type='button';
+  title.className='routine-heading'+(routine.id===state.activeRoutineId?' active':'');
+  title.dataset.routineId=routine.id;
+  title.innerHTML='<span class="tree-guide">└</span><span class="tree-icon">▦</span>'+esc(routine.name);
+  title.addEventListener('click',()=>{
+   state.activeRoutineId=routine.id;
+   const index=state.pages.findIndex(p=>p.routineId===routine.id);
+   if(index<0)addPage('iv',routine.id);
+   else{state.activePage=index;renderPage();save();closeNav();}
+  });
+  block.append(title);
+  const children=document.createElement('div');children.className='routine-pages';
+  state.pages.forEach((page,i)=>{
+   if(page.routineId!==routine.id)return;
+   const b=document.createElement('button');b.type='button';
+   b.className='page-tree'+(i===state.activePage?' active':'');
+   b.dataset.pageIndex=String(i);
+   b.innerHTML='<span>▧</span><strong>'+esc(page.name||KINDS[page.kind][0])+'</strong>';
+   b.addEventListener('click',()=>{
+    state.activePage=i;state.activeRoutineId=routine.id;renderPage();save();closeNav();
+   });
+   children.append(b);
+  });
+  block.append(children);parent.append(block);
+ }
 }
 function renderSegments(axis){
  const page=current(),list=page[axis+'Sweep'].segments;
@@ -139,9 +164,11 @@ function rows(kind){
 }
 function renderPage(){
  const page=ensureShape(current());
+ state.activeRoutineId=page.routineId;
+ const routine=state.routines.find(r=>r.id===page.routineId);
  $('page-heading').textContent=page.name;
  $('kind-tag').textContent=KINDS[page.kind][1];
- $('breadcrumb').textContent='Research Project / MOSFET / Routine / '+page.name;
+ $('breadcrumb').textContent='Research Project / MOSFET / '+(routine?.name||'Routine')+' / '+page.name;
  $('page-name').value=page.name;
  $('test-kind').value=page.kind;
  $('loops').value=page.loops;
@@ -261,16 +288,26 @@ function plot(points){
  el('text',{x:width-right,y:top+8,'text-anchor':'end'},current().pSweep.enabled?'X / P Bias':'X Bias');
 }
 function closeNav(){state.navOpen=false;$('shell').classList.remove('nav-open');}
-function addPage(kind){
- const page=defaults(kind);
- state.pages.push(page);state.activePage=state.pages.length-1;state.section='sweep';
+function addPage(kind,routineId=state.activeRoutineId){
+ if(!state.routines.some(r=>r.id===routineId))routineId=state.routines[0].id;
+ const page=defaults(kind);page.routineId=routineId;
+ state.pages.push(page);state.activePage=state.pages.length-1;
+ state.activeRoutineId=routineId;state.section='sweep';
  renderPage();save();closeNav();status('已添加 '+page.name+' Page');
+}
+function addRoutine(){
+ if(state.routines.length>=100){status('最多 100 个 Routine');return;}
+ const id='routine-'+Math.random().toString(36).slice(2,9);
+ const routine={id,name:'Routine '+(state.routines.length+1)};
+ state.routines.push(routine);state.activeRoutineId=id;
+ addPage('iv',id);status('已创建 '+routine.name+' 与初始 I–V Page');
 }
 function openPicker(){$('choose-kind').showModal();}
 function doExport(){
  save();
  const payload={format:'dkts-fspro-page-plan',version:1,source:'web-ui-preview',
-  warning:'Not verified or executable on Keithley 4200A',pages:state.pages};
+  warning:'Not verified or executable on Keithley 4200A',
+   routines:state.routines,pages:state.pages};
  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
  const href=URL.createObjectURL(blob),link=document.createElement('a');
  link.href=href;link.download='DKTS-Page-Plan.json';link.click();
@@ -342,7 +379,7 @@ for(const axis of ['x','p'])$(axis+'-add').addEventListener('click',()=>{
 });
 $('validate').addEventListener('click',()=>updatePlan(true));
 $('save').addEventListener('click',()=>{save();status('规划已保存至当前浏览器会话');});
-$('new-routine').addEventListener('click',openPicker);
+$('new-routine').addEventListener('click',addRoutine);
 $('new-page').addEventListener('click',openPicker);
 $('choose-close').addEventListener('click',()=>$('choose-kind').close());
 $('choose-grid').replaceChildren();
@@ -379,7 +416,7 @@ $('var-add').addEventListener('click',()=>{
 window.DKTSFSProDemo=Object.freeze({
  preview:true,instrumentOutput:false,syntheticRawData:false,
  snapshot:()=>structuredClone(state),calculate:()=>PLAN.calculate(current()),
- createPage:addPage
+ createPage:addPage,createRoutine:addRoutine
 });
 document.body.dataset.theme=state.theme;
 renderPage();
