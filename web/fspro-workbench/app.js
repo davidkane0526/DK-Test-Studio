@@ -23,7 +23,7 @@ const defaults=kind=>({
  variables:[],associateSpec:false,scanMode:'linear',speed:'Normal',pointDelay:20
 });
 let state={
- routines:[{id:'routine-1',name:'Routine 1'}],activeRoutineId:'routine-1',
+ routines:[{id:'routine-1',name:'Routine 1'}],activeRoutineId:'routine-1',specs:[],
  pages:[defaults('iv'),defaults('transfer'),defaults('pund')],
  activePage:0,section:'sweep',dataView:'plan',navOpen:false,
  theme:'light',lang:'zh',portsVisible:true
@@ -39,6 +39,7 @@ if(!Array.isArray(state.routines)||!state.routines.length||state.routines.length
  state.routines=[{id:'routine-1',name:'Routine 1'}];
 for(const page of state.pages)
  if(!state.routines.some(r=>r.id===page.routineId))page.routineId=state.routines[0].id;
+if(!Array.isArray(state.specs)||state.specs.length>100)state.specs=[];
 const current=()=>state.pages[state.activePage];
 const save=()=>{
  try{localStorage.setItem(STORAGE,JSON.stringify(state));$('saved-state').textContent='已保存';}
@@ -88,6 +89,20 @@ function tree(){
    children.append(b);
   });
   block.append(children);parent.append(block);
+ }
+ const target=$('spec-list');target.replaceChildren();
+ if(state.specs.length){
+  const header=document.createElement('div');header.className='spec-tree-header';
+  header.textContent='SPEC';target.append(header);
+  for(const spec of state.specs){
+   const b=document.createElement('button');b.type='button';b.className='spec-tree';
+   b.dataset.specId=spec.id;b.innerHTML='<span>◇</span>'+esc(spec.name);
+   b.addEventListener('click',()=>{
+    current().associateSpec=true;current().associateSpecId=spec.id;
+    state.section='spec';renderPage();closeNav();save();
+   });
+   target.append(b);
+  }
  }
 }
 function renderSegments(axis){
@@ -184,7 +199,13 @@ function renderPage(){
  $('speed-global').value=page.speed||'Normal';
  $('point-delay').value=page.pointDelay??20;
  $('strategy-loops').value=page.loops;
- $('associate-spec').checked=!!page.associateSpec;
+ const linked=!!page.associateSpec&&state.specs.some(s=>s.id===page.associateSpecId);
+ $('associate-spec').checked=linked;
+ const picker=$('associate-spec-picker');picker.replaceChildren();
+ picker.add(new Option('未关联',''));
+ for(const spec of state.specs)picker.add(new Option(spec.name,spec.id));
+ picker.value=linked?page.associateSpecId:'';
+ picker.disabled=!state.specs.length;
  tree();ports();renderSegments('x');renderSegments('p');terminalSettings();rows('target');rows('var');
  openSection(state.section);openDataView(state.dataView);updatePlan(false);
 }
@@ -302,12 +323,20 @@ function addRoutine(){
  state.routines.push(routine);state.activeRoutineId=id;
  addPage('iv',id);status('已创建 '+routine.name+' 与初始 I–V Page');
 }
+function addSpec(){
+ if(state.specs.length>=100){status('最多 100 个 Spec');return;}
+ const spec={id:'spec-'+Math.random().toString(36).slice(2,9),
+  name:'Spec '+(state.specs.length+1)};
+ state.specs.push(spec);current().associateSpec=true;
+ current().associateSpecId=spec.id;state.section='spec';
+ renderPage();save();status('已新建并关联 '+spec.name);
+}
 function openPicker(){$('choose-kind').showModal();}
 function doExport(){
  save();
  const payload={format:'dkts-fspro-page-plan',version:1,source:'web-ui-preview',
   warning:'Not verified or executable on Keithley 4200A',
-   routines:state.routines,pages:state.pages};
+   routines:state.routines,specs:state.specs,pages:state.pages};
  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
  const href=URL.createObjectURL(blob),link=document.createElement('a');
  link.href=href;link.download='DKTS-Page-Plan.json';link.click();
@@ -355,7 +384,16 @@ document.addEventListener('input',event=>{
   if(t.id==='p-enabled'){$('p-fields').hidden=!p.pSweep.enabled;$('p-off').hidden=p.pSweep.enabled;}
   fixedBiases();
  }
- if(t.id==='associate-spec')p.associateSpec=t.checked;
+ if(t.id==='associate-spec'){
+   p.associateSpec=t.checked&&state.specs.length>0;
+   if(p.associateSpec&&!p.associateSpecId)p.associateSpecId=state.specs[0].id;
+   $('associate-spec').checked=p.associateSpec;
+   $('associate-spec-picker').value=p.associateSpec?p.associateSpecId:'';
+ }
+ if(t.id==='associate-spec-picker'){
+   p.associateSpec=!!t.value;p.associateSpecId=t.value||null;
+   $('associate-spec').checked=p.associateSpec;
+ }
  if(t.id==='scan-mode')p.scanMode=t.value;
  if(t.id==='speed-global')p.speed=t.value;
  updatePlan(false);save();
@@ -381,6 +419,8 @@ $('validate').addEventListener('click',()=>updatePlan(true));
 $('save').addEventListener('click',()=>{save();status('规划已保存至当前浏览器会话');});
 $('new-routine').addEventListener('click',addRoutine);
 $('new-page').addEventListener('click',openPicker);
+$('new-spec').addEventListener('click',addSpec);
+$('spec-add-inline').addEventListener('click',addSpec);
 $('choose-close').addEventListener('click',()=>$('choose-kind').close());
 $('choose-grid').replaceChildren();
 for(const [kind,[name]] of Object.entries(KINDS)){
@@ -416,7 +456,7 @@ $('var-add').addEventListener('click',()=>{
 window.DKTSFSProDemo=Object.freeze({
  preview:true,instrumentOutput:false,syntheticRawData:false,
  snapshot:()=>structuredClone(state),calculate:()=>PLAN.calculate(current()),
- createPage:addPage,createRoutine:addRoutine
+ createPage:addPage,createRoutine:addRoutine,createSpec:addSpec
 });
 document.body.dataset.theme=state.theme;
 renderPage();

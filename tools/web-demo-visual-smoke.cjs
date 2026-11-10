@@ -54,6 +54,12 @@ async function inspect(browser,url,width,height,mobile){
  const grouped=await page.evaluate(()=>window.DKTSFSProDemo.snapshot());
  assert.equal(grouped.pages[4].routineId,grouped.routines[1].id);
  assert.ok(await page.evaluate(()=>Boolean(localStorage.getItem('dkts.fspro.workbench.v1'))));
+ await page.locator('#new-spec').click();
+ assert.equal(await page.locator('.spec-tree').count(),1);
+ assert.equal(await page.locator('#associate-spec').isChecked(),true);
+ const linked=await page.evaluate(()=>window.DKTSFSProDemo.snapshot());
+ assert.equal(linked.pages[4].associateSpecId,linked.specs[0].id);
+ await page.screenshot({path:path.join(shots,mobile?'tablet-fspro-project.png':'desktop-fspro-project.png'),fullPage:true});
  if(mobile){await page.locator('#nav-toggle').click();assert.equal(await page.locator('.shell.nav-open').count(),1);
    await page.screenshot({path:path.join(shots,'tablet-fspro-navigation.png'),fullPage:true});}
  assert.deepEqual(errors,[],'Browser errors '+errors.join(' | '));

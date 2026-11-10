@@ -67,3 +67,7 @@
 ## 2026-11-10 / FS-Pro Project→Routine→Page 实体化
 - 修复网页 Demo「＋ Routine」此前复用「＋ Page」弹窗、没有真正 Routine 对象的错误。新增 `routines` 数据模型、`routineId` 页面所有权、按 Routine 分组的项目树、真实 Breadcrumb 与新增 Routine / Page 操作。
 - 规划草稿改存 localStorage，兼容旧 sessionStorage；导出项目包含 Routine 与 Page 的归属关系。新增桌面、平板 Chromium 交互断言，以 CI 为最终判定。此项仅在 DKTS 网页工作区实现，Core 宿主尚需进一步集成，未修改 DKDS。
+
+## 2026-11-10 / FS-Pro 真实 Spec 对象与 Page↔Spec 关联
+- 网页此前只有“Associate Spec”复选框，没有 Spec 实体。新增单独的 Spec 集合、项目树入口、Spec 选择器及可持久化的 `associateSpecId`，项目导出带 Spec 和 Routine 与 Page 所有权。
+- 保持只规划、无测量输出、无虚构原始采集。新增 Chromium 测试要求新建 Spec 并验证 Page 关联。该层目前实现于 DKTS Web FS-Pro 预览，Core 宿主尚未集成 Spec，同样不声称像素级 1:1 验收。
