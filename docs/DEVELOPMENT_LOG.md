@@ -97,3 +97,6 @@
 ## 2026-11-10 / 与网页版尺寸比例一致的原生编辑区
 - 真 Electron 1200px 截图显示编辑区和空数据图被平均分配，前者过窄导致 Xsweep 的起止步长/量程控件频繁折行。改用 DKDS 官方 Layout Unit `responsive-two-column` 和 DKDS 固定 SDK 已注册的 `minmax(0,1.25fr) minmax(320px,.75fr)` 比例，并增加 680px 下自动单列布局。
 - 对扫描段使用 Core `form-grid-4` 的注册响应式几何覆盖：620px 以内优先四列，520px 内自动两列。这些值均在固定上游 `sdk/unit-template-geometry-values.json` 允许列表内，仍由 DKDS Core Layout 统一执行。新 mock 校验只容许这几项已注册值，禁止任意手写 CSS/几何。
+
+## 2026-11-10 / Project Navigator 标签文本回归
+- 检查实际 Electron 截图发现 DKDS List Unit 的 `meta` 在当前窄项目树样式中紧贴名称（`Routine 1Routine`、`I–V SweepDC`），视觉混乱。移除该处重复类型文字，保留 Routine / Page 的区分符号和层级顺序，依然使用 Core List Unit，而不是自制 CSS。

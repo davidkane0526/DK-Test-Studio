@@ -178,11 +178,11 @@
     eyebrow:'PROJECT',title:'Research Project',meta:'Device / MOSFET'});
    const tree=units.list.create(nav,{});
    for(const routine of s.routines){
-    tree.item({leading:'▦',title:routine.name,meta:'Routine',
+    tree.item({leading:'▦',title:routine.name,
      selected:routine.id===s.activeRoutineId,
      onInvoke:()=>persist(model.selectRoutine(state(),routine.id))});
     for(const page of s.pages.filter(page=>page.routineId===routine.id))
-     tree.item({leading:'  ▧',title:page.name,meta:page.testType,
+     tree.item({leading:'└ ▧',title:page.name,
       selected:page.id===s.activeId,
       onInvoke:()=>persist(model.select(state(),page.id))});
    }
