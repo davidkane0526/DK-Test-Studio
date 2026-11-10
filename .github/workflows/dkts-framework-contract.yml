@@ -3,8 +3,10 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches: [main, feat/dkts-core-host-boot]
     paths:
+      - 'integrations/dkds-native/**'
+      - 'tests/test-dkds-native-host.cjs'
       - 'tools/dkds-host-profile.cjs'
       - 'tools/stage-dkds-host.cjs'
       - 'tools/dkts-core-brand.cjs'
