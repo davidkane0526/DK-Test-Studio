@@ -149,7 +149,7 @@ const ctx={
  assert.ok(scalar,'global cycles are editable in Core inspector');
  scalar.spec.onChange({target:{value:'2'}});
  assert.equal(state.pages[0].sweep.loops,'2');
- const choice=[...record.fields].reverse().find(x=>x.spec.label==='新增类型');
+ const choice=[...record.fields].reverse().find(x=>x.spec.label==='New Page');
  choice.control.value='pulse';
  const add=[...record.actions].reverse().find(x=>x.id==='add-test');
  add.onInvoke();
@@ -208,7 +208,7 @@ const ctx={
  specField.spec.onChange({target:{value:''}});
  assert.equal(state.pages[0].associateSpecId,null,'Spec link can be cleared');
  // Output Sweep must use the same genuine Core X/P editor as I-V/Transfer.
- const kindOutput=[...record.fields].reverse().find(x=>x.spec.label==='新增类型');
+ const kindOutput=[...record.fields].reverse().find(x=>x.spec.label==='New Page');
  kindOutput.control.value='output';
  const addOutput=[...record.actions].reverse().find(x=>x.id==='add-test');
  addOutput.onInvoke();
