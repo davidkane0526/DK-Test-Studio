@@ -129,7 +129,8 @@ const ctx={
  assert.ok(map,'port assignment is a Core field');
  map.spec.onChange({target:{value:'SMU1'}});
  assert.equal(state.pages[0].terminals[0].resource,'SMU1');
- assert.ok(record.panels.some(x=>x.title==='D · SMU1'));
+ assert.ok(record.panels.some(x=>x.title==='Terminal Settings'),
+  'assigned ports now share one compact Core-owned Terminal Settings panel');
  assert.ok(record.panels.some(x=>x.title==='Xsweep · D / SMU1'),
   'assigned X port has its own Core-rendered scan segments');
  const addSegment=[...record.actions].reverse().find(x=>x.id==='add-segment-X');

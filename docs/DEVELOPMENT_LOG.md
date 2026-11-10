@@ -77,3 +77,6 @@
 - 在 Primary 主屏通过 DKDS Unit Tabs 展示 Info / Sweep / Target / Strategy / Limits / Page Var / Associate Spec 7 项；Page 名称备注、Target、变量和 Spec 与工程持久化数据模型相连。参数默认直接展开，不再默认锁定或隐藏在 PRIME。
 - Xsweep 在 SMU 尚未分配时仍允许离线编辑规划（真实硬件输出保持禁用）；独立 Terminal Settings 只显示已分配端口。复用 DKDS Field、Panel、Tabs、Scientific Plot，不建立 iframe/独立 WebUI 壳。
 - 本变更仅修改 DKTS Core Preview 分支；CI 和真实截图是验收依据，不能视为已经达到 FS-Pro 1:1 像素对应，更未验证硬件。
+
+### 测试约束调整
+- 七标签迁移后的 Terminal Settings 使用一块紧凑 DKDS Panel 管理所有已分配端口，故原 mock 断言单端口独立 Panel（D · SMU1）失效。已将断言调整为真实设计意图；不是隐藏真实错误。仍以后续实机 UI 启动 smoke 为准。
