@@ -66,13 +66,35 @@ test('stage DKDS Core into DKTS directory without touching upstream or shipping 
   assert(!fs.existsSync(path.join(out,'src/plugins/pulse-analysis')));
   assert(fs.existsSync(path.join(out,'src/core/placeholder.js')));
   assert(!fs.existsSync(path.join(out,'src/generated/plugin-index.js')));
-  assert(fs.existsSync(path.join(out,'dkts-external-plugins/4200A/plugin.json')));
+  assert(fs.existsSync(path.join(out,'src/plugins/dkts-4200a/plugin.json')));
+  assert(!fs.existsSync(path.join(f.root,'src/plugins/dkts-4200a')),
+   'DKDS upstream must never acquire the owned DKTS 4200 plugin');
+  assert.match(fs.readFileSync(path.join(out,'src/index.html'),'utf8'),
+   /DK Test Studio/);
+  assert(!fs.readFileSync(path.join(out,'src/index.html'),'utf8')
+   .includes('DK Data Studio'),'upstream brand must not remain on DKTS host screen');
+  assert.match(fs.readFileSync(path.join(out,'desktop/main.js'),'utf8'),
+   /const APP_NAME = 'DK Test Studio Core Preview'/);
+  assert(!fs.readFileSync(path.join(out,'desktop/native-update.js'),'utf8')
+   .includes('repos/davidkane0526/DK-Data-Studio/releases'),
+   'preview native updater must not download DKDS releases');
+  assert(fs.readFileSync(path.join(out,'mobile/plugins/DkdsAppUpdate.template'),'utf8')
+   .includes('davidkane0526/DK-Test-Studio'));
+  assert(fs.existsSync(path.join(out,'tools/dkts-icon-generator.cjs')));
+  assert(fs.existsSync(path.join(out,'tools/dkts-core-brand.cjs')));
+  assert(fs.existsSync(path.join(out,'desktop/dkts-core-boot-smoke.cjs')));
+  const summary=JSON.parse(fs.readFileSync(path.join(out,'DKTS_FRAMEWORK_STAGING.json')));
+  assert.equal(summary.instrumentPlugin,'src/plugins/dkts-4200a (DKTS build only; absent upstream)');
+  assert.equal(summary.previewAppId,'studio.dk.test.corepreview');
   const pkg=JSON.parse(fs.readFileSync(path.join(out,'package.json'),'utf8'));
   assert.equal(pkg.name,'dk-test-studio-host');
   assert.equal(pkg.version,require('../package.json').version);
   const mobile=JSON.parse(fs.readFileSync(path.join(out,'mobile/app.json'),'utf8'));
-  assert.equal(mobile.expo.android.package,'studio.dk.test');
+  assert.equal(mobile.expo.android.package,'studio.dk.test.corepreview');
   assert.equal(fs.readFileSync(path.join(f.root,'src/plugins/pulse-analysis/plugin.json'),'utf8'),before);
   assert(fs.existsSync(path.join(f.root,'src/generated/plugin-index.js')));
+  assert(!fs.existsSync(path.join(f.root,'desktop/dkts-core-boot-smoke.cjs')));
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.root,'mobile/app.json'),'utf8')).expo.android.package,
+   'com.dk.datastudio');
  }finally{fs.rmSync(f.top,{recursive:true,force:true});}
 });
