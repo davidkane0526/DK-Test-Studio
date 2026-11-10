@@ -162,7 +162,7 @@ const ctx={
  assert.equal(state.activeId,'page-1');
  const lastD=[...record.fields].reverse().find(x=>x.spec.label==='D 端口');
  assert.equal(lastD.control.value,'SMU1');
- const numeric=[...record.fields].reverse().find(x=>x.spec.label==='限流 (A)'&&x.spec.onFocus);
+ const numeric=[...record.fields].reverse().find(x=>x.spec.label==='Compliance (A)'&&x.spec.onFocus);
  assert.ok(numeric,'a configured SMU compliance field uses the DKDS Unit-hosted numeric keypad');
  assert.equal(numeric.spec.inputMode,'none','coarse-pointer touch does not invoke a conflicting OS keyboard');
  numeric.spec.onFocus({target:numeric.control});
