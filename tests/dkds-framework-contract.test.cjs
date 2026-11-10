@@ -38,6 +38,8 @@ function fixture(){
  for(const [folder,id,pluginType,capabilities=[]] of [...keep,...analysis])
   write('src/plugins/'+folder+'/plugin.json',JSON.stringify({id,pluginType,capabilities}));
  // Minimal pinned-DKDS compatibility fixtures exercise each derived-host patch.
+ write('src/core/plugins/kernel/modules/workspace/top.js',
+  "const selected=String(saved||preferredId||defaultSuperCandidate()||'').trim();");
  write('desktop/main.js',[
   "const APP_NAME = 'DK Data Studio';",
   "const APP_ID = 'com.dk.datastudio';"
