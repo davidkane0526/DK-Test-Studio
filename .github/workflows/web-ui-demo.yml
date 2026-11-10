@@ -31,6 +31,16 @@ jobs:
           node tools/build-web-demo.cjs
       - name: Verify offline-only instrument boundary and relative assets
         run: node --test tests/web-ui-demo.test.cjs
+      - name: Install Chromium browser test adapter
+        run: npm install --no-save --package-lock=false playwright-core@1.56.1
+      - name: Render desktop/tablet demo and verify UI interactions
+        run: node tools/web-demo-visual-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: DKTS-Web-UI-Demo-Screenshots
+          path: dist/web-demo-visual/*.png
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:
           name: DKTS-Web-UI-Demo-Offline
