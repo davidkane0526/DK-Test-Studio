@@ -31,6 +31,13 @@ const units={
      'responsive-two-column',
      'plot-card-fill','action-grid-4'].includes(spec.variant),
      'Unknown DKDS Unit layout recipe: '+String(spec.variant));
+   if(spec.variant==='form-grid-4'&&spec.responsiveGeometry){
+    assert.deepEqual(Array.from(spec.responsiveGeometry,row=>Number(row.maxWidth)),[620,520]);
+    assert.equal(spec.responsiveGeometry[0].geometry.gridTemplateColumns,
+     'repeat(4,minmax(0,1fr))');
+    assert.equal(spec.responsiveGeometry[1].geometry.gridTemplateColumns,
+     'repeat(2,minmax(0,1fr))');
+   }
    if(spec.variant==='responsive-two-column'){
     assert.equal(spec.geometry?.gridTemplateColumns,
      'minmax(0,1.25fr) minmax(320px,.75fr)');

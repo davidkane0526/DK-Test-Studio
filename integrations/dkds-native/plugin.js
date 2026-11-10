@@ -226,7 +226,11 @@
     inlineTerminals.replaceChildren();
     const panel=units.panel.create(inlineTerminals,{
      variant:'headed',title:'Terminal',sizing:'content'});
-    const form=units.layout.create(panel.body,{variant:'form-grid-4'});
+    const form=units.layout.create(panel.body,{variant:'form-grid-4',
+     responsiveGeometry:[{maxWidth:620,geometry:{
+      gridTemplateColumns:'repeat(4,minmax(0,1fr))'}},
+      {maxWidth:520,geometry:{
+       gridTemplateColumns:'repeat(2,minmax(0,1fr))'}}]});
     for(const term of p.terminals)units.field.create(form,{
      kind:'select',label:term.logical+' 端口',value:term.resource,
      options:['None','SMU1','SMU2','SMU3','SMU4','SMU5','SMU6',

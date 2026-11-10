@@ -44,6 +44,12 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      hasTerminalEditor:[...document.querySelectorAll('[data-dkds-unit-template="panel-v2"]')]
       .some(node=>node.textContent.includes('Terminal'))||
       document.body.innerText.includes('Terminal'),
+     terminalGridColumns:(()=>{
+      const grid=[...document.querySelectorAll('[data-dkds-unit-layout-recipe="form-grid-4"]')]
+       .find(node=>node.querySelectorAll('select').length===4);
+      const computed=grid?getComputedStyle(grid).gridTemplateColumns:'';
+      return computed?computed.trim().split(/\s+/).length:0;
+     })(),
      keptDataCenter:ids.includes('builtin.data-center'),
      keptConnectivity:ids.includes('builtin.connectivity-center'),
      keptTheme:ids.some(x=>x.startsWith('com.dkds.theme.')),
@@ -63,7 +69,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        state.brand!=='DK Test Studio'||
        state.selectedSuper!=='com.dkts.keithley-4200'||!state.superAvailable||
        state.activeActivity!=='dkts-keithley-4200'||state.neutralMainVisible||
-       !state.hasNativePageTabs||!state.hasTerminalEditor)return;
+       !state.hasNativePageTabs||!state.hasTerminalEditor||
+       state.terminalGridColumns<4)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();

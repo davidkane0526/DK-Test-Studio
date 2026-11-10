@@ -100,3 +100,7 @@
 
 ## 2026-11-10 / Project Navigator 标签文本回归
 - 检查实际 Electron 截图发现 DKDS List Unit 的 `meta` 在当前窄项目树样式中紧贴名称（`Routine 1Routine`、`I–V SweepDC`），视觉混乱。移除该处重复类型文字，保留 Routine / Page 的区分符号和层级顺序，依然使用 Core List Unit，而不是自制 CSS。
+
+## 2026-11-10 / 原生 Terminal 档位栏桌面四列验收
+- 真实 Electron 图中 Terminal 4 个端口 D/G/S/B 仍错误显示为两行，过度消耗垂直空间。将主工作区 Terminal DKDS 原生 `form-grid-4` 设置为 SDK 官方已注册 620px 以下四列、520px 以下两列 responsiveGeometry，使常见 1200px Windows 宽编辑器显示四端口同一行，狭窄编辑器才换行。
+- 补充真实 Electron screenshot smoke `terminalGridColumns` 检查：桌面主屏达不到四列，CI 不应再报告成功；同时在 DKTS mock 中明确校验所用 SDK 已注册几何值。未修改 DKDS。
