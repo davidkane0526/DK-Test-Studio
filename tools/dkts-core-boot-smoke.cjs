@@ -5,15 +5,15 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
  if(process.env.DKTS_CORE_BOOT_SMOKE!=='1')return;
  const dir=process.env.DKTS_CORE_SMOKE_DIR||path.join(APP_ROOT,'dist/core-boot-smoke');
  fs.mkdirSync(dir,{recursive:true});
- let busy=false,complete=false,attempts=0;
+ let busy=false,complete=false,attempts=0,lastProbe=null,lastProbeError='';
  const started=Date.now();
  const fail=error=>{
   if(complete)return;
   complete=true;
   const report={ok:false,error:String(error?.message||error),
-   attempts,elapsedMs:Date.now()-started};
+   attempts,elapsedMs:Date.now()-started,lastProbe,lastProbeError};
   fs.writeFileSync(path.join(dir,'report.json'),JSON.stringify(report,null,2)+'\n');
-  console.error('DKTS Core host smoke FAIL:',report.error);
+  console.error('DKTS Core host smoke FAIL:',JSON.stringify(report));
   app.exit(1);
  };
  const probe=async()=>{
@@ -31,6 +31,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      selectedSuper:superState?.pluginId||'',
      superAvailable:superState?.available===true,
      activeActivity:window.DKDSPlugins?.activities?.active?.()||'',
+     startup:window.DKDSPlugins?.startupState?.()||null,
+     manager4200:window.DKDSPlugins?.manager?.get?.('com.dkts.keithley-4200')||null,
      brand:document.querySelector('.brand-full')?.textContent||'',
      hasCoreShell:!!document.getElementById('primaryActivityBar'),
      hasStatusBar:!!document.querySelector('[id*="statusBar"],footer,.statusbar'),
@@ -43,6 +45,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      pluginCount:ids.length
     };
    })()`,true);
+   lastProbe=state;
    if(state.readyState!=='complete'||!state.hasCoreShell||
        !state.has4200Workspace||!state.keptDataCenter||
        !state.keptConnectivity||!state.keptTheme||!state.removedAnalysis||
@@ -66,7 +69,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
    console.log('DKTS real Core host boot/screenshot PASS:',JSON.stringify(report));
    complete=true;
    app.exit(0);
-  }catch(error){if(attempts>=24)fail(error);}
+  }catch(error){lastProbeError=String(error?.stack||error);if(attempts>=24)fail(error);}
   finally{busy=false;}
  };
  app.whenReady().then(()=>{
