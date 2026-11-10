@@ -68,10 +68,8 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..')}={}){
  fs.cpSync(nativePlugin,hostPlugin,{recursive:true});
  const manifest=JSON.parse(fs.readFileSync(path.join(hostPlugin,'plugin.json'),'utf8'));
  if(manifest.id!=='com.dkts.keithley-4200')throw Error('Unexpected DKTS workspace plugin identity');
- manifest.name='4200A 测试';
- manifest.description='DKTS-owned 4200A FS-Pro workspace on actual DKDS Core; real output disabled.';
- manifest.order=9;
- fs.writeFileSync(path.join(hostPlugin,'plugin.json'),JSON.stringify(manifest,null,2)+'\n');
+ // Keep manifest byte-compatible with its runtime-embedded declaration.
+ // The upstream validator requires exact matching name/order/description.
  // Never reuse a generated catalog with removed analysis plugins.
  const generated=path.join(tmp,'src/generated/plugin-index.js');
  fs.rmSync(generated,{force:true});
