@@ -94,6 +94,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..')}={}){
   .replace('../assets/dkds-mark.svg','../assets/dkds-icon.png');
  fs.writeFileSync(htmlPath,html,'utf8');
  // Use DKTS's pre-existing canonical icon generator, not the upstream icon.
+ fs.mkdirSync(path.join(tmp,'tools'),{recursive:true});
  fs.copyFileSync(path.join(dktsRoot,'tools/generate-app-icons.cjs'),
   path.join(tmp,'tools/dkts-icon-generator.cjs'));
  fs.copyFileSync(path.join(dktsRoot,'tools/dkts-core-brand.cjs'),
