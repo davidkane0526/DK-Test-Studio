@@ -115,7 +115,7 @@ const ctx={
  assert.equal(state.activeId,'page-1');
  const lastD=[...record.fields].reverse().find(x=>x.spec.label==='D 端口');
  assert.equal(lastD.control.value,'SMU1');
- const numeric=[...record.fields].reverse().find(x=>x.spec.label==='偏压'&&x.spec.onFocus);
+ const numeric=[...record.fields].reverse().find(x=>x.spec.label==='开始'&&x.spec.onFocus);
  assert.ok(numeric,'a source bias field provides a DKDS Unit-hosted numeric keypad');
  assert.equal(numeric.spec.inputMode,'none','coarse-pointer touch does not invoke a conflicting OS keyboard');
  numeric.spec.onFocus({target:numeric.control});
@@ -127,7 +127,7 @@ const ctx={
   assert.ok(action,'numeric key present: '+label);action.onInvoke();
  };
  press('清除');press('1');press('E');press('±');press('6');press('完成');
- assert.equal(state.pages[0].terminals[0].bias,'1e-6');
+ assert.equal(state.pages[0].terminals[0].start,'1e-6');
  const close=[...record.actions].reverse().find(x=>x.id==='close-page-2');
  close.onInvoke();
  assert.equal(state.pages.length,1);
