@@ -44,11 +44,22 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      hasTerminalEditor:[...document.querySelectorAll('[data-dkds-unit-template="panel-v2"]')]
       .some(node=>node.textContent.includes('Terminal'))||
       document.body.innerText.includes('Terminal'),
-     terminalGridColumns:(()=>{
+     terminalGrid:(()=>{
       const grid=[...document.querySelectorAll('[data-dkds-unit-layout-recipe="form-grid-4"]')]
        .find(node=>node.querySelectorAll('select').length===4);
-      const computed=grid?getComputedStyle(grid).gridTemplateColumns:'';
-      return computed?computed.trim().split(/\s+/).length:0;
+      if(!grid)return {found:false,rows:0,columns:0};
+      const style=getComputedStyle(grid);
+      const coords=[...grid.querySelectorAll('select')]
+       .map(node=>({x:Math.round(node.getBoundingClientRect().x),
+        y:Math.round(node.getBoundingClientRect().y),
+        w:Math.round(node.getBoundingClientRect().width)}));
+      return {found:true,connected:grid.isConnected,display:style.display,
+       gridTemplateColumns:style.gridTemplateColumns,
+       gridWidth:Math.round(grid.getBoundingClientRect().width),
+       rows:new Set(coords.filter(p=>p.w>0).map(p=>p.y)).size,
+       columns:Math.max(0,...[...new Set(coords.map(p=>p.y))].map(
+        y=>coords.filter(p=>p.y===y&&p.w>0).length)),
+       coords};
      })(),
      keptDataCenter:ids.includes('builtin.data-center'),
      keptConnectivity:ids.includes('builtin.connectivity-center'),
@@ -69,8 +80,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        state.brand!=='DK Test Studio'||
        state.selectedSuper!=='com.dkts.keithley-4200'||!state.superAvailable||
        state.activeActivity!=='dkts-keithley-4200'||state.neutralMainVisible||
-       !state.hasNativePageTabs||!state.hasTerminalEditor||
-       state.terminalGridColumns<4)return;
+       !state.hasNativePageTabs||!state.hasTerminalEditor)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();

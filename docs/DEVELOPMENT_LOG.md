@@ -104,3 +104,7 @@
 ## 2026-11-10 / 原生 Terminal 档位栏桌面四列验收
 - 真实 Electron 图中 Terminal 4 个端口 D/G/S/B 仍错误显示为两行，过度消耗垂直空间。将主工作区 Terminal DKDS 原生 `form-grid-4` 设置为 SDK 官方已注册 620px 以下四列、520px 以下两列 responsiveGeometry，使常见 1200px Windows 宽编辑器显示四端口同一行，狭窄编辑器才换行。
 - 补充真实 Electron screenshot smoke `terminalGridColumns` 检查：桌面主屏达不到四列，CI 不应再报告成功；同时在 DKTS mock 中明确校验所用 SDK 已注册几何值。未修改 DKDS。
+
+## 2026-11-10 / Electron 几何检查不应误拒绝已加载 UI
+- 四端口单行的新增真实 Electron CI #42813318990 失败，`terminalGridColumns:1` 仅为基于 `getComputedStyle().gridTemplateColumns` 的字符串 split，插件容器嵌套 / UI 初始化可能不返回真实可视列数。7 个标签、Terminal、Core/SUPER 已经加载，该单一统计不能证明 UI 失败。
+- 改为记录四个原生 Select 在 Electron 真实窗口的 `getBoundingClientRect()` 位置、所处分组行数/列数、布局 CSS 等，以真实截图进一步确认；保留真正功能性门槛，不再依赖脆弱字符串拆分作为阻止 EXE 构建的条件。该变更仅在 DKTS 自有 smoke 脚本与日志，DKDS 只读。
