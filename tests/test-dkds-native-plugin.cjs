@@ -8,6 +8,8 @@ assert.equal(manifest.version,'0.8.1');
 assert.equal(manifest.apiVersion,'1.19.0');
 assert.equal(manifest.pluginType,'workbench');
 assert.equal(manifest.workspace.role,'top');
+assert.equal(manifest.workspace.defaultSuper,true,
+ 'DKTS 4200A TOP must be startup-critical to avoid a neutral main screen');
 assert.deepEqual(manifest.data.accepts,['science.transport.iv','data.table']);
 assert.equal(manifest.window.artifactHydration,'live');
 assert.ok(manifest.requiresCore.includes('ui.unit-templates'));

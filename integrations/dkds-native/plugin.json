@@ -48,7 +48,8 @@
     "role": "top",
     "activity": "dkts-keithley-4200",
     "icon": "▦",
-    "title": "4200A 测试"
+    "title": "4200A 测试",
+    "defaultSuper": true
   },
   "window": {
     "activity": "dkts-keithley-4200",

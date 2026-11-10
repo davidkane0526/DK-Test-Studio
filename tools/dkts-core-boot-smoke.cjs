@@ -31,6 +31,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      selectedSuper:superState?.pluginId||'',
      superAvailable:superState?.available===true,
      activeActivity:window.DKDSPlugins?.activities?.active?.()||'',
+     neutralMainVisible:document.body?.innerText?.includes('尚未指定 / 当前主界面不可用')===true,
      startup:window.DKDSPlugins?.startupState?.()||null,
      manager4200:window.DKDSPlugins?.manager?.get?.('com.dkts.keithley-4200')||null,
      brand:document.querySelector('.brand-full')?.textContent||'',
@@ -54,7 +55,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        !state.has4200Workspace||!state.keptDataCenter||
        !state.keptConnectivity||!state.keptTheme||!state.removedAnalysis||
        state.brand!=='DK Test Studio'||
-       state.selectedSuper!=='com.dkts.keithley-4200'||!state.superAvailable)return;
+       state.selectedSuper!=='com.dkts.keithley-4200'||!state.superAvailable||
+       state.activeActivity!=='dkts-keithley-4200'||state.neutralMainVisible)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();
