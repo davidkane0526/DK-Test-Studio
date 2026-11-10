@@ -37,3 +37,10 @@ node tools/stage-dkds-host.cjs ../DK-Data-Studio dist/dkts-framework-staging
 
 ## 原始数据和仪器安全
 不同来源的数据明确标记 instrument-raw、derived 或 imported/preview；软件规划曲线不能冒充 4200A 测量曲线。仪器输出必须通过实际模块检测、端口互斥、量程/功率、联锁、异常停止和原始数据采集验证。CI 构建成功不代表仪器现场验收。
+
+## 网页 UI Demo（仅界面预览）
+- GitHub Pages（启用 **Settings → Pages → Build and deployment: GitHub Actions** 后）：
+  https://davidkane0526.github.io/DK-Test-Studio/
+- 每次 main 提交还会在 Actions → **DKTS Web UI Demo** 的构建任务中生成可下载的 `DKTS-Web-UI-Demo-Offline` 静态网站包。
+- 本 Demo 由**现有 DKTS Web UI** 构建，使用真实前端布局/图表控件和离线模拟接口；不可连接 Keithley 4200A、不可输出电压、不可把示例规划数据当作仪器原始测量。现有 Web UI 与目标 DKDS Core Host 仍不是同一阶段的架构，请勿把网页预览视为新宿主已完成。
+- 本地构建：`npm install && node tools/build-ui-system.cjs && node tools/prepare-dkds-plot-vendor.cjs && node tools/build-web-demo.cjs`，再通过静态 HTTP 服务打开 `dist/web-ui-demo/`。
