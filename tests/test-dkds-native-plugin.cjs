@@ -17,10 +17,12 @@ assert.ok(!manifest.styles?.length,'global CSS/visual themes belong to DKDS');
 assert.ok(/ctx\.ui\.topWorkspace\.register/.test(js));
 assert.ok(/units\.prime\.build/.test(js));
 const portPrimeSource=js.slice(js.indexOf('const portPrime=units.prime.build('),js.indexOf('wb.compose('));
-assert.ok(portPrimeSource.includes("placementControl:'host'"),
- 'movable ports PRIME must use DKDS host-owned canonical controls');
-assert.ok(!portPrimeSource.includes("chrome:'auto'")&&!portPrimeSource.includes("header:{mode:'generate'"),
- 'do not build a separate private PRIME header for ports');
+assert.ok(portPrimeSource.includes("placementControl:'surface'"),
+ 'inspector PRIME must expose DKDS surface-owned canonical controls');
+assert.ok(portPrimeSource.includes("chrome:'auto'")&&portPrimeSource.includes("portPrime.chrome='auto'"),
+ 'generated Core inspector chrome must remain compatible with movable existingNode runtime');
+assert.ok(!portPrimeSource.includes("header:{mode:'generate'"),
+ 'let unitTemplates generate the canonical movable PRIME header');
 assert.ok(/if\(t\.role==='CONDITION'\)numericField\(controls/.test(js),
  'the port row must not duplicate the X/P start-stop-step controls');
 assert.ok(/units\.scientificPlot\.create/.test(js));
