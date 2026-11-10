@@ -186,6 +186,16 @@ const ctx={
  assert.ok(specField,'Page↔Spec association must use DKDS Unit selector');
  specField.spec.onChange({target:{value:''}});
  assert.equal(state.pages[0].associateSpecId,null,'Spec link can be cleared');
+ // Output Sweep must use the same genuine Core X/P editor as I-V/Transfer.
+ const kindOutput=[...record.fields].reverse().find(x=>x.spec.label==='新增类型');
+ kindOutput.control.value='output';
+ const addOutput=[...record.actions].reverse().find(x=>x.id==='add-test');
+ addOutput.onInvoke();
+ assert.equal(state.pages.at(-1).kind,'output');
+ const portForOutput=[...record.fields].reverse().find(x=>x.spec.label==='D 端口');
+ portForOutput.spec.onChange({target:{value:'SMU3'}});
+ assert.ok(record.panels.some(x=>x.title==='Xsweep · D / SMU3'),
+   'Output Sweep must reuse the real DKDS Unit sweep editor');
  assert.ok(record.closedPads>=1);
  assert.equal([...record.actions].reverse().find(x=>x.id==='numeric-E').variant,'quiet',
   'touch numeric keys use Core quiet actions and have no plugin-specific click shadow');

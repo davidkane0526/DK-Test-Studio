@@ -50,3 +50,7 @@
 ## 2026-11-10 / 第二次真实 Electron 启动约束：布局几何值
 - [Core 实际构建 #42801280014](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/42801280014) Windows 启动仍失败，错误：`UNIT_LAYOUT_GEOMETRY_VALUE_FORBIDDEN: identity.geometry:grid-template-columns:repeat(auto-fit,minmax(120px,1fr))`。
 - 查证固定 SHA DKDS 的 `sdk/unit-template-geometry-values.json`，该表达式不是 SDK 注册允许的几何值。删除 DKTS 插件中 5 处未注册的手写布局几何，改为 DKDS 官方 `form-grid-2`、`form-grid-4`、`row-wrap` 响应式布局 Unit，采用宿主维护的移动端断点与尺寸规范。新增 Mock 校验禁止原生插件返回 `geometry` 手写值。仅修改 DKTS 分支，没有改 DKDS。
+
+## 2026-11-10 / Output Sweep 复用原生 X/P 扫描工作台
+- 原生 DKDS Core `output` 测试类型虽然已注册，但其参数区错误被分流至“仅离线草稿”，没有呈现 Xsweep/Psweep 编辑器。已将 Output Sweep 与 I–V / Transfer 一同使用 DKDS Unit 原生扫描编辑器。
+- Core mock 回归增加新建 Output Page、分配 SMU、核查 Xsweep Panel 的检查。仅离线参数规划，不允许 4200A 真实执行。进一步真机验证仍必要。

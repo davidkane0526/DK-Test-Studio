@@ -254,7 +254,7 @@
     numericField(controls,t.logical,'compliance',
      t.sourceMode==='voltage'?'限流 (A)':'限压 (V)',t.compliance);
    }
-   if(['iv','transfer'].includes(p.kind))renderSweep(parameters,p);
+   if(['iv','transfer','output'].includes(p.kind))renderSweep(parameters,p);
    else units.note.create(parameters,{variant:'meta',
     text:'该测试类型目前只提供离线参数草稿，尚未实现仪器执行。'});
   }
