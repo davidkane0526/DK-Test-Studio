@@ -43,29 +43,6 @@ jobs:
         run: npm test
       - name: Export the 4200A hardware capability database
         run: npm run hardware:export
-      - name: Stage the exact shared-core DKDS plugin
-        run: npm run plugin:build
-      - name: Checkout official DK Data Studio SDK
-        uses: actions/checkout@v4
-        with:
-          repository: davidkane0526/DK-Data-Studio
-          ref: '4200'
-          path: compat/dkds
-      - name: Verify the DKDS package uses the external installation path
-        run: node tools/verify-dkds-installability.cjs compat/dkds
-      - name: Validate SDK Plugin API 1.19
-        run: node compat/dkds/sdk/tools/dkds-plugin.js validate dist/dkds-plugin
-      - name: Package legacy DKDS plugin under explicit compatibility label
-        run: node compat/dkds/sdk/tools/dkds-plugin.js package dist/dkds-plugin dist/DKTS-4200A-legacy-v0.6.18.dkplugin
-      - name: Validate and package DKDS Core-native plugin
-        shell: pwsh
-        run: |
-          node tests/test-dkds-native-plugin.cjs
-          node tests/test-dkds-native-host.cjs
-          node compat/dkds/sdk/tools/dkds-plugin.js validate integrations/dkds-native
-          node tools/build-dkds-native-plugin.cjs
-          node compat/dkds/sdk/tools/dkds-plugin.js package integrations/dkds-native dist/DKTS-4200A-native-v0.8.1.dkplugin
-          node tools/verify-native-dkds-install.cjs compat/dkds dist/DKTS-4200A-native-v0.8.1.dkplugin
       - name: Stamp offline bundled UI version
         run: node tools/stamp-native-ui.cjs
       - name: Build Windows Portable
@@ -83,12 +60,10 @@ jobs:
         shell: pwsh
         run: |
           $portable = @(Get-ChildItem dist -File -Filter '*Portable*.exe')
-          $legacy = 'dist/DKTS-4200A-legacy-v0.6.18.dkplugin'
-          $native = 'dist/DKTS-4200A-native-v0.8.1.dkplugin'
-          if ($portable.Count -ne 1 -or !(Test-Path $legacy) -or !(Test-Path $native)) {
-            throw 'Missing Windows Portable or DKDS legacy/native plugin packages.'
+          if ($portable.Count -ne 1) {
+            throw 'Missing or duplicate DKTS Windows Portable package.'
           }
-          foreach ($file in @($portable[0].FullName, $legacy, $native)) {
+          foreach ($file in @($portable[0].FullName)) {
             if ((Get-Item $file).Length -lt 1024) { throw "Truncated file: $file" }
             Write-Host "$file SHA256=$((Get-FileHash $file -Algorithm SHA256).Hash)"
           }
@@ -97,13 +72,6 @@ jobs:
           name: DKTS-Windows
           path: |
             dist/*Portable*.exe
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        with:
-          name: DKTS-DKDS-Plugin
-          path: |
-            dist/DKTS-4200A-legacy-v0.6.18.dkplugin
-            dist/DKTS-4200A-native-v0.8.1.dkplugin
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
@@ -286,10 +254,6 @@ jobs:
           path: release/windows
       - uses: actions/download-artifact@v4
         with:
-          name: DKTS-DKDS-Plugin
-          path: release/plugin
-      - uses: actions/download-artifact@v4
-        with:
           name: DKTS-Android
           path: release/android
       - uses: actions/download-artifact@v4
@@ -300,18 +264,15 @@ jobs:
         with:
           name: DKTS-Hardware-Capability-Database
           path: release/capabilities
-      - name: Verify the six required release assets
+      - name: Verify the four required release assets
         shell: bash
         run: |
           set -euo pipefail
           test "$(find release/windows -name '*Portable*.exe' | wc -l)" -eq 1
-          test "$(find release/plugin -name '*.dkplugin' | wc -l)" -eq 2
-          test -s release/plugin/DKTS-4200A-native-v0.8.1.dkplugin
-          test -s release/plugin/DKTS-4200A-legacy-v0.6.18.dkplugin
           test "$(find release/android -name '*.apk' | wc -l)" -eq 1
           test "$(find release/ui -name 'DKTS-UI-bundle.json' | wc -l)" -eq 1
           test "$(find release/capabilities -name 'DKTS-4200A-Hardware-Capability-Database-v1.json' | wc -l)" -eq 1
-          test "$(find release -type f | wc -l)" -eq 6
+          test "$(find release -type f | wc -l)" -eq 4
           find release -type f -print0 | xargs -0 -n1 sha256sum
       - name: Publish V0.3.13 a${{ github.event.workflow_run.run_number }} full package Release
         env:
@@ -333,11 +294,11 @@ jobs:
           Source commit: ${DKTS_BUILD_SHA}
           Matching UI hot update: ${hotfix_url}
 
-          Complete package: Windows Portable, Android APK, exportable 4200A hardware capability database, UI hot-update bundle, and TWO mutually exclusive DKDS alternatives. DKTS-4200A-native-v0.8.1.dkplugin uses DKDS Core and has instrument output disabled pending real KXCI qualification. DKTS-4200A-legacy-v0.6.18.dkplugin retains the earlier shared-standalone workflow; both use the same plugin ID and cannot be installed simultaneously. The full package remains V${package_version} and UI identity advances as ${hotfix_id}.
+          DKTS standalone complete package: Windows Portable, Android APK, UI hot-update bundle and 4200A hardware capability database. Experimental DKDS plugins are NOT included. The application version remains V${package_version}, UI revision ${hotfix_id}. DKTS DKDS-host migration is tracked separately; do not call the current legacy host the finished DKDS-based build.
           EOF
           )"
-          files=(release/windows/*.exe release/plugin/*.dkplugin release/android/*.apk release/ui/*.json release/capabilities/*.json)
-          test "${#files[@]}" -eq 6
+          files=(release/windows/*.exe release/android/*.apk release/ui/*.json release/capabilities/*.json)
+          test "${#files[@]}" -eq 4
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes "$notes"
@@ -347,9 +308,8 @@ jobs:
               --prerelease --latest=false
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort | tee release-assets.txt
-          test "$(wc -l < release-assets.txt)" -eq 6
+          test "$(wc -l < release-assets.txt)" -eq 4
           grep -qE '[.]apk$' release-assets.txt
-          grep -qE '[.]dkplugin$' release-assets.txt
           grep -qE '^DKTS-UI-bundle[.]json$' release-assets.txt
           grep -qE '^DKTS-4200A-Hardware-Capability-Database-v1[.]json$' release-assets.txt
           grep -qE 'Portable.*[.]exe$' release-assets.txt
