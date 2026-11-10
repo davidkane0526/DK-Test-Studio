@@ -267,9 +267,15 @@
    stateVersion:'native-dkts-v1'});
   const portPrime=units.prime.build({id:'ports',label:'端口',title:'端口映射',
    variant:'canonical-header',presentationRole:'inspector',semanticKind:'inspector',
-   placementControl:'host',priority:65,collapsible:true,existingNode:ports,
+   placementControl:'surface',chrome:'auto',
+   priority:65,collapsible:true,existingNode:ports,
    defaultPlacement:'bottom',placements:['inline','right','bottom','float'],
    stateVersion:'native-dkts-v1'});
+  // DKDS SDK requires surface-controlled inspector chrome. Its Unit builder
+  // currently normalizes generated chrome to boolean true, but the movable
+  // existingNode runtime accepts the literal "auto" (or a custom handle).
+  // Preserve the canonical Core-generated header and its movable controls.
+  portPrime.chrome='auto';
   wb.compose({primary:{id:'main',label:'数据图',presentationRole:'scientific-primary',
    scroll:'safe',titlePolicy:'host-only',mainNode:main},
    primes:[paramPrime,portPrime],subs:[]});
