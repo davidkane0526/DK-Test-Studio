@@ -11,6 +11,7 @@ const sandbox={
  console
 };
 vm.runInNewContext(fs.readFileSync(dir+'/model.js','utf8'),sandbox,{filename:'model.js'});
+vm.runInNewContext(fs.readFileSync(dir+'/measurement-data.js','utf8'),sandbox,{filename:'measurement-data.js'});
 vm.runInNewContext(fs.readFileSync(dir+'/plugin.js','utf8'),sandbox,{filename:'plugin.js'});
 assert.equal(definitions.length,1);
 const record={actions:[],fields:[],panels:[],plots:[],plotViews:[],headers:[],
