@@ -119,3 +119,12 @@ dialog{border:1px solid var(--dkui-control-border);background:var(--dkui-surface
  .main-pane.editor-open>.editor-pane{order:0;flex:1;overflow:auto;min-height:210px}
  .main-pane:not(.editor-open)>.data-pane{min-height:0;border-top:0}
 }
+
+/* In short tablet landscape, avoid the project-level SVG being clipped by the
+   fixed-height DKDS-style result summary. No change to the accepted Page editor. */
+@media(max-width:850px) and (max-height:620px){
+ .main-pane:not(.editor-open) #plan-plot{
+  height:clamp(160px,calc(100dvh - 303px),340px);
+  max-height:340px;
+ }
+}
