@@ -21,3 +21,6 @@ android/app/src/main/res/mipmap-*/
 *.p12
 *.pfx
 android/signing-private/
+
+# Read-only pinned DKDS source fetched for local DKTS Core development
+.dkts-cache/
