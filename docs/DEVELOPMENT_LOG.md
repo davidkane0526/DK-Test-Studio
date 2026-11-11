@@ -206,3 +206,8 @@
 - 仅修改 DKTS：新增 `tools/run-core-android-smoke.sh`，让 CI 通过 **单条** `script: bash tools/run-core-android-smoke.sh` 执行，从 manifest 解析真实 Activity、校验包名、离线 APK 安装、启动、pidof、截图、React Native 错误与 crash log；新增 `tests/core-android-offline-smoke.test.cjs` 回归，检查单 Shell 调用、Release JS Bundle 与 Bash 语法。相应失败日志/截图按 CI artifact 保留。
 - 仍不把模拟器启动视为用户 OPPO 真机验收或 Keithley 实际采集/安全控制。DKDS 仓库未写入。程序主版本 `V0.3.13` 不变，`aNNN` 只在主线 Release 流水线分配；本次属于 Core Host PR 预览构建，正式稳定版最新已验证为 `V0.3.13 a135`。
 - 回归是否通过以本次新 SHA 的 CI 结果为准，未事先宣称成功。
+
+## 2026-11-11 / DKDS SDK 兼容性工作流固定只读上游 SHA
+- 在 `c159238` 的 `Validate DK Test Studio #518` 中，Node Ubuntu / Node Windows 与能力数据库检查均成功，但 `DKDS Plugin API 1.19 compatibility` 的 `Checkout DK Data Studio SDK` 连续三次执行 `git fetch ... +refs/heads/4200*:...` 失败，未进入 SDK 验证阶段；因此不能将整套 CI 宣称通过。
+- Core framework 读取的 DKDS 上游已固定为 `20f056851a61d2144e9524c3ed568628d4b8557c` 并通过只读检查。将旧 `.github/workflows/ci.yml` 中浮动 `ref:'4200'` 改为该精确 SHA，同时设置 `persist-credentials:false`，避免 SDK 检出与真实 DKDS Core 宿主针对不同版本、避免残留跨库授权。
+- 不修改 DKDS，保留外部插件验证闸门的完整步骤。新工作流结果仍需下次相同 SHA 的成功日志确认。
