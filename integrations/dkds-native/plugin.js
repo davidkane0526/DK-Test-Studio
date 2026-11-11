@@ -73,7 +73,6 @@
   function refreshData(){
    plotCache.clear();
    const items=sources();
-   if(dataNote)dataNote.textContent='数据中心：'+items.length+' 组（仅显示已分配源）';
    refreshFrameSourceFields();
    refreshRawTables();
    for(const item of plots)item?.requestRender?.('data-artifacts');
@@ -537,7 +536,9 @@
   workRegion=work;editorRegion=editor;plotRegion=plotArea;
   // Four independent DKDS PlotView subwindows, each with its own host controls.
   // Never synthesize measurement samples in an offline UI.
-  const frameTools=units.layout.create(plotArea,{variant:'row-wrap'});
+  const plotsHeading=units.header.create(plotArea,{kind:'panel',
+   variant:'content',title:'绘图区',actionHost:true});
+  const frameTools=units.layout.create(plotsHeading.actions,{variant:'row-wrap'});
   syncGraphSettings();
   units.field.create(frameTools,{kind:'select',label:'图窗布局',value:frameLayout,
    options:[{value:'1',label:'单窗口'},{value:'2',label:'双窗口'},
@@ -554,12 +555,12 @@
    frameCards.push(graphic.element);
    const graphicHeader=units.header.create(graphic.body,{kind:'plot',
     variant:'plot',title:frameTitles[index],actionHost:true});
-   const typeHost=units.layout.create(graphic.body,{variant:'row-wrap'});
+   const typeHost=units.layout.create(graphicHeader.actions,{variant:'identity'});
    units.field.create(typeHost,{kind:'select',label:'显示',value:frameKinds[index],
     options:FRAME_OPTIONS,onChange:e=>saveGraphSetting(index,'kind',e.target.value)});
-   const sourceHost=units.layout.create(graphic.body,{variant:'identity'});
+   const sourceHost=units.layout.create(graphicHeader.actions,{variant:'identity'});
    frameSourceHosts.push(sourceHost);
-   const exportControls=units.layout.create(graphic.body,{variant:'row-wrap'});
+   const exportControls=units.layout.create(graphicHeader.actions,{variant:'identity'});
    units.action.create(exportControls,{id:'dkts-export-original-'+(index+1),
     label:'导出原始 CSV',variant:'quiet',
     onInvoke:()=>exportOriginalCsv(index).catch(error=>
@@ -585,7 +586,6 @@
   applyFrameLayout();
   refreshFrameSourceFields();
   refreshRawTables();
-  dataNote=units.note.create(plotArea,{variant:'meta',text:'数据中心 · 0'});
   // Keep optional dockable Port PRIME; editing of Page is always visible.
   const ports=units.layout.create(null,{variant:'stack-compact'});
   portFields=ports;

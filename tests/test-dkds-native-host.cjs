@@ -153,6 +153,7 @@ const ctx={
  assert.equal(record.plotGroups.length,1,'four plot windows share canonical DKDS managed PlotGroup');
   assert.equal(record.tables.length,4,'raw tables must use DKDS Unit Table, not HTML placeholders');
   assert.equal(record.plots.length,4,'four actual DKDS scientific plots');
+ assert.ok(record.headers.some(x=>x.title==='绘图区'),'project graph heading is managed by DKDS Unit Header');
  assert.equal(record.headers.some(x=>x.kind==='plot'&&x.variant==='plot'),true,
    'DKDS Core owns the canonical chart title');
  assert.equal(record.plotViews.length,4,'four independent DKDS PlotView hosts');
