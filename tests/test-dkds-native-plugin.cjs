@@ -32,7 +32,11 @@ assert.ok(js.split('units.panel.create(').slice(1).every(x=>!x.slice(0,130).incl
  'DKDS panel Unit supports headed/plot-card, never the nonexistent standard variant');
 assert.ok(/ctx\.data\.sources\.list/.test(js));
 assert.ok(/model\.curvesFromArtifacts\(rows,ctx\.data\.artifacts\)/.test(js));
-assert.ok(!/ctx\.data\.artifacts\.get\(/.test(js),'must never copy entire Artifact for chart rendering');
+const plotReadSection=js.slice(js.indexOf('function curves(){'),js.indexOf('async function exportOriginalCsv('));
+assert.ok(!/ctx\.data\.artifacts\.get\(/.test(plotReadSection),'chart rendering must not copy whole Artifact');
+assert.match(js,/ctx\.data\.artifacts\.get\(ref\.artifactId\)/,'full Artifact read is reserved for explicit original CSV export');
+assert.match(js,/ctx\.io\.saveCsv\(rows,/,'CSV must use Core IO');
+assert.ok(manifest.requiresCore.includes('io')&&manifest.requiresCore.includes('data.model'));
 assert.ok(!/\biframe\b|createElement\(\s*['"]iframe|window\.electronAPI|\bfetch\s*\(/.test(js),'no iframe, private transport or private data client');
 assert.ok(!/\bME1\b|\bDV\b|\bUS\b|\bRV\b/.test(js),'no output instructions in workbench');
 let api;
