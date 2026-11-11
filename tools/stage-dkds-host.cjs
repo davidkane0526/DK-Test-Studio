@@ -7,12 +7,12 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {verify}=require('./dkds-host-profile.cjs');
 const {verifyUpdaterParity}=require('./verify-dkds-updater-parity.cjs');
-function stage(source,target,{dktsRoot=path.resolve(__dirname,'..')}={}){
+function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpdater=verifyUpdaterParity}={}){
  const upstream=path.resolve(source),output=path.resolve(target);
  if(output===upstream||output.startsWith(upstream+path.sep)||
      upstream.startsWith(output+path.sep))throw Error('Unsafe overlapping staging directories');
  const profile=verify(upstream);
- const updaterSafety=verifyUpdaterParity(upstream);
+ const updaterSafety=validateUpdater(upstream);
  const tmp=output+'.staging';
  if(fs.existsSync(tmp))fs.rmSync(tmp,{recursive:true,force:true});
  const ignored=new Set(['.git','node_modules','dist','.expo','.gradle',
