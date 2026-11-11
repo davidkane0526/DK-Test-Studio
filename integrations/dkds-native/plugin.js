@@ -369,7 +369,7 @@
   const container=units.layout.create(body,{variant:'identity'});
   wb=units.workspace.create(container,{variant:'standard',header:false,
    activity:ACTIVITY,primaryScroll:'safe'});
-  // Core SDK owns the native Page editor + real PlotView; no iframe or CSS shell.
+  // Core SDK owns the native Page editor and real PlotView, without a separate browser shell.
   const main=units.layout.create(null,{variant:'sidebar-main-compact'});
   nav=units.layout.create(main,{variant:'stack-compact'});
   const work=units.layout.create(main,{variant:'stack-compact'});

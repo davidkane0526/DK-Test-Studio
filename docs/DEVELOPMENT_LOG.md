@@ -171,3 +171,7 @@
 - PR 与 `cbc15ed` 主线同步后，main 的 `DKTS Core-native DKDS Plugin` CI 运行，发现单元测试仍以旧源码变量 `t/controls` 检测 Terminal 固定偏置条件，实际 Core 版本自此前改为 `term/grid`；这是静态断言版本漂移，不是重新引入重复 X/P 参数。
 - 将正则断言对齐当前真实实现 `if(term.role==='CONDITION')numericField(grid,term.logical,'bias',...)`，仍要求仅 Condition 端口显示 Fixed Bias，Xsweep/Psweep 均由扫描段单一数据模型负责。其余安全验证不修改。
 - 运行结果需以后续相同 SHA 的完整 CI 为准；如有其他失败继续定位，不能将全部工作流声明通过。
+
+## 2026-11-11 / PR 外部插件安全扫描文本误报修复
+- 与 main 同步后的原生插件 CI `#80` 在更正端口断言后继续失败。原因是静态黑名单 `/\\biframe\\b/` 把源码注释中的字面单词当成实际 iframe 代码；源文件没有创建 iframe，也没有调用私有 transport/fetch。
+- 仅改写注释，使静态禁止 iframe/私有联网的断言保持原强度。未新增 iframe、未绕过原生 API 约束，也不改变测量安全策略。接下来的 CI 仍需独立判定。
