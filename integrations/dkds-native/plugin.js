@@ -177,14 +177,14 @@
    const device=s.devices.find(d=>d.id===s.activeDeviceId);
    const visibleSpecs=s.specs.filter(spec=>spec.deviceId===s.activeDeviceId);
    units.header.create(nav,{kind:'panel',variant:'content',
-    eyebrow:'PROJECT',title:'Research Project',meta:'Device / '+device.name});
+    eyebrow:'PROJECT',title:'Research Project',meta:''});
    units.field.create(nav,{kind:'select',label:'Device',value:s.activeDeviceId,
     options:s.devices.map(item=>({value:item.id,label:item.name})),
     onChange:e=>persist(model.selectDevice(state(),e.target.value))});
    const tree=units.list.create(nav,{});
    for(const routine of s.routines.filter(r=>r.deviceId===s.activeDeviceId)){
     tree.item({leading:'▦',title:routine.name,
-     selected:routine.id===s.activeRoutineId,
+     selected:false,
      onInvoke:()=>persist(model.selectRoutine(state(),routine.id))});
     for(const page of s.pages.filter(page=>page.routineId===routine.id))
      tree.item({leading:'└ ▧',title:page.name,

@@ -117,6 +117,11 @@ const ctx={
   'native DKDS workbench must use host-managed FS-Pro project sidebar');
  assert.ok(record.layouts.includes('stack-compact'),
   'Project Explorer uses compact native DKDS Unit sizing');
+ const projectHeader=record.headers.find(x=>x.eyebrow==='PROJECT');
+ assert.ok(projectHeader);
+ assert.equal(projectHeader.meta,'','Device selector already displays selected device; do not repeat it');
+ assert.equal(record.listItems.find(x=>x.title==='Routine 1')?.selected,false,
+  'only active Page is highlighted; Routine remains an ancestor');
  assert.equal(record.top.layout.prime.length,1);
  assert.equal(record.composed.primary.titlePolicy,'host-only');
  assert.equal(record.composed.primes.length,1);

@@ -175,3 +175,8 @@
 ## 2026-11-11 / PR 外部插件安全扫描文本误报修复
 - 与 main 同步后的原生插件 CI `#80` 在更正端口断言后继续失败。原因是静态黑名单 `/\\biframe\\b/` 把源码注释中的字面单词当成实际 iframe 代码；源文件没有创建 iframe，也没有调用私有 transport/fetch。
 - 仅改写注释，使静态禁止 iframe/私有联网的断言保持原强度。未新增 iframe、未绕过原生 API 约束，也不改变测量安全策略。接下来的 CI 仍需独立判定。
+
+## 2026-11-11 / 真实 Electron 截图审查：删除重复设备提示与双重高亮
+- 下载并人工检查 Actions Core Preview PR58 工件中的 1200×760 与 744×600 真 Electron 截图及 report.json。证实启动 DKTS 真 DKDS Host、设备选择、七项 Page tab、Terminal 四列都存在，且状态栏/主题/数据中心/通信存活。截图仍显导航挤压、设备标题重复、Routine 与 Page 双选中等视觉问题；因此不能把“截图非空”当作 FS-Pro UI 1:1 完成。
+- 在 DKTS 原生插件中只移除 Project Header 对已显示在 Device selector 中的设备名重复提示，并将 Routine 作为不高亮的祖先节点，仅 Page 选中显示焦点。保留所有 DKDS Unit API，不增加自制 CSS、点击阴影或独立网页壳。
+- Core mock 补充重复元信息/双重选中回归断言；变化须以后续真 Windows/Android 截图再次核对。DKDS 上游未修改。
