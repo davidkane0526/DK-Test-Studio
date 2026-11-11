@@ -163,15 +163,16 @@ const ctx={
  assert.equal(record.plotViews[0].spec.images,true);
  assert.equal(record.plotViews[0].spec.csv,false,
    'do not export downsampled chart points as instrument original CSV');
+ const beforePlotReads=reads.length; // Raw data Table Unit has already requested bounded previews.
  assert.equal(record.plots[0].getCurves().length,1,'reads canonical DKDS artifact');
  assert.equal(record.fullReads,0,'plot never materializes full raw Artifact');
  assert.equal(record.plots[0].getCurves()[0].points.length,3);
- assert.equal(reads.length,2,'first plot reads just two bounded data columns');
+ assert.equal(reads.length,beforePlotReads+2,'plot adds exactly two bounded read columns');
  record.plots[0].getCurves();
- assert.equal(reads.length,2,'unchanged Artifact revisions reuse the cached data');
+ assert.equal(reads.length,beforePlotReads+2,'unchanged Artifact revisions reuse cached curves');
  revision++;
  record.plots[0].getCurves();
- assert.equal(reads.length,4,'Artifact revision change invalidates the chart cache');
+ assert.equal(reads.length,beforePlotReads+4,'Artifact revision change invalidates curves');
  assert.ok(reads.every(r=>r.limit<=65536));
  const exportButton=record.actions.find(x=>x.id==='dkts-export-original-1');
  assert.ok(exportButton,'export runs via DKDS unit action');
