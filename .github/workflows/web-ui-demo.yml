@@ -1,0 +1,72 @@
+name: DKTS Web UI Demo
+run-name: DKTS Web UI Demo
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: dkts-pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned web dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: npm install --no-audit --no-fund
+      - name: Build real DKTS web UI and pinned D3 renderer
+        run: |
+          node tools/build-ui-system.cjs
+          node tools/prepare-dkds-plot-vendor.cjs
+          node tools/build-web-demo.cjs
+      - name: Build a standalone single-file HTML
+        run: node tools/build-web-demo-single-file.cjs
+      - name: Verify offline-only instrument boundary and relative assets
+        run: node --test tests/web-ui-demo.test.cjs
+      - name: Install CJK fonts for readable Chinese screenshots
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk
+          fc-cache -f
+      - name: Install Chromium browser test adapter
+        run: npm install --no-save --package-lock=false playwright-core@1.56.1
+      - name: Render desktop/tablet demo and verify UI interactions
+        run: node tools/web-demo-visual-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: DKTS-Web-UI-Demo-Screenshots
+          path: dist/web-demo-visual/*.png
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-Web-UI-Demo-Offline
+          path: dist/web-ui-demo/
+          include-hidden-files: true
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-Web-UI-Demo-Single-HTML
+          path: dist/DKTS-Web-UI-Demo.html
+          if-no-files-found: error
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/web-ui-demo/
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

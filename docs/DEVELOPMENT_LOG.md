@@ -33,6 +33,50 @@
 - 真实仪器验证（是否实际连接、型号、版本、只读/输出，原始数据证据）：
 - 未完成、风险和回退方法：
 
+## 2026-11-10 / 网页 UI Demo 与 DKTS 分支治理（实现提交待验证）
+- 需求：R-20261110-002、R-20261110-003（GitHub Issue #19）。
+- 在 DKTS 内新增从现有 Web UI 生成静态站点的工具、纯离线演示适配器、GitHub Pages/Actions 流水线及安全回归测试。演示不修改 DKDS，不允许连接 4200A 或执行任何输出，也不将规划曲线伪装成仪器采集。
+- 加入对 main 已完全包含、非保护且无活跃 PR 的历史分支的保守自动清理；其他有独有提交分支保留用于后续归并审查。删除结果以 GitHub Actions 实际输出为准，不在本日志预先声称清理成功。
+- 待验证：Actions 网站构建、GitHub Pages 是否已开启以及真实可访问地址；桌面/Android 实机视觉测试、真正 DKDS Core Host 迁移及实际 KXCI 安全运行。此次只交付 UI 预览构建，不是新原生安装包验收。
+
+
+## 2026-11-10 / 网页 UI Demo 初次运行结果及浏览器检查
+- DKTS 提交 [ecf42750](https://github.com/davidkane0526/DK-Test-Studio/commit/ecf42750bf0b8e5a07015dce153b7e71e4e43916)：网页资源构建、离线安全测试与 Actions artifact 成功。 [网页构建 #42784784297](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/42784784297)。
+- Pages 部署**失败（404）**，明确为仓库尚未启用 GitHub Pages：需有权限的维护者从 GitHub Settings > Pages 将 Source 设置为 GitHub Actions。网页打包产物已在本次构建工件可下载，不可声称线上地址已可访问。
+- [分支治理 #42784784170](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/42784784170) 成功删除已完全并入 main 的 `feat/kxci-native-smu-runner-ui-compact`，从 19 条减到 18 条；17 条有独有提交或保护关系的分支暂保留，不能把删除工作视为全部完成。
+- 继续新增真实 Chromium 桌面和平板视觉交互测试：检查测试卡片、Xsweep/Psweep、禁用测量输出、无模拟 raw 行及无 `/api` 仪器请求；产出截图工件。测试结果以后续 CI 为准。
+
+## 2026-11-10 / Chromium 回归与分支清理补充
+- 初次 Chromium 运行进入真实桌面端 I–V 工作区，但断言只接受“等待仪器返回原始数据”，实际 UI 空数据提示为“暂无该测试方式的实测数据”。属测试文案匹配问题，不能据此声称网页功能通过；现已修正并重新触发测试。
+- 分支清理升级为两项可核查的删除依据：① 已完全合并于 main 的历史分支；② 已合并 PR 对应分支、合并记录证明且该分支 HEAD 与合并时 PR HEAD 完全一致。活跃 PR、保护分支、备份和未审查的独有提交均保留。删除结果仍以 workflow 回报为准。
+
+## 2026-11-10 / 自包含网页 Demo 与中文截图可读性
+- 已用 GitHub Actions Chromium 渲染桌面 I–V 和平板 I–V/Psweep 页面，交互检查及无仪器请求检查通过；生成 4 张截图。容器截图审查发现 Ubuntu 浏览器环境缺少中文 CJK 字体，中文标题显示方框；已在 CI 浏览器步骤增加 `fonts-noto-cjk` 安装，待下一轮验证。
+- 增加单文件 HTML 构建器，将当前网页、CSS、DKDS/D3 脚本和安全离线适配器打包为一个无需 Web 服务器的 HTML 文件，Actions 输出单独可下载工件；本地导出的首份 HTML 另已生成。该工件不替代未来真正 DKDS Core Host 开发。
+
+## 2026-11-10 / 用户拒绝网页回退，FS-Pro 工作区纠正
+- 需求 R-20261110-004。此前 `ce90a57c` 静态网页 Demo 的 build 脚本直接拷贝旧 `web/index.html` 及被拒绝的 a97 视觉回退样式；虽然 CI/Pages 成功，但**网页 UI 选型错误**。用户明确拒绝，必须保留此失败记录，不得再把旧界面作为新 Demo 首页。
+- 基于 LabExpress/FS-Pro 公开界面资料和既有用户层级要求，新增 `web/fspro-workbench/` 的独立可复用 Page/Scan 编辑器：Project Explorer、Routine/Page、Info/Sweep/Target/Strategy/Limits/Page Var/Associate Spec、嵌套 X/P 扫描、端口独立量程/限流和固定偏置。构建器改从该新页面生成 Pages/单文件 HTML，完全阻止旧卡片 UI 误发。
+- 运行时仅规划，不允许仪器连接或虚构原始数据。数据绘图视图继续引入现有 DKDS 科学绘图分发内核（空数据），规划曲线有清楚标识。FS-Pro 外观/层级尚须与完整厂商手册和用户确认截图进一步核对，不把此次演示当作 1:1 完成，也不把它称为真正的 DKDS Core Host 应用。
+- 增加 Node 规划/安全边界回归、真实 Chromium 桌面/平板截图与交互测试。实际测试/Pages/附件以 GitHub Actions 报告为准；未合并的 Core Host 预览 PR #18、Windows/Android 新宿主应用仍是后续工作。没有修改 DKDS。
+
+## 2026-11-10 / FS-Pro 与原生 DKDS 扫描契约对齐
+- 网页 Xsweep/Psweep 规划器此前采用 `Math.floor(...)` 估算点数，可能默默截断无法到达的指定终点，例如 0→2 V、0.3 V 步长。这会造成网页预览与原生 DKDS/KXCI 规划不一致。
+- 修正为与 `integrations/dkds-native/model.js` 一致的严格终点整除检查；单点段必须 0 步长；单段上限 4096 点。新增网页与 DKDS 原生插件模型双层循环总点数一致性测试。仍为离线规划，未授权仪器输出。
+
+## 2026-11-10 / FS-Pro Project→Routine→Page 实体化
+- 修复网页 Demo「＋ Routine」此前复用「＋ Page」弹窗、没有真正 Routine 对象的错误。新增 `routines` 数据模型、`routineId` 页面所有权、按 Routine 分组的项目树、真实 Breadcrumb 与新增 Routine / Page 操作。
+- 规划草稿改存 localStorage，兼容旧 sessionStorage；导出项目包含 Routine 与 Page 的归属关系。新增桌面、平板 Chromium 交互断言，以 CI 为最终判定。此项仅在 DKTS 网页工作区实现，Core 宿主尚需进一步集成，未修改 DKDS。
+
+## 2026-11-10 / FS-Pro 真实 Spec 对象与 Page↔Spec 关联
+- 网页此前只有“Associate Spec”复选框，没有 Spec 实体。新增单独的 Spec 集合、项目树入口、Spec 选择器及可持久化的 `associateSpecId`，项目导出带 Spec 和 Routine 与 Page 所有权。
+- 保持只规划、无测量输出、无虚构原始采集。新增 Chromium 测试要求新建 Spec 并验证 Page 关联。该层目前实现于 DKTS Web FS-Pro 预览，Core 宿主尚未集成 Spec，同样不声称像素级 1:1 验收。
+
+## 2026-11-11 / FS-Pro Device 归属与发行版本
+- 需求 R-20261111-001（用户原话已由 `3319f73` 入账）。DKTS Web 工作区将固定的 MOSFET 占位文字改为可创建/切换的 Device 实体，Routine 与 Spec 按设备归属隔离，Page 仍归属于 Routine。
+- 对浏览器历史本地状态补充向后兼容的 Device ID，导出的规划 JSON 升级 v2 并包含 devices/routines/specs/pages；增加 Node 静态检查和 Chromium 桌面/平板的跨设备 Spec 隔离测试。
+- 主程序 V0.3.13 不变；GitHub Actions 负责自动递增 `aNNN` 并发布匹配的 Windows/Android 全量包与 UI bundle，实际成功情况以工作流与 Release 为准。网页仍为离线预览，DKDS Core PR #18 及实机 4200A 均尚未验收。
+- 未修改 DKDS。
 ## 2026-11-10 / DKDS Core Preview 宿主真实 Routine/Page 层级（PR #18 开发分支）
 - 在现有 `feat/dkts-core-host-boot` 分支中进一步开发 DKTS 自有 native plugin（不触碰 DKDS）：新增 Routine 实体、页面归属、从历史 schema-1 项目的无 Routine 快照自动迁移，支持添加 Routine、在当前 Routine 添加 Page、跨 Routine 跳转。新增输出/耐久/保持/PUND/ARB 等离线类型列表，但尚未实现这些测试的仪器执行。
 - 导航在真正 DKDS Core 的 UnitTemplates 面板中实现，不采用 iframe 或重新复制旧卡片 UI。原始科学 PlotView、Data Center、Prime 等 DKDS Core 组件仍由宿主维护。
@@ -115,3 +159,4 @@
 - 原生 DKDS Unit Project Explorer 添加真实 Device 选择和新增按钮，Routine/Spec 列表按当前 Device 过滤，Core 主界面不再把 Device/MOSFET 当作虚假固定层级。未改变端口安全、测量输出权限或 raw 数据来源。
 - 增加模型状态与历史快照迁移、跨设备 Spec 隔离、原生 UI mock、真实 Electron smoke 的 Device 控件检查。测试与 Windows/Android Core Preview 工件以 CI 真实结果为准。
 - 发行主版本仍为 **V0.3.13**。Core PR Preview 的独立 CI 构建序号显式标记为 `PR#`，避免与主线稳定版的 `aNNN` 混淆；只有合并后主线发布工作流才递增 `aNNN` 并生成同 V/a 的完整包。本 PR 尚不作为稳定 DKTS 安装包发布。
+

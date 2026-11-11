@@ -40,6 +40,29 @@
 - 旧方案“在 DKDS 的特性分支开发 FS-Pro 4200A”已被“DKDS 只做通用宿主，DKTS 才能开发 4200A”取代。
 - 一切“已完成”声明必须附 commit、真实测试/截图和 Release；本账只记需求，不推断实现已验收。
 
+## 2026-11-10 原话 [R-20261110-002]
+> 热更新**不改变 V0.3.0** ？热更新不改变包版本号。
+> 清理**DKTS当前分支，只保留按目的开发的分支**
+
+**验收**：UI 热更新仅改变 aNNN 编号，不改变当次发行的包版本 Vx.y.z（V0.3.0 仅为示例）。DKTS 远程分支按目的精简，完全并入 main 且无活跃 PR 的临时分支可清理；有未合并代码、备份及仍在使用的分支须审核后处理。不修改 DKDS。
+
+## 2026-11-10 原话 [R-20261110-003]
+> 继续，我还要网页的UI demo
+
+**验收**：提供 GitHub 可访问的静态 Web UI Demo（及 Actions 可下载网页打包产物），复用实际 DKTS Web UI、DKDS 图表资源与测试参数编辑器，支持桌面/移动端视图、标签/端口/扫描参数等 UI 评审。Demo 不访问仪器、不输出电压、不合成或伪装原始测量数据。网页部署需 GitHub Pages 配置并通过 Actions 核验。
+
+
+## 2026-11-10 原话 [R-20261110-004]
+> 恕我直言，这个网业ui版本是非常老的、我明确拒绝的，所以你是回退了么？我要求和fs-pro一致
+
+**错误根因**：网页构建脚本 `tools/build-web-demo.cjs` 直接拷贝已经被拒绝的 `web/index.html` 和 `web/styles.css` a97 回退基线，只套用演示适配器。用户之前明确拒绝了该老版卡片工作区。网页成功发布并不代表新版 UI 通过验收。
+
+**立即验收**：GitHub Pages 根路径不再使用旧卡片式测试选择页，必须改为 FS-Pro/LabExpress 形式的 Project → Device → Routine → Page/Spec、Edit Page（Info、Sweep、Target、Strategy、Limits、Page Var、Associate Spec）、端口矩阵、多段 Xsweep/Psweep、科学档位、固定偏置、右侧数据/绘图。支持桌面和 Android 平板响应式布局，至少真实浏览器截图验收。不能编造已完成的 1:1 像素匹配或完整 DKDS Core 迁移。所有后续真实宿主开发必须复用并集成这一 Page/Scan 领域设计；上游 DKDS 不得修改。
+
+## 2026-11-11 原话 [R-20261111-001]
+> 继续吧 注意增加版本号
+
+**验收**：在 DKTS 内继续推进已确认的 FS-Pro/DKDS Core 路线，任何新交付均明确标注对应的程序版本 `Vx.y.z`、开发/热更新编号 `aNNN` 和提交 SHA。仅可热更新的界面改动保持 `V0.3.13` 包版本不变，递增 a 编号，并提供同一 V/a 的完整 Windows/Android 下载包；不得因“继续”修改 DKDS。发布需经 CI 验证，不能把 PR 预览或未完成的 Core Host 冒充稳定版。
 ## 2026-11-10 原话 [R-20261110-005]
 > 继续，你应该还记得我让你不要动DKDS吧？？？
 
@@ -50,4 +73,5 @@
 > 继续吧 当前移动和桌面端UI太粗糙了，甚至比不上网页端
 
 **验收**：以已通过网页截图评审的 FS-PRO 工作区为最低视觉与交互基线，重点完善 Windows 与 Android 的真正 DKDS Core 宿主，而非重复构造离线页面。首次进入 4200A 即可看到结构清晰的 Project / Device / Routine / Page 导航、展开可编辑的 Sweep/Terminal/Target/Strategy/Limit 等 Page 参数、与 DKDS Scientific Plot 并列的数据区；统一控件间距/尺寸/标题层级，适配 1200px 桌面与约 744px 平板，不能将重要参数默认藏在 PRIME 标签下。必须使用 DKDS 正式 Unit SDK 组件与主题/数据契约，不添加独立假宿主，不改 DKDS 上游。真实 Electron 截图和 Android 产物通过 CI 验证，明确区分 UI 验收、模拟测试和物理硬件验证。
+
 
