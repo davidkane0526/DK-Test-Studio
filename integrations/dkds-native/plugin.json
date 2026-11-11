@@ -19,6 +19,8 @@
     "project",
     "state",
     "modules",
+    "io",
+    "data.model",
     "data.sources",
     "data.artifacts",
     "ui.workspace",
