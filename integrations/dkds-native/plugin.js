@@ -289,11 +289,15 @@
     frameCards[i].style.display=frameLayout==='1'&&i>0||frameLayout==='2'&&i>1?'none':'';
   }
     function updateEditorLayout(){
-   // FS-Pro hierarchy: project-level graph workspace and Page editor are
-   // separate navigation destinations, never cramped side-by-side panels.
+   // Replace the Core workspace's active content node, never just its width.
+   // DKDS may restore a Unit-owned display style after layout/resize; relying
+   // on display:none left both Page and PlotGroup visible in real Electron.
    applyFrameLayout();
-   if(editorRegion?.style)editorRegion.style.display=editorOpen?'':'none';
-   if(plotRegion?.style)plotRegion.style.display=editorOpen?'none':'';
+   if(workRegion&&editorRegion&&plotRegion){
+    const next=editorOpen?editorRegion:plotRegion;
+    if(workRegion.firstElementChild!==next||
+       workRegion.children?.length!==1)workRegion.replaceChildren(next);
+   }
   }
   function render(){
    if(!nav||!parameters)return;
