@@ -433,7 +433,7 @@
  // Core owns the canonical DataTable buffer and the drawing engine.
  // A curve reads bounded, immutable column slices instead of copying a whole
  // Artifact with artifacts.get(). Display decimation never changes raw data.
- function curvesFromArtifacts(refs,store,{maxRead=65536,maxDisplay=8192}={}){
+ function curvesFromArtifacts(refs,store,{maxRead=65536,maxDisplay=8192,axis='iv'}={}){
   const out=[];
   if(!Array.isArray(refs)||!store?.columnMetadata||!store?.readColumnRange)return out;
   const budget=Math.max(1,Math.min(65536,Math.floor(Number(maxRead)||65536)));
@@ -443,11 +443,17 @@
    const id=String(ref.artifactId),cols=store.columnMetadata(id);
    if(!Array.isArray(cols)||!cols.length)continue;
    const norm=c=>String(c.key||c.name||c.id||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-   const choose=(keys,role)=>cols.find(c=>keys.includes(norm(c)))||
-    cols.find(c=>c.role===role);
-   const x=choose(['vdset','vd','voltage','vds','vg','vgs','time','t','x'],'x');
-   const y=choose(['id','current','ids','i','y'],'y');
-   if(!x||!y||x===y)continue;
+   const choose=(keys,role,allowRole=true)=>cols.find(c=>keys.includes(norm(c)))||
+    (allowRole?cols.find(c=>c.role===role):null);
+   const xkeys={
+    iv:['drainvoltagev','vdset','vd','voltage','vds','drainvoltage','x'],
+    transfer:['gatevoltagev','vg','vgs','gatevoltage'],
+    it:['times','time','elapsedseconds','seconds','t']
+   };
+   if(!Object.prototype.hasOwnProperty.call(xkeys,axis))throw Error('Unknown graph axis');
+   const x=choose(xkeys[axis],'x',axis==='iv');
+   const y=choose(['draincurrenta','id','current','ids','i','draincurrent','y'],'y');
+      if(!x||!y||x===y)continue;
    const total=Math.min(Number(x.length)||0,Number(y.length)||0);
    if(!Number.isSafeInteger(total)||total<=0)continue;
    // Span the entire raw table, not just the first 65536 rows. All accesses

@@ -6,9 +6,10 @@
   if(typeof measurementData?.publishRaw!=='function')throw Error('KXCI Data Center publisher missing');
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
-  let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSourceHosts=[],frameSelections=['','','',''],frameGrid=null,frameLayout='4',nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
+  let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSourceHosts=[],frameSelections=['','','',''],frameKinds=['iv','transfer','it','raw'],frameGroup=null,frameLayout='4',nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
   let editorSection='sweep',editorOpen=false,workRegion=null,editorRegion=null,plotRegion=null;
-  const PAGE_TABS=[['info','Info'],['sweep','Sweep'],['target','Target'],['strategy','Strategy'],['limits','Limits'],['variables','Page Var'],['spec','Associate Spec']];
+  const PAGE_TABS=[['info','信息'],['sweep','扫描'],['target','目标'],['strategy','策略'],['limits','保护'],['variables','页面变量'],['spec','关联规格']];
+  const FRAME_OPTIONS=[{value:'iv',label:'I–V 曲线'},{value:'transfer',label:'转移曲线'},{value:'it',label:'I–t 曲线'},{value:'raw',label:'原始数据'}];
   const touchNumeric=Boolean(window.matchMedia?.('(pointer: coarse)')?.matches);
   const state=()=>model.validate(store.get());
   const active=()=>{const s=state();return s.pages.find(x=>x.id===s.activeId);};
@@ -16,18 +17,18 @@
   const sources=()=>{const rows=ctx.data.sources.list();return Array.isArray(rows)?rows:[];};
   // Core's plugin-scoped sources facade enforces Data Center assignments.
   // Revision-aware caching prevents full column clones on plot repaints.
-  let plotCacheKey='',plotCache=[];
-  function curves(){
+  const plotCache=new Map();
+  function curves(axis='iv'){
    const rows=sources();
-   const key=JSON.stringify(rows.map(row=>[row.artifactId,row.name,
-     ctx.data.artifacts.artifactRevision?.(row.artifactId)||0]));
-   if(key===plotCacheKey)return plotCache;
-   plotCacheKey=key;
-   plotCache=model.curvesFromArtifacts(rows,ctx.data.artifacts);
-   return plotCache;
+   const key=JSON.stringify([axis,...rows.map(row=>[row.artifactId,row.name,
+    ctx.data.artifacts.artifactRevision?.(row.artifactId)||0])]);
+   if(plotCache.has(key))return plotCache.get(key);
+   const next=model.curvesFromArtifacts(rows,ctx.data.artifacts,{axis});
+   plotCache.set(key,next);
+   return next;
   }
-  function refreshData(){
-   plotCacheKey='';
+    function refreshData(){
+   plotCache.clear();
    const items=sources();
    if(dataNote)dataNote.textContent='数据中心：'+items.length+' 组（仅显示已分配源）';
    refreshFrameSourceFields();
@@ -177,14 +178,12 @@
    return all.length===1?all[0]:null;
   }
   function frameCurves(index){
-   const available=sources();
-   const selected=frameSelections[index];
-   if(!selected)return curves();
-   // A frame only reads sources assigned by DKDS Data Center.
-   if(!available.some(item=>item.artifactId===selected))return [];
-   return curves().filter(curve=>curve.artifactId===selected);
+   const kind=frameKinds[index]||'iv',selected=frameSelections[index],available=sources();
+   if(kind==='raw'||selected&&!available.some(row=>row.artifactId===selected))return [];
+   const list=curves(kind);
+   return selected?list.filter(curve=>curve.artifactId===selected):list;
   }
-  function refreshFrameSourceFields(){
+    function refreshFrameSourceFields(){
    if(!frameSourceHosts.length)return;
    const available=sources();
    const options=[{value:'',label:'全部已分配数据'},
@@ -231,13 +230,12 @@
    return true;
   }
   function applyFrameLayout(){
-   const small=Boolean(window.matchMedia?.('(max-width: 680px)')?.matches);
-   if(frameGrid?.style)frameGrid.style.gridTemplateColumns=
-    frameLayout==='1'||small?'minmax(0,1fr)':'repeat(2,minmax(0,1fr))';
+   // Core PlotGroup owns responsive geometry; only hide nonselected children.
+   frameGroup?.setColumns?.(frameLayout==='1'?1:2);
    for(let i=0;i<frameCards.length;i++)if(frameCards[i]?.style)
     frameCards[i].style.display=frameLayout==='1'&&i>0||frameLayout==='2'&&i>1?'none':'';
   }
-  function updateEditorLayout(){
+    function updateEditorLayout(){
    applyFrameLayout();
    const narrow=Boolean(window.matchMedia?.('(max-width: 680px)')?.matches);
    if(workRegion?.style)workRegion.style.gridTemplateColumns=
@@ -486,22 +484,26 @@
   // Four independent DKDS PlotView subwindows, each with its own host controls.
   // Never synthesize measurement samples in an offline UI.
   const frameTools=units.layout.create(plotArea,{variant:'row-wrap'});
-  units.field.create(frameTools,{kind:'select',label:'子窗口',value:frameLayout,
+  units.field.create(frameTools,{kind:'select',label:'图窗布局',value:frameLayout,
    options:[{value:'1',label:'单窗口'},{value:'2',label:'双窗口'},
     {value:'4',label:'四宫格'}],
    onChange:e=>{frameLayout=e.target.value;applyFrameLayout();}});
-  frameGrid=units.layout.create(plotArea,{variant:'responsive-two-column',
-   geometry:{gridTemplateColumns:'repeat(2,minmax(0,1fr))'},
-   responsiveGeometry:[{maxWidth:680,
-    geometry:{gridTemplateColumns:'minmax(0,1fr)'}}]});
-  const frameTitles=['图窗 1 · I–V','图窗 2 · 转移特性','图窗 3 · I–t','图窗 4 · 数据'];
-  for(let index=0;index<4;index++){
-   const graphic=units.panel.create(frameGrid,{variant:'plot-card',
-    header:false,sizing:'content'});
+  const groupHost=units.layout.create(plotArea,{variant:'identity'});
+  frameGroup=units.plotGroup.create(groupHost,{columns:2,preferredColumns:2,
+   maxColumns:4,minItemWidth:260,responsive:true,density:'regular',
+   orientationPolicy:{mode:'portrait-offset',offset:-1,minColumns:1}});
+  const frameTitles=['图窗 1','图窗 2','图窗 3','图窗 4'];
+    for(let index=0;index<4;index++){
+   const graphic=units.panel.detached({variant:'plot-card',
+    header:false,sizing:'fill'});
    frameCards.push(graphic.element);
-   if(graphic.element?.style)graphic.element.style.minHeight='min(31dvh,255px)';
    const graphicHeader=units.header.create(graphic.body,{kind:'plot',
     variant:'plot',title:frameTitles[index],actionHost:true});
+   const typeHost=units.layout.create(graphic.body,{variant:'row-wrap'});
+   units.field.create(typeHost,{kind:'select',label:'显示',value:frameKinds[index],
+    options:FRAME_OPTIONS,onChange:e=>{
+     frameKinds[index]=e.target.value;plots[index]?.requestRender?.('frame-kind');
+    }});
    const sourceHost=units.layout.create(graphic.body,{variant:'identity'});
    frameSourceHosts.push(sourceHost);
    const exportControls=units.layout.create(graphic.body,{variant:'row-wrap'});
@@ -510,15 +512,16 @@
     onInvoke:()=>exportOriginalCsv(index).catch(error=>
      ctx.status.set('原始数据导出失败：'+String(error.message||error)))});
    const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
-   const view=units.plotView.adopt('dkts-4200a-frame-'+(index+1),graphic.element,{
+   const view=frameGroup.adoptPlot('dkts-4200a-frame-'+(index+1),graphic.element,{
     variant:'complete',title:frameTitles[index],plot:plotHost,
     header:graphicHeader.element,actionsHost:graphicHeader.actions,
-    fileStem:'DKTS_4200A_frame_'+(index+1),images:true,copy:false,csv:false,
-    placements:['home','float','global'],stateVersion:'dkts-native-v4'});
+    fileStem:'DKTS_4200A_frame_'+(index+1),images:true,copy:true,csv:false,
+    detailGeometry:{contentAspectRatio:1.65,contentMinHeightPx:190,contentMaxHeightPx:520},
+    placements:['home','left','right','bottom','float','global'],stateVersion:'dkts-native-v5'});
    // The raw data frame is intentionally empty without an instrument data table.
    const instance=units.scientificPlot.create(plotHost,{variant:'curve',
     source:'dkts-native-frame-'+(index+1),
-    xTitle:index===2?'Time (s)':'Voltage (V)',yTitle:'Current (A)',
+    xTitle:index===2?'时间 (s)':index===1?'栅极电压 (V)':'漏极电压 (V)',yTitle:'漏极电流 (A)',
     getCurves:()=>frameCurves(index),getMarkers:()=>[]});
    plotViews.push(view);plots.push(instance);
    if(index===0){plotView=view;plot=instance;}
@@ -551,6 +554,6 @@
   ctx.status.set('4200A 工作区已加载；原生输出禁用');
   return {deactivate(){window.removeEventListener?.('resize',updateEditorLayout);
    pad?.close?.();off?.();for(const item of plots)item?.dispose?.();
-   for(const item of plotViews)item?.dispose?.();wb?.dispose?.();}};
+   for(const item of plotViews)item?.dispose?.();frameGroup?.dispose?.();wb?.dispose?.();}};
  });
 })();
