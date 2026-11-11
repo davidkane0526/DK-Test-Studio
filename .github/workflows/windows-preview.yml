@@ -21,6 +21,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
+      - name: Checkout trusted DKTS fingerprint and source identity
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
       - name: Download only artifacts of the successful DKTS Core build
         env:
           GH_TOKEN: ${{ github.token }}
@@ -39,11 +44,6 @@ jobs:
             echo "::warning::No fixed-signed Android asset. Preview will remain TEST-SIGNED."
           fi
           find artifacts signed-artifacts -maxdepth 12 -type f -print
-      - name: Checkout trusted DKTS fingerprint and source identity
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          persist-credentials: false
       - name: Verify source identity and both Core Preview packages
         id: identity
         env:
