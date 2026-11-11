@@ -12,10 +12,15 @@ test('the latest user instructions override prior DKDS-side 4200A development pl
   '所有的要求除了 继续'])assert(req.includes(phrase),phrase);
  assert.match(read('docs/DEVELOPMENT_LOG.md'),/DKDS.*PR.*16/);
 });
-test('DKTS active README does not claim finished upstream-host migration',()=>{
+test('DKTS active README records merged Core mainline but not unverified production or hardware acceptance',()=>{
  const readme=read('README.md');
+ const req=read('docs/USER_REQUIREMENTS.md');
  assert.match(readme,/完全基于 DKDS 框架/);
- assert.match(readme,/不能称为已完整基于 DKDS 框架/);
+ assert.match(readme,/PR #18/);
+ assert.match(readme,/真实 4200A 验收/);
+ assert.match(readme,/不会覆盖已安装稳定版/);
+ assert.match(req,/R-20261111-007/);
+ assert.match(req,/直接合并 PR #18到main/);
  assert.match(read('docs/ROADMAP.md'),/DKDS 只读框架来源/);
  assert.match(read('docs/UPSTREAM_BRANCH_AUDIT.md'),/远程分支删除尚未执行/);
 });
