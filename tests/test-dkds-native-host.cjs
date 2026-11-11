@@ -35,7 +35,7 @@ const units={
    // The pinned SDK allows canonical layout recipes; arbitrary geometry
    // values are not guaranteed and previously failed real Core activation.
    assert.ok(['identity','form-grid-2','form-grid-4','row-wrap',
-     'stack-comfortable','stack-compact','sidebar-main-compact',
+     'stack-comfortable','stack-compact','sidebar-main-compact','scroll-pane',
      'responsive-two-column',
      'plot-card-fill','action-grid-4'].includes(spec.variant),
      'Unknown DKDS Unit layout recipe: '+String(spec.variant));
