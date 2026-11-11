@@ -142,7 +142,7 @@ const ctx={
  assert.equal(record.top.layout.prime.length,1);
  assert.equal(record.composed.primary.titlePolicy,'host-only');
  assert.equal(record.composed.primes.length,1);
- assert.ok(record.layouts.includes('responsive-two-column'));
+ assert.ok(!record.layouts.includes('responsive-two-column'),'graph and Page parameter destinations cannot use a sibling-column split');
  assert.ok(record.panels.some(x=>x.title==='端口设置'));
  assert.equal(record.tabs.at(-1).items.length,7);
  record.tabs.at(-1).onChange('info');

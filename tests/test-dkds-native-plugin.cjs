@@ -30,6 +30,8 @@ assert.ok(/if\(term\.role==='CONDITION'\)numericField\(grid,term\.logical,'bias'
 assert.ok(/units\.scientificPlot\.create/.test(js));
 assert.match(js,/units\.plotGroup\.create\(/,'native DKDS PlotGroup owns grouping/resize');
 assert.match(js,/frameGroup\.adoptPlot\(/,'canonical PlotView grouping');
+assert.match(js,/plotRegion\.style\.display=editorOpen\?'none':''/,'Page navigation hides the project-level plot workspace');
+assert.match(js,/editorRegion\.style\.display=editorOpen\?'':'none'/,'project-level graphs hide the Page editor');
 assert.match(js,/controlOnly:true/,'plot header selectors must not render a second label row');
 assert.ok(js.split('units.panel.create(').slice(1).every(x=>!x.slice(0,130).includes("variant:'standard'")),
  'DKDS panel Unit supports headed/plot-card, never the nonexistent standard variant');
