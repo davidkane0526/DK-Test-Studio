@@ -57,3 +57,13 @@ test('every DKTS main push builds genuine DKDS Core Windows/Android packages, no
  assert.match(publisher,/workflow_run:/);
  assert.match(publisher,/DKTS DKDS-Framework Contract \(read-only upstream\)/);
 });
+
+test('Core publisher checks out DKTS before downloading artifacts to avoid deleting built EXE/APK',()=>{
+ const flow=read('.github/workflows/windows-preview.yml');
+ const checkout=flow.indexOf('name: Checkout trusted DKTS fingerprint and source identity');
+ const download=flow.indexOf('name: Download only artifacts of the successful DKTS Core build');
+ const verify=flow.indexOf('name: Verify source identity and both Core Preview packages');
+ assert(checkout>=0&&download>checkout&&verify>download,
+   'checkout must precede artifact downloads and identity verification');
+ assert.match(flow,/mkdir -p artifacts signed-artifacts out/);
+});
