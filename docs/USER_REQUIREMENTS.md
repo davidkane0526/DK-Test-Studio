@@ -97,3 +97,8 @@ PR #8 旧宿主分支安全功能应与新 Core 验证一致后由归档记录�
 > ？？？？？？？？？？？？？我等了几个小时，你来一个 消息传输超时。请重试。？ openai 你也太会偷懒了
 
 要求：不能用计划或长时间无结果代替实际开发；消息中断后从 GitHub 真实提交与 CI 恢复，给出实际可检查的 Windows/Android 产物、截图、明确的通过/未通过结论。UI 优先：已接受的 Web 参数表格不重写；Project → Device → Routine → Page 分层；Project 层的 DKDS PlotGroup 独立显示多个真实图窗，点击 Page 才显示全宽参数编辑；Page 编辑可显式返回绘图区。窄屏 PlotView 标题、数据源和导出入口不能挤压裁剪；默认中文，技术缩写保留；严格使用 DKDS Unit/API，DKDS 上游仓库不得修改。未经 Android 真机与实际仪器验证不得声称全面完成。
+
+## 2026-11-11 [R-20261111-007] 用户明确授权 PR #18 合并到 main
+> 继续，不过你可以直接合并 PR #18到main。现在的main没有意义，也不是我想要的
+
+**执行约束**：DKTS `main` 从此以已经合并的真正 DKDS Core 宿主为主线，不再将旧独立 WebView/Electron 壳当作目标软件或冒充新版正式交付。保留真正的 DKDS Data Center、科学绘图、主题、通信、非分析插件与 FS-Pro Project/Device/Routine/Page/Spec 层级。上游 DKDS 仓库未经用户允许不可修改。合并不等于完成 Windows、Android 生产签名、热更新/回退和 4200A 真机安全验收，必须明确区分预览与正式发布。
