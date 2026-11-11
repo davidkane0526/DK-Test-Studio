@@ -28,6 +28,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  DKTS_PREVIEW_BUILD_NUMBER: ${{ github.run_number }}
 jobs:
   framework-readonly-check:
     runs-on: ubuntu-latest
@@ -230,6 +232,7 @@ jobs:
           test -s "$apk"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -m1 "^package:" | tee dist/dkts-core-android-badging.txt
           grep -q "name='studio.dk.test.corepreview'" dist/dkts-core-android-badging.txt
+          grep -q "versionCode='$((100000+GITHUB_RUN_NUMBER))'" dist/dkts-core-android-badging.txt
           unzip -Z1 "$apk" | grep -q 'lib/arm64-v8a/'
           unzip -Z1 "$apk" | grep -q 'lib/x86_64/'
           unzip -Z1 "$apk" | grep -Fxq 'assets/index.android.bundle'

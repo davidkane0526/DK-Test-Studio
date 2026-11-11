@@ -7,6 +7,18 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {verify}=require('./dkds-host-profile.cjs');
 const {verifyUpdaterParity}=require('./verify-dkds-updater-parity.cjs');
+/* Core preview versionCode must increase for Android replacement installs.
+ * The visible Vx.y.z remains independently controlled by package.json. */
+function previewVersionCode(value=process.env.DKTS_PREVIEW_BUILD_NUMBER||''){
+ const raw=String(value).trim();
+ if(!raw)return 1;
+ if(!/^[1-9][0-9]{0,6}$/.test(raw))throw Error('Invalid Core Preview build number');
+ const code=100000+Number(raw);
+ if(!Number.isSafeInteger(code)||code>2100000000)
+  throw Error('Core Preview versionCode outside Android range');
+ return code;
+}
+
 function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpdater=verifyUpdaterParity}={}){
  const upstream=path.resolve(source),output=path.resolve(target);
  if(output===upstream||output.startsWith(upstream+path.sep)||
@@ -52,7 +64,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   mobile.expo.version=dktsPackage.version;
   if(mobile.expo.android){
    mobile.expo.android.package=previewId;
-   mobile.expo.android.versionCode=1;
+   mobile.expo.android.versionCode=previewVersionCode();
   }
   fs.writeFileSync(mobileFile,JSON.stringify(mobile,null,2)+'\n');
  }
@@ -160,4 +172,4 @@ if(require.main===module){
  console.log('DKTS framework staging complete (NOT yet a distributable binary): '+
   JSON.stringify(result.counts));
 }
-module.exports={stage};
+module.exports={stage,previewVersionCode};

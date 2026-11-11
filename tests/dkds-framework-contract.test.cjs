@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {verify}=require('../tools/dkds-host-profile.cjs');
-const {stage}=require('../tools/stage-dkds-host.cjs');
+const {stage,previewVersionCode}=require('../tools/stage-dkds-host.cjs');
 const repo=path.resolve(__dirname,'..');
 function fixture(){
  const top=fs.mkdtempSync(path.join(os.tmpdir(),'dkts-framework-'));
@@ -123,4 +123,17 @@ test('stage DKDS Core into DKTS directory without touching upstream or shipping 
   assert.equal(JSON.parse(fs.readFileSync(path.join(f.root,'mobile/app.json'),'utf8')).expo.android.package,
    'com.dk.datastudio');
  }finally{fs.rmSync(f.top,{recursive:true,force:true});}
+});
+
+test('Core Preview Android versionCode is monotonic while visible package version remains fixed',()=>{
+ assert.equal(previewVersionCode(''),1);
+ assert.equal(previewVersionCode('162'),100162);
+ assert.equal(previewVersionCode('163'),100163);
+ assert.throws(()=>previewVersionCode('0'),/Invalid Core Preview/);
+ assert.throws(()=>previewVersionCode('3.14'),/Invalid Core Preview/);
+ assert.throws(()=>previewVersionCode('10000000'),/Invalid Core Preview/);
+ const workflow=fs.readFileSync(path.join(repo,'.github/workflows/dkts-framework-contract.yml'),'utf8');
+ assert(workflow.includes('DKTS_PREVIEW_BUILD_NUMBER: ${{ github.run_number }}'));
+ assert(workflow.includes('100000+GITHUB_RUN_NUMBER'));
+ assert.equal(require('../package.json').version,'0.3.13');
 });
