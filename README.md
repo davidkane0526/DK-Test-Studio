@@ -10,7 +10,7 @@
 - DKTS 构建时在临时目录中暂存完整 DKDS Core，保留全部非分析插件、主题、Data Center、科学绘图、通信、更新模块，移除分析插件，只在 DKTS 副本内加入 4200A 工作区。实际 DKDS checkout 不作写入。
 - FS-Pro Project → Device → Routine → Page/Spec、Project 层的四个独立 DKDS PlotView、Page 全宽参数编辑，以及 DKDS Data Center / 原始 CSV 接口已有实现。实际 KXCI 输出仍禁用，尚未经过真实 4200A 验收。
 - Windows 原生 Electron Core 工作区与多图窗的启动/截图回归在 `8533798df` 通过；Windows Portable 打包、Android API 36 模拟器和 APK 完整 CI 仍应以各次 Actions 最终结果为准。OPPO 平板及真实仪器未验收。
-- 旧根目录 `npm start`、`electron-builder` 与历史 APK 源文件仍是**待退役的旧独立壳**，不能因 PR 合并就视为已转成新 Core。可执行 Core 预览由 [只读 Core 工作流](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 构建，不使用这些旧入口发布新版。
+- `npm start` 现在运行 `tools/launch-core-mainline.cjs`：若未设置 `DKTS_DKDS_SOURCE`，会在 DKTS 自己的 `.dkts-cache/` 内获取固定 SHA 的只读 DKDS 上游，暂存真实 Core、执行原生构建并启动 Electron；不会修改用户的 DKDS checkout。`npm run start:legacy` 和 `npm run dist:win:legacy` 保留旧壳作历史对照，**不作为新架构正式发布入口**。新 Core 预览由 [只读 Core 工作流](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 构建。
 - Core 预览使用独立 Android 包名 `studio.dk.test.corepreview`、测试签名和单独的 Windows Portable。不会覆盖已安装稳定版。其 UI 热更新、完整安装升级、回退、正式 APK 签名与仪器安全仍未完成；旧独立壳 UI Bundle **不得**直接给 Core 宿主使用。
 
 ## 项目入口
