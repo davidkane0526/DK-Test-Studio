@@ -1,11 +1,11 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.1","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]}};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.1","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]}};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),units=ctx.ui.unitTemplates;
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
-  let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameGrid=null,frameLayout='4',nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
+  let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSourceHosts=[],frameSelections=['','','',''],frameGrid=null,frameLayout='4',nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
   let editorSection='sweep',editorOpen=false,workRegion=null,editorRegion=null,plotRegion=null;
   const PAGE_TABS=[['info','Info'],['sweep','Sweep'],['target','Target'],['strategy','Strategy'],['limits','Limits'],['variables','Page Var'],['spec','Associate Spec']];
   const touchNumeric=Boolean(window.matchMedia?.('(pointer: coarse)')?.matches);
@@ -28,7 +28,8 @@
   function refreshData(){
    plotCacheKey='';
    const items=sources();
-   if(dataNote)dataNote.textContent='数据中心：'+items.length+' 组';
+   if(dataNote)dataNote.textContent='数据中心：'+items.length+' 组（仅显示已分配源）';
+   refreshFrameSourceFields();
    for(const item of plots)item?.requestRender?.('data-artifacts');
   }
   function commitTransaction(fn){
@@ -167,6 +168,64 @@
      onInvoke:()=>commitTransaction(()=>model.addSegment(state(),axis))
     });
    }
+  }
+  function scopedSource(index){
+   const all=sources();
+   const selected=frameSelections[index];
+   if(selected)return all.find(item=>item.artifactId===selected)||null;
+   return all.length===1?all[0]:null;
+  }
+  function frameCurves(index){
+   const available=sources();
+   const selected=frameSelections[index];
+   if(!selected)return curves();
+   // A frame only reads sources assigned by DKDS Data Center.
+   if(!available.some(item=>item.artifactId===selected))return [];
+   return curves().filter(curve=>curve.artifactId===selected);
+  }
+  function refreshFrameSourceFields(){
+   if(!frameSourceHosts.length)return;
+   const available=sources();
+   const options=[{value:'',label:'全部已分配数据'},
+    ...available.map(item=>({value:String(item.artifactId),label:String(item.name||item.artifactId)}))];
+   for(let i=0;i<frameSourceHosts.length;i++){
+    const host=frameSourceHosts[i];
+    if(!host)continue;
+    if(frameSelections[i]&&!available.some(item=>item.artifactId===frameSelections[i]))
+     frameSelections[i]='';
+    host.replaceChildren();
+    units.field.create(host,{kind:'select',label:'数据源',value:frameSelections[i],
+     options,onChange:e=>{
+      frameSelections[i]=String(e.target.value||'');
+      plots[i]?.requestRender?.('frame-data-source');
+     }});
+   }
+  }
+  async function exportOriginalCsv(index){
+   // Full-resolution export belongs to canonical Data Center Artifact + DKDS IO.
+   // Never use decimated ScientificPlot points as measurement originals.
+   const ref=scopedSource(index);
+   if(!ref){
+    ctx.status.set(sources().length?'请选择一个具体数据源再导出':'尚无可导出的原始数据');
+    return false;
+   }
+   const table=ctx.data.artifacts.get(ref.artifactId);
+   if(!table||table.kind!=='data.table'||!Array.isArray(table.columns)||!table.columns.length)
+    throw Error('选中数据源不是原始 DataTable');
+   const rows=ctx.data.model.rows(table);
+   if(!Array.isArray(rows)||rows.length!==(table.rowCount??rows.length))
+    throw Error('导出数据行数与 Data Center 原始记录不一致');
+   // A failed/stale/oversized export must never silently produce truncated raw data.
+   if(rows.length>250000)throw Error('原始数据超过内存导出上限，请使用数据中心的完整导出功能');
+   const rev=ctx.data.artifacts.artifactRevision(ref.artifactId);
+   if(!Number.isInteger(rev))throw Error('无法校验原始数据版本');
+   // Use a detached canonical snapshot, keeping the Artifact itself immutable.
+   const safeName=String(ref.name||'Measurement').replace(/[^a-zA-Z0-9._-]+/g,'_').slice(0,64);
+   if(ctx.data.artifacts.artifactRevision(ref.artifactId)!==rev)
+    throw Error('导出时数据源已变更，请重试');
+   await ctx.io.saveCsv(rows,'DKTS_4200A_'+safeName+'.csv');
+   ctx.status.set('已通过 DKDS 导出 '+rows.length+' 条原始数据（未抽稀）');
+   return true;
   }
   function applyFrameLayout(){
    const small=Boolean(window.matchMedia?.('(max-width: 680px)')?.matches);
@@ -440,6 +499,13 @@
    if(graphic.element?.style)graphic.element.style.minHeight='min(31dvh,255px)';
    const graphicHeader=units.header.create(graphic.body,{kind:'plot',
     variant:'plot',title:frameTitles[index],actionHost:true});
+   const sourceHost=units.layout.create(graphic.body,{variant:'identity'});
+   frameSourceHosts.push(sourceHost);
+   const exportControls=units.layout.create(graphic.body,{variant:'row-wrap'});
+   units.action.create(exportControls,{id:'dkts-export-original-'+(index+1),
+    label:'导出原始 CSV',variant:'quiet',
+    onInvoke:()=>exportOriginalCsv(index).catch(error=>
+     ctx.status.set('原始数据导出失败：'+String(error.message||error)))});
    const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
    const view=units.plotView.adopt('dkts-4200a-frame-'+(index+1),graphic.element,{
     variant:'complete',title:frameTitles[index],plot:plotHost,
@@ -450,11 +516,12 @@
    const instance=units.scientificPlot.create(plotHost,{variant:'curve',
     source:'dkts-native-frame-'+(index+1),
     xTitle:index===2?'Time (s)':'Voltage (V)',yTitle:'Current (A)',
-    getCurves:index===3?()=>[]:curves,getMarkers:()=>[]});
+    getCurves:()=>frameCurves(index),getMarkers:()=>[]});
    plotViews.push(view);plots.push(instance);
    if(index===0){plotView=view;plot=instance;}
   }
   applyFrameLayout();
+  refreshFrameSourceFields();
   dataNote=units.note.create(plotArea,{variant:'meta',text:'数据中心 · 0'});
   // Keep optional dockable Port PRIME; editing of Page is always visible.
   const ports=units.layout.create(null,{variant:'stack-compact'});
