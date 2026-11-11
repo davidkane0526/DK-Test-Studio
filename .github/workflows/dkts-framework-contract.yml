@@ -283,3 +283,89 @@ jobs:
             dist/dkts-framework-staging/DKTS_FRAMEWORK_STAGING.json
           if-no-files-found: error
           retention-days: 15
+
+  android-core-fixed-sign-preview:
+    name: Sign Core Preview APK with pinned DKTS identity (isolated, optional)
+    # Deliberately outside the DKDS Core build job: third-party framework
+    # build scripts must never see the user's signing key or password.
+    needs: android-core-preview
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.android-core-preview.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted DKTS signing fingerprint only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download compiled Core APK without checking out DKDS
+        uses: actions/download-artifact@v4
+        with:
+          name: DKTS-Core-Preview-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          path: core-unsigned-source
+      - name: Set up isolated Android signer
+        uses: android-actions/setup-android@v4
+      - name: Obtain Android SDK sign and package inspection tools
+        run: sdkmanager "build-tools;36.0.0"
+      - name: Check whether the existing fixed DKTS signer is configured
+        id: signer
+        shell: bash
+        env:
+          DKTS_ANDROID_KEYSTORE_B64: ${{ secrets.DKTS_ANDROID_KEYSTORE_B64 }}
+          DKTS_ANDROID_SIGNING_PASSWORD: ${{ secrets.DKTS_ANDROID_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DKTS_ANDROID_KEYSTORE_B64:-}" ] && [ -n "${DKTS_ANDROID_SIGNING_PASSWORD:-}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Pinned signing secrets unavailable. Test-signed Core Preview remains isolated and must not be presented as an in-place upgrade."
+          fi
+      - name: Sign existing test APK with the fixed certificate and verify package/version
+        if: steps.signer.outputs.available == 'true'
+        shell: bash
+        env:
+          DKTS_ANDROID_KEYSTORE_B64: ${{ secrets.DKTS_ANDROID_KEYSTORE_B64 }}
+          DKTS_ANDROID_SIGNING_PASSWORD: ${{ secrets.DKTS_ANDROID_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mapfile -d '' inputs < <(find core-unsigned-source -type f -name app-release.apk -print0)
+          test "${#inputs[@]}" -eq 1
+          apk="${inputs[0]}"
+          signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          test -x "$signer" && test -x "$aapt"
+          "$signer" verify --print-certs "$apk" | grep -q 'CN=Android Debug'
+          "$aapt" dump badging "$apk" | grep -m1 '^package:' > original-package.txt
+          grep -q "name='studio.dk.test.corepreview'" original-package.txt
+          grep -q "versionCode='$((100000+GITHUB_RUN_NUMBER))'" original-package.txt
+          mkdir -p fixed-signed
+          keypath="$RUNNER_TEMP/dkts-pinned-preview.p12"
+          trap 'shred -u "$keypath" 2>/dev/null || rm -f "$keypath"' EXIT
+          printf '%s' "$DKTS_ANDROID_KEYSTORE_B64" | base64 --decode > "$keypath"
+          chmod 600 "$keypath"
+          test -s "$keypath"
+          keytool -list -keystore "$keypath" -storetype PKCS12 \
+            -storepass "$DKTS_ANDROID_SIGNING_PASSWORD" -alias dkts >/dev/null
+          "$signer" sign --ks "$keypath" --ks-type PKCS12 --ks-key-alias dkts \
+            --ks-pass env:DKTS_ANDROID_SIGNING_PASSWORD \
+            --key-pass env:DKTS_ANDROID_SIGNING_PASSWORD \
+            --out fixed-signed/app-core-fixed-signed.apk "$apk"
+          "$signer" verify --verbose --print-certs fixed-signed/app-core-fixed-signed.apk > "$RUNNER_TEMP/core-fixed-signature.txt"
+          actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/core-fixed-signature.txt" | head -1 | tr -d ':[:space:]' | tr 'A-F' 'a-f')
+          expected=$(tr -d ':[:space:]' < android/signing-certificate.sha256 | tr 'A-F' 'a-f')
+          [ -n "$actual" ] && [ "$actual" = "$expected" ] || { echo "::error::DKTS signing certificate drift detected"; exit 1; }
+          "$aapt" dump badging fixed-signed/app-core-fixed-signed.apk | grep -m1 '^package:' > fixed-signed/package-badging.txt
+          cmp -s original-package.txt fixed-signed/package-badging.txt || { echo "::error::Re-signing changed package or version identity"; exit 1; }
+          printf '%s\n' "$actual" > fixed-signed/certificate.sha256
+          sha256sum fixed-signed/app-core-fixed-signed.apk > fixed-signed/APK.sha256
+          echo "Pinned DKTS signer verified on isolated Core Preview package." >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain fixed-signed Core Preview for trusted release selection
+        if: steps.signer.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-Core-Fixed-Signed-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          path: fixed-signed/
+          if-no-files-found: error
+          retention-days: 30
