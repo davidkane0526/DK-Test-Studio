@@ -6,11 +6,13 @@
  */
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {verify}=require('./dkds-host-profile.cjs');
+const {verifyUpdaterParity}=require('./verify-dkds-updater-parity.cjs');
 function stage(source,target,{dktsRoot=path.resolve(__dirname,'..')}={}){
  const upstream=path.resolve(source),output=path.resolve(target);
  if(output===upstream||output.startsWith(upstream+path.sep)||
      upstream.startsWith(output+path.sep))throw Error('Unsafe overlapping staging directories');
  const profile=verify(upstream);
+ const updaterSafety=verifyUpdaterParity(upstream);
  const tmp=output+'.staging';
  if(fs.existsSync(tmp))fs.rmSync(tmp,{recursive:true,force:true});
  const ignored=new Set(['.git','node_modules','dist','.expo','.gradle',
@@ -136,7 +138,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..')}={}){
   'private static final String REPO="davidkane0526/DK-Test-Studio";');
  const sourceHash=crypto.createHash('sha256')
   .update(fs.readFileSync(path.join(upstream,'package.json'))).digest('hex');
- const staging={...profile,upstream:{...profile.upstream,packageSha256:sourceHash},
+ const staging={...profile,updaterSafety,upstream:{...profile.upstream,packageSha256:sourceHash},
   dktsVersion:dktsPackage.version,derivedDistribution:true,
   instrumentPlugin:'src/plugins/dkts-4200a (DKTS build only; absent upstream)',
   previewAppId:previewId,hostRenderer:'src/index.html',
