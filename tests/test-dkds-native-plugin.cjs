@@ -33,7 +33,7 @@ assert.match(js,/frameGroup\.adoptPlot\(/,'canonical PlotView grouping');
 assert.ok(js.split('units.panel.create(').slice(1).every(x=>!x.slice(0,130).includes("variant:'standard'")),
  'DKDS panel Unit supports headed/plot-card, never the nonexistent standard variant');
 assert.ok(/ctx\.data\.sources\.list/.test(js));
-assert.ok(/model\.curvesFromArtifacts\(rows,ctx\.data\.artifacts\)/.test(js));
+assert.ok(/model\.curvesFromArtifacts\(rows,ctx\.data\.artifacts,\{axis\}\)/.test(js),'plot must use assigned canonical data with independent axes');
 const plotReadSection=js.slice(js.indexOf('function curves(){'),js.indexOf('async function exportOriginalCsv('));
 assert.ok(!/ctx\.data\.artifacts\.get\(/.test(plotReadSection),'chart rendering must not copy whole Artifact');
 assert.match(js,/ctx\.data\.artifacts\.get\(ref\.artifactId\)/,'full Artifact read is reserved for explicit original CSV export');
