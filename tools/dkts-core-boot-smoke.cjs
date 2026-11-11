@@ -39,15 +39,15 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      hasStatusBar:!!document.querySelector('[id*="statusBar"],footer,.statusbar'),
      has4200Workspace:ids.includes('com.dkts.keithley-4200'),
      hasNativePageTabs:[...document.querySelectorAll('[data-dkds-unit-template="tabs-v2"]')]
-      .some(node=>node.textContent.includes('Sweep')&&
-       node.textContent.includes('Target')&&node.textContent.includes('Page Var')),
+      .some(node=>node.textContent.includes('扫描')&&
+       node.textContent.includes('目标')&&node.textContent.includes('页面变量')),
      hasTerminalEditor:[...document.querySelectorAll('[data-dkds-unit-template="panel-v2"]')]
-      .some(node=>node.textContent.includes('Terminal'))||
-      document.body.innerText.includes('Terminal'),
+      .some(node=>node.textContent.includes('端口设置'))||
+      document.body.innerText.includes('端口设置'),
      hasRedundant4200Header:[...document.querySelectorAll('.analysis-page-header')]
       .some(node=>node.textContent.trim()==='4200A'&&
        node.getBoundingClientRect().height>0),
-     hasDeviceNavigation:document.body.innerText.includes('＋ Device')&&
+     hasDeviceNavigation:document.body.innerText.includes('＋ 器件')&&
       document.body.innerText.includes('MOSFET'),
      terminalGrid:(()=>{
       const grid=[...document.querySelectorAll('[data-dkds-unit-layout-recipe="form-grid-4"]')]
@@ -66,6 +66,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
         y=>coords.filter(p=>p.y===y&&p.w>0).length)),
        coords};
      })(),
+     nativePlotGroupCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-plot-group="plot-group-v2"]').length,
+     nativePlotViewCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-plot-view="plot-view-v2"]').length,
      keptDataCenter:ids.includes('builtin.data-center'),
      keptConnectivity:ids.includes('builtin.connectivity-center'),
      keptTheme:ids.some(x=>x.startsWith('com.dkds.theme.')),
@@ -86,7 +88,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        state.selectedSuper!=='com.dkts.keithley-4200'||!state.superAvailable||
        state.activeActivity!=='dkts-keithley-4200'||state.neutralMainVisible||
        !state.hasNativePageTabs||!state.hasTerminalEditor||
-       !state.hasDeviceNavigation||state.hasRedundant4200Header)return;
+       !state.hasDeviceNavigation||state.hasRedundant4200Header||
+       state.nativePlotGroupCount!==1||state.nativePlotViewCount<4)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();
