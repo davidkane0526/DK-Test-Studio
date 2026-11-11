@@ -34,6 +34,9 @@ fi
 printf 'package=%s\nactivity=%s\n' "$PACKAGE" "$ACTIVITY" > "$OUT/identity.txt"
 
 adb wait-for-device
+# Confirm immersive mode before starting the app, so first-run Android system
+# onboarding cannot occlude the actual DKTS UI screenshot.
+adb shell settings put secure immersive_mode_confirmations confirmed >/dev/null || true
 adb install -r "$APK" | tee "$OUT/install.txt"
 adb logcat -c
 adb shell am start -W -n "$PACKAGE/$ACTIVITY" | tee "$OUT/startup.txt"
@@ -47,11 +50,50 @@ sleep 18
 adb shell pidof "$PACKAGE" | tee "$OUT/pid.txt"
 test -s "$OUT/pid.txt"
 adb shell dumpsys activity activities > "$OUT/activity-state.txt"
-adb exec-out screencap -p > "$OUT/screen.png"
-if [[ $(wc -c < "$OUT/screen.png") -le 4000 ]]; then
-  echo "CORE_SCREENSHOT_EMPTY: inspect emulator display" >&2
+
+# uiautomator exposes Android system dialogs. The overlay can be present even
+# when the React Native Activity is alive. Do not accept an occluded screenshot.
+adb shell uiautomator dump /sdcard/dkts-core-viewport.xml >/dev/null 2>&1 || true
+adb exec-out cat /sdcard/dkts-core-viewport.xml > "$OUT/phone-hierarchy.xml" 2>/dev/null || true
+if grep -Fq 'Viewing full screen' "$OUT/phone-hierarchy.xml"; then
+  # CI emulator is configured as 320x640. Never tap a guessed position on an
+  # unrecognized screen size, where the tap could hit a test action instead.
+  physical="$(adb shell wm size | tr -d '\r' | sed -n 's/^Physical size: //p' | head -n 1)"
+  if [[ "$physical" != "320x640" ]]; then
+    echo "CORE_SYSTEM_OVERLAY_UNEXPECTED_VIEWPORT: $physical" >&2
+    exit 1
+  fi
+  adb shell input tap 260 208
+  sleep 2
+  adb shell uiautomator dump /sdcard/dkts-core-viewport.xml >/dev/null 2>&1 || true
+  adb exec-out cat /sdcard/dkts-core-viewport.xml > "$OUT/phone-hierarchy.xml" 2>/dev/null || true
+fi
+if grep -Fq 'Viewing full screen' "$OUT/phone-hierarchy.xml"; then
+  echo "CORE_SYSTEM_OVERLAY_NOT_DISMISSED: Android modal obstructs Core workbench" >&2
   exit 1
 fi
+adb exec-out screencap -p > "$OUT/phone.png"
+if [[ $(wc -c < "$OUT/phone.png") -le 4000 ]]; then
+  echo "CORE_PHONE_SCREENSHOT_EMPTY: inspect emulator display" >&2
+  exit 1
+fi
+
+# Exercise adaptive DKDS Core layouts at tablet-landscape dimensions using
+# the SAME offline app process; keep both original PNGs as UI evidence.
+adb shell wm size 1024x768
+adb shell wm density 160
+sleep 5
+adb shell pidof "$PACKAGE" > "$OUT/pid-tablet.txt"
+test -s "$OUT/pid-tablet.txt"
+adb exec-out screencap -p > "$OUT/tablet-landscape.png"
+if [[ $(wc -c < "$OUT/tablet-landscape.png") -le 6000 ]]; then
+  echo "CORE_TABLET_SCREENSHOT_EMPTY: inspect responsive DKDS layout" >&2
+  exit 1
+fi
+# PNG IHDR encodes actual display dimensions, not a label invented in CI.
+node -e "const fs=require('fs');for(const [p,w,h] of [['$OUT/phone.png',300,600],['$OUT/tablet-landscape.png',900,700]]){const b=fs.readFileSync(p);if(b.toString('ascii',1,4)!=='PNG'||b.readUInt32BE(16)<w||b.readUInt32BE(20)<h)throw Error('Invalid rendered screenshot: '+p)}"
+adb shell wm size reset
+adb shell wm density reset
 
 # Preserve original runtime evidence. These are *error* checks, not proof
 # that the rendered WebView matches FS-Pro on a physical Android tablet.
@@ -66,4 +108,4 @@ if grep -Fq "Process: $PACKAGE" "$OUT/crash.log"; then
   exit 1
 fi
 
-echo "CORE_ANDROID_OFFLINE_EMULATOR_PASS: API 36 install, activity, process, screenshot and error checks"
+echo "CORE_ANDROID_OFFLINE_EMULATOR_PASS: API 36 offline install, activity, process, unoccluded phone/tablet screenshots and error checks"

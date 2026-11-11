@@ -211,3 +211,9 @@
 - 在 `c159238` 的 `Validate DK Test Studio #518` 中，Node Ubuntu / Node Windows 与能力数据库检查均成功，但 `DKDS Plugin API 1.19 compatibility` 的 `Checkout DK Data Studio SDK` 连续三次执行 `git fetch ... +refs/heads/4200*:...` 失败，未进入 SDK 验证阶段；因此不能将整套 CI 宣称通过。
 - Core framework 读取的 DKDS 上游已固定为 `20f056851a61d2144e9524c3ed568628d4b8557c` 并通过只读检查。将旧 `.github/workflows/ci.yml` 中浮动 `ref:'4200'` 改为该精确 SHA，同时设置 `persist-credentials:false`，避免 SDK 检出与真实 DKDS Core 宿主针对不同版本、避免残留跨库授权。
 - 不修改 DKDS，保留外部插件验证闸门的完整步骤。新工作流结果仍需下次相同 SHA 的成功日志确认。
+
+## 2026-11-11 / Android 16 独立 Core Host 实际启动成功与截图质量追踪
+- Core Host Framework Contract #70（PR merge SHA `9e7de859`）**全部成功**：Windows Electron 原生 Core 真实启动、双尺寸截图、Portable 预览构建；DKDS 只读检查；Android arm64/x86_64 独立 Release APK（包含 `assets/index.android.bundle`）完成构建、签名校验，并在 API36 emulator 安装与冷启动成功。
+- 下载并检查 #70 的 Android Emulator Artifact（`DKTS-Core-Android-Emulator-V0.3.13-PR70`）：`startup.txt` 显示 `Status: ok`, `LaunchState: COLD`, `MainActivity`，`pid.txt` 有进程号，`runtime-errors.txt` 与 `crash.log` 均为空。但 `screen.png` **被 Android 首次 immersive-fullscreen 系统提示“Viewing full screen / Got it”遮挡**，属于真实 UI 验收盲点，虽然背后 DKDS Core 4200A Page 已可见。
+- DKTS-only 改进：在 Core Preview 启动前静默确认 Android 全屏引导；用 UI hierarchy 检测并在固定 320×640 的模拟器上有条件关闭提示，拒绝残留系统遮挡；分别截取真实 320×640 窄屏和 1024×768 平板横屏，校验 PNG 真实尺寸、进程存活并保留文件。增加静态回归测试。UI 是否符合 FS-Pro 层级/手势仍需核查新截图，不因这次修改预先声称完成。
+- GitHub PR 保持 draft；仅 DKTS 仓库发生变更。稳定发行仍为 V0.3.13 a135，预览 Build 使用 V0.3.13 PR CI 运行号，更新与 Keithley 4200A 实机数据尚未验收。
