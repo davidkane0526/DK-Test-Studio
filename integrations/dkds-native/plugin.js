@@ -6,7 +6,7 @@
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
   let wb=null,plot=null,plotView=null,nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
-  let editorSection='sweep';
+  let editorSection='sweep',editorOpen=false,workRegion=null,editorRegion=null,plotRegion=null;
   const PAGE_TABS=[['info','Info'],['sweep','Sweep'],['target','Target'],['strategy','Strategy'],['limits','Limits'],['variables','Page Var'],['spec','Associate Spec']];
   const touchNumeric=Boolean(window.matchMedia?.('(pointer: coarse)')?.matches);
   const state=()=>model.validate(store.get());
@@ -168,8 +168,19 @@
     });
    }
   }
+  function updateEditorLayout(){
+   const narrow=Boolean(window.matchMedia?.('(max-width: 680px)')?.matches);
+   if(workRegion?.style)workRegion.style.gridTemplateColumns=
+    editorOpen&&!narrow?'minmax(0,1.25fr) minmax(320px,.75fr)':'minmax(0,1fr)';
+   if(editorRegion?.style)editorRegion.style.display=editorOpen?'':'none';
+   if(plotRegion?.style){
+    plotRegion.style.gridColumn=editorOpen?'':'1 / -1';
+    plotRegion.style.order=narrow?'-1':'';
+   }
+  }
   function render(){
    if(!nav||!parameters)return;
+   updateEditorLayout();
    const s=state(),p=active();
    const selectedKind=kindField?.control?.value||'iv';
    nav.replaceChildren();
@@ -178,18 +189,20 @@
    const visibleSpecs=s.specs.filter(spec=>spec.deviceId===s.activeDeviceId);
    units.header.create(nav,{kind:'panel',variant:'content',
     eyebrow:'PROJECT',title:'Research Project',meta:''});
+   units.action.create(nav,{id:'project-graph',label:'数据图',variant:'quiet',
+    onInvoke:()=>{editorOpen=false;render();}});
    units.field.create(nav,{kind:'select',label:'Device',value:s.activeDeviceId,
     options:s.devices.map(item=>({value:item.id,label:item.name})),
-    onChange:e=>persist(model.selectDevice(state(),e.target.value))});
+    onChange:e=>{editorOpen=false;persist(model.selectDevice(state(),e.target.value));}});
    const tree=units.list.create(nav,{});
    for(const routine of s.routines.filter(r=>r.deviceId===s.activeDeviceId)){
     tree.item({leading:'▦',title:routine.name,
      selected:false,
-     onInvoke:()=>persist(model.selectRoutine(state(),routine.id))});
+     onInvoke:()=>{editorOpen=false;persist(model.selectRoutine(state(),routine.id));}});
     for(const page of s.pages.filter(page=>page.routineId===routine.id))
      tree.item({leading:'└ ▧',title:page.name,
-      selected:page.id===s.activeId,
-      onInvoke:()=>persist(model.select(state(),page.id))});
+      selected:editorOpen&&page.id===s.activeId,
+      onInvoke:()=>{editorOpen=true;persist(model.select(state(),page.id));}});
    }
    if(visibleSpecs.length){
     units.note.create(nav,{variant:'meta',text:'SPEC'});
@@ -201,11 +214,11 @@
    }
    const actions=units.layout.create(nav,{variant:'row-wrap'});
    units.action.create(actions,{id:'add-device',label:'＋ Device',
-    variant:'quiet',onInvoke:()=>persist(model.addDevice(state()))});
+    variant:'quiet',onInvoke:()=>{editorOpen=false;persist(model.addDevice(state()));}});
    units.action.create(actions,{id:'add-routine',label:'＋ Routine',
-    variant:'quiet',onInvoke:()=>persist(model.addRoutine(state()))});
+    variant:'quiet',onInvoke:()=>{editorOpen=false;persist(model.addRoutine(state()));}});
    units.action.create(actions,{id:'add-spec',label:'＋ Spec',
-    variant:'quiet',onInvoke:()=>persist(model.addSpec(state()))});
+    variant:'quiet',onInvoke:()=>{editorOpen=true;persist(model.addSpec(state()));}});
    if(s.pages.length>1)
     units.action.create(actions,{id:'close-'+p.id,label:'× Page',
      variant:'quiet',onInvoke:()=>persist(model.remove(state(),p.id))});
@@ -217,8 +230,8 @@
    kindField=units.field.create(nav,{kind:'select',label:'New Page',
     value:selectedKind,options:model.KINDS.map(x=>({value:x.id,label:x.label}))});
    units.action.create(nav,{id:'add-test',label:'＋ Page',
-    variant:'quiet',onInvoke:()=>persist(model.add(state(),
-     kindField?.control?.value||'iv'))});
+    variant:'quiet',onInvoke:()=>{editorOpen=true;persist(model.add(state(),
+     kindField?.control?.value||'iv'));}});
    if(portFields){
     portFields.replaceChildren();
     for(const term of p.terminals)units.field.create(portFields,{
@@ -375,19 +388,18 @@
    responsiveGeometry:[{maxWidth:620,
     geometry:{gridTemplateColumns:'minmax(0,1fr)'}}]});
   nav=units.layout.create(main,{variant:'stack-compact'});
-  const work=units.layout.create(main,{variant:'stack-compact'});
-  // Core-accepted geometry widens the parameter editor; a Core-managed
-  // 680px responsive override stacks editor / plot on narrow screens.
-  const content=units.layout.create(work,{variant:'responsive-two-column',
+  // DKDS Core workbench owns both the independent result graph and Page inspector.
+  const work=units.layout.create(main,{variant:'responsive-two-column',
    geometry:{gridTemplateColumns:'minmax(0,1.25fr) minmax(320px,.75fr)'},
    responsiveGeometry:[{maxWidth:680,
     geometry:{gridTemplateColumns:'minmax(0,1fr)'}}]});
-  const editor=units.layout.create(content,{variant:'stack-compact'});
+  const editor=units.layout.create(work,{variant:'stack-compact'});
   editorHeading=units.layout.create(editor,{variant:'identity'});
   inlineTerminals=units.layout.create(editor,{variant:'identity'});
   editorTabs=units.layout.create(editor,{variant:'identity'});
   parameters=units.layout.create(editor,{variant:'stack-compact'});
-  const plotArea=units.layout.create(content,{variant:'stack-comfortable'});
+  const plotArea=units.layout.create(work,{variant:'stack-comfortable'});
+  workRegion=work;editorRegion=editor;plotRegion=plotArea;
   const graphic=units.panel.create(plotArea,{variant:'plot-card',
    header:false,sizing:'content'});
   const graphicHeader=units.header.create(graphic.body,{kind:'plot',
@@ -422,8 +434,10 @@
     prime:[{id:'ports',label:'端口',presentationRole:'inspector',
      priority:65,collapsible:true}],sub:[]}});
   const off=ctx.events?.on?.('data:artifacts-changed',refreshData);
+  window.addEventListener?.('resize',updateEditorLayout);
   render();refreshData();
   ctx.status.set('4200A 工作区已加载；原生输出禁用');
-  return {deactivate(){pad?.close?.();off?.();plot?.dispose?.();plotView?.dispose?.();wb?.dispose?.();}};
+  return {deactivate(){window.removeEventListener?.('resize',updateEditorLayout);
+   pad?.close?.();off?.();plot?.dispose?.();plotView?.dispose?.();wb?.dispose?.();}};
  });
 })();
