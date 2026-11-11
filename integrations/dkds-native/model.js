@@ -124,40 +124,63 @@
    target:{logical:'D',quantity:'Current'},variables:[]};
  };
  const initial=()=>({schema:1,sequence:1,activeId:'page-1',
-  activeRoutineId:'routine-1',routines:[{id:'routine-1',name:'Routine 1'}],
+  activeDeviceId:'device-1',devices:[{id:'device-1',name:'MOSFET'}],
+  activeRoutineId:'routine-1',
+  routines:[{id:'routine-1',deviceId:'device-1',name:'Routine 1'}],
   specs:[],pages:[page()]});
  function validate(state){
   if(state?.schema!==1||!Array.isArray(state.pages)||!state.pages.length||
      state.pages.length>128||!Number.isSafeInteger(state.sequence)||state.sequence<1)
    throw Error('Invalid DKTS project state');
   state=clone(state);
-  // Migrate schema-1 projects saved before Routine/Page ownership existed.
+  // Schema-1 snapshots predate Device ownership. Migrate in a cloned state
+  // only; never change an already persisted project while merely validating.
+  if(!Array.isArray(state.devices))
+   state.devices=[{id:'device-1',name:'MOSFET'}];
+  if(!state.devices.length||state.devices.length>100)
+   throw Error('Invalid Device count');
+  const deviceIds=new Set();
+  for(const device of state.devices){
+   if(!/^device-[A-Za-z0-9-]+$/.test(device?.id||'')||
+      deviceIds.has(device.id)||typeof device.name!=='string'||
+      !device.name.trim()||device.name.length>64)
+    throw Error('Invalid Device');
+   deviceIds.add(device.id);
+  }
   if(!Array.isArray(state.routines)||!state.routines.length)
-   state.routines=[{id:'routine-1',name:'Routine 1'}];
+   state.routines=[{id:'routine-1',deviceId:state.devices[0].id,name:'Routine 1'}];
   if(state.routines.length>100)throw Error('Too many Routines');
-  const routineIds=new Set();
+  const routineIds=new Set(),routineOwners=new Map();
   for(const routine of state.routines){
+   if(!routine.deviceId)routine.deviceId=state.devices[0].id;
    if(!/^routine-[A-Za-z0-9-]+$/.test(routine?.id||'')||
       routineIds.has(routine.id)||typeof routine.name!=='string'||
-      !routine.name.trim()||routine.name.length>64)throw Error('Invalid Routine');
+      !routine.name.trim()||routine.name.length>64||
+      !deviceIds.has(routine.deviceId))throw Error('Invalid Routine or Device ownership');
    routineIds.add(routine.id);
+   routineOwners.set(routine.id,routine.deviceId);
   }
   if(!Array.isArray(state.specs))state.specs=[];
   if(state.specs.length>100)throw Error('Too many Specs');
-  const specIds=new Set();
+  const specIds=new Set(),specOwners=new Map();
   for(const spec of state.specs){
+   if(!spec.deviceId)spec.deviceId=state.devices[0].id;
    if(!/^spec-[A-Za-z0-9-]+$/.test(spec?.id||'')||
       specIds.has(spec.id)||typeof spec.name!=='string'||
-      !spec.name.trim()||spec.name.length>64)throw Error('Invalid Spec');
+      !spec.name.trim()||spec.name.length>64||
+      !deviceIds.has(spec.deviceId))throw Error('Invalid Spec or Device ownership');
    specIds.add(spec.id);
+   specOwners.set(spec.id,spec.deviceId);
   }
   const ids=new Set();
   for(const p of state.pages){
    if(!p.routineId)p.routineId=state.routines[0].id;
    if(!routineIds.has(p.routineId))throw Error('Page references an unknown Routine');
    if(p.associateSpecId===undefined)p.associateSpecId=null;
-   if(p.associateSpecId!==null&&!specIds.has(p.associateSpecId))
-    throw Error('Page references an unknown Spec');
+   if(p.associateSpecId!==null&&
+      (!specIds.has(p.associateSpecId)||
+       specOwners.get(p.associateSpecId)!==routineOwners.get(p.routineId)))
+    throw Error('Page Spec must belong to the same Device');
    if(!/^page-[1-9]\d*$/.test(p?.id||'')||ids.has(p.id)||!KINDS.some(k=>k.id===p.kind)||
       !Array.isArray(p.terminals)||p.terminals.length!==4)throw Error('Invalid Page');
    ids.add(p.id);
@@ -221,6 +244,7 @@
   }
   if(!ids.has(state.activeId))throw Error('Active Page missing');
   state.activeRoutineId=state.pages.find(p=>p.id===state.activeId).routineId;
+  state.activeDeviceId=routineOwners.get(state.activeRoutineId);
   return state;
  }
  function add(s,kind,routineId){
@@ -230,13 +254,31 @@
   s.sequence++;s.pages.push(page(kind,id,target));
   s.activeId=id;s.activeRoutineId=target;return validate(s);
  }
- function addRoutine(s){
+ function addRoutine(s,deviceId){
   s=validate(s);
-  if(s.routines.length>=100)throw Error('Maximum 100 Routines');
+  if(s.routines.length>=100||s.pages.length>=128)
+   throw Error('Maximum Routines or Pages reached');
+  const owner=deviceId||s.activeDeviceId;
+  if(!s.devices.some(d=>d.id===owner))throw Error('Unknown Device');
   const routineId='routine-'+(s.routines.length+1);
   if(s.routines.some(r=>r.id===routineId))throw Error('Duplicate Routine ID');
-  s.routines.push({id:routineId,name:'Routine '+(s.routines.length+1)});
+  s.routines.push({id:routineId,deviceId:owner,name:'Routine '+(s.routines.length+1)});
   return add(s,'iv',routineId);
+ }
+ function addDevice(s){
+  s=validate(s);
+  if(s.devices.length>=100)throw Error('Maximum 100 Devices');
+  const deviceId='device-'+(s.devices.length+1);
+  if(s.devices.some(d=>d.id===deviceId))throw Error('Duplicate Device ID');
+  s.devices.push({id:deviceId,name:'Device '+(s.devices.length+1)});
+  return addRoutine(s,deviceId);
+ }
+ function selectDevice(s,deviceId){
+  s=validate(s);
+  if(!s.devices.some(d=>d.id===deviceId))throw Error('Unknown Device');
+  const routine=s.routines.find(r=>r.deviceId===deviceId);
+  if(!routine)return addRoutine(s,deviceId);
+  return selectRoutine(s,routine.id);
  }
  function selectRoutine(s,routineId){
   s=validate(s);
@@ -251,13 +293,14 @@
   if(s.specs.length>=100)throw Error('Maximum 100 Specs');
   const id='spec-'+(s.specs.length+1);
   if(s.specs.some(spec=>spec.id===id))throw Error('Duplicate Spec ID');
-  s.specs.push({id,name:'Spec '+(s.specs.length+1)});
+  s.specs.push({id,deviceId:s.activeDeviceId,name:'Spec '+(s.specs.length+1)});
   return associateSpec(s,id);
  }
  function associateSpec(s,specId){
   s=validate(s);
-  if(specId!==null&&!s.specs.some(spec=>spec.id===specId))
-   throw Error('Unknown Spec');
+  if(specId!==null&&!s.specs.some(spec=>spec.id===specId&&
+      spec.deviceId===s.activeDeviceId))
+   throw Error('Spec belongs to another Device or is unknown');
   const active=s.pages.find(p=>p.id===s.activeId);
   active.associateSpecId=specId;
   return validate(s);
@@ -469,6 +512,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,initial,validate,add,addRoutine,selectRoutine,addSpec,associateSpec,remove,select,editPage,editTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,addSpec,associateSpec,remove,select,editPage,editTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

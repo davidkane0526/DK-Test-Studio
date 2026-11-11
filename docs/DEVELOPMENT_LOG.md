@@ -108,3 +108,10 @@
 ## 2026-11-10 / Electron 几何检查不应误拒绝已加载 UI
 - 四端口单行的新增真实 Electron CI #42813318990 失败，`terminalGridColumns:1` 仅为基于 `getComputedStyle().gridTemplateColumns` 的字符串 split，插件容器嵌套 / UI 初始化可能不返回真实可视列数。7 个标签、Terminal、Core/SUPER 已经加载，该单一统计不能证明 UI 失败。
 - 改为记录四个原生 Select 在 Electron 真实窗口的 `getBoundingClientRect()` 位置、所处分组行数/列数、布局 CSS 等，以真实截图进一步确认；保留真正功能性门槛，不再依赖脆弱字符串拆分作为阻止 EXE 构建的条件。该变更仅在 DKTS 自有 smoke 脚本与日志，DKDS 只读。
+
+## 2026-11-11 / Core Host 原生 Device 归属与发布标识（PR #18）
+- 按最高优先级 DKTS-only 迁移路线继续，仅改 DKTS `feat/dkts-core-host-boot`，不修改 DKDS。对应主线已记录的 R-20261111-001 与 R-20261110-001。
+- 原生模型在原有 schema:1 下可无损迁移旧项目：`devices` / `activeDeviceId`、Routine.deviceId、Spec.deviceId，Page 通过 Routine 归属 Device；校验跨 Device Spec 关联失败，而非错误静默链接。
+- 原生 DKDS Unit Project Explorer 添加真实 Device 选择和新增按钮，Routine/Spec 列表按当前 Device 过滤，Core 主界面不再把 Device/MOSFET 当作虚假固定层级。未改变端口安全、测量输出权限或 raw 数据来源。
+- 增加模型状态与历史快照迁移、跨设备 Spec 隔离、原生 UI mock、真实 Electron smoke 的 Device 控件检查。测试与 Windows/Android Core Preview 工件以 CI 真实结果为准。
+- 发行主版本仍为 **V0.3.13**。Core PR Preview 的独立 CI 构建序号显式标记为 `PR#`，避免与主线稳定版的 `aNNN` 混淆；只有合并后主线发布工作流才递增 `aNNN` 并生成同 V/a 的完整包。本 PR 尚不作为稳定 DKTS 安装包发布。

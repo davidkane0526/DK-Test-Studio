@@ -173,11 +173,16 @@
    const s=state(),p=active();
    const selectedKind=kindField?.control?.value||'iv';
    nav.replaceChildren();
-   // DKDS Core List Unit, not nested headed cards with stretched actions.
+   // Real DKDS Core Units own the Device/Routine/Page/Spec project tree.
+   const device=s.devices.find(d=>d.id===s.activeDeviceId);
+   const visibleSpecs=s.specs.filter(spec=>spec.deviceId===s.activeDeviceId);
    units.header.create(nav,{kind:'panel',variant:'content',
-    eyebrow:'PROJECT',title:'Research Project',meta:'Device / MOSFET'});
+    eyebrow:'PROJECT',title:'Research Project',meta:'Device / '+device.name});
+   units.field.create(nav,{kind:'select',label:'Device',value:s.activeDeviceId,
+    options:s.devices.map(item=>({value:item.id,label:item.name})),
+    onChange:e=>persist(model.selectDevice(state(),e.target.value))});
    const tree=units.list.create(nav,{});
-   for(const routine of s.routines){
+   for(const routine of s.routines.filter(r=>r.deviceId===s.activeDeviceId)){
     tree.item({leading:'▦',title:routine.name,
      selected:routine.id===s.activeRoutineId,
      onInvoke:()=>persist(model.selectRoutine(state(),routine.id))});
@@ -186,15 +191,17 @@
       selected:page.id===s.activeId,
       onInvoke:()=>persist(model.select(state(),page.id))});
    }
-   if(s.specs.length){
+   if(visibleSpecs.length){
     units.note.create(nav,{variant:'meta',text:'SPEC'});
     const specs=units.list.create(nav,{});
-    for(const spec of s.specs)
+    for(const spec of visibleSpecs)
      specs.item({leading:'◇',title:spec.name,
       selected:spec.id===p.associateSpecId,
       onInvoke:()=>persist(model.associateSpec(state(),spec.id))});
    }
    const actions=units.layout.create(nav,{variant:'row-wrap'});
+   units.action.create(actions,{id:'add-device',label:'＋ Device',
+    variant:'quiet',onInvoke:()=>persist(model.addDevice(state()))});
    units.action.create(actions,{id:'add-routine',label:'＋ Routine',
     variant:'quiet',onInvoke:()=>persist(model.addRoutine(state()))});
    units.action.create(actions,{id:'add-spec',label:'＋ Spec',
@@ -202,10 +209,10 @@
    if(s.pages.length>1)
     units.action.create(actions,{id:'close-'+p.id,label:'× Page',
      variant:'quiet',onInvoke:()=>persist(model.remove(state(),p.id))});
-   if(s.specs.length)
+   if(visibleSpecs.length)
     units.field.create(nav,{kind:'select',label:'Associate Spec',
      value:p.associateSpecId||'',options:[{value:'',label:'None'},
-      ...s.specs.map(spec=>({value:spec.id,label:spec.name}))],
+      ...visibleSpecs.map(spec=>({value:spec.id,label:spec.name}))],
      onChange:e=>persist(model.associateSpec(state(),e.target.value||null))});
    kindField=units.field.create(nav,{kind:'select',label:'New Page',
     value:selectedKind,options:model.KINDS.map(x=>({value:x.id,label:x.label}))});
@@ -342,7 +349,8 @@
    }else if(editorSection==='spec'){
     const grid=units.layout.create(section('Associate Spec').body,{variant:'form-grid-2'});
     units.field.create(grid,{kind:'select',label:'Spec',value:p.associateSpecId||'',
-     options:[{value:'',label:'None'},...s.specs.map(x=>({value:x.id,label:x.name}))],
+     options:[{value:'',label:'None'},
+      ...s.specs.filter(x=>x.deviceId===s.activeDeviceId).map(x=>({value:x.id,label:x.name}))],
      onChange:e=>commitTransaction(()=>model.associateSpec(state(),e.target.value||null))});
     units.action.create(grid,{id:'new-spec-inline',label:'＋ Spec',variant:'quiet',
      onInvoke:()=>commitTransaction(()=>model.addSpec(state()))});

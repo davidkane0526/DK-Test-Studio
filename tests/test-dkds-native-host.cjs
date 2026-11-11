@@ -224,6 +224,30 @@ const ctx={
  assert.ok(specField,'Page↔Spec association must use DKDS Unit selector');
  specField.spec.onChange({target:{value:''}});
  assert.equal(state.pages[0].associateSpecId,null,'Spec link can be cleared');
+ // Real Core Device navigation is a native Unit selector, never a web-only control.
+ const addDevice=[...record.actions].reverse().find(x=>x.id==='add-device');
+ assert.ok(addDevice,'DKDS Core Project Explorer must create Device');
+ const beforeDeviceFields=record.fields.length;
+ addDevice.onInvoke();
+ assert.equal(state.devices.length,2);
+ assert.equal(state.activeDeviceId,'device-2');
+ assert.equal(state.routines.at(-1).deviceId,'device-2');
+ assert.equal(state.pages.at(-1).routineId,state.routines.at(-1).id);
+ const currentDeviceField=[...record.fields].reverse().find(x=>x.spec.label==='Device');
+ assert.equal(currentDeviceField.control.value,'device-2');
+ assert.equal(currentDeviceField.spec.options.length,2);
+ assert.ok(!record.fields.slice(beforeDeviceFields).some(x=>x.spec.label==='Associate Spec'),
+  'the second Device without Specs must not expose first-Device spec options');
+ const newDeviceSpec=[...record.actions].reverse().find(x=>x.id==='add-spec');
+ newDeviceSpec.onInvoke();
+ assert.equal(state.specs.length,2);
+ assert.equal(state.specs[1].deviceId,'device-2');
+ assert.throws(()=>sandbox.window.DKDSPluginModules &&
+   registry.get('com.dkts.keithley-4200:model').associateSpec(state,'spec-1'),/another Device/);
+ const goToFirstDevice=[...record.fields].reverse().find(x=>x.spec.label==='Device');
+ goToFirstDevice.spec.onChange({target:{value:'device-1'}});
+ assert.equal(state.activeDeviceId,'device-1');
+ assert.equal(state.activeId,'page-1');
  // Output Sweep must use the same genuine Core X/P editor as I-V/Transfer.
  const kindOutput=[...record.fields].reverse().find(x=>x.spec.label==='New Page');
  kindOutput.control.value='output';

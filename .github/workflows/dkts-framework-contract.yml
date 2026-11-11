@@ -1,4 +1,5 @@
 name: DKTS DKDS-Framework Contract (read-only upstream)
+run-name: DK Test Studio V0.3.13 · DKDS Core Preview #${{ github.run_number }}
 on:
   pull_request:
     branches: [main]
@@ -161,7 +162,7 @@ jobs:
       - name: Upload Core Preview screenshot, evidence and portable app (NOT stable Release)
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Preview-Windows-${{ github.sha }}
+          name: DKTS-Core-Preview-Windows-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
           path: |
             dist/core-smoke-evidence/report.json
             dist/core-smoke-evidence/core-host.png
@@ -238,7 +239,7 @@ jobs:
       - name: Upload isolated Android Core Preview (DEBUG TEST ONLY)
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Preview-Android-${{ github.sha }}
+          name: DKTS-Core-Preview-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
           path: |
             dist/dkts-framework-staging/mobile/android/app/build/outputs/apk/debug/app-debug.apk
             dist/dkts-core-android-badging.txt
