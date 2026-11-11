@@ -103,3 +103,19 @@ test('FS-Pro Device owns Routines/Specs and exports device associations',()=>{
  for(const marker of ['function addDevice(','r.deviceId===state.activeDeviceId','s.deviceId===state.activeDeviceId','devices:state.devices,routines:state.routines'])assert.ok(app.includes(marker),marker);
  assert.ok(!app.includes("'Research Project / MOSFET / '"));
 });
+
+test('results graph is a project-level sibling, test parameters are opt-in',()=>{
+ const html=fs.readFileSync(path.join(root,'web/fspro-workbench/index.html'),'utf8');
+ const css=fs.readFileSync(path.join(root,'web/fspro-workbench/styles.css'),'utf8');
+ const app=fs.readFileSync(path.join(root,'web/fspro-workbench/app.js'),'utf8');
+ assert.match(html,/<main class="main-pane" id="main-pane"/);
+ assert.match(html,/<section class="editor-pane" id="editor-pane"/);
+ assert.match(html,/<aside class="data-pane" id="data-pane"/);
+ assert.ok(html.indexOf('id="editor-pane"')<html.indexOf('id="data-pane"'));
+ assert.doesNotMatch(html,/class="work-split"/);
+ assert.match(html,/id="project-overview"/);
+ assert.match(css,/\.main-pane:not\(\.editor-open\)>\.editor-pane\{display:none!important\}/);
+ assert.match(app,/state\.editorOpen=false;/);
+ assert.match(app,/state\.editorOpen=true;/);
+ assert.match(app,/\$\('main-pane'\)\.classList\.toggle\('editor-open'/);
+});
