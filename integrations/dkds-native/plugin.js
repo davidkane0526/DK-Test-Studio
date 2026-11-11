@@ -210,16 +210,18 @@
     ctx.status.set(sources().length?'请选择一个具体数据源再导出':'尚无可导出的原始数据');
     return false;
    }
+   const rev=ctx.data.artifacts.artifactRevision(ref.artifactId);
+   if(!Number.isInteger(rev))throw Error('无法校验原始数据版本');
    const table=ctx.data.artifacts.get(ref.artifactId);
    if(!table||table.kind!=='data.table'||!Array.isArray(table.columns)||!table.columns.length)
     throw Error('选中数据源不是原始 DataTable');
+   // Check raw length before allocating a full row projection. For very large
+   // sources the Data Center's own streaming exporter remains authoritative.
+   if(!Number.isSafeInteger(table.rowCount)||table.rowCount>250000)
+    throw Error('原始数据过大或行数无效，请使用数据中心的完整导出功能');
    const rows=ctx.data.model.rows(table);
-   if(!Array.isArray(rows)||rows.length!==(table.rowCount??rows.length))
+   if(!Array.isArray(rows)||rows.length!==table.rowCount)
     throw Error('导出数据行数与 Data Center 原始记录不一致');
-   // A failed/stale/oversized export must never silently produce truncated raw data.
-   if(rows.length>250000)throw Error('原始数据超过内存导出上限，请使用数据中心的完整导出功能');
-   const rev=ctx.data.artifacts.artifactRevision(ref.artifactId);
-   if(!Number.isInteger(rev))throw Error('无法校验原始数据版本');
    // Use a detached canonical snapshot, keeping the Artifact itself immutable.
    const safeName=String(ref.name||'Measurement').replace(/[^a-zA-Z0-9._-]+/g,'_').slice(0,64);
    if(ctx.data.artifacts.artifactRevision(ref.artifactId)!==rev)
