@@ -149,6 +149,8 @@ const ctx={
  assert.ok(record.panels.some(x=>x.title==='页面信息'));
  record.tabs.at(-1).onChange('sweep');
 
+ const graphBack=record.actions.find(x=>x.id==='back-to-graphs');
+ assert.ok(graphBack,'Page editor offers a visible return to the project-level graphs');
  assert.equal(record.panels.some(x=>x.title==='D · SMU1'),false,'None port does not render parameter panel');
  assert.equal(record.plotGroups.length,1,'four plot windows share canonical DKDS managed PlotGroup');
   assert.equal(record.tables.length,4,'raw tables must use DKDS Unit Table, not HTML placeholders');

@@ -393,6 +393,9 @@
    const title=units.header.create(editorHeading,{
     kind:'panel',variant:'content',eyebrow:'编辑页面',title:p.name,meta:p.testType
    });
+   units.action.create(title.actions,{id:'back-to-graphs',label:'← 绘图区',
+    title:'返回工程图表工作区',variant:'quiet',
+    onInvoke:()=>{editorOpen=false;render();}});
    units.action.create(title.actions,{id:'check-plan',label:'校验规划',
     variant:'secondary',onInvoke:()=>{
      const result=model.summary(active());
