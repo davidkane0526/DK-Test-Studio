@@ -87,11 +87,14 @@ if [[ $(wc -c < "$OUT/phone-scrolled.png") -le 4000 ]]; then
   exit 1
 fi
 
-# Exercise adaptive DKDS Core layouts at tablet-landscape dimensions using
-# the SAME offline app process; keep both original PNGs as UI evidence.
+# Cold-start at tablet-landscape dimensions so the viewport changes without
+# inheriting the phone's deliberate page-scroll position. Verify persistence
+# and a second clean launch, while preserving phone logs and screenshots.
 adb shell wm size 1024x768
 adb shell wm density 160
-sleep 5
+adb shell am force-stop "$PACKAGE"
+adb shell am start -W -n "$PACKAGE/$ACTIVITY" | tee "$OUT/tablet-startup.txt"
+sleep 10
 adb shell pidof "$PACKAGE" > "$OUT/pid-tablet.txt"
 test -s "$OUT/pid-tablet.txt"
 adb exec-out screencap -p > "$OUT/tablet-landscape.png"

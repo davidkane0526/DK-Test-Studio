@@ -228,3 +228,9 @@
 - Core Host Framework Contract #72 **全通过**（https://github.com/davidkane0526/DK-Test-Studio/actions/runs/42967419152），下载 Android 模拟器实际 `phone.png`（320×640）与 `tablet-landscape.png`（1024×768）人工复核。系统全屏弹窗已经消失，安装、Activity/进程、错误日志正常。但 320px 手机上 Project Explorer 和参数编辑器仍被固定 150px/150px 双列割裂，严重影响可用性；1024px 横屏基本正常。
 - 查固定只读 DKDS Core `src/core/ui/modules/composition/unit-template-layout-spec.js`：`sidebar-main-compact` 的原始 recipe 在宽度 <=760 时强制 `150px minmax(0,1fr)`，并不会进一步自动切为单列。继续使用相同宿主 `sidebar-main-compact` Layout Unit，只按 SDK 允许的 `responsiveGeometry: [{maxWidth:620,geometry:{gridTemplateColumns:'minmax(0,1fr)'}}]` 显式覆盖。DKDS Runtime 的 `LayoutUnitRuntime.bindLayout` 在 recipe 后应用该合法 Geometry，故 <=620px Project Explorer 与参数编辑器纵向排列；宽屏仍继承 235px 紧凑侧栏，未引入插件 CSS/iframe。
 - 在 Core native mock 中精确检查此 override，不放松其它几何白名单；Android 模拟器增加窄屏顶端、窄屏实际手势滑动后、1024×768 平板三张截图。后续 CI 和真实图必须验证 320px 不再左右分栏且参数可触达。此计划仅改善 DKTS Core 预览，不修改 DKDS 上游。
+
+## 2026-11-11 / Android 16 双尺寸实际截图复核及平板冷启动
+- Core Framework Contract #73（https://github.com/davidkane0526/DK-Test-Studio/actions/runs/42969177415）**全部通过**：Windows Electron 真启动/预览 EXE、Android 双 ABI 离线 APK/模拟器、DKDS 只读框架。下载并人工检查 320×640 `phone.png`、`phone-scrolled.png`、1024×768 `tablet-landscape.png`，新手机布局确认纵向：Project Explorer 占整行，下面是 Edit Page/Terminal，滑动后扫描段参数确实可见；没有全屏 onboarding 遮挡，进程有效，runtime-errors/crash 为空。
+- 发现 1024×768 平板截图仍处于之前手机上滑后的页面滚动位置，导致顶端 Project/Device/Terminal 上半区被截断。这是测试脚本的跨视口滚动状态污染，不能作为平板完整界面证据，也不等于应用自身闪退或丢失数据。
+- 修改 DKTS-only `run-core-android-smoke.sh`：手机原始与滑动后的截图结束后设置 tablet 1024×768，`am force-stop` 再按 Manifest Activity 冷启动并单独记录 tablet-startup.txt、PID、截图、错误检查，确保平板首屏视觉对照有可重复的起始滚动位置。增加静态 regression。DKDS 不作任何变更。
+- 主版本继续 V0.3.13，稳定 Release 仍 a135；PR Preview CI 编号与正式 a 编号分离。安卓实体平板和仪器真实输出仍未验收。

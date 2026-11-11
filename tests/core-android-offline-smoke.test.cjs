@@ -27,6 +27,8 @@ test('Android 16 emulator launches one shell with shared APK/Activity variables'
  assert.match(script,/CORE_SYSTEM_OVERLAY_NOT_DISMISSED/);
  assert.match(script,/wm size 1024x768/);
  assert.match(script,/wm density 160/);
+ assert.match(script,/adb shell am force-stop "\$PACKAGE"/);
+ assert.match(script,/adb shell am start -W -n "\$PACKAGE\/\$ACTIVITY" \| tee "\$OUT\/tablet-startup\.txt"/);
  assert.match(script,/^adb logcat -d -b crash/m);
  assert.match(workflow,/assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64/);
  assert.match(workflow,/grep -Fxq 'assets\/index\.android\.bundle'/);
