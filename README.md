@@ -4,13 +4,14 @@
 
 > 2026-11-10 开发边界以 [AGENTS.md](AGENTS.md) 和 [用户需求台账](docs/USER_REQUIREMENTS.md) 为准。较早文档可能描述历史方案，不得覆盖本次新要求。
 
-## 当前状态（区分实现与目标）
+## 当前状态（2026-11-11 主线切换）
 
-- 已有独立 DKTS V0.3.13（aNNN 随主线开发递增）Windows/Android 发布包、UI 热更新、KXCI 基础连接/扫描相关源码、硬件能力数据库和 FS-Pro 风格 UI 的部分实现。历史程序采用独立 WebView/Electron 壳，**不能称为已完整基于 DKDS 框架**。
-- DKDS Core 宿主迁移正在 DKTS 单一工作分支进行。使用 **只读、固定 SHA 的 DKDS 上游源码**；保留所有非分析插件及 Core 基础设施，在 DKTS 的临时构建目录中排除分析插件，不修改上游。
-- DKDS 已有通用通信、UI 热更新、本地完整更新功能；DKTS 新宿主需要验证其发行来源、签名、热更/全量更新兼容、Windows/Android 真机 UI 和 KXCI 执行安全，**在验证完成前不发布替代当前独立 App 的安装包**。
-- 历史 `.dkplugin` 仍在本仓库，供兼容和研发预览，但不再混进每一次正式 DKTS 完整包。这不会将任何 4200A 功能重新加入 DKDS 内置插件。
-- 当前 DKDS `4200` 分支的内置插件目录没有 4200A 程序，但这不证明用户安装设备中的旧插件缓存已被清理。旧 DKDS FS-Pro PR 已关闭。
+- [PR #18](https://github.com/davidkane0526/DK-Test-Studio/pull/18) **已经按用户授权合并到 `main`**，合并提交 `cdc159dd`。从此 `main` 的开发目标是由 **只读 DKDS Core 源码构建的 DKTS 宿主**，不是以前独立的 Electron/WebView 壳。禁止未授权修改上游 DKDS。
+- DKTS 构建时在临时目录中暂存完整 DKDS Core，保留全部非分析插件、主题、Data Center、科学绘图、通信、更新模块，移除分析插件，只在 DKTS 副本内加入 4200A 工作区。实际 DKDS checkout 不作写入。
+- FS-Pro Project → Device → Routine → Page/Spec、Project 层的四个独立 DKDS PlotView、Page 全宽参数编辑，以及 DKDS Data Center / 原始 CSV 接口已有实现。实际 KXCI 输出仍禁用，尚未经过真实 4200A 验收。
+- Windows 原生 Electron Core 工作区与多图窗的启动/截图回归在 `8533798df` 通过；Windows Portable 打包、Android API 36 模拟器和 APK 完整 CI 仍应以各次 Actions 最终结果为准。OPPO 平板及真实仪器未验收。
+- 旧根目录 `npm start`、`electron-builder` 与历史 APK 源文件仍是**待退役的旧独立壳**，不能因 PR 合并就视为已转成新 Core。可执行 Core 预览由 [只读 Core 工作流](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 构建，不使用这些旧入口发布新版。
+- Core 预览使用独立 Android 包名 `studio.dk.test.corepreview`、测试签名和单独的 Windows Portable。不会覆盖已安装稳定版。其 UI 热更新、完整安装升级、回退、正式 APK 签名与仪器安全仍未完成；旧独立壳 UI Bundle **不得**直接给 Core 宿主使用。
 
 ## 项目入口
 
@@ -22,9 +23,12 @@
 - [版本和发布约定](docs/RELEASE_VERSIONING.md)
 - [开发任务](docs/ROADMAP.md)
 
-## 目前可用安装包
+## 版本与安装包（区分正式/预览）
 
-最新版请以 [DKTS Releases](https://github.com/davidkane0526/DK-Test-Studio/releases) 中最新通过 CI 的 `V0.3.13 aNNN · Full Package` 为准。当前独立安装包**尚非**完成迁移后的 DKDS Core Host。UI 热更新仅递增 aNNN，不修改 V0.3.13 包版本；每轮成功主线提交还发布同 V/a 的完整包，Core Host 预览与实验插件独立验证。
+- 统一身份仍为 `V0.3.13 aNNN`，其中 V 是主程序版本，a 来自每次 main 提交的修订工作流。
+- 已发布的旧版 `V0.3.13 aNNN · Full Package` 仅供历史对照，**不是新的 DKDS Core 主程序**；旧工作流不再自动把独立壳包装为新 Core。
+- Core Windows/Android 预览须先通过 [Core CI](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 的启动、插件、Android 模拟器和 APK 检查，再由 [Core Preview 发行工作流](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/windows-preview.yml) 在 [Releases](https://github.com/davidkane0526/DK-Test-Studio/releases) 发布**独立预览包**。只有成功发布的 Release 才能称为可下载；不能把未完成的 CI 当成已交付。
+- 旧 UI Bundle 格式尚未验证与 Core 热更新机制兼容。暂时只生成 V/a 修订身份，不向 Core 推送不兼容的热更；完成真实 Core-compatible bundle + 校验/回退后恢复自动热更新和匹配正式全量包。
 
 ## 本地审计 DKDS 上游（不修改 DKDS）
 
