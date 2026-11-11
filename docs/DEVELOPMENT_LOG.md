@@ -251,3 +251,12 @@
 - 真正的 DKDS Core 派生宿主仍在 PR #18。integrations/dkds-native/plugin.js 让真实 ScientificPlot/Data Center 的图表在原生 Core Unit 工作区与参数编辑成为独立同级；只有选中测试时显示编辑，并整理 Routine/Page 行和主图尺寸。原生插件测试成功，Electron 宿主启动截图成功，但视觉尚不如用户认可的 Web，不能声称三端完成。
 - GitHub Actions #42975051700 将三条无活跃 PR 的旧分支各自建立 archive/dkts-20261111-* tag 后安全删除，保留 unique commits。现仅 main、feat/dkts-core-host-boot（PR #18）、fix/native-update-cache-integrity（PR #8）三条分支。
 - 未动 DK-Data-Studio；没有稳定包新 Release，没有 OPPO 真机 UI 验收，没有真实 KXCI 仪器输出核验。
+
+## 2026-11-11 [R-20261111-005] Core 数据图/原始数据/更新器审计
+- 查实正式 GitHub Pages `web/fspro-workbench` 是静态演示，四宫格 1 是自绘扫描规划 SVG、2~4 是空图框，不属于 DKDS Core 全功能绘图；**正式 Web 不等于 Core 结果**，暂不重新绘制此前用户认可的参数 UI。
+- 在 `integrations/dkds-native/plugin.js` 上采用四个 Core PlotView/ScientificPlot，增加各图窗独立 `ctx.data.sources.list()` 已分配源选择与 Artifact revision 缓存，使用 `ctx.data.artifacts.columnMetadata/readColumnRange` 有界显示，不抽样保存为原始数据。数据变化事件刷新图窗。
+- 在 Core Unit 中加入逐图窗“导出原始 CSV”操作：通过 `ctx.data.artifacts.get()` 取得 canonical 全量 DataTable、`ctx.data.model.rows()` 不抽稀并通过 `ctx.io.saveCsv()` 交给 DKDS 通用 IO。大于 250000 行时拒绝在此控件分配全部行并明确引导 Data Center 自有完整导出，绝不静默截断；PlotView image export 仍由 DKDS 拥有。
+- 新增 `integrations/dkds-native/measurement-data.js`：只接受完成/停止/失败的真实 `4200A-KXCI-TI` 行，验证 runId、仪器 serial、顺序及真实响应，保留原始响应/多端口电流/状态，创建规范 DataTable 并 `ctx.data.artifacts.publish()`；新增测试 `tests/dkts-kxci-data-center.test.cjs`。**目前没有将此数据发布函数与真实 4200A controller 完成闭环连接**，不应声称已经实测入库。
+- Core 打包程序同步加入 `measurement-data.js`，其 manifest 和 VM mock 注册代码一并更新。更新器安全审计工具 `tools/verify-dkds-updater-parity.cjs` 在 `tools/stage-dkds-host.cjs` 中校验真实只读上游：Windows/Android 完整包校验和缓存重复校验、APK signer、UI 备份恢复；测试专用人工 fixture 明确依赖注入以保留生产 fail-closed。此检查不代表 DKTS 特定正式发布资产/安装器已验收。
+- [PR #8](https://github.com/davidkane0526/DK-Test-Studio/pull/8) 已在原 PR 留下保留与取舍审计，**关闭但未合并，原分支仍存在，供用户删除**；其自动 stamp 违反 V+a 规则，旧 minShell 不适配新宿主。PR #18 仍是 draft、不作为正式稳定安装包。
+- 验收区分：Core 模拟 API 测试不代表真实 Electron/Android/4200A 端到端；正式 GitHub Pages 仍不具备 Core Data Center 数据导出。不能将当前 PR 的 aNNN CI 编号称作正式新架构版本。
