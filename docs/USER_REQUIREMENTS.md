@@ -59,3 +59,7 @@
 
 **立即验收**：GitHub Pages 根路径不再使用旧卡片式测试选择页，必须改为 FS-Pro/LabExpress 形式的 Project → Device → Routine → Page/Spec、Edit Page（Info、Sweep、Target、Strategy、Limits、Page Var、Associate Spec）、端口矩阵、多段 Xsweep/Psweep、科学档位、固定偏置、右侧数据/绘图。支持桌面和 Android 平板响应式布局，至少真实浏览器截图验收。不能编造已完成的 1:1 像素匹配或完整 DKDS Core 迁移。所有后续真实宿主开发必须复用并集成这一 Page/Scan 领域设计；上游 DKDS 不得修改。
 
+## 2026-11-11 原话 [R-20261111-001]
+> 继续吧 注意增加版本号
+
+**验收**：在 DKTS 内继续推进已确认的 FS-Pro/DKDS Core 路线，任何新交付均明确标注对应的程序版本 `Vx.y.z`、开发/热更新编号 `aNNN` 和提交 SHA。仅可热更新的界面改动保持 `V0.3.13` 包版本不变，递增 a 编号，并提供同一 V/a 的完整 Windows/Android 下载包；不得因“继续”修改 DKDS。发布需经 CI 验证，不能把 PR 预览或未完成的 Core Host 冒充稳定版。
