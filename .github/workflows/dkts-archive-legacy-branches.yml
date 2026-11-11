@@ -1,0 +1,43 @@
+name: DKTS Archive and Retire Reviewed Legacy Branches
+on:
+  push:
+    branches: [feat/dkts-core-host-boot]
+    paths:
+      - '.github/workflows/dkts-archive-legacy-branches.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: read
+jobs:
+  archive-then-delete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pin legacy branch commits as permanent archive tags before deletion
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner,repo}=context.repo;
+            // Only reviewed DKTS branches. Never touch DKDS, main, active Core branch or PR #8.
+            const targets=[
+              {branch:'feat/dkds-native-top-workspace',sha:'b3aa5de6a87b5b775a05aa2a38d941dbf2805a82',tag:'archive/dkts-20261111-dkds-native-top-workspace'},
+              {branch:'feat/fspro-android-signing',sha:'a731998c52b20cdc1f5070f293bb3b63e8745a96',tag:'archive/dkts-20261111-fspro-android-signing'},
+              {branch:'feat/4200a-capability-database-policy',sha:'4c18ce55818ce981001fc97e0e5fdc5a22671906',tag:'archive/dkts-20261111-4200a-capability-database-policy'}
+            ];
+            const pulls=await github.paginate(github.rest.pulls.list,{owner,repo,state:'open',per_page:100});
+            const outcome=[];
+            for(const item of targets){
+              const pr=pulls.find(p=>p.head?.repo?.full_name===owner+'/'+repo&&p.head.ref===item.branch);
+              if(pr){outcome.push('KEPT '+item.branch+' active PR #'+pr.number);continue}
+              const {data:b}=await github.rest.repos.getBranch({owner,repo,branch:item.branch});
+              if(b.protected||b.commit.sha!==item.sha){
+                outcome.push('KEPT '+item.branch+' protected or head moved from pinned SHA');continue
+              }
+              const tagref='refs/tags/'+item.tag;
+              try {await github.rest.git.createRef({owner,repo,ref:tagref,sha:item.sha});}
+              catch(e){if(e.status!==422)throw e}
+              const {data:tag}=await github.rest.git.getRef({owner,repo,ref:'tags/'+item.tag});
+              if(tag.object.sha!==item.sha)throw Error('Archive tag does not match '+item.branch);
+              await github.rest.git.deleteRef({owner,repo,ref:'heads/'+item.branch});
+              outcome.push('ARCHIVED '+item.branch+' => '+item.tag+' @ '+item.sha+'; original branch removed');
+            }
+            await core.summary.addRaw('### DKTS legacy branch audit (2026-11-11)\n\n'+outcome.map(x=>'- '+x).join('\n')).write();
