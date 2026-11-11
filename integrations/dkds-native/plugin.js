@@ -546,7 +546,7 @@
    onChange:e=>saveGraphSetting(-1,'count',e.target.value)});
   const groupHost=units.layout.create(plotArea,{variant:'identity'});
   frameGroup=units.plotGroup.create(groupHost,{columns:2,preferredColumns:2,
-   maxColumns:4,minItemWidth:260,responsive:true,density:'regular',
+   maxColumns:4,minItemWidth:360,responsive:true,density:'regular',
    orientationPolicy:{mode:'portrait-offset',offset:-1,minColumns:1}});
   const frameTitles=['图窗 1','图窗 2','图窗 3','图窗 4'];
     for(let index=0;index<4;index++){

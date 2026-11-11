@@ -153,6 +153,7 @@ const ctx={
  assert.ok(graphBack,'Page editor offers a visible return to the project-level graphs');
  assert.equal(record.panels.some(x=>x.title==='D · SMU1'),false,'None port does not render parameter panel');
  assert.equal(record.plotGroups.length,1,'four plot windows share canonical DKDS managed PlotGroup');
+ assert.equal(record.plotGroups[0].minItemWidth,360,'narrow 744px host should stack PlotViews before controls clip');
   assert.equal(record.tables.length,4,'raw tables must use DKDS Unit Table, not HTML placeholders');
   assert.equal(record.plots.length,4,'four actual DKDS scientific plots');
  assert.ok(record.headers.some(x=>x.title==='绘图区'),'project graph heading is managed by DKDS Unit Header');
