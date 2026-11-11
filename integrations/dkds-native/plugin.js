@@ -284,7 +284,7 @@
   }
   function applyFrameLayout(){
    // Core PlotGroup owns responsive geometry; only hide nonselected children.
-   frameGroup?.setColumns?.(frameLayout==='1'?1:2);
+   frameGroup?.setColumns?.(frameLayout==='1'?1:'auto');
    for(let i=0;i<frameCards.length;i++)if(frameCards[i]?.style)
     frameCards[i].style.display=frameLayout==='1'&&i>0||frameLayout==='2'&&i>1?'none':'';
   }
