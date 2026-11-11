@@ -199,3 +199,10 @@
 ## 2026-11-11 / Core CI 去重避免 Windows/Android 大包重复构建
 - 原 Core framework workflow 同时监听 `push: feat/dkts-core-host-boot` 与 `pull_request: main`；同一 PR 提交导致重复执行相同的 Windows Portable 和 Android Core APK 编译，浪费 CI 资源并制造难以对应的构建报告。
 - 改为 `push: main`、`pull_request: main` 和手动 dispatch。PR 分支通过 GitHub PR 的同一合并候选代码进行完整框架/Windows/Android 测试，主线合并后仍自动复验；同一个 PR 提交不再触发双份重型构建。Core Preview Contract 的轻量分支 push 测试不受影响。
+
+## 2026-11-11 / Android Core Preview 实际安装闸门修复
+- 复查同一 PR 代码的 Framework Contract #69（SHA `4ee6344`）。Windows Electron 真启动/截图/Portable job 成功，DKDS 只读合约成功，Android `assembleRelease` 与离线 JS Bundle/双 ABI/APK 签名检查成功，但 API36 模拟器脚本在安装前失败。
+- 根因：`reactivecircus/android-emulator-runner@v2` 将 `script:` 多行每一行独立用 `/bin/sh -c` 启动，`apk=...` 和 `package=...` 变量在下一行丢失，随后 `test -s "$apk"` 失败。此前已消除 `pipefail` 非 POSIX 兼容问题，但没有解决逐行独立 Shell 的根因。
+- 仅修改 DKTS：新增 `tools/run-core-android-smoke.sh`，让 CI 通过 **单条** `script: bash tools/run-core-android-smoke.sh` 执行，从 manifest 解析真实 Activity、校验包名、离线 APK 安装、启动、pidof、截图、React Native 错误与 crash log；新增 `tests/core-android-offline-smoke.test.cjs` 回归，检查单 Shell 调用、Release JS Bundle 与 Bash 语法。相应失败日志/截图按 CI artifact 保留。
+- 仍不把模拟器启动视为用户 OPPO 真机验收或 Keithley 实际采集/安全控制。DKDS 仓库未写入。程序主版本 `V0.3.13` 不变，`aNNN` 只在主线 Release 流水线分配；本次属于 Core Host PR 预览构建，正式稳定版最新已验证为 `V0.3.13 a135`。
+- 回归是否通过以本次新 SHA 的 CI 结果为准，未事先宣称成功。

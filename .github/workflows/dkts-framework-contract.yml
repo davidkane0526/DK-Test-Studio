@@ -249,30 +249,7 @@ jobs:
           arch: x86_64
           ram-size: 3072M
           disable-animations: true
-          script: |
-            set -eu
-            apk=dist/dkts-framework-staging/mobile/android/app/build/outputs/apk/release/app-release.apk
-            package=studio.dk.test.corepreview
-            test -s "$apk"
-            mkdir -p dist/core-android-smoke
-            activity=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | awk -F"'" '/^launchable-activity:/{print $2;exit}')
-            test -n "$activity"
-            adb install -r "$apk"
-            adb logcat -c
-            adb shell am start -W -n "$package/$activity" | tee dist/core-android-smoke/startup.log
-            sleep 18
-            adb shell pidof "$package" | tee dist/core-android-smoke/pid.txt
-            adb exec-out screencap -p > dist/core-android-smoke/core-android-screen.png
-            test "$(wc -c < dist/core-android-smoke/core-android-screen.png)" -gt 4000
-            adb logcat -d -s ReactNativeJS:E ReactNative:E AndroidRuntime:E > dist/core-android-smoke/react-native-errors.log
-            if grep -E 'Unable to load script|Could not connect to development server|FATAL EXCEPTION|Unable to resolve module' dist/core-android-smoke/react-native-errors.log; then
-              echo "Offline Core bundle failed to load or runtime crashed"; exit 1
-            fi
-            adb logcat -d -b crash > dist/core-android-smoke/crash.log
-            if grep -F "Process: $package" dist/core-android-smoke/crash.log; then
-              echo "Core Preview crashed on Android 16"; exit 1
-            fi
-            echo "Core Preview Android 16 emulator install/start/screenshot PASS"
+          script: bash tools/run-core-android-smoke.sh
       - name: Retain Android emulator screenshot and crash diagnostics
         if: always()
         uses: actions/upload-artifact@v4
