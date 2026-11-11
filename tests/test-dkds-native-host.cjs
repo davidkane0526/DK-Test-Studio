@@ -134,7 +134,7 @@ const ctx={
   'native DKDS workbench must use host-managed FS-Pro project sidebar');
  assert.ok(record.layouts.includes('stack-compact'),
   'Project Explorer uses compact native DKDS Unit sizing');
- const projectHeader=record.headers.find(x=>x.eyebrow==='PROJECT');
+ const projectHeader=record.headers.find(x=>x.eyebrow==='项目');
  assert.ok(projectHeader);
  assert.equal(projectHeader.meta,'','Device selector already displays selected device; do not repeat it');
  assert.equal(record.listItems.find(x=>x.title==='Routine 1')?.selected,false,
@@ -143,10 +143,10 @@ const ctx={
  assert.equal(record.composed.primary.titlePolicy,'host-only');
  assert.equal(record.composed.primes.length,1);
  assert.ok(record.layouts.includes('responsive-two-column'));
- assert.ok(record.panels.some(x=>x.title==='Terminal'));
+ assert.ok(record.panels.some(x=>x.title==='端口设置'));
  assert.equal(record.tabs.at(-1).items.length,7);
  record.tabs.at(-1).onChange('info');
- assert.ok(record.panels.some(x=>x.title==='Page Information'));
+ assert.ok(record.panels.some(x=>x.title==='页面信息'));
  record.tabs.at(-1).onChange('sweep');
 
  assert.equal(record.panels.some(x=>x.title==='D · SMU1'),false,'None port does not render parameter panel');
@@ -186,7 +186,7 @@ const ctx={
  map.spec.onChange({target:{value:'SMU1'}});
  assert.equal(state.pages[0].terminals[0].resource,'SMU1');
  assert.equal(state.ui.graphs.count,4,'window layout persists in project slice');
- assert.ok(record.panels.some(x=>x.title==='Terminal Settings'),
+ assert.ok(record.panels.some(x=>x.title==='端口参数'),
   'assigned ports now share one compact Core-owned Terminal Settings panel');
  assert.ok(record.panels.some(x=>x.title==='Xsweep · D / SMU1'),
   'assigned X port has its own Core-rendered scan segments');
@@ -202,7 +202,7 @@ const ctx={
  assert.ok(scalar,'global cycles are editable in Core inspector');
  scalar.spec.onChange({target:{value:'2'}});
  assert.equal(state.pages[0].sweep.loops,'2');
- const choice=[...record.fields].reverse().find(x=>x.spec.label==='New Page');
+ const choice=[...record.fields].reverse().find(x=>x.spec.label==='新增测试类型');
  choice.control.value='pulse';
  const add=[...record.actions].reverse().find(x=>x.id==='add-test');
  add.onInvoke();
@@ -219,7 +219,7 @@ const ctx={
  assert.equal(state.activeId,'page-1');
  const lastD=[...record.fields].reverse().find(x=>x.spec.label==='D 端口');
  assert.equal(lastD.control.value,'SMU1');
- const numeric=[...record.fields].reverse().find(x=>x.spec.label==='Compliance (A)'&&x.spec.onFocus);
+ const numeric=[...record.fields].reverse().find(x=>x.spec.label==='限流 (A)'&&x.spec.onFocus);
  assert.ok(numeric,'a configured SMU compliance field uses the DKDS Unit-hosted numeric keypad');
  assert.equal(numeric.spec.inputMode,'none','coarse-pointer touch does not invoke a conflicting OS keyboard');
  numeric.spec.onFocus({target:numeric.control});
@@ -256,7 +256,7 @@ const ctx={
  createSpec.onInvoke();
  assert.equal(state.specs.length,1);
  assert.equal(state.pages[0].associateSpecId,'spec-1');
- const specField=[...record.fields].reverse().find(x=>x.spec.label==='Associate Spec');
+ const specField=[...record.fields].reverse().find(x=>x.spec.label==='关联规格');
  assert.ok(specField,'Page↔Spec association must use DKDS Unit selector');
  specField.spec.onChange({target:{value:''}});
  assert.equal(state.pages[0].associateSpecId,null,'Spec link can be cleared');
@@ -269,10 +269,10 @@ const ctx={
  assert.equal(state.activeDeviceId,'device-2');
  assert.equal(state.routines.at(-1).deviceId,'device-2');
  assert.equal(state.pages.at(-1).routineId,state.routines.at(-1).id);
- const currentDeviceField=[...record.fields].reverse().find(x=>x.spec.label==='Device');
+ const currentDeviceField=[...record.fields].reverse().find(x=>x.spec.label==='器件');
  assert.equal(currentDeviceField.control.value,'device-2');
  assert.equal(currentDeviceField.spec.options.length,2);
- assert.ok(!record.fields.slice(beforeDeviceFields).some(x=>x.spec.label==='Associate Spec'),
+ assert.ok(!record.fields.slice(beforeDeviceFields).some(x=>x.spec.label==='关联规格'),
   'the second Device without Specs must not expose first-Device spec options');
  const newDeviceSpec=[...record.actions].reverse().find(x=>x.id==='add-spec');
  newDeviceSpec.onInvoke();
@@ -280,12 +280,12 @@ const ctx={
  assert.equal(state.specs[1].deviceId,'device-2');
  assert.throws(()=>sandbox.window.DKDSPluginModules &&
    registry.get('com.dkts.keithley-4200:model').associateSpec(state,'spec-1'),/another Device/);
- const goToFirstDevice=[...record.fields].reverse().find(x=>x.spec.label==='Device');
+ const goToFirstDevice=[...record.fields].reverse().find(x=>x.spec.label==='器件');
  goToFirstDevice.spec.onChange({target:{value:'device-1'}});
  assert.equal(state.activeDeviceId,'device-1');
  assert.equal(state.activeId,'page-1');
  // Output Sweep must use the same genuine Core X/P editor as I-V/Transfer.
- const kindOutput=[...record.fields].reverse().find(x=>x.spec.label==='New Page');
+ const kindOutput=[...record.fields].reverse().find(x=>x.spec.label==='新增测试类型');
  kindOutput.control.value='output';
  const addOutput=[...record.actions].reverse().find(x=>x.id==='add-test');
  addOutput.onInvoke();
