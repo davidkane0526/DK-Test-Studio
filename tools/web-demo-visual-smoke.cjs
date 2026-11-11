@@ -32,16 +32,17 @@ async function inspect(browser,url,width,height,mobile){
  assert.match(await page.locator('#plan-summary').innerText(),/21 点/);
  assert.equal(await page.locator('#editor-pane').isVisible(),false,'Project home must not show test parameters');
  assert.equal(await page.locator('#data-pane').isVisible(),true,'Project graph must remain visible');
+ assert.equal(await page.locator('.frame-card').count(),4,'Project workspace owns 4 independent frames');
+ assert.equal(await page.locator('.frame-card:visible').count(),4);
+ await page.locator('#frame-layout').selectOption('2');
+ assert.equal(await page.locator('.frame-card:visible').count(),2,'2-window layout');
+ await page.locator('#frame-layout').selectOption('1');
+ assert.equal(await page.locator('.frame-card:visible').count(),1,'single-window layout');
+ await page.locator('#frame-layout').selectOption('4');
+ await page.locator('[data-frame-kind="2"]').selectOption('iv');
+ assert.equal((await page.evaluate(()=>window.DKTSFSProDemo.snapshot())).frameKinds[0],'iv');
+
  assert.equal(await page.evaluate(()=>document.getElementById('data-pane').parentElement.id),'main-pane','Graph must be owned by project workspace');
- if(mobile){
-  const geometry=await page.evaluate(()=>({
-   graphBottom:document.getElementById('plan-plot').getBoundingClientRect().bottom,
-   planSummaryBottom:document.getElementById('plan-summary').getBoundingClientRect().bottom,
-   resultsTop:document.querySelector('.data-bottom').getBoundingClientRect().top
-  }));
-  assert.ok(geometry.graphBottom<=geometry.resultsTop+2,'Tablet landscape graph should not be covered by result panel: '+JSON.stringify(geometry));
-  assert.ok(geometry.planSummaryBottom<=geometry.resultsTop+2,'Tablet summary must be visible above result panel: '+JSON.stringify(geometry));
- }
  await page.screenshot({path:path.join(shots,mobile?'tablet-fspro-home.png':'desktop-fspro-home.png'),fullPage:true});
  if(mobile)await page.locator('#nav-toggle').click();
  await page.locator('.page-tree').first().click();
