@@ -187,22 +187,35 @@
    // Real DKDS Core Units own the Device/Routine/Page/Spec project tree.
    const device=s.devices.find(d=>d.id===s.activeDeviceId);
    const visibleSpecs=s.specs.filter(spec=>spec.deviceId===s.activeDeviceId);
-   units.header.create(nav,{kind:'panel',variant:'content',
+   const projectHeader=units.header.create(nav,{kind:'panel',variant:'content',
     eyebrow:'PROJECT',title:'Research Project',meta:''});
-   units.action.create(nav,{id:'project-graph',label:'数据图',variant:'quiet',
-    onInvoke:()=>{editorOpen=false;render();}});
+   // The existing Project heading is the graph-level navigation target.
+   if(projectHeader?.element?.addEventListener){
+    const home=()=>{editorOpen=false;render();};
+    projectHeader.element.tabIndex=0;
+    projectHeader.element.setAttribute?.('role','button');
+    projectHeader.element.style.cursor='pointer';
+    projectHeader.element.addEventListener('click',home);
+    projectHeader.element.addEventListener('keydown',event=>{
+     if(event.key==='Enter'||event.key===' '){event.preventDefault();home();}
+    });
+   }
    units.field.create(nav,{kind:'select',label:'Device',value:s.activeDeviceId,
     options:s.devices.map(item=>({value:item.id,label:item.name})),
     onChange:e=>{editorOpen=false;persist(model.selectDevice(state(),e.target.value));}});
-   const tree=units.list.create(nav,{});
+   const treeHost=units.layout.create(nav,{variant:'stack-compact'});
    for(const routine of s.routines.filter(r=>r.deviceId===s.activeDeviceId)){
-    tree.item({leading:'▦',title:routine.name,
+    const routineHost=units.layout.create(treeHost,{variant:'stack-compact'});
+    units.list.create(routineHost,{}).item({leading:'▦',title:routine.name,
      selected:false,
      onInvoke:()=>{editorOpen=false;persist(model.selectRoutine(state(),routine.id));}});
-    for(const page of s.pages.filter(page=>page.routineId===routine.id))
-     tree.item({leading:'└ ▧',title:page.name,
+    for(const page of s.pages.filter(page=>page.routineId===routine.id)){
+     const pageHost=units.layout.create(routineHost,{variant:'identity'});
+     if(pageHost?.style)pageHost.style.paddingLeft='15px';
+     units.list.create(pageHost,{}).item({leading:'▧',title:page.name,
       selected:editorOpen&&page.id===s.activeId,
       onInvoke:()=>{editorOpen=true;persist(model.select(state(),page.id));}});
+    }
    }
    if(visibleSpecs.length){
     units.note.create(nav,{variant:'meta',text:'SPEC'});
@@ -402,6 +415,7 @@
   workRegion=work;editorRegion=editor;plotRegion=plotArea;
   const graphic=units.panel.create(plotArea,{variant:'plot-card',
    header:false,sizing:'content'});
+  if(graphic.element?.style)graphic.element.style.minHeight='min(64dvh,600px)';
   const graphicHeader=units.header.create(graphic.body,{kind:'plot',
    variant:'plot',title:'Data / Graph',actionHost:true});
   const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
