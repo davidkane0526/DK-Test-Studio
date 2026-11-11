@@ -28,9 +28,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts out
+          mkdir -p artifacts signed-artifacts out
           gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "DKTS-Core-Preview-*" --dir artifacts
-          find artifacts -type f -maxdepth 12 -print
+          # Trusted signing job only runs on DKTS main after the untrusted Core
+          # compilation has finished. Its absence cannot masquerade as fixed.
+          if gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+               --pattern "DKTS-Core-Fixed-Signed-Android-*" --dir signed-artifacts; then
+            echo "Fixed-signed Android artifact available."
+          else
+            echo "::warning::No fixed-signed Android asset. Preview will remain TEST-SIGNED."
+          fi
+          find artifacts signed-artifacts -maxdepth 12 -type f -print
+      - name: Checkout trusted DKTS fingerprint and source identity
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
       - name: Verify source identity and both Core Preview packages
         id: identity
         env:
@@ -56,10 +69,25 @@ jobs:
           file -b "${exes[0]}" | grep -q 'PE32'
           unzip -Z1 "${apks[0]}" | grep -Fxq 'assets/index.android.bundle'
           cp "${exes[0]}" "out/DKTS-Core-Preview-Windows-V0.3.13-a$revision.exe"
-          cp "${apks[0]}" "out/DKTS-Core-Preview-Android-TEST-SIGNED-V0.3.13-a$revision.apk"
+          mapfile -d '' fixed < <(find signed-artifacts -type f -name 'app-core-fixed-signed.apk' -print0)
+          test "${#fixed[@]}" -le 1
+          if [ "${#fixed[@]}" -eq 1 ]; then
+            cert_file="$(dirname "${fixed[0]}")/certificate.sha256"
+            test -s "$cert_file"
+            expected=$(tr -d ':[:space:]' < android/signing-certificate.sha256 | tr 'A-F' 'a-f')
+            actual=$(tr -d ':[:space:]' < "$cert_file" | tr 'A-F' 'a-f')
+            [ "$actual" = "$expected" ] || { echo "::error::Pinned Android signing fingerprint mismatch"; exit 1; }
+            test "$(stat -c%s "${fixed[0]}")" -gt 100000
+            cp "${fixed[0]}" "out/DKTS-Core-Preview-Android-FIXED-SIGNED-V0.3.13-a$revision.apk"
+            signing="PINNED $actual"
+          else
+            cp "${apks[0]}" "out/DKTS-Core-Preview-Android-TEST-SIGNED-V0.3.13-a$revision.apk"
+            signing="TEST-SIGNED (not safe for in-place upgrades)"
+          fi
+          echo "android_signing=$signing" >> "$GITHUB_OUTPUT"
           (cd out && sha256sum *.exe *.apk > SHA256SUMS.txt)
-          printf 'Build source: %s\nCore workflow: %s\nRevision: a%s\nPreview package ID: studio.dk.test.corepreview\n' \
-            "$CORE_SHA" "${{ github.event.workflow_run.id }}" "$revision" > out/PROVENANCE.txt
+          printf 'Build source: %s\nCore workflow: %s\nRevision: a%s\nPreview package ID: studio.dk.test.corepreview\nAndroid signer: %s\n' \
+            "$CORE_SHA" "${{ github.event.workflow_run.id }}" "$revision" "$signing" > out/PROVENANCE.txt
       - name: Retain verified EXE, APK, SHA256 and provenance even if Release permission is denied
         uses: actions/upload-artifact@v4
         with:
@@ -72,6 +100,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CORE_SHA: ${{ steps.identity.outputs.core_sha }}
           UI_REV: ${{ steps.identity.outputs.ui_revision }}
+          SIGNING_STATUS: ${{ steps.identity.outputs.android_signing }}
         shell: bash
         run: |
           set -euo pipefail
@@ -82,7 +111,7 @@ jobs:
           Version: V0.3.13 $UI_REV
           Architecture: Genuine DKDS Core staged read-only inside DKTS.
           Windows: Portable Core Preview, screenshot and Core smoke validated.
-          Android: Separate studio.dk.test.corepreview TEST-SIGNED preview.
+          Android: Separate studio.dk.test.corepreview preview; signer: $SIGNING_STATUS.
           This is NOT a production in-place upgrade for the old studio.dk.test app.
           Real 4200A output, production certificate, native UI hot update and
           native full-update rollback have NOT been hardware-accepted.

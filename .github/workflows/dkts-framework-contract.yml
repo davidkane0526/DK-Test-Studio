@@ -292,6 +292,9 @@ jobs:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.android-core-preview.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
+    # Signing is additive. A missing signing Secret must not turn a validated
+    # test-only APK into an unreported Core build failure.
+    continue-on-error: true
     permissions:
       contents: read
     steps:

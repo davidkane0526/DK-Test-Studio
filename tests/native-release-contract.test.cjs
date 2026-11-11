@@ -10,6 +10,9 @@ test('Core mainline release contains only isolated native preview packages and n
  assert.doesNotMatch(fast,/files=\(dist\/DKTS-UI-bundle\.json\)/);
  assert.match(full,/DKTS-Core-Preview-Windows/);
  assert.match(full,/DKTS-Core-Preview-Android-TEST-SIGNED/);
+ assert.match(full,/DKTS-Core-Preview-Android-FIXED-SIGNED/);
+ assert.match(full,/DKTS-Core-Fixed-Signed-Android/);
+ assert.match(full,/android\/signing-certificate\.sha256/);
  assert.match(full,/SHA256SUMS\.txt/);
  assert.match(full,/gh run download/);
  assert.match(full,/--prerelease/);
@@ -30,4 +33,18 @@ test('DKTS retains optional plugin source but not a built-in DKDS copy',()=>{
  assert.equal(legacy.pluginType,'developer');
  assert.match(read('AGENTS.md'),/Do NOT write any DKDS source/);
  assert.match(read('docs/ARCHITECTURE_TARGET.md'),/DKDS Core host/);
+});
+
+test('optional pinned signer receives no DKDS source and verifies the real APK certificate',()=>{
+ const y=read('.github/workflows/dkts-framework-contract.yml');
+ const fragment=y.split('  android-core-fixed-sign-preview:')[1];
+ assert.ok(fragment,'fixed certificate step must exist');
+ assert.match(fragment,/needs: android-core-preview/);
+ assert.match(fragment,/continue-on-error: true/);
+ assert.match(fragment,/DKTS_ANDROID_KEYSTORE_B64/);
+ assert.match(fragment,/--ks-type PKCS12/);
+ assert.match(fragment,/apksigner|\$signer/);
+ assert.match(fragment,/signing certificate drift detected/);
+ assert.match(fragment,/studio\.dk\.test\.corepreview/);
+ assert.doesNotMatch(fragment,/Checkout pinned DKDS|repository: davidkane0526\/DK-Data-Studio/);
 });
