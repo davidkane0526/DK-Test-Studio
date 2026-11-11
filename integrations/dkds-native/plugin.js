@@ -289,15 +289,11 @@
     frameCards[i].style.display=frameLayout==='1'&&i>0||frameLayout==='2'&&i>1?'none':'';
   }
     function updateEditorLayout(){
+   // FS-Pro hierarchy: project-level graph workspace and Page editor are
+   // separate navigation destinations, never cramped side-by-side panels.
    applyFrameLayout();
-   const narrow=Boolean(window.matchMedia?.('(max-width: 680px)')?.matches);
-   if(workRegion?.style)workRegion.style.gridTemplateColumns=
-    editorOpen&&!narrow?'minmax(0,1.25fr) minmax(320px,.75fr)':'minmax(0,1fr)';
    if(editorRegion?.style)editorRegion.style.display=editorOpen?'':'none';
-   if(plotRegion?.style){
-    plotRegion.style.gridColumn=editorOpen?'':'1 / -1';
-    plotRegion.style.order=narrow?'-1':'';
-   }
+   if(plotRegion?.style)plotRegion.style.display=editorOpen?'none':'';
   }
   function render(){
    if(!nav||!parameters)return;
@@ -524,10 +520,9 @@
     geometry:{gridTemplateColumns:'minmax(0,1fr)'}}]});
   nav=units.layout.create(main,{variant:'stack-compact'});
   // DKDS Core workbench owns both the independent result graph and Page inspector.
-  const work=units.layout.create(main,{variant:'responsive-two-column',
-   geometry:{gridTemplateColumns:'minmax(0,1.25fr) minmax(320px,.75fr)'},
-   responsiveGeometry:[{maxWidth:680,
-    geometry:{gridTemplateColumns:'minmax(0,1fr)'}}]});
+  // One semantic Core content stack. Selecting a Page replaces the graph
+  // surface with a full-width parameter editor; it is not a sibling column.
+  const work=units.layout.create(main,{variant:'stack-compact'});
   const editor=units.layout.create(work,{variant:'stack-compact'});
   editorHeading=units.layout.create(editor,{variant:'identity'});
   inlineTerminals=units.layout.create(editor,{variant:'identity'});
