@@ -25,8 +25,8 @@ assert.ok(portPrimeSource.includes("chrome:'auto'")&&portPrimeSource.includes("p
  'generated Core inspector chrome must remain compatible with movable existingNode runtime');
 assert.ok(!portPrimeSource.includes("header:{mode:'generate'"),
  'let unitTemplates generate the canonical movable PRIME header');
-assert.ok(/if\(t\.role==='CONDITION'\)numericField\(controls/.test(js),
- 'the port row must not duplicate the X/P start-stop-step controls');
+assert.ok(/if\(term\.role==='CONDITION'\)numericField\(grid,term\.logical,'bias'/.test(js),
+ 'fixed-bias editing must remain CONDITIONAL and not duplicate X/P scan segment fields');
 assert.ok(/units\.scientificPlot\.create/.test(js));
 assert.ok(js.split('units.panel.create(').slice(1).every(x=>!x.slice(0,130).includes("variant:'standard'")),
  'DKDS panel Unit supports headed/plot-card, never the nonexistent standard variant');

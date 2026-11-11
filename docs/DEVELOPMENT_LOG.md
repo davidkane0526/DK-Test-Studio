@@ -166,3 +166,8 @@
 - 增加同一 debug APK 的 arm64-v8a + x86_64 ABI 构建，Android 16/API36 x86_64 模拟器执行 APK 安装、按 Manifest launchable-activity 启动、应用进程存活、截图非空和崩溃日志检查，并保留真实截图与日志为独立 Actions artifact。
 - 模拟器检查不等于用户 OPPO ARM64 平板实机验证，也不代表有 4200A 输出控制、原始数据采集或完整 UI 手势验收。若 CI 失败必须记录具体步骤并修复，不能凭 APK 编译成功宣称 Android 完成。
 - V0.3.13 不变；PR 构建号独立于 main 的 aNNN，合并到 main 并通过发布闸门后才由主线自动分配新 a 编号。
+
+## 2026-11-11 / PR 与 main 兼容检查：修复旧原生插件断言
+- PR 与 `cbc15ed` 主线同步后，main 的 `DKTS Core-native DKDS Plugin` CI 运行，发现单元测试仍以旧源码变量 `t/controls` 检测 Terminal 固定偏置条件，实际 Core 版本自此前改为 `term/grid`；这是静态断言版本漂移，不是重新引入重复 X/P 参数。
+- 将正则断言对齐当前真实实现 `if(term.role==='CONDITION')numericField(grid,term.logical,'bias',...)`，仍要求仅 Condition 端口显示 Fixed Bias，Xsweep/Psweep 均由扫描段单一数据模型负责。其余安全验证不修改。
+- 运行结果需以后续相同 SHA 的完整 CI 为准；如有其他失败继续定位，不能将全部工作流声明通过。
