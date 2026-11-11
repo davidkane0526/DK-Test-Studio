@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -33,11 +33,24 @@ jobs:
         run: node tools/build-web-demo-single-file.cjs
       - name: Verify offline-only instrument boundary and relative assets
         run: node --test tests/web-ui-demo.test.cjs
-      - name: Install CJK fonts for readable Chinese screenshots
+      - name: Make Chinese fonts available for visual screenshots
+        shell: bash
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq fonts-noto-cjk
-          fc-cache -f
+          set -euo pipefail
+          if fc-list :lang=zh family | grep -q .; then
+            echo "Chinese font already provided by GitHub runner."
+          else
+            # Do not fail a validated UI build just because Ubuntu mirrors or
+            # security.ubuntu.com temporarily cannot resolve (2026-11-11).
+            # Real Chromium screenshots and UI assertions still run below.
+            if timeout 65s sudo apt-get -o Acquire::Retries=1 update -qq &&
+               timeout 65s sudo apt-get -o Acquire::Retries=1 install -y -qq fonts-noto-cjk; then
+              echo "CJK screenshot font installed."
+            else
+              echo "::warning::CJK font download unavailable; Chromium UI testing will continue. Screenshot glyphs require inspection."
+            fi
+          fi
+          fc-cache -f || true
       - name: Install Chromium browser test adapter
         run: npm install --no-save --package-lock=false playwright-core@1.56.1
       - name: Render desktop/tablet demo and verify UI interactions
