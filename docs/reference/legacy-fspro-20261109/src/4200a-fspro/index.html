@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN" data-dkds-theme="light">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>DK Test Studio · 4200A</title>
+<link rel="stylesheet" href="../core.css"/>
+<link rel="stylesheet" href="editor.css"/>
+</head>
+<body class="dkds-modern-ui fs-app" data-dkds-host="desktop">
+<div id="fs-shell" class="fs-shell">
+  <header class="fs-titlebar" id="fs-titlebar" aria-label="DK Test Studio 标题栏">
+  <div class="fs-brand"><span id="fs-brand-mark" class="fs-brand-mark" aria-hidden="true">DK</span><strong>DK Test Studio</strong></div>
+  <div class="fs-version-wrap">
+    <button id="fs-version-badge" class="fs-version-badge" type="button" aria-expanded="false" aria-controls="fs-version-popover" aria-label="查看版本信息">V0.3.13</button>
+    <div id="fs-version-popover" class="fs-version-popover" hidden role="status" aria-live="polite">
+      <strong id="fs-version-ui">a0</strong>
+      <span id="fs-version-help">当前界面资源版本。预览版尚未启用自动更新。</span>
+    </div>
+  </div>
+  <span class="fs-title-divider" aria-hidden="true"></span>
+  <div class="fs-title-actions" role="group" aria-label="工程与数据">
+    <button type="button" data-command="new" title="新建工程" aria-label="新建工程"><span class="fs-action-glyph" aria-hidden="true">＋</span><span class="fs-title-action-text">新建</span></button>
+    <button type="button" data-command="open" title="打开工程" aria-label="打开工程"><span class="fs-action-glyph" aria-hidden="true">▣</span><span class="fs-title-action-text">打开</span></button>
+    <button type="button" data-command="save" title="保存工程" aria-label="保存工程"><span class="fs-action-glyph" aria-hidden="true">▤</span><span class="fs-title-action-text">保存</span></button>
+    <button type="button" data-command="import-raw" title="导入原始数据" aria-label="导入原始数据"><span class="fs-action-glyph" aria-hidden="true">↧</span><span class="fs-title-action-text">数据</span></button>
+  </div>
+  <span class="fs-title-spacer fs-title-drag-region" aria-hidden="true"></span>
+  <button id="fs-instrument-link" data-native-action="toggle" type="button">连接</button>
+  <button id="fs-instrument-settings" data-native-action="settings" type="button"
+    aria-label="仪器网络设置" title="仪器网络设置">⚙</button>
+  <div class="fs-window-actions" id="fs-window-actions" role="group" aria-label="窗口控制" hidden>
+    <button id="fs-window-minimize" type="button" class="fs-window-button" aria-label="最小化" title="最小化">
+      <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 10h12"/></svg>
+    </button>
+    <button id="fs-window-maximize" type="button" class="fs-window-button" aria-label="最大化" title="最大化" data-maximized="false">
+      <svg class="fs-glyph-max" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4.5" y="4.5" width="11" height="11" rx="1"/></svg>
+      <svg class="fs-glyph-restore" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 6.5V4h9v9h-2"/><rect x="4" y="7" width="9" height="9" rx="1"/></svg>
+    </button>
+    <button id="fs-window-close" type="button" class="fs-window-button fs-window-close" aria-label="关闭窗口" title="关闭窗口">
+      <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>
+    </button>
+  </div>
+</header>
+  <div class="fs-toolbar" role="toolbar" aria-label="测试操作">
+    <span class="fs-toolbar-caption"><span class="fs-toolbar-page-prefix">当前页面</span><strong id="fs-toolbar-page-name">IV Sweep</strong></span>
+    <button data-command="edit" class="fs-primary">参数设置</button>
+    <button data-command="connection">端口配置</button>
+    <span class="fs-toolbar-fill"></span>
+    <button id="fs-measure" disabled title="原生输出未通过硬件安全验收">开始测试</button>
+    <button id="fs-repeat" disabled title="原生输出未通过硬件安全验收">重复</button>
+  </div>
+  <main class="fs-body">
+    <aside class="fs-sidebar">
+      <div class="fs-pane-header">Project Navigation</div>
+      <div class="fs-project" role="tree">
+        <div role="treeitem" aria-expanded="true">▾ Project</div>
+        <div class="fs-depth1" role="treeitem" aria-expanded="true">▾ Device 01</div>
+        <div class="fs-depth2" role="treeitem" aria-expanded="true">▾ Routine 01</div>
+        <div id="fs-page-list" role="group" aria-label="测试页面"></div><button id="fs-add-test" data-command="add-test" type="button" aria-label="新增测试类型">＋ 添加测试</button>
+        <div class="fs-depth2 fs-tree-muted" role="treeitem">Spec</div>
+      </div>
+      <div class="fs-pane-header">Device</div>
+      <div class="fs-device-row"><span>Device 01</span><button data-command="connection">端口配置</button></div>
+    </aside>
+    <section class="fs-right">
+      <div class="fs-pane-header fs-plot-heading">
+        <span class="fs-plot-heading-title">绘图区</span>
+        <label class="fs-plot-layout-wrap" for="fs-plot-layout">子窗口
+          <select id="fs-plot-layout" aria-label="子窗口布局">
+            <option value="grid">四宫格</option>
+            <option value="0">I–V</option>
+            <option value="1">转移特性</option>
+            <option value="2">I–t</option>
+            <option value="3">数据表</option>
+          </select>
+        </label>
+      </div>
+      <div class="fs-frames">
+        <section class="fs-frame" id="fs-frame-1" role="group" data-mobile-active="true"><div class="fs-frame-title">Frame 1 <span>I–V</span></div><div class="fs-empty-plot" aria-label="无测量数据">暂无原始测量数据</div></section>
+        <section class="fs-frame" id="fs-frame-2" role="group" data-mobile-active="false"><div class="fs-frame-title">Frame 2 <span>Transfer</span></div><div class="fs-empty-plot" aria-label="无测量数据">暂无原始测量数据</div></section>
+        <section class="fs-frame" id="fs-frame-3" role="group" data-mobile-active="false"><div class="fs-frame-title">Frame 3 <span>I–t</span></div><div class="fs-empty-plot" aria-label="无测量数据">暂无原始测量数据</div></section>
+        <section class="fs-frame" id="fs-frame-4" role="group" data-mobile-active="false"><div class="fs-frame-title">Frame 4 <span>Data</span><button data-command="data-viewer" class="fs-frame-viewer" title="查看原始数据表">表格</button></div><div class="fs-empty-plot" aria-label="无测量数据">暂无原始测量数据</div></section>
+      </div>
+      <div class="fs-bottom">
+        <div class="fs-bottom-cell"><div class="fs-pane-header">Messages / Test Log</div><div id="fs-messages" class="fs-messages">离线配置已就绪。未连接仪器。</div></div>
+        <div class="fs-bottom-cell"><div class="fs-pane-header">Measurement Settings</div><div class="fs-measure-settings">Page <b id="fs-page-name">IV Sweep</b><span id="fs-status-summary">未授权输出</span></div></div>
+      </div>
+    </section>
+  </main>
+  <footer class="fs-status"><span id="fs-bottom-status">离线配置</span><span class="fs-status-model">Keithley 4200A-SCS</span><button id="fs-language-switch" class="fs-language-switch" type="button" aria-label="切换为英语" title="English">EN</button></footer>
+</div>
+<div class="fs-modal-host" id="fs-modal-host" hidden></div><div class="fs-modal-host" id="fs-data-host" hidden></div><div class="fs-modal-host" id="fs-instrument-host" hidden></div>
+<input type="file" id="fs-open-input" accept=".json,application/json" hidden /><input type="file" id="fs-raw-input" accept=".json,application/json" hidden />
+<!-- Reuse DKDS Core component/semantic infrastructure, without its plugin host. -->
+<script src="../../sdk/theme-contract.js"></script>
+<script src="../core/ui/frame-scheduler.js"></script>
+<script src="../core/ui/dom-mutation-hub.js"></script>
+<script src="../core/contracts/style-ownership-semantics.js"></script>
+<script src="../core/theme/style-ownership-gate-runtime.js"></script>
+<script src="../core/theme/semantic-registry.js"></script>
+<script src="../core/ui/component-runtime.js"></script>
+<!-- The identical scientific plotting engine owned by DKDS Core. -->
+<script src="../../node_modules/d3/dist/d3.min.js"></script>
+<script src="../core/theme/runtime.js"></script>
+<script src="../core/theme/component-appearance.js"></script>
+<script src="../core/scientific/plot-presentation-runtime.js"></script>
+<script src="../core/scientific/display-runtime.js"></script>
+<script src="../core/scientific/heatmap-canvas-runtime.js"></script>
+<script src="../core/scientific/heatmap-selection-overlay-runtime.js"></script>
+<script src="../core/scientific/d3-chart-renderer.js"></script>
+<script src="../core/scientific/chart-export-runtime.js"></script>
+<script src="../core/scientific/chart-runtime.js"></script>
+<script src="../core/scientific/plot-runtime.js"></script>
+<script src="domain/native-raw-data.js"></script>
+<script src="frame-controller.js"></script>
+<script src="domain/page-plan-guard.js"></script>
+<script src="editor.js"></script>
+<script src="domain/kxci-opt-inventory.js"></script>
+<script src="android-bridge.js"></script>
+<script src="build-info.js"></script>
+<script src="ui-shell.js"></script>
+<script src="mobile-frame-tabs.js"></script>
+<script src="ui-controls.js"></script>
+<script src="numeric-keypad.js"></script>
+<script src="discovery-ui.js"></script>
+<script src="locale.js"></script>
+</body>
+</html>
