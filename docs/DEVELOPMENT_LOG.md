@@ -160,3 +160,9 @@
 - 增加模型状态与历史快照迁移、跨设备 Spec 隔离、原生 UI mock、真实 Electron smoke 的 Device 控件检查。测试与 Windows/Android Core Preview 工件以 CI 真实结果为准。
 - 发行主版本仍为 **V0.3.13**。Core PR Preview 的独立 CI 构建序号显式标记为 `PR#`，避免与主线稳定版的 `aNNN` 混淆；只有合并后主线发布工作流才递增 `aNNN` 并生成同 V/a 的完整包。本 PR 尚不作为稳定 DKTS 安装包发布。
 
+
+## 2026-11-11 / DKDS Core Android 预览补充 API 36 实际启动闸门
+- 仅在 DKTS 的 `feat/dkts-core-host-boot` 修改 CI，不修改 DKDS。之前 Android Core 预览工作流只编译 ARM64 debug APK、检查包名和插件目录，不能证明 WebView/React Native 宿主能成功启动。
+- 增加同一 debug APK 的 arm64-v8a + x86_64 ABI 构建，Android 16/API36 x86_64 模拟器执行 APK 安装、按 Manifest launchable-activity 启动、应用进程存活、截图非空和崩溃日志检查，并保留真实截图与日志为独立 Actions artifact。
+- 模拟器检查不等于用户 OPPO ARM64 平板实机验证，也不代表有 4200A 输出控制、原始数据采集或完整 UI 手势验收。若 CI 失败必须记录具体步骤并修复，不能凭 APK 编译成功宣称 Android 完成。
+- V0.3.13 不变；PR 构建号独立于 main 的 aNNN，合并到 main 并通过发布闸门后才由主线自动分配新 a 编号。
