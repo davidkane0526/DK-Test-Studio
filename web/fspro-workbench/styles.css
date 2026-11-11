@@ -124,7 +124,7 @@ dialog{border:1px solid var(--dkui-control-border);background:var(--dkui-surface
    fixed-height DKDS-style result summary. No change to the accepted Page editor. */
 @media(max-width:850px) and (max-height:620px){
  .main-pane:not(.editor-open) #plan-plot{
-  height:clamp(160px,calc(100dvh - 303px),340px);
+  height:clamp(160px,calc(100dvh - 330px),340px);
   max-height:340px;
  }
 }
