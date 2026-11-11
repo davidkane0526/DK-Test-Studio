@@ -536,6 +536,9 @@
   editorTabs=units.layout.create(editor,{variant:'identity'});
   parameters=units.layout.create(editor,{variant:'stack-compact'});
   const plotArea=units.layout.create(work,{variant:'stack-comfortable'});
+  // DKTS-owned markers let Electron validate real frames independently of
+  // internal DKDS Unit attribute naming or temporary detached Page views.
+  plotArea?.setAttribute?.('data-dkts-view','graph');
   workRegion=work;editorRegion=editor;plotRegion=plotArea;
   // Four independent DKDS PlotView subwindows, each with its own host controls.
   // Never synthesize measurement samples in an offline UI.
@@ -549,6 +552,7 @@
     {value:'4',label:'四宫格'}],
    onChange:e=>saveGraphSetting(-1,'count',e.target.value)});
   const groupHost=units.layout.create(plotArea,{variant:'identity'});
+  groupHost?.setAttribute?.('data-dkts-plot-group','four-independent-frames');
   frameGroup=units.plotGroup.create(groupHost,{columns:2,preferredColumns:2,
    maxColumns:4,minItemWidth:360,responsive:true,density:'regular',
    orientationPolicy:{mode:'portrait-offset',offset:-1,minColumns:1}});
@@ -557,8 +561,10 @@
    const graphic=units.panel.detached({variant:'plot-card',
     header:false,sizing:'fill'});
    frameCards.push(graphic.element);
+   graphic.element?.setAttribute?.('data-dkts-plot-frame',String(index+1));
    const graphicHeader=units.header.create(graphic.body,{kind:'plot',
     variant:'plot',title:frameTitles[index],actionHost:true});
+   graphicHeader.element?.setAttribute?.('data-dkts-plot-header',String(index+1));
    const typeHost=units.layout.create(graphicHeader.actions,{variant:'identity'});
    units.field.create(typeHost,{kind:'select',label:'显示',controlOnly:true,
      attributes:{'aria-label':'图窗 '+(index+1)+' 显示内容','title':'显示内容'},value:frameKinds[index],
