@@ -184,3 +184,9 @@
 ## 2026-11-11 / Android 16 启动脚本 POSIX Shell 兼容修复
 - PR58 Android Core Preview 在双 ABI 编译及 API36 模拟器启动后失败，GitHub Actions 日志明确报 `/usr/bin/sh: set: Illegal option -o pipefail`。该 emulator-runner 的 `script` 默认用 `/bin/sh` 而不是 Bash，故尚未安装 APK，不能把失败误认为应用崩溃。
 - 将该脚本的 `set -euo pipefail` 改成 POSIX 兼容的 `set -eu`，保留后续 APK 安装、Manifest Activity 启动、进程、截图和崩溃检查。其他安全逻辑、仪器输出和 DKDS 均未修改。
+
+## 2026-11-11 / Android Core 预览脱离 Metro 的离线打包修正
+- 审核 GitHub Actions 的 PR53 真实 APK `app-debug.apk`（约 55 MB）。APK 含 `assets/dkds/index.html` 与 Android ARM64 native libraries，但 **没有 `assets/index.android.bundle`**。故 Debug APK 虽可安装，其 React Native 宿主在无 Metro 环境下不能被认定为独立可用；仅用应用进程存活或非空截图可能产生误报。
+- Core Android 预览切换为 `assembleRelease`，仍使用自动生成的 **Android Debug 测试签名**及隔离包名 `studio.dk.test.corepreview`，不使用正式 DKTS 稳定签名，也不上传到正式 Release。
+- CI 强制验证 Android arm64/x86_64 native libraries、`assets/index.android.bundle`、debug signer、API36 模拟器实际安装启动、React Native 明确的离线加载/崩溃错误与截图文件。编译、签名和安装是否成功以下次 CI 为准，绝不把此预览称为正式版。
+- 原始 DKDS 仓库仍只读；没有向实机 Keithley 4200A 输出电压，没有采集仪器 raw 数据。正式版版本仍 V0.3.13 a135，Core PR 只记录自己的 CI 序号。
