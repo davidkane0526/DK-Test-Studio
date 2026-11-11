@@ -234,3 +234,12 @@
 - 发现 1024×768 平板截图仍处于之前手机上滑后的页面滚动位置，导致顶端 Project/Device/Terminal 上半区被截断。这是测试脚本的跨视口滚动状态污染，不能作为平板完整界面证据，也不等于应用自身闪退或丢失数据。
 - 修改 DKTS-only `run-core-android-smoke.sh`：手机原始与滑动后的截图结束后设置 tablet 1024×768，`am force-stop` 再按 Manifest Activity 冷启动并单独记录 tablet-startup.txt、PID、截图、错误检查，确保平板首屏视觉对照有可重复的起始滚动位置。增加静态 regression。DKDS 不作任何变更。
 - 主版本继续 V0.3.13，稳定 Release 仍 a135；PR Preview CI 编号与正式 a 编号分离。安卓实体平板和仪器真实输出仍未验收。
+
+## 2026-11-11 / FS-Pro UI 结构及旧 DKDS 分支只读审计（R-20261111-002）
+- 逐字需求已记录于本分支 `docs/USER_REQUIREMENTS.md`，跟踪 [Issue #20](https://github.com/davidkane0526/DK-Test-Studio/issues/20)；继续遵守仅开发 DKTS、DKDS 不作任何变动。
+- 当前主线 `V0.3.13 a135`，`main` SHA `cbc15ed`；DKDS Core 宿主 PR #18 未合并，尚不能声称三端共用同一实装 UI。CI 绿色和网页演示不等于视觉验收或真机测量验收。
+- 已核对当前 Web 演示 `web/fspro-workbench/index.html`：Data/Graph 仍与 Edit Page 参数区域并列；Limits/Page Var/Associate Spec 被放到一级标签；存在大量英文界面字段。依据用户 106 页 LabExpress 手册及 V6 规范，以上均需结构级修正。
+- 旧 DKDS 分支 `feat/4200a-fspro-rebuild` 固定源 SHA `5424cdb`；对 DKDS main 有 1,218 个 ahead commits，含无关历史修改，**不能直接合并**。
+- 在 DKTS 开发分支 `feat/dkts-core-host-boot` 的 `docs/reference/legacy-fspro-20261109/` 归档原分支 `src/4200a-fspro/` 整个子树、两份 docs/4200A 设计文档和一份 UI 视觉测试，共 22 个原始文件，并创建 `ARCHIVE_README.md`。此举只影响 DKTS 开发分支，未修改 DKDS 主分支/旧分支，也未删除任何分支；原始代码保留作对照，不自动参与构建。
+- 原厂 `LabExpress User Manual(SC).pdf`（106 页）与 V6 UI PDF 规范可以在项目资料中读取；完整 V6 ZIP 当前未定位，不能谎称已找到。
+- **实际状态**：本轮完成只读核查、项目需求/日志存档、旧文件归档。并未实现新 UI、未发布新版本、未执行 FS-Pro 35 条视觉验收、未进行真实仪器测量。下一步须以 106 页原厂手册为主，将图表从 Edit Page 中解耦，并将同一实现接入三端 Core Host。
