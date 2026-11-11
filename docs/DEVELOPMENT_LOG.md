@@ -243,3 +243,11 @@
 - 在 DKTS 开发分支 `feat/dkts-core-host-boot` 的 `docs/reference/legacy-fspro-20261109/` 归档原分支 `src/4200a-fspro/` 整个子树、两份 docs/4200A 设计文档和一份 UI 视觉测试，共 22 个原始文件，并创建 `ARCHIVE_README.md`。此举只影响 DKTS 开发分支，未修改 DKDS 主分支/旧分支，也未删除任何分支；原始代码保留作对照，不自动参与构建。
 - 原厂 `LabExpress User Manual(SC).pdf`（106 页）与 V6 UI PDF 规范可以在项目资料中读取；完整 V6 ZIP 当前未定位，不能谎称已找到。
 - **实际状态**：本轮完成只读核查、项目需求/日志存档、旧文件归档。并未实现新 UI、未发布新版本、未执行 FS-Pro 35 条视觉验收、未进行真实仪器测量。下一步须以 106 页原厂手册为主，将图表从 Edit Page 中解耦，并将同一实现接入三端 Core Host。
+
+## 2026-11-11 / R-20261111-003 图表层级、Core 与分支清理
+- 用户接受网页截图的绝大部分样式，只纠正图表父层与 Page 参数切换。原话见 USER_REQUIREMENTS.md；不能再回退为卡片版或重做已经认可的样式。
+- Web：web/fspro-workbench/index.html 将 data-pane 从 work-split 提升为 main-pane 同级子区域；app.js 的 editorOpen 默认 false，Page 点击显示参数，工程根/Routine/Device 可返回图表；styles.css 保留原样式，增加屏幕适配。
+- 新增独立 PR Chromium 实际截图与互动验证，检查 desktop/tablet 的初始图表、Page 编辑、工程返回及不请求仪器 API；Actions #42974232833 success。
+- 真正的 DKDS Core 派生宿主仍在 PR #18。integrations/dkds-native/plugin.js 让真实 ScientificPlot/Data Center 的图表在原生 Core Unit 工作区与参数编辑成为独立同级；只有选中测试时显示编辑，并整理 Routine/Page 行和主图尺寸。原生插件测试成功，Electron 宿主启动截图成功，但视觉尚不如用户认可的 Web，不能声称三端完成。
+- GitHub Actions #42975051700 将三条无活跃 PR 的旧分支各自建立 archive/dkts-20261111-* tag 后安全删除，保留 unique commits。现仅 main、feat/dkts-core-host-boot（PR #18）、fix/native-update-cache-integrity（PR #8）三条分支。
+- 未动 DK-Data-Studio；没有稳定包新 Release，没有 OPPO 真机 UI 验收，没有真实 KXCI 仪器输出核验。
