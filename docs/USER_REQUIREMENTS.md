@@ -78,3 +78,10 @@
 > 进展如何？我先说明，网页版的UI我都不太满意，汉化不够充分，且数据图的层级不应该和参数设置在一起，而当前桌面端和移动端的UI更差，我是不能接受的，我不明白你为什么连网页端的样式都重复不出来。另外，我要强调的是，[https://github.com/davidkane0526/DK-Data-Studio/tree/feat/4200a-fspro-rebuild](https://github.com/davidkane0526/DK-Data-Studio/tree/feat/4200a-fspro-rebuild) 你曾错误的遗留，这个分支我准备删掉，你先看看对你有没有用。此外，你要复刻fs-pro的UI逻辑和层级，我曾把开发包发给你，你还有么？你还记得么？你还遵循我的要求么？
 
 **本次具体验收**：依据原厂《LabExpress 用户使用手册》中文 106 页和 V6 规范进行结构级复刻，Edit Page 与独立主图表区域分离，Sweep/Target/Strategy 为主标签，Limits/Page Var/Associate Spec 仍属于 Sweep 下方三栏；默认中文完全汉化，可切英文；Windows/Android/Web 使用同一真实 DKDS Core 组件和 FS-Pro 编辑器，必须进行视觉并排截图验收；原旧 DKDS 分支只读参考、无授权不得改动或删除。旧分支相关源码仅作为 DKTS 开发分支中的 `docs/reference/legacy-fspro-20261109/` 文档档案保存，**不进入运行产物**。跟踪：[Issue #20](https://github.com/davidkane0526/DK-Test-Studio/issues/20)。
+
+## 2026-11-11 原话 [R-20261111-003]（附截图后收窄范围）
+> 我需要明确告诉你的是，网页端我截图区域大部分我是满意的，除了布局上应该把数据图区域放到上一层，只有点击具体测试项目才显示参数设置。所有你只有这部分需要改，其他可以不动。
+> 今天必须把所有UI都完成，你现在是完全基于DKDS框架了么？如果不是，我完全不明白你为什么没做到。
+> 清理掉其余没用的分支，你最近智商很低，你已经多次出现回退了
+
+强制范围：除图表独立到工程主层、点击测试 Page 显示参数编辑外，不随意修改用户已接受的网页控件、配色、扫描表格、端口设置。桌面/Android 复用真正 DKDS Core 宿主。需求和日志记录 GitHub，旧分支先归档 SHA 再清理，活跃 PR 分支保留。详见 Issue #20。
