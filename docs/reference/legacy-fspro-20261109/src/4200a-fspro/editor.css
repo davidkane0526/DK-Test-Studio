@@ -1,0 +1,577 @@
+/* Dedicated 4200A composition. Geometry owned by this file; paint reads DKDS tokens. */
+.fs-app {
+  --fs-bg:var(--dkui-surface,#f5f7fa);
+  --fs-panel:var(--dkui-surface-elevated,#fff);
+  --fs-line:var(--dkui-border,#d2d8e1);
+  --fs-ink:var(--dkui-text,#283447);
+  --fs-sub:var(--dkui-text-muted,#64748b);
+  --fs-accent:var(--dkui-accent,#3879b9);
+  --fs-height:28px;
+  margin:0; color:var(--fs-ink);background:var(--fs-bg);
+  font-family:system-ui,"Segoe UI","Microsoft YaHei",sans-serif;font-size:12px;
+  line-height:1.35;
+}
+.fs-app *{box-sizing:border-box}
+.fs-app button,.fs-app input,.fs-app select,.fs-app textarea{font:inherit; color:inherit}
+.fs-app button{cursor:pointer}
+.fs-app button:disabled{cursor:not-allowed;opacity:.48}
+.fs-app button:focus-visible,.fs-app input:focus-visible,.fs-app select:focus-visible,.fs-app textarea:focus-visible{outline:2px solid var(--fs-accent);outline-offset:1px}
+.fs-app button,.fs-app select,.fs-app input:not([type="checkbox"]),.fs-app textarea{
+  border:1px solid var(--fs-line);border-radius:5px;background:var(--fs-panel);
+}
+.fs-app button{min-height:var(--fs-height);padding:4px 11px}
+.fs-app button:hover:not(:disabled){background:color-mix(in srgb,var(--fs-accent) 7%,var(--fs-panel))}
+.fs-app button.fs-primary{background:color-mix(in srgb,var(--fs-accent) 12%,var(--fs-panel));border-color:color-mix(in srgb,var(--fs-accent) 50%,var(--fs-line));color:var(--fs-accent)}
+.fs-app select,.fs-app input:not([type="checkbox"]){height:var(--fs-height);min-width:0;padding:4px 7px}
+.fs-app textarea{padding:8px;resize:vertical}
+.fs-app .fs-caption,.fs-app .fs-muted{color:var(--fs-sub)}
+.fs-shell{height:100dvh;min-height:420px;display:flex;flex-direction:column;overflow:hidden}
+.fs-titlebar,.fs-menu,.fs-toolbar,.fs-status{display:flex;align-items:center;gap:7px;padding:0 11px;flex-shrink:0}
+/* Unified DKTS frameless titlebar: one owner for brand, menu, version and native controls. */
+.fs-titlebar{height:42px;background:var(--fs-panel);border-bottom:1px solid var(--fs-line);gap:5px;
+  padding:0 8px;position:relative;z-index:80;white-space:nowrap;-webkit-app-region:drag}
+.fs-brand{display:flex;align-items:center;gap:7px;flex:0 0 auto;min-width:0}
+.fs-brand strong{font-size:13px;font-weight:650;white-space:nowrap;letter-spacing:-.15px}
+.fs-brand-mark{width:27px;height:27px;border-radius:7px;display:grid;place-items:center;
+  background:linear-gradient(145deg,#18294b,#10213c 65%,#1b3a60);
+  background-size:cover;background-repeat:no-repeat;background-position:center;
+  color:#e5f5ff;box-shadow:inset 0 0 0 1px #6593b95f;font-size:11px;
+  letter-spacing:-1px;font-weight:750;text-shadow:1px 0 0 #54cce9}
+.fs-title-spacer,.fs-toolbar-fill{flex:1;min-width:4px}
+.fs-title-divider{width:1px;height:19px;background:var(--fs-line);margin:0 3px}
+.fs-app .fs-titlebar button,.fs-menu,.fs-version-popover,.fs-window-actions{-webkit-app-region:no-drag}
+.fs-version-wrap{position:relative;flex:0 0 auto}
+.fs-app .fs-version-badge{height:27px;min-height:27px;padding:3px 7px;font-size:11.5px;
+  background:none;border:0;border-radius:5px;color:var(--fs-sub);font-weight:600}
+.fs-version-popover{position:absolute;z-index:110;top:calc(100% + 7px);left:0;
+  min-width:210px;padding:11px 12px;display:flex;flex-direction:column;gap:5px;
+  background:var(--fs-panel);border:1px solid var(--fs-line);border-radius:7px;
+  white-space:normal;box-shadow:0 8px 25px #142b4540}
+.fs-version-popover[hidden]{display:none}
+.fs-version-popover strong{font-size:12px}
+.fs-version-popover span{font-size:11px;line-height:1.5;color:var(--fs-sub)}
+.fs-titlebar #fs-instrument-link{flex:0 0 auto;min-width:56px;height:29px;min-height:29px;padding:3px 8px;font-size:12px}
+.fs-app .fs-language-switch{height:28px;min-height:28px;min-width:35px;
+  padding:3px 7px;border:0;background:transparent;font-weight:600;font-size:11px}
+.fs-window-actions{height:100%;display:flex;align-items:stretch;gap:0;margin-right:-8px}
+.fs-window-actions[hidden]{display:none}
+.fs-app .fs-window-button{width:38px;min-width:38px;height:100%;min-height:0;padding:0;border:0;
+  background:transparent;display:grid;place-items:center;border-radius:0}
+.fs-window-button svg{grid-column:1;grid-row:1}
+.fs-glyph-restore{display:none}
+.fs-window-button[data-maximized="true"] .fs-glyph-max{display:none}
+.fs-window-button[data-maximized="true"] .fs-glyph-restore{display:block}
+.fs-app .fs-window-button.fs-window-close:hover:not(:disabled){background:#c83c3c;color:#fff}
+.fs-menu{height:auto;gap:0;border:0;padding:0;min-width:0;flex-shrink:1}
+.fs-menu-item{position:relative;flex:0 0 auto}
+.fs-menu button{border:0;background:none;border-radius:4px;padding:3px 7px;min-height:28px}
+.fs-app .fs-mobile-menu-toggle{display:none}
+.fs-menu-item > button[aria-expanded="true"]{background:color-mix(in srgb,var(--fs-accent) 10%,var(--fs-panel))}
+.fs-menu-popup{position:absolute;top:100%;left:0;z-index:950;min-width:165px;padding:5px;
+  border:1px solid var(--fs-line);border-radius:6px;background:var(--fs-panel);
+  box-shadow:0 8px 24px #11233a20;display:flex;flex-direction:column}
+.fs-menu-popup[hidden]{display:none}
+.fs-menu-popup button{width:100%;text-align:left;white-space:nowrap;border-radius:4px;padding:6px 9px}
+.fs-menu-popup button:disabled{opacity:.48}
+.fs-toolbar{height:45px;background:var(--fs-panel);border-bottom:1px solid var(--fs-line)}
+.fs-toolbar button{white-space:nowrap}
+.fs-separator{height:21px;width:1px;background:var(--fs-line);margin:0 3px}
+.fs-body{display:grid;grid-template-columns:minmax(205px,23%) 1fr;flex:1;min-height:0}
+.fs-sidebar{min-width:0;border-right:1px solid var(--fs-line);display:flex;flex-direction:column;overflow:auto}
+.fs-pane-header{background:color-mix(in srgb,var(--fs-bg) 70%,var(--fs-panel));border-bottom:1px solid var(--fs-line);font-weight:650;min-height:31px;padding:7px 11px;display:flex;justify-content:space-between;align-items:center}
+.fs-project{min-height:260px;padding:9px 8px;line-height:2.15;overflow:auto}
+.fs-project button{width:100%;text-align:left;background:none;border:0;padding:2px 6px;min-height:27px}
+.fs-depth1{padding-left:15px}.fs-depth2{padding-left:31px}.fs-depth3{padding-left:46px}
+.fs-app .fs-tree-selected{background:color-mix(in srgb,var(--fs-accent) 10%,var(--fs-panel));color:var(--fs-accent)}
+.fs-tree-muted{color:var(--fs-sub)}
+.fs-device-row{padding:12px;display:flex;gap:6px;align-items:center;justify-content:space-between}
+.fs-right{display:flex;flex-direction:column;min-width:0;min-height:0}
+.fs-mobile-plot-tabs{display:none}
+.fs-frames{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));flex:1;gap:7px;padding:8px;min-height:190px;overflow:auto}
+.fs-frame{min-width:0;min-height:120px;border:1px solid var(--fs-line);border-radius:6px;background:var(--fs-panel);display:flex;flex-direction:column;overflow:hidden}
+.fs-frame-title{height:27px;flex-shrink:0;padding:5px 10px;background:color-mix(in srgb,var(--fs-bg) 65%,var(--fs-panel));display:flex;justify-content:space-between;border-bottom:1px solid var(--fs-line);font-weight:600}
+.fs-frame-title span{color:var(--fs-sub);font-weight:400}
+.fs-empty-plot{flex:1;display:grid;place-items:center;color:var(--fs-sub)}
+.fs-bottom{display:grid;grid-template-columns:1fr 1fr;min-height:118px;max-height:29%;border-top:1px solid var(--fs-line)}
+.fs-bottom-cell{min-width:0;border-right:1px solid var(--fs-line);display:flex;flex-direction:column}
+.fs-messages{padding:10px;color:var(--fs-sub);overflow:auto}
+.fs-measure-settings{padding:10px;display:flex;align-items:center;gap:16px}
+.fs-measure-settings span{margin-left:auto;color:var(--fs-sub)}
+.fs-status{height:26px;justify-content:space-between;background:var(--fs-panel);border-top:1px solid var(--fs-line);color:var(--fs-sub)}
+.fs-status>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fs-status>span:first-child{flex:1}
+.fs-status>span:last-child{flex:0 1 auto;max-width:47%;text-align:right}
+.fs-modal-host{position:fixed;inset:0;z-index:900;background:#101c2a7a;display:grid;place-items:center;padding:12px}
+.fs-modal-host[hidden],.fs-hide[hidden]{display:none}
+.fs-editor{width:min(1120px,100%);height:min(850px,calc(100dvh - 8px));min-height:430px;display:flex;flex-direction:column;overflow:hidden;background:var(--fs-panel);border:1px solid var(--fs-line);border-radius:9px;box-shadow:0 19px 65px #081c3340}
+.fs-editor-title{height:35px;min-height:35px;padding:0 13px;display:flex;align-items:center;gap:8px;font-weight:650;font-size:13px;border-bottom:1px solid var(--fs-line)}
+.fs-editor-title button{margin-left:auto;border:0;background:none;font-size:18px;min-width:28px;padding:0}
+.fs-editor-main{display:flex;flex-direction:column;flex:1;min-height:0;overflow:auto;padding:7px 12px 0}
+.fs-fieldset{border:1px solid var(--fs-line);border-radius:5px;min-width:0;margin:0 0 6px;padding:6px 9px}
+.fs-fieldset legend{padding:0 5px;color:var(--fs-sub);font-weight:600}
+.fs-info{display:grid;grid-template-columns: minmax(150px,1.2fr) minmax(120px,.9fr) minmax(108px,.75fr) minmax(115px,.8fr) minmax(180px,1.35fr);gap:8px;align-items:center}
+.fs-inline-field{display:flex;align-items:center;gap:5px;min-width:0}
+.fs-inline-field label{flex-shrink:0;font-size:11.5px;white-space:nowrap}
+.fs-inline-field select,.fs-inline-field input{flex:1;width:100%}
+.fs-editor-controls{display:flex;gap:7px;margin-bottom:5px;flex-shrink:0;flex-wrap:wrap}
+.fs-editor-controls button{min-width:84px;min-height:27px;padding-block:3px}
+.fs-tabs{display:flex;align-items:end;min-height:27px;gap:2px;border-bottom:1px solid var(--fs-line);flex-shrink:0}
+.fs-tabs button{border:1px solid transparent;border-bottom:0;border-radius:5px 5px 0 0;background:transparent;min-height:27px;padding:4px 13px}
+.fs-tabs button[aria-selected="true"]{border-color:var(--fs-line);background:var(--fs-panel);font-weight:650;color:var(--fs-accent)}
+.fs-tab-content{flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto;border:1px solid var(--fs-line);border-top:0;padding:6px;gap:5px}
+.fs-sweep-head{display:grid;grid-template-columns:minmax(145px,170px) minmax(100px,140px) 53px minmax(0,1fr);gap:8px;align-items:center;flex-shrink:0}
+.fs-sweep-head .fs-inline-field{grid-column:auto}
+.fs-section-title{font-size:11px;font-weight:650;color:var(--fs-sub);padding:0 4px}
+.fs-terminal-list{display:flex;flex-direction:column;gap:4px;min-height:0;overflow:auto;flex:1;padding:5px;border:1px solid var(--fs-line);border-radius:5px;background:color-mix(in srgb,var(--fs-bg) 45%,var(--fs-panel))}
+.fs-terminal{border:1px solid var(--fs-line);border-radius:4px;padding:4px 6px;display:flex;flex-direction:column;gap:3px;background:var(--fs-panel);min-width:0}
+.fs-terminal-top{display:grid;grid-template-columns:32px 94px 100px minmax(0,1fr);gap:5px;align-items:center}
+.fs-terminal-label{color:var(--fs-accent);font-weight:700;text-align:center}
+.fs-signal-name{color:var(--fs-accent);font-weight:600}
+.fs-generator{display:grid;grid-template-columns:26px minmax(110px,126px) minmax(0,1fr) 26px;gap:5px;align-items:start}
+.fs-generator button,.fs-row-add{height:var(--fs-height);min-width:29px;padding:0 5px}
+.fs-generator-values{display:flex;align-items:center;gap:4px;min-width:0;flex-wrap:wrap}
+.fs-generator-values .fs-small-input{width:68px;flex:1}
+.fs-generator-values .fs-expression{flex:1;min-width:110px}
+.fs-generator-values label{white-space:nowrap;font-size:11px}
+.fs-terminal-bottom{display:flex;align-items:center;gap:5px;padding-left:38px}
+.fs-terminal-bottom select{min-width:82px}
+.fs-segment-row{border-top:1px dashed var(--fs-line);padding-top:5px;margin-left:42px;display:flex;align-items:center;gap:7px}
+.fs-segment-row input{flex:1;min-width:60px}
+.fs-triptych{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));height:155px;min-height:155px;max-height:155px;flex-shrink:0;gap:8px}
+.fs-triptych-panel{border:1px solid var(--fs-line);border-radius:5px;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.fs-triptych-panel h3{font-size:11px;padding:5px 7px;margin:0;border-bottom:1px solid var(--fs-line);font-weight:650}
+.fs-table-wrap{overflow:auto;min-height:96px;max-height:165px;flex:1}
+.fs-table{width:100%;border-collapse:collapse;font-size:11px}
+.fs-table td,.fs-table th{border-bottom:1px solid var(--fs-line);padding:1px 5px;text-align:left;white-space:nowrap}
+.fs-table th{font-weight:600;background:color-mix(in srgb,var(--fs-bg) 65%,var(--fs-panel));position:sticky;top:0}
+.fs-app .fs-table input{width:100%;min-width:55px;height:20px;min-height:20px;border:0;padding:0 2px}
+.fs-table input:focus{outline:1px solid var(--fs-accent)}
+.fs-panel-row{display:flex;min-height:0;flex:1}
+.fs-panel-row .fs-table-wrap{flex:1}
+.fs-rail{width:33px;display:flex;flex-direction:column;gap:4px;padding:4px}
+.fs-rail button{padding:0;width:26px;min-height:24px}
+.fs-editor-footer{height:41px;min-height:41px;padding:5px 12px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--fs-line);align-items:center}
+.fs-editor-footer .fs-validation{margin-right:auto;font-size:11px;color:var(--fs-sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fs-editor-footer button{min-width:82px}
+.fs-editor-footer .fs-error{color:#b13f3f}
+.fs-target{display:grid;grid-template-rows:minmax(160px,1fr) 155px;gap:8px;min-height:0;flex:1}
+.fs-target-top{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:8px;min-height:0}
+.fs-target-top textarea{width:100%;height:100%;min-height:130px;resize:none;white-space:pre-wrap}
+.fs-function-info{border:1px solid var(--fs-line);border-radius:5px;padding:8px;overflow:auto;color:var(--fs-sub)}
+.fs-plot-options{display:flex;gap:7px;align-items:center;padding:6px;flex-wrap:wrap}
+.fs-strategy{display:flex;flex-direction:column;gap:12px}
+.fs-strategy-grid{display:grid;grid-template-columns:190px 1fr;gap:10px;align-items:center;max-width:640px}
+.fs-strategy-grid label{font-size:11px}
+.fs-strategy-grid input,.fs-strategy-grid select{width:100%}
+.fs-connection-content{overflow:auto;flex:1;padding:8px}
+.fs-connection-table{width:100%;border-collapse:collapse}
+.fs-connection-table th,.fs-connection-table td{border-bottom:1px solid var(--fs-line);padding:8px 7px;text-align:left}
+.fs-connection-table select{width:100%}
+.fs-connection-footer{padding:10px;font-size:11px;color:var(--fs-sub)}
+.fs-connection-dialog{width:min(710px,100%);height:min(520px,calc(100dvh - 24px))}
+.fs-app .fs-plot-input{width:66px;flex:0 0 66px}
+.fs-full-field{width:100%}
+@media(max-width:900px){
+ .fs-body{grid-template-columns:190px minmax(0,1fr)}
+ .fs-info{grid-template-columns:repeat(3,minmax(130px,1fr))}
+ .fs-terminal-top{grid-template-columns:30px 90px minmax(70px,1fr)}
+ .fs-generator{grid-column:1/-1;grid-template-columns:26px 120px minmax(0,1fr) 26px}
+}
+@media(max-width:650px){
+ .fs-app{--fs-height:33px}
+ .fs-titlebar{height:42px}
+ .fs-sidebar{display:none}
+ .fs-body{display:flex}
+ .fs-right{flex:1}
+ .fs-mobile-plot-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;
+   flex:0 0 auto;padding:5px 8px;background:var(--fs-panel);border-bottom:1px solid var(--fs-line)}
+ .fs-app .fs-mobile-plot-tabs button{min-width:0;min-height:35px;white-space:nowrap;border:0;
+   border-radius:5px;background:transparent;padding:6px 2px;font-weight:600;
+   color:var(--fs-sub);touch-action:manipulation}
+ .fs-app .fs-mobile-plot-tabs button[aria-selected="true"]{background:color-mix(in srgb,var(--fs-accent) 11%,var(--fs-panel));
+   color:var(--fs-accent);box-shadow:inset 0 -2px var(--fs-accent)}
+ .fs-frames{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);
+   min-height:160px;overflow:hidden;gap:0;padding:7px}
+ .fs-frame{min-height:0;min-width:0}
+ .fs-frame[data-mobile-active="false"]{display:none}
+ .fs-frame[data-mobile-active="true"]{display:flex}
+ .fs-bottom{grid-template-columns:1fr;max-height:36%}
+ .fs-bottom-cell:nth-child(2){display:none}
+ .fs-toolbar{height:42px;min-height:42px;overflow:hidden;flex-shrink:0;gap:6px;padding-inline:8px}
+ .fs-toolbar button[data-command="new"],.fs-toolbar button[data-command="open"],
+ .fs-toolbar button[data-command="save"],.fs-toolbar button[data-command="connection"],
+ .fs-toolbar button[data-command="arrange"],.fs-toolbar .fs-separator{display:none}
+ .fs-toolbar button{padding-inline:9px;flex-shrink:0}
+ .fs-toolbar-fill{flex:1;min-width:0}
+ .fs-modal-host{padding:0}
+ .fs-editor{width:100%;height:100dvh;min-height:0;border:0;border-radius:0}
+ .fs-editor-main{padding:8px 7px 0}
+ .fs-info{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .fs-info .fs-inline-field:last-child{grid-column:1/-1}
+ .fs-sweep-head{grid-template-columns:145px 110px 60px minmax(110px,1fr);min-width:485px}
+ .fs-terminal-list{overflow:auto}
+ .fs-terminal{min-width:480px}
+ .fs-triptych{grid-template-columns:repeat(3,minmax(230px,1fr));overflow-x:auto}
+ .fs-target-top{grid-template-columns:minmax(0,1fr)}
+ .fs-function-info{min-height:70px}
+ .fs-strategy-grid{grid-template-columns:130px 1fr}
+}
+/* Per-terminal controls have one geometry owner, adjusted only for touch. */
+.fs-app .fs-terminal select,.fs-app .fs-terminal input:not([type="checkbox"]){height:25px;padding:2px 5px}
+.fs-app .fs-terminal button{height:25px;min-height:25px;padding:1px 5px}
+.fs-app .fs-sweep-head select{min-width:75px}
+@media(max-width:650px){
+ .fs-editor-title{height:38px;min-height:38px}
+ .fs-editor-footer{height:49px;min-height:49px}
+ .fs-app .fs-editor-controls button{min-height:33px}
+ .fs-app .fs-terminal select,.fs-app .fs-terminal input:not([type="checkbox"]){height:28px}
+ .fs-app .fs-terminal button{height:28px;min-height:28px}
+}
+@media(min-width:651px) and (max-height:790px){
+ .fs-editor-title{height:31px;min-height:31px}
+ .fs-editor-main{padding-top:4px}
+ .fs-fieldset{padding-top:4px;padding-bottom:4px;margin-bottom:3px}
+ .fs-editor-controls{margin-bottom:2px}
+ .fs-app .fs-editor-controls button{min-height:25px;padding-block:2px}
+ .fs-tabs,.fs-tabs button{min-height:25px}
+ .fs-tab-content{padding:4px;gap:3px}
+ .fs-triptych{height:142px;min-height:142px;max-height:142px}
+ .fs-target{grid-template-rows:minmax(160px,1fr) 142px}
+ .fs-editor-footer{height:36px;min-height:36px;padding-block:3px}
+}
+
+@media (prefers-reduced-motion:reduce){.fs-app *{scroll-behavior:auto}}
+
+/* Raw data surfaces use DKDS Core renderers; the empty placeholder has no synthetic trace. */
+.fs-app .fs-plot-slot{position:relative;display:block;overflow:hidden;min-height:0;width:100%;height:100%}
+.fs-empty-hint{position:absolute;inset:0;display:grid;place-items:center;font-size:12px;pointer-events:none;color:var(--fs-sub)}
+.fs-empty-hint[hidden]{display:none}
+.fs-app .fs-frame-viewer{min-height:20px;font-size:11px;padding:1px 5px;margin-left:6px}
+.fs-data-dialog{width:min(1000px,100%);height:min(var(--fs-data-height,480px),calc(100dvh - 24px));min-height:min(225px,calc(100dvh - 24px))}
+.fs-data-table-wrap{flex:1;overflow:auto;margin:10px;border:1px solid var(--fs-line);border-radius:5px}
+.fs-app .fs-data-table{width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap}
+.fs-data-table th,.fs-data-table td{border-bottom:1px solid var(--fs-line);padding:5px 10px;text-align:left}
+.fs-data-table thead th{background:var(--fs-bg);position:sticky;top:0;z-index:1}
+.fs-data-note{margin:0 12px;padding:8px 0;color:var(--fs-sub)}
+
+/* Single mobile responsive owner: keep every numeric Sweep field inside 430px. */
+@media(max-width:650px){
+ .fs-app .fs-sweep-head{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);grid-template-rows:28px 28px;min-width:0;gap:4px 8px}
+ .fs-app .fs-sweep-head>label:nth-child(3){grid-column:1;grid-row:2;justify-self:start;align-self:center}
+ .fs-app .fs-sweep-head>input:nth-child(4){grid-column:2;grid-row:2}
+ .fs-app .fs-sweep-head .fs-inline-field{min-width:0}
+ .fs-app .fs-sweep-head input,.fs-app .fs-sweep-head select{width:100%;min-width:0}
+ .fs-app .fs-terminal-list{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
+ .fs-app .fs-terminal{min-width:0;width:100%;max-width:100%;box-sizing:border-box}
+ .fs-app .fs-terminal-top{grid-template-columns:26px minmax(80px,98px) minmax(0,1fr);gap:4px}
+ .fs-app .fs-generator{
+   grid-column:1/-1;
+   grid-template-columns:26px minmax(0,1fr) 26px;
+   grid-template-rows:28px auto;
+   gap:4px;
+ }
+ .fs-app .fs-generator>button:first-child{grid-column:1;grid-row:1}
+ .fs-app .fs-generator>select{grid-column:2;grid-row:1;width:100%;min-width:0}
+ .fs-app .fs-generator>button:last-child{grid-column:3;grid-row:1}
+ .fs-app .fs-generator-values{
+   grid-column:1/-1;grid-row:2;
+   display:grid;
+   grid-template-columns:repeat(3,auto minmax(0,1fr));
+   align-items:center;
+   min-width:0;gap:4px;
+ }
+ .fs-app .fs-generator-values .fs-small-input{min-width:0;width:100%;flex:none;padding-inline:3px}
+ .fs-app .fs-generator-values .fs-expression{grid-column:1/-1;min-width:0;width:100%}
+ .fs-app .fs-generator-values label{min-width:0;white-space:nowrap}
+ .fs-app .fs-terminal-bottom{padding-left:30px;gap:4px;flex-wrap:wrap}
+ .fs-app .fs-terminal-bottom select{min-width:68px}
+ .fs-app .fs-triptych{
+   display:flex;
+   flex-direction:row;
+   gap:8px;
+   overflow-x:auto;
+   overflow-y:hidden;
+   scroll-snap-type:x mandatory;
+   overscroll-behavior-inline:contain;
+   scroll-padding-inline:0;
+   touch-action:pan-x;
+   scrollbar-width:thin;
+ }
+ .fs-app .fs-triptych-panel{
+   flex:0 0 min(80%,340px);
+   scroll-snap-align:start;
+   min-width:0;
+   max-width:none;
+ }
+ .fs-app .fs-triptych-panel:last-child{scroll-snap-align:end}
+}
+
+@media(max-width:400px){
+ .fs-brand strong{display:none}
+ .fs-titlebar{gap:3px;padding:0 6px}
+ .fs-window-actions{margin-right:-6px}
+ .fs-app .fs-language-switch{min-width:30px;padding:3px}
+}
+
+/* Instrument settings uses the same compact DKDS/FS-Pro controls and geometry. */
+.fs-device-dialog{width:min(650px,100%);height:auto;max-height:min(560px,calc(100dvh - 24px))}
+.fs-device-form{padding:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px 16px;overflow:auto}
+.fs-device-form label{display:flex;flex-direction:column;gap:4px;min-width:0;color:var(--fs-sub);font-size:11px}
+.fs-app .fs-device-form input,.fs-app .fs-device-form select{width:100%;height:32px;color:var(--fs-ink);font-size:12px}
+.fs-device-summary{padding:6px 12px;font-weight:550;min-height:30px;border-top:1px solid var(--fs-line)}
+.fs-device-hint{padding:4px 12px 8px;color:var(--fs-sub);font-size:11px}
+.fs-app #fs-instrument-link[data-state="connected"]{color:var(--fs-accent);border-color:var(--fs-accent)}
+@media(max-width:650px){
+ .fs-device-dialog{height:auto;min-height:0;max-height:100dvh}
+ .fs-device-form{grid-template-columns:minmax(0,1fr);gap:9px}
+}
+
+
+/* DKDS-owned palette & elevation: separate title, workspace, sub-frame and footer. */
+.fs-app{--fs-control-radius:6px;--fs-divider:color-mix(in srgb,var(--fs-line) 82%,var(--fs-panel));
+  --fs-subheading:color-mix(in srgb,var(--fs-bg) 82%,var(--fs-panel))}
+.fs-titlebar{z-index:90;background:var(--fs-panel);border-bottom:1px solid var(--fs-divider)}
+.fs-title-actions{display:flex;align-items:center;gap:2px;flex:0 1 auto;min-width:0;-webkit-app-region:no-drag}
+.fs-app .fs-title-actions button{display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  min-height:29px;height:29px;padding:3px 7px;white-space:nowrap;border:0;border-radius:var(--fs-control-radius);
+  background:transparent;color:var(--fs-sub);font-weight:550}
+.fs-title-actions .fs-action-glyph{font-size:15px;line-height:1;font-weight:500}
+.fs-titlebar .fs-title-spacer{min-width:3px}
+.fs-toolbar{background:var(--fs-subheading);height:38px;min-height:38px;gap:7px;padding-inline:12px}
+.fs-toolbar .fs-toolbar-caption{font-size:11px;color:var(--fs-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fs-toolbar .fs-toolbar-caption strong{font-weight:650;color:var(--fs-ink)}
+.fs-toolbar .fs-primary{font-weight:650}
+.fs-sidebar{background:var(--fs-panel);border-right:1px solid var(--fs-divider)}
+.fs-pane-header{min-height:32px;font-size:11.5px;color:var(--fs-ink);
+  background:var(--fs-subheading);border-bottom:1px solid var(--fs-divider)}
+.fs-right>.fs-pane-header{min-height:38px;padding:4px 12px}
+.fs-plot-heading{gap:8px}
+.fs-plot-heading-title{font-size:12px;font-weight:700}
+.fs-plot-layout-wrap{display:inline-flex;align-items:center;gap:8px;margin-left:auto;
+  color:var(--fs-sub);font-weight:500}
+.fs-app .fs-plot-layout-wrap select{min-width:122px;width:auto;height:28px;max-width:165px;
+  border-radius:var(--fs-control-radius);font-weight:550;color:var(--fs-ink)}
+.fs-mobile-plot-tabs{display:none}
+.fs-app .fs-frames[data-layout="single"]{grid-template-columns:minmax(0,1fr);
+  grid-template-rows:minmax(0,1fr);overflow:hidden}
+.fs-frames[data-layout="single"] .fs-frame[aria-hidden="true"]{display:none}
+.fs-frames[data-layout="single"] .fs-frame[aria-hidden="false"]{display:flex;min-height:0}
+.fs-frame{border-radius:7px;box-shadow:0 1px 2px color-mix(in srgb,var(--fs-ink) 7%,transparent)}
+.fs-frame-title{min-height:29px;height:29px;align-items:center;background:var(--fs-subheading);gap:6px}
+.fs-frame-title .fs-frame-viewer{margin-left:auto}
+.fs-status{height:30px;min-height:30px;gap:10px;justify-content:flex-start;padding-inline:10px;
+  background:var(--fs-panel);border-top:1px solid var(--fs-divider)}
+.fs-status #fs-bottom-status{flex:1;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+.fs-status .fs-status-model{font-size:11px;max-width:38%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fs-app .fs-status .fs-language-switch{margin-left:0;flex:0 0 auto;
+  min-width:43px;min-height:25px;height:25px;padding:2px 8px;border:1px solid var(--fs-line);
+  border-radius:6px;background:var(--fs-subheading);color:var(--fs-ink)}
+.fs-app .fs-terminal{border-color:var(--fs-divider);border-left:3px solid color-mix(in srgb,var(--fs-accent) 55%,var(--fs-line));
+  border-radius:6px;padding:6px 7px}
+.fs-app .fs-terminal-label{font-variant-numeric:tabular-nums}
+.fs-app .fs-terminal-range{margin-top:4px;padding:5px 2px 2px;display:grid;
+  grid-template-columns:auto minmax(80px,116px) auto minmax(77px,120px) auto minmax(100px,1fr);
+  align-items:center;gap:5px;min-width:0;border-top:1px solid var(--fs-divider)}
+.fs-app .fs-terminal-range label{font-size:11px;color:var(--fs-sub);white-space:nowrap}
+.fs-app .fs-terminal-range :is(select,input){width:100%;min-width:0}
+.fs-app .fs-range-presets{font-variant-numeric:tabular-nums}
+.fs-app .fs-terminal-range input[data-bind$=".value"]{font-variant-numeric:tabular-nums}
+.fs-app select{appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2370869f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-size:14px 14px;background-repeat:no-repeat;background-position:right 7px center;
+  padding-right:25px}
+.fs-app select:disabled{opacity:.6;cursor:not-allowed}
+.fs-app .fs-editor :is(input:not([type="checkbox"]),select,button):not(.fs-window-button),
+.fs-app .fs-device-form :is(input,select){border-radius:var(--fs-control-radius)}
+.fs-app .fs-editor .fs-section-title{font-weight:700}
+@media(max-width:1050px){
+ .fs-title-actions .fs-title-action-text{display:none}
+ .fs-app .fs-title-actions button{width:30px;min-width:30px;padding:0}
+ .fs-app .fs-title-actions button .fs-action-glyph{font-size:16px}
+}
+@media(max-width:650px){
+ .fs-app .fs-titlebar{padding-inline:7px;gap:2px}
+ .fs-brand strong{font-size:12px}
+ .fs-app .fs-version-badge{padding-inline:4px;font-size:10.5px}
+ .fs-app .fs-title-actions button{width:27px;min-width:27px}
+ .fs-app .fs-titlebar #fs-instrument-link{min-width:46px;padding-inline:5px}
+ .fs-app .fs-toolbar{height:39px;min-height:39px;padding:4px 7px;gap:5px}
+ .fs-app .fs-toolbar .fs-toolbar-caption{max-width:78px}
+ .fs-app .fs-toolbar button{padding:4px 7px;min-width:0}
+ .fs-app .fs-right>.fs-plot-heading{min-height:35px}
+ .fs-app .fs-plot-layout-wrap{gap:5px}
+ .fs-app .fs-plot-layout-wrap select{min-width:116px;height:28px}
+ .fs-app .fs-frames{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);
+   overflow:hidden;gap:0;padding:7px}
+ .fs-app .fs-frames[data-layout="grid"]{grid-template-columns:repeat(2,minmax(0,1fr));
+   grid-template-rows:repeat(2,minmax(0,1fr));gap:5px}
+ .fs-app .fs-frames[data-layout="grid"] .fs-frame{display:flex;min-height:0}
+ .fs-app .fs-terminal-range{grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr);
+   gap:5px}
+ .fs-app .fs-terminal-range label:nth-of-type(3){grid-column:1}
+ .fs-app .fs-terminal-range :is(input,select){height:28px}
+ .fs-status .fs-status-model{max-width:31%;font-size:10px}
+ .fs-app .fs-status .fs-language-switch{min-width:39px}
+}
+
+
+/* Single select contract. The HTML select remains a hidden semantic/data
+ * source; the DKDS-toned trigger and portal own visible paint/placement. */
+.fs-app .fs-select-shell{position:relative;display:inline-flex;align-items:center;
+  width:100%;min-width:0;flex:1 1 auto;vertical-align:middle}
+.fs-app .fs-select-native{position:absolute;inset:0;opacity:0;
+  width:100%;height:100%;pointer-events:none;
+  z-index:-1;margin:0}
+.fs-app .fs-select-trigger{height:var(--fs-height);min-height:var(--fs-height);
+  width:100%;min-width:0;max-width:100%;display:inline-flex;align-items:center;
+  justify-content:space-between;gap:7px;padding:4px 7px;border:1px solid var(--fs-line);
+  background:var(--fs-panel);color:var(--fs-ink);border-radius:var(--fs-control-radius);
+  font-size:11.5px;font-weight:500;text-align:left;box-shadow:0 1px 1px #15284008}
+.fs-app .fs-select-trigger:hover:not(:disabled){border-color:color-mix(in srgb,var(--fs-accent) 45%,var(--fs-line))}
+.fs-app .fs-select-trigger[aria-expanded="true"]{border-color:var(--fs-accent);
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--fs-accent) 13%,transparent)}
+.fs-app .fs-select-label{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fs-app .fs-select-chevron{width:7px;height:7px;flex:0 0 7px;
+  border-right:1.5px solid var(--fs-sub);border-bottom:1.5px solid var(--fs-sub);
+  transform:rotate(45deg) translateY(-2px)}
+.fs-app .fs-select-trigger:disabled{opacity:.55}
+.fs-select-popover{position:fixed;z-index:2200;background:var(--fs-panel,#fff);color:var(--fs-ink,#283447);
+  border:1px solid var(--fs-line,#d2d8e1);border-radius:8px;box-shadow:0 8px 30px #13274438;
+  padding:4px;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;
+  scrollbar-width:thin}
+.fs-select-popover .fs-select-option{flex:0 0 auto;min-height:31px;border:0;background:transparent;
+  padding:5px 9px;border-radius:5px;color:inherit;font-size:12px;text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fs-select-popover .fs-select-option[aria-selected="true"],.fs-select-popover .fs-select-option[data-highlight="true"]{
+  color:var(--fs-accent,#3879b9);background:color-mix(in srgb,var(--fs-accent,#3879b9) 10%,var(--fs-panel,#fff))}
+.fs-select-popover .fs-select-option:disabled{opacity:.42}
+.fs-app .fs-terminal-top>.fs-select-shell{min-width:0;grid-column:2}
+.fs-app .fs-generator>.fs-select-shell{width:100%;min-width:0;grid-column:2;grid-row:1}
+.fs-app .fs-terminal-bottom>.fs-select-shell{flex:0 1 132px}
+.fs-app .fs-range-presets+.fs-select-trigger{font-variant-numeric:tabular-nums}
+.fs-app .fs-plot-layout-wrap .fs-select-shell{flex:0 0 135px;width:135px}
+.fs-app .fs-terminal-range>.fs-select-shell{width:100%;min-width:0}
+.fs-app .fs-device-form>.fs-select-shell{width:100%}
+@media(max-width:650px){
+ .fs-app .fs-terminal select{height:28px}
+ .fs-app .fs-terminal .fs-select-trigger{height:28px;min-height:28px;padding:3px 5px}
+ .fs-app .fs-generator>.fs-select-shell{grid-column:2;grid-row:1}
+ .fs-app .fs-plot-layout-wrap .fs-select-shell{flex:0 0 119px;width:119px}
+ .fs-select-popover .fs-select-option{min-height:38px}
+}
+
+/* Exact DK Test Studio floating numeric keypad interaction, painted with
+ * DKDS surface/line/text/accent tokens; dynamic numeric fields only. */
+.dkts-numeric-keypad[hidden]{display:none}
+.dkts-numeric-keypad{position:fixed;z-index:2600;display:flex;flex-direction:column;
+  gap:5px;width:min(302px,calc(100vw - 14px));max-height:calc(100dvh - 14px);
+  overflow-y:auto;padding:8px;border:1px solid var(--fs-line,#d2d8e1);
+  border-radius:11px;background:var(--fs-panel,#fff);color:var(--fs-ink,#283447);
+  box-shadow:0 14px 38px #15284045}
+.dkts-keypad-head{height:31px;display:flex;align-items:center;gap:8px;padding:2px 6px;
+  border-radius:6px;background:color-mix(in srgb,var(--fs-bg,#f5f7fa) 70%,var(--fs-panel,#fff));
+  cursor:grab;touch-action:none;user-select:none}
+.dkts-keypad-grip{font-size:15px;color:var(--fs-sub,#64748b)}
+.dkts-keypad-label{font-size:11px;color:var(--fs-sub,#64748b);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:102px}
+.dkts-keypad-value{font-size:13px;margin-left:auto;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;min-width:0;font-variant-numeric:tabular-nums}
+.dkts-keypad-functions,.dkts-keypad-grid,.dkts-keypad-foot{display:grid;gap:4px}
+.dkts-keypad-functions{grid-template-columns:repeat(3,minmax(0,1fr))}
+.dkts-keypad-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.dkts-keypad-foot{grid-template-columns:1fr 1fr 2fr}
+.dkts-numeric-keypad button{min-height:38px;padding:5px;border:1px solid var(--fs-line,#d2d8e1);
+  border-radius:6px;background:var(--fs-bg,#f5f7fa);color:inherit;
+  font-size:15px;font-weight:550;touch-action:manipulation}
+.dkts-keypad-functions button{font-size:12px}
+.dkts-numeric-keypad button:active{background:color-mix(in srgb,var(--fs-accent,#3879b9) 13%,var(--fs-panel,#fff))}
+.dkts-numeric-keypad .dkts-keypad-done{background:var(--fs-accent,#3879b9);color:#fff;border-color:transparent}
+.dkts-keypad-feedback{font-size:10.5px;color:#b13f3f;min-height:0;margin:0;padding:0}
+.fs-app .dkts-numeric-active{border-color:var(--fs-accent);
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--fs-accent) 12%,transparent)}
+@media(max-width:650px){.dkts-numeric-keypad button{min-height:41px}}
+
+/* Final ownership: connector gear is a direct action, not a hidden menu. */
+.fs-app #fs-instrument-settings{min-width:27px;width:27px;height:29px;min-height:29px;
+  padding:0;border:0;background:transparent;color:var(--fs-sub);font-size:17px}
+.fs-app #fs-instrument-settings:hover{color:var(--fs-accent)}
+@media(max-width:650px){
+ .fs-app .fs-toolbar button[data-command="connection"]{display:inline-flex;align-items:center}
+ .fs-app .fs-toolbar .fs-toolbar-caption{max-width:78px}
+}
+
+/* Desktop four-terminal V6 viewport: range and reference share one row,
+ * so all four terminal cards remain visible at 1200x850. */
+@media(min-width:900px){
+ .fs-app .fs-terminal-bottom{display:flex;align-items:center;flex-wrap:nowrap;padding-left:36px;gap:5px;min-height:27px}
+ .fs-app .fs-terminal-bottom>.fs-select-shell{flex:0 0 102px}
+ .fs-app .fs-terminal-range{flex:1 1 auto;display:grid;margin:0;padding:0 0 0 9px;
+   border-top:0;border-left:1px solid var(--fs-divider);
+   grid-template-columns:auto minmax(64px,.7fr) auto minmax(66px,.65fr) auto minmax(82px,.8fr);
+   gap:4px}
+ .fs-app .fs-range-note{display:none}
+}
+@media(max-width:899px){
+ .fs-app .fs-terminal-bottom{flex-wrap:wrap}
+ .fs-app .fs-terminal-range{flex:1 0 100%}
+ .fs-app .fs-range-note{display:none}
+}
+
+/* The five FS-Pro page actions must stay on one row at mobile width.
+ * The previous 84px minimum forced UnScale onto a misleading second line. */
+@media(max-width:650px){
+  .fs-app .fs-editor-controls{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+    gap:4px;align-items:stretch}
+  .fs-app .fs-editor-controls button{width:100%;min-width:0;min-height:29px;
+    padding:3px 2px;font-size:11px;white-space:nowrap}
+}
+
+/* Compact mobile toolbar: retain the complete active Page identifier; the
+ * four-character prefix wasted space and made IV Sweep appear as IV S… . */
+.fs-toolbar-page-prefix{display:inline;margin-right:5px}
+@media(max-width:650px){
+ .fs-app .fs-toolbar-page-prefix{display:none}
+ .fs-app .fs-toolbar #fs-toolbar-page-name{display:inline;white-space:nowrap}
+ .fs-app .fs-toolbar .fs-toolbar-caption{max-width:100px;flex:0 1 auto}
+}
+
+/* DKTS: no click halo or raised/shadowed pressed button state. */
+.fs-app :is(button,.fs-select-trigger):is(:active,:focus:not(:focus-visible)){
+  box-shadow:none;filter:none;transform:none;
+}
+.fs-app button:focus-visible{box-shadow:none}
+
+.fs-app .fs-no-ports{padding:20px;text-align:center;color:var(--fs-sub);border:1px dashed var(--fs-line);border-radius:6px;font-size:12px}
+.fs-app .fs-terminal-top{grid-template-columns:34px 92px 86px minmax(0,1fr);align-items:center}
+.fs-app .fs-terminal-bottom{display:grid;grid-template-columns:minmax(190px,.7fr) minmax(0,1.5fr);align-items:center;gap:6px;padding-left:0}
+.fs-app .fs-terminal-range{border-top:0;margin:0;padding:0;grid-template-columns:auto minmax(76px,.65fr) auto minmax(72px,.65fr) auto minmax(84px,1fr)}
+@media(max-width:899px){
+ .fs-app .fs-terminal-top{grid-template-columns:30px 92px minmax(65px,1fr);gap:5px}
+ .fs-app .fs-terminal-top>.fs-generator{grid-column:1 / -1}
+ .fs-app .fs-terminal-bottom{grid-template-columns:minmax(0,1fr)}
+ .fs-app .fs-terminal-range{border-top:1px solid var(--fs-line);padding-top:5px;grid-template-columns:auto minmax(80px,1fr) auto minmax(80px,1fr)}
+ .fs-app .fs-terminal-range label:nth-of-type(3){grid-column:1}
+}
+
+/* Project > Device > Routine > dynamically registered tests, instead of a fake static tree. */
+.fs-app #fs-page-list{display:flex;flex-direction:column;gap:1px}
+.fs-app #fs-page-list .fs-depth3{min-height:28px;border-radius:5px;white-space:nowrap;
+ overflow:hidden;text-overflow:ellipsis;padding-left:23px}
+.fs-app #fs-page-list .fs-tree-selected{background:color-mix(in srgb,var(--fs-accent) 10%,var(--fs-panel));color:var(--fs-accent);font-weight:650}
+.fs-app #fs-add-test{margin:4px 0 4px 16px;width:calc(100% - 16px);border:1px dashed var(--fs-line);
+ color:var(--fs-accent);border-radius:5px;text-align:center}
+.fs-app .fs-test-picker{height:auto;min-height:0;max-height:min(650px,90dvh);width:min(480px,96vw)}
+.fs-app .fs-test-type-list{display:flex;flex-direction:column;gap:5px;padding:14px;overflow:auto}
+.fs-app .fs-test-type-list>button{display:flex;justify-content:space-between;align-items:center;
+ gap:10px;text-align:left;padding:10px 12px;border:1px solid var(--fs-line);border-radius:6px;min-height:48px}
+.fs-app .fs-test-type-list>button span{font-size:11px;color:var(--fs-sub);font-weight:400}
+
+/* Two-row FS-Pro terminal structure: source/generator then grouped reference/range. */
+.fs-app .fs-terminal-reference{display:grid;grid-template-columns:auto minmax(72px,1fr) minmax(90px,1fr);
+  gap:5px;align-items:center;min-width:0}
+.fs-app .fs-terminal-reference>.fs-select-shell{min-width:0;width:100%}
+.fs-app .fs-terminal-bottom{grid-template-columns:minmax(250px,.8fr) minmax(0,1.8fr)}
+@media(max-width:899px){
+ .fs-app .fs-terminal-bottom{grid-template-columns:minmax(0,1fr)}
+ .fs-app .fs-terminal-reference{grid-template-columns:auto minmax(90px,1fr) minmax(100px,1fr)}
+}
