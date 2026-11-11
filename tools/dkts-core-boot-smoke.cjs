@@ -128,7 +128,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
    // Real Core Page activation (not a static web DOM picture).
    const pageClicked=await win.webContents.executeJavaScript(`(()=>{
     const button=[...document.querySelectorAll('button[data-dkds-unit-template="list-item-v2"]')]
-     .find(node=>node.textContent.includes('I–V Sweep')||node.textContent.includes('I-V Sweep'));
+     .find(node=>['I–V 扫描','I–V Sweep','I-V Sweep'].some(name=>node.textContent.includes(name)));
     if(!button)return false;button.click();return true;
    })()`,true);
    if(!pageClicked)throw Error('FS-Pro Page navigation item unavailable in real Electron DOM');
@@ -137,10 +137,14 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
     const tabs=[...document.querySelectorAll('[data-dkds-unit-template="tabs-v2"]')];
     const visible=tabs.some(el=>el.getBoundingClientRect().width>60&&
      el.getBoundingClientRect().height>0&&el.textContent.includes('扫描'));
-    return {visible,tabCount:tabs.length,plotHeaders:
+    const heading=[...document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-template="panel-header-v2"]')]
+     .find(el=>el.textContent.includes('绘图区'));
+    const back=[...document.querySelectorAll('button')].some(el=>el.textContent.includes('← 绘图区'));
+    return {visible,tabCount:tabs.length,backButton:back,
+     graphHeadingHidden:!heading||heading.getBoundingClientRect().height===0,plotHeaders:
      document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-template="plot-header-v2"]').length};
    })()`,true);
-   if(!pageEditor.visible)throw Error('FS-Pro Page editor not visible after Page click: '+JSON.stringify(pageEditor));
+   if(!pageEditor.visible||!pageEditor.backButton||!pageEditor.graphHeadingHidden)throw Error('FS-Pro Page editor hierarchy invalid: '+JSON.stringify(pageEditor));
    const pageImage=await win.webContents.capturePage();
    if(pageImage.isEmpty())throw Error('Core Page editor screenshot empty');
    fs.writeFileSync(path.join(dir,'core-host-page.png'),pageImage.toPNG());
