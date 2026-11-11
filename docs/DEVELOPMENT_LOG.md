@@ -260,3 +260,12 @@
 - Core 打包程序同步加入 `measurement-data.js`，其 manifest 和 VM mock 注册代码一并更新。更新器安全审计工具 `tools/verify-dkds-updater-parity.cjs` 在 `tools/stage-dkds-host.cjs` 中校验真实只读上游：Windows/Android 完整包校验和缓存重复校验、APK signer、UI 备份恢复；测试专用人工 fixture 明确依赖注入以保留生产 fail-closed。此检查不代表 DKTS 特定正式发布资产/安装器已验收。
 - [PR #8](https://github.com/davidkane0526/DK-Test-Studio/pull/8) 已在原 PR 留下保留与取舍审计，**关闭但未合并，原分支仍存在，供用户删除**；其自动 stamp 违反 V+a 规则，旧 minShell 不适配新宿主。PR #18 仍是 draft、不作为正式稳定安装包。
 - 验收区分：Core 模拟 API 测试不代表真实 Electron/Android/4200A 端到端；正式 GitHub Pages 仍不具备 Core Data Center 数据导出。不能将当前 PR 的 aNNN CI 编号称作正式新架构版本。
+
+## 2026-11-11 [R-20261111-006] UI 难点修复与实际验收记录
+- 以 PR #18 真实 head 与 GitHub CI 为单一事实来源恢复先前超时工作。成功构建 `dd909979` 的 Windows DKDS Core / Android Core 两端预览，真实 Electron 截图 `core-host.png`、`core-host-page.png`、窄屏图和 Android API 36 手机/平板截图均已检查；Windows 和 Android 模拟器启动检查通过。稳定版并未升级，预览包不替代正式版。
+- 原始图窗用真正 SDK `units.plotGroup.create` + 四个 `adoptPlot`、`units.scientificPlot.create`、`units.table.mount`，离线不伪造测量曲线；图窗类型/分配数据源与 1/2/4 布局保存到 DKDS project slice；独立图窗源读取严格按 KXCI 原始列类型匹配，原始 CSV 从 Data Center 全量 DataTable 走 DKDS IO，曲线预览可抽稀但原始数据不可抽稀。
+- `c43408d7` / `452220eb`：修复 Android 320px 窄屏 PlotView 标题栏拥挤；把“数据源选择+导出完整原始 CSV”合并到真正 DKDS Action menu，只保留简短图形类型选择。用真实 Android 截图确认先前版本拥挤情况，新的渲染版本仍需视觉复测。
+- `cbebfc74`：新增页面与器件/流程名称中文化，不强制重命名既有项目快照。
+- `96e8e8a6` / `701880ab`：修复此前错误的“Page 编辑与 PlotGroup 同层左右并排”，改为 Project 顶层 PlotGroup 与独立 Page 参数编辑**相互替代**，移除额外响应式双列，同时添加架构回归测试，不再用 CSS 修补双列。
+- `c0b7f856`：Page 顶栏增加“← 绘图区”明确返回 Project 图表工作区。图窗继续使用 DKDS 标准标题栏、悬浮/停靠和 Unit Action，不更改上游 DKDS。
+- 已验证历史 `dd909979` 的所有 CI（含 Android 模拟器和真实 Electron）success；最新 UI 修改需要以最终对应 SHA 的完整 Core CI 和新截图为准。明确区分 CI、Electron/模拟器验收与 OPPO 真机/真实 4200A 调试。PR #18 仍是 draft，正式 stable 未被覆盖。用户之前认可的网页版参数 UI 本轮未重绘。

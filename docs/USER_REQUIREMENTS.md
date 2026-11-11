@@ -91,3 +91,9 @@
 
 验收：**仅 DKTS**，不能改动上游 DKDS；图窗布局、图窗标题、手势交互、主题、下拉、悬浮操作必须是实际 DKDS Core PlotView/ScientificPlot/Unit 模板，不得由网页 FS-Pro 独立容器或模拟 SVG 冒充。每个图窗独立选择已获 DKDS Data Center 分配的真实 Artifact，原始数据必须进入 canonical DataTable，具有 TI 响应来源与采集 metadata。图像导出使用 DKDS PlotView，原始 CSV 使用 DKDS IO 和 Data Center 原始列，禁止将抽稀后的图点当原始 CSV，禁止静默截断。硬件采集未打通时不得声称已经入库。
 PR #8 旧宿主分支安全功能应与新 Core 验证一致后由归档记录取代，PR 关闭，原分支保留由用户删除。正式新 Core 的 Vx.y.z+aNNN、APK 签名、回退、热更全部完成真实端到端测试前不得发布替换稳定包。
+
+## 2026-11-11 [R-20261111-006] 当天完成 UI 与中断恢复
+> 继续 今天要完成UI部分
+> ？？？？？？？？？？？？？我等了几个小时，你来一个 消息传输超时。请重试。？ openai 你也太会偷懒了
+
+要求：不能用计划或长时间无结果代替实际开发；消息中断后从 GitHub 真实提交与 CI 恢复，给出实际可检查的 Windows/Android 产物、截图、明确的通过/未通过结论。UI 优先：已接受的 Web 参数表格不重写；Project → Device → Routine → Page 分层；Project 层的 DKDS PlotGroup 独立显示多个真实图窗，点击 Page 才显示全宽参数编辑；Page 编辑可显式返回绘图区。窄屏 PlotView 标题、数据源和导出入口不能挤压裁剪；默认中文，技术缩写保留；严格使用 DKDS Unit/API，DKDS 上游仓库不得修改。未经 Android 真机与实际仪器验证不得声称全面完成。
