@@ -26,8 +26,8 @@ let state={
  devices:[{id:'device-1',name:'MOSFET'}],activeDeviceId:'device-1',
  routines:[{id:'routine-1',deviceId:'device-1',name:'Routine 1'}],activeRoutineId:'routine-1',specs:[],
  pages:[defaults('iv'),defaults('transfer'),defaults('pund')],
- activePage:0,section:'sweep',dataView:'plan',navOpen:false,
- theme:'light',lang:'zh',portsVisible:true
+ activePage:0,section:'sweep',dataView:'plan',navOpen:false,editorOpen:false,
+ theme:'light',lang:'zh',portsVisible:true,frameLayout:'4',frameKinds:['transfer','it','raw']
 };
 try{
  const stored=JSON.parse(localStorage.getItem(STORAGE)||sessionStorage.getItem(STORAGE)||'null');
@@ -36,6 +36,10 @@ try{
   if(pages.length){state={...state,...stored,pages};state.activePage=Math.max(0,Math.min(pages.length-1,Number(state.activePage)||0));}
  }
 }catch{}
+// Always start with the project graph; previous selected Page is not auto-opened.
+state.editorOpen=false;
+if(!['1','2','4'].includes(String(state.frameLayout)))state.frameLayout='4';
+if(!Array.isArray(state.frameKinds)||state.frameKinds.length!==3)state.frameKinds=['transfer','it','raw'];
 if(!Array.isArray(state.devices)||!state.devices.length||state.devices.length>100)
  state.devices=[{id:'device-1',name:'MOSFET'}];
 if(!Array.isArray(state.routines)||!state.routines.length||state.routines.length>100)
@@ -84,19 +88,20 @@ function tree(){
   title.addEventListener('click',()=>{
    state.activeRoutineId=routine.id;
    const index=state.pages.findIndex(p=>p.routineId===routine.id);
-   if(index<0)addPage('iv',routine.id);
-   else{state.activePage=index;renderPage();save();closeNav();}
+   if(index<0){addPage('iv',routine.id);state.editorOpen=false;renderPage();save();}
+   else{state.activePage=index;state.editorOpen=false;renderPage();save();closeNav();}
   });
   block.append(title);
   const children=document.createElement('div');children.className='routine-pages';
   state.pages.forEach((page,i)=>{
    if(page.routineId!==routine.id)return;
    const b=document.createElement('button');b.type='button';
-   b.className='page-tree'+(i===state.activePage?' active':'');
+   b.className='page-tree'+(state.editorOpen&&i===state.activePage?' active':'');
    b.dataset.pageIndex=String(i);
    b.innerHTML='<span>▧</span><strong>'+esc(page.name||KINDS[page.kind][0])+'</strong>';
    b.addEventListener('click',()=>{
-    state.activePage=i;state.activeRoutineId=routine.id;renderPage();save();closeNav();
+    state.activePage=i;state.activeRoutineId=routine.id;state.editorOpen=true;
+    renderPage();save();closeNav();
    });
    children.append(b);
   });
@@ -112,7 +117,7 @@ function tree(){
    b.dataset.specId=spec.id;b.innerHTML='<span>◇</span>'+esc(spec.name);
    b.addEventListener('click',()=>{
     current().associateSpec=true;current().associateSpecId=spec.id;
-    state.section='spec';renderPage();closeNav();save();
+    state.section='spec';state.editorOpen=true;renderPage();closeNav();save();
    });
    target.append(b);
   }
@@ -191,6 +196,9 @@ function rows(kind){
  }
 }
 function renderPage(){
+ // The graph is an independent child of the project workspace.
+ // A selected Page exposes its inspector without changing shared chart ownership.
+ $('main-pane').classList.toggle('editor-open',state.editorOpen===true);
  const page=ensureShape(current());
  state.activeRoutineId=page.routineId;
  const routine=state.routines.find(r=>r.id===page.routineId);
@@ -223,7 +231,7 @@ function renderPage(){
  picker.value=linked?page.associateSpecId:'';
  picker.disabled=!allowedSpecs.length;
  tree();ports();renderSegments('x');renderSegments('p');terminalSettings();rows('target');rows('var');
- openSection(state.section);openDataView(state.dataView);updatePlan(false);
+ openSection(state.section);openDataView(state.dataView);updatePlan(false);updateFrameWindows();
 }
 function openSection(section){
  if(!['info','sweep','target','strategy','limits','variables','spec'].includes(section))section='sweep';
@@ -231,6 +239,17 @@ function openSection(section){
  document.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==section);
  document.querySelectorAll('[data-section]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.section===section)));
  save();
+}
+function updateFrameWindows(){
+ $('frame-grid').dataset.layout=String(state.frameLayout);
+ $('frame-layout').value=String(state.frameLayout);
+ for(const card of document.querySelectorAll('[data-frame-kind]')){
+  const i=Number(card.dataset.frameKind)-2;
+  card.value=state.frameKinds[i];
+  // A static web preview never constructs a substitute for instrument raw samples.
+  const empty=document.querySelector('[data-empty-frame="'+(i+2)+'"]');
+  if(empty)empty.textContent=card.value==='raw'?'暂无原始采样数据':'暂无原始测量数据';
+ }
 }
 function openDataView(view){
  if(!['plan','graph','raw'].includes(view))view='plan';
@@ -330,7 +349,7 @@ function addPage(kind,routineId=state.activeRoutineId){
  const routine=state.routines.find(r=>r.id===routineId);
  const page=defaults(kind);page.routineId=routineId;state.activeDeviceId=routine.deviceId;
  state.pages.push(page);state.activePage=state.pages.length-1;
- state.activeRoutineId=routineId;state.section='sweep';
+ state.activeRoutineId=routineId;state.section='sweep';state.editorOpen=true;
  renderPage();save();closeNav();status('已添加 '+page.name+' Page');
 }
 function addRoutine(deviceId=state.activeDeviceId){
@@ -355,14 +374,14 @@ function selectDevice(deviceId){
  const ids=new Set(state.routines.filter(r=>r.deviceId===deviceId).map(r=>r.id));
  const index=state.pages.findIndex(p=>ids.has(p.routineId));
  if(index<0)addRoutine(deviceId);
- else{state.activePage=index;renderPage();save();closeNav();}
+ else{state.activePage=index;state.editorOpen=false;renderPage();save();closeNav();}
 }
 function addSpec(){
  if(state.specs.length>=100){status('最多 100 个 Spec');return;}
  const spec={id:'spec-'+Math.random().toString(36).slice(2,9),deviceId:state.activeDeviceId,
   name:'Spec '+(state.specs.length+1)};
  state.specs.push(spec);current().associateSpec=true;
- current().associateSpecId=spec.id;state.section='spec';
+ current().associateSpecId=spec.id;state.section='spec';state.editorOpen=true;
  renderPage();save();status('已新建并关联 '+spec.name);
 }
 function openPicker(){$('choose-kind').showModal();}
@@ -435,6 +454,13 @@ document.addEventListener('input',event=>{
 });
 document.addEventListener('change',event=>{
  const t=event.target;
+ if(t.id==='frame-layout'){
+  state.frameLayout=t.value;updateFrameWindows();save();return;
+ }
+ if(t.dataset.frameKind){
+  state.frameKinds[Number(t.dataset.frameKind)-2]=t.value;
+  updateFrameWindows();save();return;
+ }
  if(t.dataset.port){
   const role=t.dataset.port,p=current(),used=roles.filter(r=>r!==role&&p.terminals[r]===t.value);
   if(t.value!=='None'&&t.value!=='GNDU'&&used.length){
@@ -465,6 +491,9 @@ for(const [kind,[name]] of Object.entries(KINDS)){
  b.addEventListener('click',()=>$('choose-kind').close());$('choose-grid').append(b);
 }
 $('export-project').addEventListener('click',doExport);
+$('project-overview').addEventListener('click',()=>{
+ state.editorOpen=false;renderPage();save();closeNav();status('工程数据图');
+});
 $('ports-toggle').addEventListener('click',()=>{state.portsVisible=!state.portsVisible;ports();save();});
 $('theme-toggle').addEventListener('click',()=>{
  state.theme=state.theme==='light'?'dark':'light';
@@ -493,7 +522,9 @@ $('var-add').addEventListener('click',()=>{
 window.DKTSFSProDemo=Object.freeze({
  preview:true,instrumentOutput:false,syntheticRawData:false,
  snapshot:()=>structuredClone(state),calculate:()=>PLAN.calculate(current()),
- createPage:addPage,createRoutine:addRoutine,createDevice:addDevice,selectDevice,createSpec:addSpec
+ createPage:addPage,createRoutine:addRoutine,createDevice:addDevice,selectDevice,createSpec:addSpec,
+ showProject:()=>{state.editorOpen=false;renderPage();},
+ openPage:index=>{if(!state.pages[index])throw Error('Page not found');state.activePage=index;state.editorOpen=true;renderPage();}
 });
 document.body.dataset.theme=state.theme;
 renderPage();

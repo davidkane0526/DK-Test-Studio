@@ -30,7 +30,24 @@ async function inspect(browser,url,width,height,mobile){
  assert.equal(await page.locator('#start').isDisabled(),true);
  assert.equal(await page.locator('#p-fields').isHidden(),true);
  assert.match(await page.locator('#plan-summary').innerText(),/21 点/);
+ assert.equal(await page.locator('#editor-pane').isVisible(),false,'Project home must not show test parameters');
+ assert.equal(await page.locator('#data-pane').isVisible(),true,'Project graph must remain visible');
+ assert.equal(await page.locator('.frame-card').count(),4,'Project workspace owns 4 independent frames');
+ assert.equal(await page.locator('.frame-card:visible').count(),4);
+ await page.locator('#frame-layout').selectOption('2');
+ assert.equal(await page.locator('.frame-card:visible').count(),2,'2-window layout');
+ await page.locator('#frame-layout').selectOption('1');
+ assert.equal(await page.locator('.frame-card:visible').count(),1,'single-window layout');
+ await page.locator('#frame-layout').selectOption('4');
+ await page.locator('[data-frame-kind="2"]').selectOption('iv');
+ assert.equal((await page.evaluate(()=>window.DKTSFSProDemo.snapshot())).frameKinds[0],'iv');
+
+ assert.equal(await page.evaluate(()=>document.getElementById('data-pane').parentElement.id),'main-pane','Graph must be owned by project workspace');
  await page.screenshot({path:path.join(shots,mobile?'tablet-fspro-home.png':'desktop-fspro-home.png'),fullPage:true});
+ if(mobile)await page.locator('#nav-toggle').click();
+ await page.locator('.page-tree').first().click();
+ assert.equal(await page.locator('#editor-pane').isVisible(),true,'Clicking a test Page opens its parameters');
+ assert.equal(await page.locator('#data-pane').isVisible(),true,'Graph must not disappear when editor opens');
  await page.locator('#p-enabled').check();
  assert.equal(await page.locator('#p-fields').isVisible(),true);
  assert.match(await page.locator('#plan-summary').innerText(),/Psweep/);
@@ -76,6 +93,10 @@ async function inspect(browser,url,width,height,mobile){
  assert.equal(await page.locator('.routine-heading').count(),2);
  assert.match(await page.locator('#breadcrumb').innerText(),/MOSFET/);
  await page.screenshot({path:path.join(shots,mobile?'tablet-fspro-project.png':'desktop-fspro-project.png'),fullPage:true});
+ if(mobile)await page.locator('#nav-toggle').click();
+ await page.locator('#project-overview').click();
+ assert.equal(await page.locator('#editor-pane').isVisible(),false,'Project overview must hide parameters');
+ assert.equal(await page.locator('#data-pane').isVisible(),true,'Project overview must show graph');
  if(mobile){await page.locator('#nav-toggle').click();assert.equal(await page.locator('.shell.nav-open').count(),1);
    await page.screenshot({path:path.join(shots,'tablet-fspro-navigation.png'),fullPage:true});}
  assert.deepEqual(errors,[],'Browser errors '+errors.join(' | '));

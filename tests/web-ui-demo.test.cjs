@@ -12,7 +12,7 @@ test('Pages publishes FS-Pro Edit Page hierarchy, never rejected legacy cards',(
  const out=buildWebDemo(path.join(root,'dist','web-ui-demo-test'));
  const html=fs.readFileSync(path.join(out.out,'index.html'),'utf8');
  for(const expected of ['Project Explorer','EDIT PAGE','Routine','Xsweep','Psweep',
-   'Terminal Settings','Target','Strategy','Limits','Page Var','Associate Spec','Data / Graph'])
+   'Terminal Settings','Target','Strategy','Limits','Page Var','Associate Spec','绘图区','frame-grid'])
   assert.ok(html.includes(expected),expected);
  assert.doesNotMatch(html,/test-type-card|demo-adapter\.js|src="\/app\.js"/);
  assert.match(html,/src="\.\/plan\.js"/);
@@ -102,4 +102,36 @@ test('FS-Pro Device owns Routines/Specs and exports device associations',()=>{
  for(const marker of ['id="new-device"','id="device-picker"'])assert.ok(html.includes(marker));
  for(const marker of ['function addDevice(','r.deviceId===state.activeDeviceId','s.deviceId===state.activeDeviceId','devices:state.devices,routines:state.routines'])assert.ok(app.includes(marker),marker);
  assert.ok(!app.includes("'Research Project / MOSFET / '"));
+});
+
+test('results graph is a project-level sibling, test parameters are opt-in',()=>{
+ const html=fs.readFileSync(path.join(root,'web/fspro-workbench/index.html'),'utf8');
+ const css=fs.readFileSync(path.join(root,'web/fspro-workbench/styles.css'),'utf8');
+ const app=fs.readFileSync(path.join(root,'web/fspro-workbench/app.js'),'utf8');
+ assert.match(html,/<main class="main-pane" id="main-pane"/);
+ assert.match(html,/<section class="editor-pane" id="editor-pane"/);
+ assert.match(html,/<aside class="data-pane" id="data-pane"/);
+ assert.ok(html.indexOf('id="editor-pane"')<html.indexOf('id="data-pane"'));
+ assert.doesNotMatch(html,/class="work-split"/);
+ assert.match(html,/id="project-overview"/);
+ assert.match(css,/\.main-pane:not\(\.editor-open\)>\.editor-pane\{display:none!important\}/);
+ assert.match(app,/state\.editorOpen=false;/);
+ assert.match(app,/state\.editorOpen=true;/);
+ assert.match(app,/\$\('main-pane'\)\.classList\.toggle\('editor-open'/);
+});
+
+test('four graph subwindows are independent project children and no synthetic samples are injected',()=>{
+ const html=fs.readFileSync(path.join(root,'web/fspro-workbench/index.html'),'utf8');
+ const app=fs.readFileSync(path.join(root,'web/fspro-workbench/app.js'),'utf8');
+ const css=fs.readFileSync(path.join(root,'web/fspro-workbench/styles.css'),'utf8');
+ assert.equal((html.match(/class="frame-card"/g)||[]).length,4);
+ assert.match(html,/id="frame-layout"/);
+ assert.match(html,/data-frame-kind="2"/);
+ assert.match(html,/data-frame-kind="3"/);
+ assert.match(html,/data-frame-kind="4"/);
+ assert.ok(html.indexOf('id="frame-grid"')>html.indexOf('id="editor-pane"'));
+ assert.match(css,/\.frame-grid\[data-layout="1"\]/);
+ assert.match(css,/\.frame-grid\[data-layout="2"\]/);
+ assert.match(app,/function updateFrameWindows/);
+ assert.match(app,/syntheticRawData:false/);
 });

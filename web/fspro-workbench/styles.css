@@ -86,3 +86,67 @@ dialog{border:1px solid var(--dkui-control-border);background:var(--dkui-surface
 
 /* FS-Pro project Device selection; does not change parameter inspector ownership. */
 .tree-device{gap:5px}.tree-device label{font-size:11px}.tree-device select{height:26px;flex:1;min-width:0;font-size:11px}
+
+/* R-20261111-003: graph belongs to the project workspace, not Edit Page.
+   Preserve the accepted workbench look when a Page is explicitly selected. */
+.tree-root{width:100%;text-align:left;border:0;background:transparent;color:var(--dkui-text);font:inherit;cursor:pointer}
+.tree-root:hover{background:var(--dkui-accent-soft);border-radius:4px}
+.main-pane.editor-open{
+  display:grid;
+  grid-template-columns:minmax(500px,1.25fr) minmax(310px,.88fr);
+  grid-template-rows:auto auto auto minmax(0,1fr);
+  min-height:0;
+}
+.main-pane.editor-open>.page-header,
+.main-pane.editor-open>.terminal-strip,
+.main-pane.editor-open>.page-tabs{grid-column:1 / -1;min-width:0}
+.main-pane.editor-open>.editor-pane{grid-column:1;grid-row:4;min-height:0}
+.main-pane.editor-open>.data-pane{grid-column:2;grid-row:4;min-height:0}
+.main-pane:not(.editor-open)>.page-header,
+.main-pane:not(.editor-open)>.terminal-strip,
+.main-pane:not(.editor-open)>.page-tabs,
+.main-pane:not(.editor-open)>.editor-pane{display:none!important}
+.main-pane:not(.editor-open)>.data-pane{flex:1;border-left:0;min-height:0}
+@media(max-width:1250px){
+ .main-pane.editor-open{grid-template-columns:minmax(420px,1.15fr) minmax(275px,.85fr)}
+}
+@media(max-width:990px){
+ .main-pane.editor-open{display:flex;flex-direction:column;overflow:auto}
+ .main-pane.editor-open>.page-header{order:-4;flex:0 0 auto}
+ .main-pane.editor-open>.terminal-strip{order:-3;flex:0 0 auto}
+ .main-pane.editor-open>.page-tabs{order:-2;flex:0 0 auto}
+ .main-pane.editor-open>.data-pane{order:-1;flex:0 0 auto;min-height:340px;max-height:52dvh;border-left:0;border-bottom:1px solid var(--dkui-divider)}
+ .main-pane.editor-open>.editor-pane{order:0;flex:1;overflow:auto;min-height:210px}
+ .main-pane:not(.editor-open)>.data-pane{min-height:0;border-top:0}
+}
+
+/* In short tablet landscape, avoid the project-level SVG being clipped by the
+   fixed-height DKDS-style result summary. No change to the accepted Page editor. */
+@media(max-width:850px) and (max-height:620px){
+ .main-pane:not(.editor-open) #plan-plot{
+  height:clamp(160px,calc(100dvh - 330px),340px);
+  max-height:340px;
+ }
+}
+
+/* Project-level independent graph frames; existing parameter controls unchanged. */
+.frame-layout-picker{display:flex;align-items:center;gap:7px;color:var(--dkui-text-soft);white-space:nowrap}
+.frame-layout-picker select{height:27px;min-width:88px}
+.frame-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(210px,1fr));flex:1;min-height:0;gap:9px;padding:9px;overflow:auto;background:var(--dkui-canvas)}
+.frame-grid[data-layout="1"]{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(250px,1fr)}
+.frame-grid[data-layout="2"]{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:minmax(250px,1fr)}
+.frame-grid[data-layout="1"] .frame-card:nth-child(n+2),.frame-grid[data-layout="2"] .frame-card:nth-child(n+3){display:none!important}
+.frame-card{display:flex;flex-direction:column;min-width:0;min-height:190px;border:1px solid var(--dkui-divider);border-radius:7px;overflow:hidden;background:var(--dkui-surface)}
+.frame-head{display:flex;justify-content:space-between;align-items:center;gap:8px;height:36px;min-height:36px;padding:0 10px;border-bottom:1px solid var(--dkui-divider);background:var(--dkui-surface-soft)}
+.frame-head strong{font-size:11.5px}.frame-head label{display:flex;align-items:center;gap:5px;color:var(--dkui-text-soft);white-space:nowrap}
+.frame-head select{height:25px;min-width:84px;font-size:10.5px}
+.frame-body{display:flex;flex:1;min-height:0;overflow:auto}
+.frame-body>.data-view{flex:1;min-width:0;padding:8px;overflow:auto}
+.frame-body #plan-plot{height:auto;min-height:100px;max-height:210px;width:100%}
+.frame-body #measurement-plot{height:170px;min-height:130px}
+.frame-empty{margin:auto;padding:16px;text-align:center;color:var(--dkui-muted);font-size:11px}
+.main-pane.editor-open .frame-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(4,minmax(180px,auto))}
+.main-pane.editor-open .frame-grid[data-layout="1"]{grid-template-rows:minmax(180px,1fr)}
+.main-pane.editor-open .frame-grid[data-layout="2"]{grid-template-rows:repeat(2,minmax(180px,1fr))}
+@media(max-width:990px){.frame-grid,.frame-grid[data-layout="2"]{grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(4,minmax(200px,auto))}.frame-grid[data-layout="2"]{grid-template-rows:repeat(2,minmax(200px,auto))}.frame-grid[data-layout="1"]{grid-template-rows:minmax(200px,1fr)}}
+@media(max-width:850px){.frame-grid{gap:7px;padding:7px}.data-bottom{flex:0 0 65px;padding:5px 9px}.data-bottom .run-stats{padding-top:4px}}
