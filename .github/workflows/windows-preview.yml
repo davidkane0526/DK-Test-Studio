@@ -97,7 +97,10 @@ jobs:
           retention-days: 30
       - name: Publish only the verified Core Preview, never a stable update
         env:
-          GH_TOKEN: ${{ github.token }}
+          # Optional fine-grained token scoped to DK-Test-Studio Releases.
+          # GitHub's inherited workflow_run GITHUB_TOKEN may be denied 403
+          # even though Actions artifacts remain downloadable.
+          GH_TOKEN: ${{ secrets.DKTS_RELEASE_TOKEN || github.token }}
           CORE_SHA: ${{ steps.identity.outputs.core_sha }}
           UI_REV: ${{ steps.identity.outputs.ui_revision }}
           SIGNING_STATUS: ${{ steps.identity.outputs.android_signing }}

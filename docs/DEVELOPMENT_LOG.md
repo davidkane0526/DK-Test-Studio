@@ -288,3 +288,5 @@
 - 本次仅修改 DKTS 仓库；没有提交任何 DKDS 上游文件。剩余验收：签名步骤和最终固定签名 Release、Core 热更新与完整升级回退、Android OPPO 真机界面、4200A KXCI 输出安全与 Data Center 完整原始数据链路。
 
 - 2026-11-12 Core 主线完整发行触发纠偏：取消只针对部分路径的 `push.paths` 过滤器，确保 DKTS `main` 每一次提交都会触发真正 DKDS Core 的 Windows/Android 构建；保留 UI 修订 `aNNN` 与 Core 发行相同 SHA 的校验。变更和回归断言只在 DKTS，DKDS 上游未动。此前未触发 Core 的旧提交不会被冒称已有对应完整包；新规则从此次提交起生效。
+
+- 2026-11-12 自动发行授权策略：连续 Core 发布器工作流的源码构建/发布前置工件检查已通过，但 `workflow_run` 下用 `GITHUB_TOKEN` 执行 `gh release create` 再次遇到 HTTP 403（如 [#43064728361](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43064728361)）。新增可选的 `secrets.DKTS_RELEASE_TOKEN` 作为**仅发布步骤**使用的授权覆盖；未配置时仍用 GitHub 内置 token，失败不伪报成功，已验证的 EXE/APK/SHA256 仍保存于 Actions Artifacts。只有具备该仓库 Release 写权限的凭据才可能解决服务器侧拒绝；未实际配置/验收前不宣称 403 已解决。

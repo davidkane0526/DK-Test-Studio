@@ -58,6 +58,16 @@ test('every DKTS main push builds genuine DKDS Core Windows/Android packages, no
  assert.match(publisher,/DKTS DKDS-Framework Contract \(read-only upstream\)/);
 });
 
+test('Core preview publisher supports scoped Release token fallback without exposing secrets to DKDS',()=>{
+ const release=read('.github/workflows/windows-preview.yml');
+ const core=read('.github/workflows/dkts-framework-contract.yml');
+ const publish=release.slice(release.indexOf('- name: Publish only the verified Core Preview'));
+ assert.match(publish,/secrets\.DKTS_RELEASE_TOKEN \|\| github\.token/);
+ assert.match(publish,/gh release create/);
+ assert.match(release,/Retain verified EXE, APK, SHA256 and provenance even if Release permission is denied/);
+ assert.doesNotMatch(core,/DKTS_RELEASE_TOKEN/,'signing and untrusted upstream Core build must not receive Release token');
+});
+
 test('Core publisher checks out DKTS before downloading artifacts to avoid deleting built EXE/APK',()=>{
  const flow=read('.github/workflows/windows-preview.yml');
  const checkout=flow.indexOf('name: Checkout trusted DKTS fingerprint and source identity');
