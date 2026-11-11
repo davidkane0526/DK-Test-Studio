@@ -68,6 +68,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      })(),
      nativePlotGroupCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-plot-group="plot-group-v2"]').length,
      nativePlotViewCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-plot-view="plot-view-v2"]').length,
+     nativePlotHeaderCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-template="plot-header-v2"]').length,
      keptDataCenter:ids.includes('builtin.data-center'),
      keptConnectivity:ids.includes('builtin.connectivity-center'),
      keptTheme:ids.some(x=>x.startsWith('com.dkds.theme.')),
@@ -94,7 +95,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        state.activeActivity!=='dkts-keithley-4200'||state.neutralMainVisible||
        !state.hasNativePageTabs||!state.hasTerminalEditor||
        !state.hasDeviceNavigation||state.hasRedundant4200Header||
-       state.nativePlotGroupCount!==1||state.nativePlotViewCount<4)return;
+       state.nativePlotGroupCount!==1||state.nativePlotHeaderCount<4)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();

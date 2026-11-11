@@ -241,7 +241,7 @@
     function refreshFrameSourceFields(){
    if(!frameSourceHosts.length)return;
    const available=sources();
-   const options=[{value:'',label:'全部已分配数据'},
+   const options=[{value:'',label:'全部数据'},
     ...available.map(item=>({value:String(item.artifactId),label:String(item.name||item.artifactId)}))];
    for(let i=0;i<frameSourceHosts.length;i++){
     const host=frameSourceHosts[i];
@@ -249,7 +249,8 @@
     if(frameSelections[i]&&!available.some(item=>item.artifactId===frameSelections[i]))
      frameSelections[i]='';
     host.replaceChildren();
-    units.field.create(host,{kind:'select',label:'数据源',value:frameSelections[i],
+    units.field.create(host,{kind:'select',label:'数据源',controlOnly:true,
+     attributes:{'aria-label':'图窗 '+(i+1)+' 数据源','title':'数据源'},value:frameSelections[i],
      options,onChange:e=>saveGraphSetting(i,'source',e.target.value||'')});
    }
   }
@@ -540,7 +541,8 @@
    variant:'content',title:'绘图区',actionHost:true});
   const frameTools=units.layout.create(plotsHeading.actions,{variant:'row-wrap'});
   syncGraphSettings();
-  units.field.create(frameTools,{kind:'select',label:'图窗布局',value:frameLayout,
+  units.field.create(frameTools,{kind:'select',label:'图窗布局',controlOnly:true,
+    attributes:{'aria-label':'图窗布局','title':'图窗布局'},value:frameLayout,
    options:[{value:'1',label:'单窗口'},{value:'2',label:'双窗口'},
     {value:'4',label:'四宫格'}],
    onChange:e=>saveGraphSetting(-1,'count',e.target.value)});
@@ -556,13 +558,14 @@
    const graphicHeader=units.header.create(graphic.body,{kind:'plot',
     variant:'plot',title:frameTitles[index],actionHost:true});
    const typeHost=units.layout.create(graphicHeader.actions,{variant:'identity'});
-   units.field.create(typeHost,{kind:'select',label:'显示',value:frameKinds[index],
+   units.field.create(typeHost,{kind:'select',label:'显示',controlOnly:true,
+     attributes:{'aria-label':'图窗 '+(index+1)+' 显示内容','title':'显示内容'},value:frameKinds[index],
     options:FRAME_OPTIONS,onChange:e=>saveGraphSetting(index,'kind',e.target.value)});
    const sourceHost=units.layout.create(graphicHeader.actions,{variant:'identity'});
    frameSourceHosts.push(sourceHost);
    const exportControls=units.layout.create(graphicHeader.actions,{variant:'identity'});
    units.action.create(exportControls,{id:'dkts-export-original-'+(index+1),
-    label:'导出原始 CSV',variant:'quiet',
+    label:'CSV',title:'导出完整原始 CSV',variant:'quiet',direct:true,
     onInvoke:()=>exportOriginalCsv(index).catch(error=>
      ctx.status.set('原始数据导出失败：'+String(error.message||error)))});
    const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
