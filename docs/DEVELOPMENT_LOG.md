@@ -180,3 +180,7 @@
 - 下载并人工检查 Actions Core Preview PR58 工件中的 1200×760 与 744×600 真 Electron 截图及 report.json。证实启动 DKTS 真 DKDS Host、设备选择、七项 Page tab、Terminal 四列都存在，且状态栏/主题/数据中心/通信存活。截图仍显导航挤压、设备标题重复、Routine 与 Page 双选中等视觉问题；因此不能把“截图非空”当作 FS-Pro UI 1:1 完成。
 - 在 DKTS 原生插件中只移除 Project Header 对已显示在 Device selector 中的设备名重复提示，并将 Routine 作为不高亮的祖先节点，仅 Page 选中显示焦点。保留所有 DKDS Unit API，不增加自制 CSS、点击阴影或独立网页壳。
 - Core mock 补充重复元信息/双重选中回归断言；变化须以后续真 Windows/Android 截图再次核对。DKDS 上游未修改。
+
+## 2026-11-11 / Android 16 启动脚本 POSIX Shell 兼容修复
+- PR58 Android Core Preview 在双 ABI 编译及 API36 模拟器启动后失败，GitHub Actions 日志明确报 `/usr/bin/sh: set: Illegal option -o pipefail`。该 emulator-runner 的 `script` 默认用 `/bin/sh` 而不是 Bash，故尚未安装 APK，不能把失败误认为应用崩溃。
+- 将该脚本的 `set -euo pipefail` 改成 POSIX 兼容的 `set -eu`，保留后续 APK 安装、Manifest Activity 启动、进程、截图和崩溃检查。其他安全逻辑、仪器输出和 DKDS 均未修改。

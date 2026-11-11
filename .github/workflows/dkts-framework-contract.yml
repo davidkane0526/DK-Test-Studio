@@ -248,7 +248,7 @@ jobs:
           ram-size: 3072M
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             apk=dist/dkts-framework-staging/mobile/android/app/build/outputs/apk/debug/app-debug.apk
             package=studio.dk.test.corepreview
             test -s "$apk"
