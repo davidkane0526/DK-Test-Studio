@@ -2,14 +2,22 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
 const read=p=>fs.readFileSync(path.resolve(__dirname,'..',p),'utf8');
-test('DKTS standalone V/a Release contains no ambiguous DKDS external plugin',()=>{
+test('Core mainline release contains only isolated native preview packages and no external plugin override',()=>{
  const fast=read('.github/workflows/ui-update.yml');
  const full=read('.github/workflows/windows-preview.yml');
- assert.match(fast,/files=\(dist\/DKTS-UI-bundle\.json\)/);
- assert.match(full,/release -type f \| wc -l\)" -eq 4/);
- assert.match(full,/DKTS standalone complete package/);
- for(const f of [fast,full]){
-  assert.doesNotMatch(f,/release\/plugin\/\*\.dkplugin|files=\([^\n]*DKTS-4200A-(?:legacy|native)/);
+ const core=read('.github/workflows/dkts-framework-contract.yml');
+ assert.match(fast,/hotUpdateAvailable/);
+ assert.doesNotMatch(fast,/files=\(dist\/DKTS-UI-bundle\.json\)/);
+ assert.match(full,/DKTS-Core-Preview-Windows/);
+ assert.match(full,/DKTS-Core-Preview-Android-TEST-SIGNED/);
+ assert.match(full,/SHA256SUMS\.txt/);
+ assert.match(full,/gh run download/);
+ assert.match(full,/--prerelease/);
+ assert.match(full,/NOT a production in-place upgrade/);
+ assert.match(core,/Actual DKDS Core Electron boot/);
+ assert.match(core,/studio\.dk\.test\.corepreview/);
+ for(const src of [fast,full]){
+  assert.doesNotMatch(src,/release\/plugin\/\*\.dkplugin|files=\([^\n]*DKTS-4200A-(?:legacy|native)/);
  }
  const manual=read('.github/workflows/dkds-native-core-plugin.yml');
  assert.match(manual,/github.event_name == 'workflow_dispatch'/);
