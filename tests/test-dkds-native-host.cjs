@@ -14,7 +14,7 @@ vm.runInNewContext(fs.readFileSync(dir+'/model.js','utf8'),sandbox,{filename:'mo
 vm.runInNewContext(fs.readFileSync(dir+'/plugin.js','utf8'),sandbox,{filename:'plugin.js'});
 assert.equal(definitions.length,1);
 const record={actions:[],fields:[],panels:[],plots:[],plotViews:[],headers:[],
- listItems:[],popovers:[],closedPads:0,top:null,activity:null,composed:null,disposals:0,captures:0,status:[],pageHeaders:0};
+ listItems:[],popovers:[],closedPads:0,top:null,activity:null,composed:null,disposals:0,captures:0,status:[],pageHeaders:0,fullReads:0,exports:[]};
 const el=()=>({children:[],textContent:'',replaceChildren(){this.children=[];}});
 const units={
  pageHeader:{create:()=>{record.pageHeaders++;return {actions:el()}}},page:{create:()=>({element:el()})},
@@ -83,14 +83,14 @@ const units={
 };
 let state;
 const artifacts=[{artifactId:'a1',name:'Raw IV'}];
-const table={name:'Raw IV',columns:[
+const table={kind:'data.table',rowCount:3,name:'Raw IV',columns:[
  {id:'v',key:'VdSet',role:'x',values:[0,0.1,0.2]},
  {id:'i',key:'Id',role:'y',values:[1e-9,2e-9,3e-9]}
 ]};
 const reads=[];
 let revision=1;
 const artifactStore={
- get:()=>{throw Error('forbidden full Artifact copy')},
+ get:id=>{record.fullReads++;return id==='a1'?table:null;},
  artifactRevision:()=>revision,
  columnMetadata:id=>id==='a1'?table.columns.map(x=>({
    id:x.id,key:x.key,role:x.role,length:x.values.length
@@ -109,7 +109,10 @@ const ctx={
  status:{set:text=>record.status.push(text)},
  workspace:{openPage:id=>record.opened=id},
  events:{on:(kind,cb)=>{record.onEvent={kind,cb};return()=>record.disposals++}},
- data:{sources:{list:()=>artifacts},artifacts:artifactStore},
+ io:{saveCsv:async(rows,name)=>{record.exports.push({rows,name});return name;}},
+ data:{sources:{list:()=>artifacts},artifacts:artifactStore,
+  model:{rows:table=>table.columns[0].values.map((_,i)=>Object.fromEntries(
+   table.columns.map(col=>[col.key,col.values[i]])))}},
  ui:{unitTemplates:units,
   activities:{add:spec=>{record.activity=spec}},
   pages:{add:()=>el()},
@@ -151,6 +154,7 @@ const ctx={
  assert.equal(record.plotViews[0].spec.csv,false,
    'do not export downsampled chart points as instrument original CSV');
  assert.equal(record.plots[0].getCurves().length,1,'reads canonical DKDS artifact');
+ assert.equal(record.fullReads,0,'plot never materializes full raw Artifact');
  assert.equal(record.plots[0].getCurves()[0].points.length,3);
  assert.equal(reads.length,2,'first plot reads just two bounded data columns');
  record.plots[0].getCurves();
@@ -159,6 +163,14 @@ const ctx={
  record.plots[0].getCurves();
  assert.equal(reads.length,4,'Artifact revision change invalidates the chart cache');
  assert.ok(reads.every(r=>r.limit<=65536));
+ const exportButton=record.actions.find(x=>x.id==='dkts-export-original-1');
+ assert.ok(exportButton,'export runs via DKDS unit action');
+ await exportButton.onInvoke();
+ assert.equal(record.exports.length,1,'raw data exported only through DKDS IO');
+ assert.equal(record.exports[0].rows.length,3);
+ assert.deepEqual(record.exports[0].rows[2],{VdSet:0.2,Id:3e-9});
+ assert.match(record.exports[0].name,/DKTS_4200A_Raw_IV.csv/);
+ assert.equal(record.fullReads,1,'only explicit export requests full canonical Artifact');
  const map=record.fields.find(x=>x.spec.label==='D 端口');
  assert.ok(map,'port assignment is a Core field');
  map.spec.onChange({target:{value:'SMU1'}});
