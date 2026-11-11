@@ -106,7 +106,7 @@ assert.equal(api.visible(orig.pages[0]).length,0,'None terminals never appear in
 // Native FS-Pro Page tabs store real validated project data.
 const renamed=api.editPage(orig,{name:'Neuromorphic I–V',note:'Sweep protocol'});
 assert.equal(renamed.pages[0].name,'Neuromorphic I–V');
-assert.equal(orig.pages[0].name,'I–V Sweep','metadata edit is immutable');
+assert.equal(orig.pages[0].name,'I–V 扫描','metadata edit is immutable');
 assert.throws(()=>api.editPage(orig,{name:''}),/Invalid Page name/);
 assert.throws(()=>api.editPage(orig,{name:'x'.repeat(65)}),/Invalid Page name/);
 const target=api.editTarget(orig,{logical:'G',quantity:'Voltage'});

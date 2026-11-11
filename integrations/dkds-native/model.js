@@ -1,16 +1,16 @@
 (() => {
  'use strict';
  const KINDS=Object.freeze([
-  {id:'iv',label:'I–V Sweep',testType:'DC'},
-  {id:'transfer',label:'Transfer Sweep',testType:'DC'},
-  {id:'output',label:'Output Sweep',testType:'DC'},
+  {id:'iv',label:'I–V 扫描',testType:'DC'},
+  {id:'transfer',label:'转移特性',testType:'DC'},
+  {id:'output',label:'输出特性',testType:'DC'},
   {id:'pund',label:'PUND',testType:'Pulse'},
-  {id:'endurance',label:'Endurance',testType:'Cycle'},
-  {id:'retention',label:'Retention',testType:'Time'},
-  {id:'arb',label:'Arbitrary Waveform',testType:'Pulse'},
-  {id:'time',label:'Time Sweep',testType:'IVT'},
-  {id:'pulse',label:'Pulse Sweep',testType:'Pulse'},
-  {id:'cv',label:'C–V Sweep',testType:'CV'}
+  {id:'endurance',label:'耐久性',testType:'Cycle'},
+  {id:'retention',label:'保持特性',testType:'Time'},
+  {id:'arb',label:'任意波形',testType:'Pulse'},
+  {id:'time',label:'时间扫描',testType:'IVT'},
+  {id:'pulse',label:'脉冲扫描',testType:'Pulse'},
+  {id:'cv',label:'C–V 扫描',testType:'CV'}
  ]);
  const clone=x=>JSON.parse(JSON.stringify(x));
  // Offline scan structure mirrors the nested Xsweep/Psweep programming model.
@@ -126,7 +126,7 @@
  const initial=()=>({schema:1,sequence:1,activeId:'page-1',
   activeDeviceId:'device-1',devices:[{id:'device-1',name:'MOSFET'}],
   activeRoutineId:'routine-1',
-  routines:[{id:'routine-1',deviceId:'device-1',name:'Routine 1'}],
+  routines:[{id:'routine-1',deviceId:'device-1',name:'测试流程 1'}],
   specs:[],pages:[page()],ui:{graphs:{count:4,
    kinds:['iv','transfer','it','raw'],sources:['','','','']}}});
  function validate(state){
@@ -149,7 +149,7 @@
    deviceIds.add(device.id);
   }
   if(!Array.isArray(state.routines)||!state.routines.length)
-   state.routines=[{id:'routine-1',deviceId:state.devices[0].id,name:'Routine 1'}];
+   state.routines=[{id:'routine-1',deviceId:state.devices[0].id,name:'测试流程 1'}];
   if(state.routines.length>100)throw Error('Too many Routines');
   const routineIds=new Set(),routineOwners=new Map();
   for(const routine of state.routines){
@@ -273,7 +273,7 @@
   if(!s.devices.some(d=>d.id===owner))throw Error('Unknown Device');
   const routineId='routine-'+(s.routines.length+1);
   if(s.routines.some(r=>r.id===routineId))throw Error('Duplicate Routine ID');
-  s.routines.push({id:routineId,deviceId:owner,name:'Routine '+(s.routines.length+1)});
+  s.routines.push({id:routineId,deviceId:owner,name:'测试流程 '+(s.routines.length+1)});
   return add(s,'iv',routineId);
  }
  function addDevice(s){
@@ -281,7 +281,7 @@
   if(s.devices.length>=100)throw Error('Maximum 100 Devices');
   const deviceId='device-'+(s.devices.length+1);
   if(s.devices.some(d=>d.id===deviceId))throw Error('Duplicate Device ID');
-  s.devices.push({id:deviceId,name:'Device '+(s.devices.length+1)});
+  s.devices.push({id:deviceId,name:'器件 '+(s.devices.length+1)});
   return addRoutine(s,deviceId);
  }
  function selectDevice(s,deviceId){

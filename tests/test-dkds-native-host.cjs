@@ -137,7 +137,7 @@ const ctx={
  const projectHeader=record.headers.find(x=>x.title==='项目导航');
  assert.ok(projectHeader);
  assert.equal(projectHeader.meta,'','Device selector already displays selected device; do not repeat it');
- assert.equal(record.listItems.find(x=>x.title==='Routine 1')?.selected,false,
+ assert.equal(record.listItems.find(x=>x.title==='测试流程 1')?.selected,false,
   'only active Page is highlighted; Routine remains an ancestor');
  assert.equal(record.top.layout.prime.length,1);
  assert.equal(record.composed.primary.titlePolicy,'host-only');
@@ -223,7 +223,7 @@ const ctx={
  assert.ok(record.captures>=2,'project history captured on mutation');
  // Navigating back must refresh the current Page's port selector, not reuse
  // the previous Page's stale None/SMU assignment.
- const select=[...record.listItems].reverse().find(x=>x.title==='I–V Sweep');
+ const select=[...record.listItems].reverse().find(x=>x.title==='I–V 扫描');
  select.onInvoke();
  assert.equal(state.activeId,'page-1');
  const lastD=[...record.fields].reverse().find(x=>x.spec.label==='D 端口');
@@ -255,7 +255,7 @@ const ctx={
  assert.equal(state.pages.length,2);
  assert.equal(state.pages[1].routineId,state.routines[1].id);
  assert.equal(state.activeRoutineId,state.routines[1].id);
- const oldRoutine=[...record.listItems].reverse().find(x=>x.title==='Routine 1');
+ const oldRoutine=[...record.listItems].reverse().find(x=>x.title==='测试流程 1');
  assert.ok(oldRoutine,'Routine navigation is registered as a host-owned Unit action');
  oldRoutine.onInvoke();
  assert.equal(state.activeId,'page-1');
