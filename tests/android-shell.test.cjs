@@ -134,10 +134,10 @@ test('Android standalone recovers unregistered USB Ethernet and can use source b
   assert.doesNotMatch(repair,/ip route (?:add|replace) default/);
 });
 
-test('Android standalone hides system status bar while keeping navigation and embedded UI SHA',()=>{
+test('legacy Android shell retains status bar rules while Core Android is built from true DKDS WebView',()=>{
   const activity=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
-  const workflow=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
   const source=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
+  const coreCI=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
   assert.match(activity,/controller\.hide\(WindowInsets\.Type\.statusBars\(\)\)/);
   assert.match(activity,/WindowManager\.LayoutParams\.FLAG_FULLSCREEN/);
   assert.doesNotMatch(activity,/WindowInsets\.Type\.navigationBars\(\)/);
@@ -145,12 +145,10 @@ test('Android standalone hides system status bar while keeping navigation and em
   assert.doesNotMatch(activity,/getWindow\(\)\.setStatusBarColor\(/);
   assert.match(fs.readFileSync(path.join(root,'web/ui/responsive.css'),'utf8'),/body\.dkts-android-shell\{--dkts-titlebar-height:39px;/);
   assert.match(source,/body\.dkts-android-shell \.app-titlebar\{\s*height:calc\(var\(--dkts-title-height\) \+ var\(--dkts-safe-top\)\);[\s\S]*?padding-top:var\(--dkts-safe-top\);/);
-  assert.match(workflow,/Stamp offline Android UI version/);
-  assert.match(workflow,/Stamp offline bundled UI version/);
-  const stamp=fs.readFileSync(path.join(root,'tools/stamp-native-ui.cjs'),'utf8');
-  assert.match(stamp,/dkts-ui-version/);
+  assert.match(coreCI,/Regenerate offline DKDS Core WebView source/);
+  assert.match(coreCI,/Launch real DKDS-derived Android Core Preview on API 36 emulator/);
+  assert.match(coreCI,/studio\.dk\.test\.corepreview/);
 });
-
 test('native Android shell version comes from its actual installed package',()=>{
  const src=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
  const bridge=fs.readFileSync(path.join(root,'android/web/native-client.js'),'utf8');
@@ -199,25 +197,22 @@ test('Android 16 immersive mode is coalesced and cannot repeatedly re-enter from
   assert.doesNotMatch(modern,/setFlags\(/);
 });
 
-test('released Android artifacts use a fixed, pinned certificate and never use CI debug keystore',()=>{
+test('legacy signing identity is pinned, while Core Android debug-signed builds are isolated as previews',()=>{
   const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
-  const workflow=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
+  const coreCI=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
+  const release=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
   const cert=fs.readFileSync(path.join(root,'android/signing-certificate.sha256'),'utf8').trim();
   assert.match(cert,/^[a-f0-9]{64}$/);
   assert.match(gradle,/signingConfigs\s*\{/);
   assert.match(gradle,/stablePreview/);
   assert.match(gradle,/System.getenv\('DKTS_ANDROID_KEYSTORE_PATH'\)/);
   assert.match(gradle,/System.getenv\('DKTS_ANDROID_SIGNING_PASSWORD'\)/);
-  assert.match(workflow,/secrets.DKTS_ANDROID_KEYSTORE_B64/);
-  assert.match(workflow,/secrets.DKTS_ANDROID_SIGNING_PASSWORD/);
-  assert.match(workflow,/:app:assembleRelease/);
-  assert.doesNotMatch(workflow,/:app:assembleDebug/);
-  assert.match(workflow,/apksigner/);
-  assert.match(workflow,/signing-certificate.sha256/);
-  assert.match(workflow,/adb install -r android\/app\/build\/outputs\/apk\/release\/app-release.apk/);
-  assert.match(workflow,/certificate drift detected/);
+  assert.match(coreCI,/studio\.dk\.test\.corepreview/);
+  assert.match(coreCI,/CN=Android Debug/);
+  assert.match(release,/TEST-SIGNED/);
+  assert.match(release,/NOT a production in-place upgrade/);
+  assert.doesNotMatch(release,/secrets\.DKTS_ANDROID_KEYSTORE_B64/);
 });
-
 test('manual UI update op routes through Android updater without arbitrary TCP access',()=>{
   const java=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
   const manager=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/UiUpdateManager.java'),'utf8');
@@ -234,25 +229,29 @@ test('manual UI update op routes through Android updater without arbitrary TCP a
   assert.match(client,/uiUpdateStatus:async\(\)=>native\('ui-status'\)/);
 });
 
-test('Android WebView surfaces chart script exceptions in startup smoke testing',()=>{
+test('legacy WebView JS diagnostics remain available; Core emulator checks offline runtime failures',()=>{
   const main=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
-  const workflow=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
+  const smoke=fs.readFileSync(path.join(root,'tools/run-core-android-smoke.sh'),'utf8');
   assert.match(main,/setWebChromeClient\(new WebChromeClient\(\)/);
   assert.match(main,/Log\.e\("DKTS-WebJS"/);
-  assert.match(workflow,/android-startup-webjs\.log/);
-  assert.match(workflow,/! grep -Eq 'Uncaught\|ReferenceError\|TypeError/);
+  assert.match(smoke,/runtime-errors\.txt/);
+  assert.match(smoke,/ReactNativeJS:E/);
+  assert.match(smoke,/FATAL EXCEPTION/);
+  assert.match(smoke,/CORE_ANDROID_CRASH/);
 });
-
-test('emulator verifies the actual DKDS engine and toolbar grip at runtime',()=>{
-  const activity=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
-  const workflow=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
-  assert.match(activity,/DKTS-PlotReady/);
-  assert.match(activity,/window\.DKDSD3Renderer/);
-  assert.match(activity,/dkds-scientific-nav-drag/);
-  assert.match(workflow,/android-plot-ready\.log/);
-  assert.match(workflow,/grep -q 'd3\.\*true\.\*renderer\.\*true\.\*charts\.\*true\.\*grip\.\*true'/);
+test('Core Android builds real DKDS scientific plotting and records emulator evidence',()=>{
+  const legacy=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
+  const plugin=fs.readFileSync(path.join(root,'integrations/dkds-native/plugin.js'),'utf8');
+  const coreCI=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
+  assert.match(legacy,/DKTS-PlotReady/);
+  assert.match(legacy,/window\.DKDSD3Renderer/);
+  assert.match(legacy,/dkds-scientific-nav-drag/);
+  assert.match(plugin,/units\.plotGroup\.create/);
+  assert.match(plugin,/frameGroup\.adoptPlot/);
+  assert.match(plugin,/units\.scientificPlot\.create/);
+  assert.match(coreCI,/Launch real DKDS-derived Android Core Preview on API 36 emulator/);
+  assert.match(coreCI,/Retain Android emulator screenshot and crash diagnostics/);
 });
-
 test('Android updater accepts current GitHub Release tags and never hot-swaps native versions',()=>{
   const java=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/UiUpdateManager.java'),'utf8');
   const updater=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/NativeAppUpdateManager.java'),'utf8');
