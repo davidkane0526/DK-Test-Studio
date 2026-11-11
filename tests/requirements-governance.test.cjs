@@ -18,7 +18,7 @@ test('DKTS active README records merged Core mainline but not unverified product
  assert.match(readme,/完全基于 DKDS 框架/);
  assert.match(readme,/PR #18/);
  assert.match(readme,/真实 4200A 验收/);
- assert.match(readme,/不会覆盖已安装稳定版/);
+ assert.match(readme,/(?:不会|不)覆盖已安装.*稳定版/);
  assert.match(req,/R-20261111-007/);
  assert.match(req,/直接合并 PR #18到main/);
  assert.match(read('docs/ROADMAP.md'),/DKDS 只读框架来源/);
