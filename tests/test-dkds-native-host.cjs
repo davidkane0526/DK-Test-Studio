@@ -154,7 +154,7 @@ const ctx={
  assert.deepEqual([...new Set(record.plotViews.map(x=>x.id))].length,4);
  assert.ok(record.fields.some(x=>x.spec.label==='图窗布局'),'native project graph layout selector');
  assert.equal(record.plotViews[0].spec.variant,'complete');
- assert.deepEqual([...record.plotViews[0].spec.placements],['home','float','global']);
+ assert.deepEqual([...record.plotViews[0].spec.placements],['home','left','right','bottom','float','global']);
  assert.equal(record.plotViews[0].spec.images,true);
  assert.equal(record.plotViews[0].spec.csv,false,
    'do not export downsampled chart points as instrument original CSV');
