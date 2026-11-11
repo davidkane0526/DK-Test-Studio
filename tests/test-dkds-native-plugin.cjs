@@ -28,6 +28,8 @@ assert.ok(!portPrimeSource.includes("header:{mode:'generate'"),
 assert.ok(/if\(term\.role==='CONDITION'\)numericField\(grid,term\.logical,'bias'/.test(js),
  'fixed-bias editing must remain CONDITIONAL and not duplicate X/P scan segment fields');
 assert.ok(/units\.scientificPlot\.create/.test(js));
+assert.match(js,/units\.plotGroup\.create\(/,'native DKDS PlotGroup owns grouping/resize');
+assert.match(js,/frameGroup\.adoptPlot\(/,'canonical PlotView grouping');
 assert.ok(js.split('units.panel.create(').slice(1).every(x=>!x.slice(0,130).includes("variant:'standard'")),
  'DKDS panel Unit supports headed/plot-card, never the nonexistent standard variant');
 assert.ok(/ctx\.data\.sources\.list/.test(js));

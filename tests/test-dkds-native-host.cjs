@@ -15,12 +15,15 @@ vm.runInNewContext(fs.readFileSync(dir+'/measurement-data.js','utf8'),sandbox,{f
 vm.runInNewContext(fs.readFileSync(dir+'/plugin.js','utf8'),sandbox,{filename:'plugin.js'});
 assert.equal(definitions.length,1);
 const record={actions:[],fields:[],panels:[],plots:[],plotViews:[],headers:[],
- listItems:[],popovers:[],closedPads:0,top:null,activity:null,composed:null,disposals:0,captures:0,status:[],pageHeaders:0,fullReads:0,exports:[]};
+ listItems:[],popovers:[],plotGroups:[],closedPads:0,top:null,activity:null,composed:null,disposals:0,captures:0,status:[],pageHeaders:0,fullReads:0,exports:[]};
 const el=()=>({children:[],textContent:'',replaceChildren(){this.children=[];}});
 const units={
  pageHeader:{create:()=>{record.pageHeaders++;return {actions:el()}}},page:{create:()=>({element:el()})},
  header:{create:(host,spec)=>{record.headers.push(spec);return{element:el(),actions:el()}}},
  plotView:{adopt:(id,card,spec)=>{record.plotViews.push({id,spec});return {dispose:()=>record.disposals++}}},
+  plotGroup:{create:(host,spec)=>{record.plotGroups.push(spec);return{
+   adoptPlot:(id,card,config)=>{record.plotViews.push({id,spec:config});return{dispose:()=>record.disposals++}},
+   setColumns:count=>{record.groupColumns=count},dispose:()=>record.disposals++};}},
  popover:{create:(host,spec)=>{record.popovers.push(spec);return {
   body:el(),close:()=>{record.closedPads++;}}}},
  layout:{create:(host,spec)=>{
@@ -66,7 +69,7 @@ const units={
  }}},
  note:{create:(host,spec)=>{const n=el();n.textContent=spec.text;host.children.push(n);return n}},
  emptyState:{create:(host,spec)=>{host.children.push(spec);return{element:el()}}},
- panel:{create:(host,spec)=>{
+ panel:{detached:spec=>({element:el(),body:el()}),create:(host,spec)=>{
    // Pinned DKDS Core 20f05685 SDK: panel variants do NOT include "standard".
    // Workspace "standard" is valid, but panel "standard" fails real activation.
    assert.ok(['plain','headed','portable','control-card','plot-card','accepted-portable']
@@ -143,12 +146,13 @@ const ctx={
  record.tabs.at(-1).onChange('sweep');
 
  assert.equal(record.panels.some(x=>x.title==='D · SMU1'),false,'None port does not render parameter panel');
- assert.equal(record.plots.length,4,'four actual DKDS scientific plots');
+ assert.equal(record.plotGroups.length,1,'four plot windows share canonical DKDS managed PlotGroup');
+  assert.equal(record.plots.length,4,'four actual DKDS scientific plots');
  assert.equal(record.headers.some(x=>x.kind==='plot'&&x.variant==='plot'),true,
    'DKDS Core owns the canonical chart title');
  assert.equal(record.plotViews.length,4,'four independent DKDS PlotView hosts');
  assert.deepEqual([...new Set(record.plotViews.map(x=>x.id))].length,4);
- assert.ok(record.fields.some(x=>x.spec.label==='子窗口'),'native project graph layout selector');
+ assert.ok(record.fields.some(x=>x.spec.label==='图窗布局'),'native project graph layout selector');
  assert.equal(record.plotViews[0].spec.variant,'complete');
  assert.deepEqual([...record.plotViews[0].spec.placements],['home','float','global']);
  assert.equal(record.plotViews[0].spec.images,true);

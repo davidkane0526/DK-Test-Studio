@@ -64,3 +64,28 @@ test('no synthetic/planned/malformed/unfinished rows cross canonical store bound
   assert.equal(record.published.length,0);
  }
 });
+
+test('canonical KXCI column labels match independent I-V, transfer and I-t chart axes',()=>{
+ const modelSource=fs.readFileSync(path.join(root,'model.js'),'utf8');
+ let model;
+ vm.runInNewContext(modelSource,{window:{DKDSPluginModules:{define:(id,key,value)=>{if(key==='model')model=value;}}}});
+ const artifactId='dkts:kxci:run-007';
+ const refs=[{artifactId,name:'KXCI 原始数据'}];
+ const columns=[
+  {id:'vd',key:'drainVoltageV',role:'x',length:3,values:[0,.1,.2]},
+  {id:'vg',key:'gateVoltageV',role:'group',length:3,values:[-1,0,1]},
+  {id:'t',key:'timeS',role:'index',length:3,values:[0,.1,.2]},
+  {id:'id',key:'drainCurrentA',role:'y',length:3,values:[1e-9,2e-9,3e-9]}
+ ];
+ const store={columnMetadata:()=>columns.map(({values,...meta})=>meta),
+  readColumnRange:(_id,key,{start,limit})=>{
+   const col=columns.find(c=>c.id===key||c.key===key);
+   return{values:col.values.slice(start,start+limit)};
+  }};
+ for(const [axis,x] of [['iv',.1],['transfer',0],['it',.1]]){
+  const curves=model.curvesFromArtifacts(refs,store,{axis});
+  assert.equal(curves.length,1,axis+' correct KXCI column detection');
+  assert.equal(curves[0].points[1].x,x);
+  assert.equal(curves[0].points[1].y,2e-9);
+ }
+});
