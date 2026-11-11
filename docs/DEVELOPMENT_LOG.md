@@ -195,3 +195,7 @@
 - `4551786` 的 Core Android 工作流 #66 未创建任何 job，GitHub 判定 YAML 无效。核查发现程序化文本替换把正则表达式中的 `$'` 误解析为 JavaScript replacement suffix，引入重复工作流尾段和不闭合的 grep 字符串。
 - 不从受损文件继续补丁，而是从此前正常解析的 `5db82b` 工作流重建，使用 callback replacement 避免 `$'` 特殊展开；改用无需行尾 `$` 的 `grep -Fxq` 精确检查 `assets/index.android.bundle`。增加关键工作流步骤的数量检查，确保无重复 Android Job 和 heredoc。
 - 重新提交后的 CI 必须正常解析、执行 Release JS Bundle 检查和 Android 16 启动，不能把错误提交的构建视为完成。
+
+## 2026-11-11 / Core CI 去重避免 Windows/Android 大包重复构建
+- 原 Core framework workflow 同时监听 `push: feat/dkts-core-host-boot` 与 `pull_request: main`；同一 PR 提交导致重复执行相同的 Windows Portable 和 Android Core APK 编译，浪费 CI 资源并制造难以对应的构建报告。
+- 改为 `push: main`、`pull_request: main` 和手动 dispatch。PR 分支通过 GitHub PR 的同一合并候选代码进行完整框架/Windows/Android 测试，主线合并后仍自动复验；同一个 PR 提交不再触发双份重型构建。Core Preview Contract 的轻量分支 push 测试不受影响。
