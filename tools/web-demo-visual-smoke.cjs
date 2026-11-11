@@ -93,6 +93,10 @@ async function inspect(browser,url,width,height,mobile){
  assert.equal(await page.locator('.routine-heading').count(),2);
  assert.match(await page.locator('#breadcrumb').innerText(),/MOSFET/);
  await page.screenshot({path:path.join(shots,mobile?'tablet-fspro-project.png':'desktop-fspro-project.png'),fullPage:true});
+ // The Device picker intentionally returns to Project. Reopen a real Page
+ // through the public preview API before exercising its visible back action.
+ await page.evaluate(()=>window.DKTSFSProDemo.openPage(0));
+ assert.equal(await page.locator('#editor-pane').isVisible(),true,'Page reopened before testing back navigation');
  await page.locator('#back-to-graphs').click();
  assert.equal(await page.locator('#editor-pane').isVisible(),false,'Page back action must close editor');
  assert.equal(await page.locator('#data-pane').isVisible(),true,'Page back action must restore project graph');
