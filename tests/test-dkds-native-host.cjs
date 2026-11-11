@@ -158,6 +158,9 @@ const ctx={
  assert.equal(record.plotViews.length,4,'four independent DKDS PlotView hosts');
  assert.deepEqual([...new Set(record.plotViews.map(x=>x.id))].length,4);
  assert.ok(record.fields.some(x=>x.spec.label==='图窗布局'),'native project graph layout selector');
+ const showKind=record.fields.find(x=>x.spec.label==='显示');
+ assert.ok(showKind,'independent per-window plot selector');
+ assert.deepEqual(Array.from(showKind.spec.options,row=>row.value),['iv','transfer','it','raw']);
  assert.equal(record.plotViews[0].spec.variant,'complete');
  assert.deepEqual([...record.plotViews[0].spec.placements],['home','left','right','bottom','float','global']);
  assert.equal(record.plotViews[0].spec.images,true);

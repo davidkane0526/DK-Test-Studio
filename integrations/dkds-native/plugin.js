@@ -43,6 +43,7 @@
    ctx.project.capture?.();
    syncGraphSettings();
    applyFrameLayout();
+   if(index>=0&&field==='kind')createFramePlot(index);
    refreshRawTables();
    for(const item of plots)item?.requestRender?.('frame-setting');
   }
@@ -219,6 +220,18 @@
    const selected=frameSelections[index];
    if(selected)return all.find(item=>item.artifactId===selected)||null;
    return all.length===1?all[0]:null;
+  }
+  function createFramePlot(index){
+   const host=framePlotHosts[index];if(!host)return null;
+   plots[index]?.dispose?.();
+   const kind=frameKinds[index]||'iv';
+   const title=kind==='it'?'时间 (s)':kind==='transfer'?'栅极电压 (V)':'漏极电压 (V)';
+   const instance=units.scientificPlot.create(host,{variant:'curve',
+    source:'dkts-native-frame-'+(index+1),
+    xTitle:title,yTitle:'漏极电流 (A)',
+    getCurves:()=>frameCurves(index),getMarkers:()=>[]});
+   plots[index]=instance;
+   return instance;
   }
   function frameCurves(index){
    const kind=frameKinds[index]||'iv',selected=frameSelections[index],available=sources();
@@ -564,12 +577,9 @@
     fileStem:'DKTS_4200A_frame_'+(index+1),images:true,copy:true,csv:false,
     detailGeometry:{contentAspectRatio:1.65,contentMinHeightPx:190,contentMaxHeightPx:520},
     placements:['home','left','right','bottom','float','global'],stateVersion:'dkts-native-v5'});
-   // The raw data frame is intentionally empty without an instrument data table.
-   const instance=units.scientificPlot.create(plotHost,{variant:'curve',
-    source:'dkts-native-frame-'+(index+1),
-    xTitle:index===2?'时间 (s)':index===1?'栅极电压 (V)':'漏极电压 (V)',yTitle:'漏极电流 (A)',
-    getCurves:()=>frameCurves(index),getMarkers:()=>[]});
-   plotViews.push(view);plots.push(instance);
+   // Recreate only the scientific surface when this window changes axes.
+   const instance=createFramePlot(index);
+   plotViews.push(view);
    if(index===0){plotView=view;plot=instance;}
   }
   applyFrameLayout();
