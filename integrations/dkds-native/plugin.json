@@ -6,6 +6,7 @@
   "entry": "plugin.js",
   "scripts": [
     "model.js",
+    "measurement-data.js",
     "plugin.js"
   ],
   "enabled": true,
