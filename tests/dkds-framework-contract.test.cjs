@@ -83,7 +83,9 @@ test('stage DKDS Core into DKTS directory without touching upstream or shipping 
  try{
   const out=path.join(f.top,'DKTS-BUILD'),before=fs.readFileSync(
    path.join(f.root,'src/plugins/pulse-analysis/plugin.json'),'utf8');
-  const p=stage(f.root,out,{dktsRoot:repo});
+  assert.throws(()=>stage(f.root,out,{dktsRoot:repo}),/lacks required updater safety contracts/,
+   'production staging must reject the deliberately incomplete SDK fixture');
+  const p=stage(f.root,out,{dktsRoot:repo,validateUpdater:()=>({verifiedCount:10,testOnly:true})});
   assert.equal(p.derivedDistribution,true);
   assert.equal(p.outputReady,false,'staging is not deployable');
   assert(fs.existsSync(path.join(out,'src/plugins/data-center/plugin.json')));
