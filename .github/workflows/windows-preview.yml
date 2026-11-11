@@ -1,317 +1,90 @@
-name: Native Shell Windows Android and DKDS Release
-run-name: DK Test Studio V0.3.13 a${{ github.event.workflow_run.run_number }} · Full Package
+# DKTS main now builds the genuine, read-only-derived DKDS Core host.
+# Never publish the retired standalone Electron/Android shell as a new mainline build.
+# This workflow ships testable Core Preview packages only; production signing,
+# real 4200A hardware and hot-update compatibility still require acceptance.
+name: DKTS Mainline DKDS Core Preview Packages
+run-name: DK Test Studio · DKDS Core Preview from #${{ github.event.workflow_run.run_number }}
 on:
   workflow_run:
-    workflows: ["Fast UI Hot Update"]
+    workflows: ["DKTS DKDS-Framework Contract (read-only upstream)"]
     types: [completed]
     branches: [main]
 permissions:
+  actions: read
   contents: write
-env:
-  # Reuse the exact source commit and UI ID assigned by Fast UI Hot Update.
-  DKTS_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
-  DKTS_UI_VERSION: a${{ github.event.workflow_run.run_number }}
+concurrency:
+  group: dkts-core-preview-publish-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
 jobs:
-  windows:
-    if: github.event.workflow_run.conclusion == 'success'
-    name: Windows Portable and validated DKDS plugin
-    runs-on: windows-latest
-    timeout-minutes: 55
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.DKTS_BUILD_SHA }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install Windows dependencies
-        run: npm install --no-audit --no-fund
-      - name: Generate dedicated Windows executable and window icons
-        run: npm run icons:build
-      - name: Prepare embedded DKDS scientific renderer
-        run: npm run prepare:plot-vendor
-      - name: Validate bundled PowerShell portable updater syntax
-        shell: pwsh
-        run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path 'desktop/apply-portable-update.ps1').Path,
-            [ref]$tokens, [ref]$errors) | Out-Null
-          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
-      - name: Run tests
-        run: npm test
-      - name: Export the 4200A hardware capability database
-        run: npm run hardware:export
-      - name: Stamp offline bundled UI version
-        run: node tools/stamp-native-ui.cjs
-      - name: Build Windows Portable
-        run: npx electron-builder --win portable --x64 --publish never
-      - name: Require custom embedded executable icon
-        shell: pwsh
-        run: |
-          if (!(Test-Path 'build/icon.ico')) { throw 'Missing DK Test Studio executable icon.' }
-          $icon = Get-Item 'build/icon.ico'
-          if ($icon.Length -lt 2048) { throw 'Invalid Windows icon output.' }
-          $exe = Get-ChildItem 'dist/win-unpacked' -Filter 'DK Test Studio.exe' -File | Select-Object -First 1
-          if (!$exe) { throw 'Custom-named DK Test Studio executable not found.' }
-          Write-Host "Windows EXE: $($exe.FullName)"
-      - name: Require all Windows artifacts
-        shell: pwsh
-        run: |
-          $portable = @(Get-ChildItem dist -File -Filter '*Portable*.exe')
-          if ($portable.Count -ne 1) {
-            throw 'Missing or duplicate DKTS Windows Portable package.'
-          }
-          foreach ($file in @($portable[0].FullName)) {
-            if ((Get-Item $file).Length -lt 1024) { throw "Truncated file: $file" }
-            Write-Host "$file SHA256=$((Get-FileHash $file -Algorithm SHA256).Hash)"
-          }
-      - uses: actions/upload-artifact@v4
-        with:
-          name: DKTS-Windows
-          path: |
-            dist/*Portable*.exe
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        with:
-          name: DKTS-Hardware-Capability-Database
-          path: dist/DKTS-4200A-Hardware-Capability-Database-v1.json
-          if-no-files-found: error
-
-  android:
-    if: github.event.workflow_run.conclusion == 'success'
-    name: Independent Android APK (native Ethernet / Wi-Fi)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.DKTS_BUILD_SHA }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install pinned scientific renderer
-        # Linux jobs only need D3 and JS; avoid downloading the full Electron binary.
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-        run: npm install --no-audit --no-fund
-      - name: Test shared Android/Windows/DKDS core
-        run: npm test
-      - name: Stamp offline Android UI version
-        run: node tools/stamp-native-ui.cjs
-      - name: Package Android WebView and shared JS assets
-        run: node tools/sync-android-assets.cjs
-      - name: Generate Android launcher icons from shared DKTS identity
-        run: npm run icons:build
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v4
-        with:
-          packages: 'platform-tools'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
-      - name: Restore fixed Android signing key from repository Secrets
-        env:
-          DKTS_ANDROID_KEYSTORE_B64: ${{ secrets.DKTS_ANDROID_KEYSTORE_B64 }}
-          DKTS_ANDROID_SIGNING_PASSWORD: ${{ secrets.DKTS_ANDROID_SIGNING_PASSWORD }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${DKTS_ANDROID_KEYSTORE_B64:-}" ] || [ -z "${DKTS_ANDROID_SIGNING_PASSWORD:-}" ]; then
-            echo "::error::Missing DKTS Android signing Secrets. Use docs/ANDROID_SIGNING.md to configure the one-time signing identity."
-            exit 1
-          fi
-          keypath="$RUNNER_TEMP/dkts-signing.p12"
-          printf '%s' "$DKTS_ANDROID_KEYSTORE_B64" | base64 --decode > "$keypath"
-          chmod 600 "$keypath"
-          test -s "$keypath"
-          keytool -list -keystore "$keypath" -storetype PKCS12 \
-            -storepass "$DKTS_ANDROID_SIGNING_PASSWORD" -alias dkts > /dev/null
-          echo "DKTS_ANDROID_KEYSTORE_PATH=$keypath" >> "$GITHUB_ENV"
-      - name: Build independently signed Android release APK
-        env:
-          DKTS_ANDROID_SIGNING_PASSWORD: ${{ secrets.DKTS_ANDROID_SIGNING_PASSWORD }}
-        run: gradle -p android :app:assembleRelease --no-daemon --stacktrace
-      - name: Verify Android certificate matches pinned distribution identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          apk="android/app/build/outputs/apk/release/app-release.apk"
-          test -s "$apk"
-          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
-          test -x "$apksigner"
-          "$apksigner" verify --verbose --print-certs "$apk" | tee "$RUNNER_TEMP/dkts-apk-signature.txt"
-          actual="$(awk '/^(Signer #[0-9]+|V[0-9]+ Signer):? certificate SHA-256 digest:/ { print $NF; exit }' "$RUNNER_TEMP/dkts-apk-signature.txt" | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
-          expected="$(tr -d ':[:space:]' < android/signing-certificate.sha256 | tr 'A-F' 'a-f')"
-          test "${#actual}" -eq 64 && test "${#expected}" -eq 64
-          if [ "$actual" != "$expected" ]; then
-            echo "::error::APK certificate drift detected. Refusing to publish an update signed by a different key."
-            exit 1
-          fi
-          echo "Signing certificate verified: $actual"
-          printf 'Android signing certificate SHA-256: `%s`\n' "$actual" >> "$GITHUB_STEP_SUMMARY"
-      - name: Enable Android emulator KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Test APK launch on Android 16 (API 36)
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 36
-          target: google_apis
-          arch: x86_64
-          ram-size: 2048M
-          disable-animations: true
-          script: |
-            set -eu
-            adb install -r android/app/build/outputs/apk/release/app-release.apk
-            adb logcat -c
-            adb shell am start -W -n studio.dk.test/.MainActivity
-            sleep 8
-            # Same-certificate in-place replacement must be accepted by Android.
-            adb install -r android/app/build/outputs/apk/release/app-release.apk
-            adb shell am start -W -n studio.dk.test/.MainActivity
-            sleep 3
-            test -n "$(adb shell pidof studio.dk.test | tr -d '\r')"
-            adb logcat -d -s DKTS-PlotReady:I > android-plot-ready.log
-            grep -q 'd3.*true.*renderer.*true.*charts.*true.*grip.*true' android-plot-ready.log
-            grep -q 'keypad.*true.*numericField.*true' android-plot-ready.log
-            adb logcat -d -s DKTS-WebJS:E > android-startup-webjs.log
-            cat android-startup-webjs.log
-            ! grep -Eq 'Uncaught|ReferenceError|TypeError|SyntaxError|Scientific renderer|D3 scientific renderer|DKDS.*must initialize' android-startup-webjs.log
-            adb logcat -d -b crash > android-startup-crash.log
-            if grep -q "Process: studio.dk.test" android-startup-crash.log; then cat android-startup-crash.log; exit 1; fi
-            adb exec-out screencap -p > android-startup.png
-            test -s android-startup.png
-            echo "APK survived Android 16 startup"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: DKTS-Android-Startup-Diagnostics
-          path: |
-            android-startup.png
-            android-startup-crash.log
-            android-startup-webjs.log
-            android-plot-ready.log
-          if-no-files-found: warn
-      - name: Prepare Android release asset
-        run: |
-          test -s android/app/build/outputs/apk/release/app-release.apk
-          mkdir -p dist
-          cp android/app/build/outputs/apk/release/app-release.apk dist/DK-Test-Studio-Android-Preview.apk
-          sha256sum dist/DK-Test-Studio-Android-Preview.apk
-      - uses: actions/upload-artifact@v4
-        with:
-          name: DKTS-Android
-          path: dist/DK-Test-Studio-Android-Preview.apk
-          if-no-files-found: error
-
-  ui-bundle:
-    if: github.event.workflow_run.conclusion == 'success'
-    name: Build V0.3.13 a${{ github.event.workflow_run.run_number }} UI update resources
-    runs-on: ubuntu-latest
+  publish-core-preview:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.DKTS_BUILD_SHA }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install pinned scientific renderer
-        # Linux jobs only need D3 and JS; avoid downloading the full Electron binary.
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-        run: npm install --no-audit --no-fund
-      - name: Check complete frontend resources
-        run: npm test
-      - name: Build Windows and Android hot-update resource bundle
-        run: node tools/build-ui-bundle.cjs
-      - uses: actions/upload-artifact@v4
-        with:
-          name: DKTS-UI-Bundle
-          path: dist/DKTS-UI-bundle.json
-          if-no-files-found: error
-
-  release:
-    name: Publish V0.3.13 a${{ github.event.workflow_run.run_number }} full GitHub Release
-    needs: [windows, android, ui-bundle]
-    if: github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.DKTS_BUILD_SHA }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: DKTS-Windows
-          path: release/windows
-      - uses: actions/download-artifact@v4
-        with:
-          name: DKTS-Android
-          path: release/android
-      - uses: actions/download-artifact@v4
-        with:
-          name: DKTS-UI-Bundle
-          path: release/ui
-      - uses: actions/download-artifact@v4
-        with:
-          name: DKTS-Hardware-Capability-Database
-          path: release/capabilities
-      - name: Verify the four required release assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(find release/windows -name '*Portable*.exe' | wc -l)" -eq 1
-          test "$(find release/android -name '*.apk' | wc -l)" -eq 1
-          test "$(find release/ui -name 'DKTS-UI-bundle.json' | wc -l)" -eq 1
-          test "$(find release/capabilities -name 'DKTS-4200A-Hardware-Capability-Database-v1.json' | wc -l)" -eq 1
-          test "$(find release -type f | wc -l)" -eq 4
-          find release -type f -print0 | xargs -0 -n1 sha256sum
-      - name: Publish V0.3.13 a${{ github.event.workflow_run.run_number }} full package Release
+      - name: Download only artifacts of the successful DKTS Core build
         env:
           GH_TOKEN: ${{ github.token }}
-          DKTS_BUILD_SHA: ${{ env.DKTS_BUILD_SHA }}
-          DKTS_UI_VERSION: ${{ env.DKTS_UI_VERSION }}
+          CORE_RUN_ID: ${{ github.event.workflow_run.id }}
         shell: bash
         run: |
           set -euo pipefail
-          package_version="$(node -p "require('./package.json').version")"
-          hotfix_id="$DKTS_UI_VERSION"
-          test "$hotfix_id" = "a${{ github.event.workflow_run.run_number }}"
-          tag="dkts-preview-v${package_version}-${hotfix_id}"
-          title="DK Test Studio V${package_version} ${hotfix_id} · Full Package"
-          hotfix_url="https://github.com/$GITHUB_REPOSITORY/releases/tag/dkts-ui-$DKTS_BUILD_SHA"
-          notes="$(cat <<EOF
-          Program package version: V${package_version}
-          UI hot-update ID: ${hotfix_id}
-          Source commit: ${DKTS_BUILD_SHA}
-          Matching UI hot update: ${hotfix_url}
-
-          DKTS standalone complete package: Windows Portable, Android APK, UI hot-update bundle and 4200A hardware capability database. Experimental DKDS plugins are NOT included. The application version remains V${package_version}, UI revision ${hotfix_id}. DKTS DKDS-host migration is tracked separately; do not call the current legacy host the finished DKDS-based build.
+          mkdir -p artifacts out
+          gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "DKTS-Core-Preview-*" --dir artifacts
+          find artifacts -type f -maxdepth 12 -print
+      - name: Verify source identity and both Core Preview packages
+        id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CORE_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Fast UI Hot Update assigns aNNN to every main commit. Require the
+          # SAME successful commit/run number, never infer it from the Core job.
+          revision=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ui-update.yml/runs" \
+            -f head_sha="$CORE_SHA" -f event=push -f per_page=30 \
+            --jq '.workflow_runs | map(select(.conclusion == "success")) | .[0].run_number // empty')
+          [[ "$revision" =~ ^[0-9]+$ ]] || { echo "::error::No matching successful Core revision identity"; exit 1; }
+          echo "ui_revision=a$revision" >> "$GITHUB_OUTPUT"
+          echo "core_sha=$CORE_SHA" >> "$GITHUB_OUTPUT"
+          mapfile -d '' exes < <(find artifacts -type f -iname '*.exe' -print0)
+          mapfile -d '' apks < <(find artifacts -type f -name 'app-release.apk' -print0)
+          test "${#exes[@]}" -eq 1
+          test "${#apks[@]}" -eq 1
+          test "$(stat -c%s "${exes[0]}")" -gt 100000
+          test "$(stat -c%s "${apks[0]}")" -gt 100000
+          file -b "${exes[0]}" | grep -q 'PE32'
+          unzip -Z1 "${apks[0]}" | grep -Fxq 'assets/index.android.bundle'
+          cp "${exes[0]}" "out/DKTS-Core-Preview-Windows-V0.3.13-a$revision.exe"
+          cp "${apks[0]}" "out/DKTS-Core-Preview-Android-TEST-SIGNED-V0.3.13-a$revision.apk"
+          (cd out && sha256sum *.exe *.apk > SHA256SUMS.txt)
+          printf 'Build source: %s\nCore workflow: %s\nRevision: a%s\nPreview package ID: studio.dk.test.corepreview\n' \
+            "$CORE_SHA" "${{ github.event.workflow_run.id }}" "$revision" > out/PROVENANCE.txt
+      - name: Publish only the verified Core Preview, never a stable update
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CORE_SHA: ${{ steps.identity.outputs.core_sha }}
+          UI_REV: ${{ steps.identity.outputs.ui_revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="dkts-core-preview-v0.3.13-$UI_REV"
+          title="DK Test Studio V0.3.13 $UI_REV · DKDS Core Preview"
+          cat > release-notes.txt <<EOF
+          Source commit: $CORE_SHA
+          Version: V0.3.13 $UI_REV
+          Architecture: Genuine DKDS Core staged read-only inside DKTS.
+          Windows: Portable Core Preview, screenshot and Core smoke validated.
+          Android: Separate studio.dk.test.corepreview TEST-SIGNED preview.
+          This is NOT a production in-place upgrade for the old studio.dk.test app.
+          Real 4200A output, production certificate, native UI hot update and
+          native full-update rollback have NOT been hardware-accepted.
           EOF
-          )"
-          files=(release/windows/*.exe release/android/*.apk release/ui/*.json release/capabilities/*.json)
-          test "${#files[@]}" -eq 4
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
-            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes "$notes"
+            gh release upload "$tag" out/* --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes-file release-notes.txt
           else
-            gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
-              --target "$DKTS_BUILD_SHA" --title "$title" --notes "$notes" \
-              --prerelease --latest=false
+            gh release create "$tag" out/* --repo "$GITHUB_REPOSITORY" --target "$CORE_SHA" \
+              --title "$title" --notes-file release-notes.txt --prerelease --latest=false
           fi
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort | tee release-assets.txt
-          test "$(wc -l < release-assets.txt)" -eq 4
-          grep -qE '[.]apk$' release-assets.txt
-          grep -qE '^DKTS-UI-bundle[.]json$' release-assets.txt
-          grep -qE '^DKTS-4200A-Hardware-Capability-Database-v1[.]json$' release-assets.txt
-          grep -qE 'Portable.*[.]exe$' release-assets.txt
-          printf 'Verified full-platform Release: %s\n' "https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
-          printf '### Complete DK Test Studio Release\n\n**V%s %s**\n\nFive required assets verified.\n' "$package_version" "$hotfix_id" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verified DKDS Core Preview: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
