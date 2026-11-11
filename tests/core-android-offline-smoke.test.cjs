@@ -22,6 +22,7 @@ test('Android 16 emulator launches one shell with shared APK/Activity variables'
  assert.match(script,/^adb shell pidof "\$PACKAGE"/m);
  assert.match(script,/^adb exec-out screencap -p > "\$OUT\/phone\.png"/m);
  assert.match(script,/^adb exec-out screencap -p > "\$OUT\/tablet-landscape\.png"/m);
+ assert.match(script,/^adb exec-out screencap -p > "\$OUT\/phone-scrolled\.png"/m);
  assert.match(script,/Viewing full screen/);
  assert.match(script,/CORE_SYSTEM_OVERLAY_NOT_DISMISSED/);
  assert.match(script,/wm size 1024x768/);

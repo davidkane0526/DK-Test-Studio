@@ -14,10 +14,10 @@ vm.runInNewContext(fs.readFileSync(dir+'/model.js','utf8'),sandbox,{filename:'mo
 vm.runInNewContext(fs.readFileSync(dir+'/plugin.js','utf8'),sandbox,{filename:'plugin.js'});
 assert.equal(definitions.length,1);
 const record={actions:[],fields:[],panels:[],plots:[],plotViews:[],headers:[],
- listItems:[],popovers:[],closedPads:0,top:null,activity:null,composed:null,disposals:0,captures:0,status:[]};
+ listItems:[],popovers:[],closedPads:0,top:null,activity:null,composed:null,disposals:0,captures:0,status:[],pageHeaders:0};
 const el=()=>({children:[],textContent:'',replaceChildren(){this.children=[];}});
 const units={
- pageHeader:{create:()=>({actions:el()})},page:{create:()=>({element:el()})},
+ pageHeader:{create:()=>{record.pageHeaders++;return {actions:el()}}},page:{create:()=>({element:el()})},
  header:{create:(host,spec)=>{record.headers.push(spec);return{element:el(),actions:el()}}},
  plotView:{adopt:(id,card,spec)=>{record.plotViews.push({id,spec});return {dispose:()=>record.disposals++}}},
  popover:{create:(host,spec)=>{record.popovers.push(spec);return {
@@ -44,6 +44,11 @@ const units={
     assert.equal(spec.responsiveGeometry?.[0]?.maxWidth,680);
     assert.equal(spec.responsiveGeometry?.[0]?.geometry?.gridTemplateColumns,
      'minmax(0,1fr)');
+   }else if(spec.variant==='sidebar-main-compact'){
+    assert.equal(spec.geometry,undefined);
+    assert.deepEqual(Array.from(spec.responsiveGeometry,row=>Number(row.maxWidth)),[620]);
+    assert.equal(spec.responsiveGeometry[0].geometry.gridTemplateColumns,
+     'minmax(0,1fr)','mobile project tree must stack above the editor');
    }else{
     assert.equal(spec.geometry,undefined,
      'DKTS native plugin must not introduce unregistered layout geometry');
@@ -113,6 +118,7 @@ const ctx={
 (async()=>{
  const instance=await definitions[0].activate(ctx);
  assert.equal(record.top.activity,'dkts-keithley-4200');
+ assert.equal(record.pageHeaders,0,'the SUPER host top bar already identifies 4200A; no duplicate 42px page header');
  assert.ok(record.layouts.includes('sidebar-main-compact'),
   'native DKDS workbench must use host-managed FS-Pro project sidebar');
  assert.ok(record.layouts.includes('stack-compact'),

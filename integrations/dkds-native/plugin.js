@@ -361,16 +361,19 @@
    onActivate:()=>{ctx.workspace.openPage(PAGE);refreshData();}});
   const page=ctx.ui.pages.add({id:'dkts-4200a-page',pageId:PAGE,activity:ACTIVITY,
    label:'4200A',title:'',toolbar:false,html:''});
-  const header=units.pageHeader.create(page,{variant:'page-owned',activity:ACTIVITY,
-   title:'4200A',subtitle:''});
-  units.layout.create(header.actions,{tagName:'span',variant:'identity',
-   dataset:{dkdsSlot:'workbench-import'}});
+  // The Core SUPER activity bar already identifies this testing workspace.
+  // A duplicate Page Header wastes 42px; SUPER hides its import action slot.
+  // Keep the DKDS-owned page body, tabs, plotting and status intact.
   const body=units.page.create(page,{variant:'analysis'}).element;
   const container=units.layout.create(body,{variant:'identity'});
   wb=units.workspace.create(container,{variant:'standard',header:false,
    activity:ACTIVITY,primaryScroll:'safe'});
   // Core SDK owns the native Page editor and real PlotView, without a separate browser shell.
-  const main=units.layout.create(null,{variant:'sidebar-main-compact'});
+  const main=units.layout.create(null,{variant:'sidebar-main-compact',
+   // DKDS Core SDK 1.19 accepts this registered one-column geometry at 620px.
+   // The unmodified compact recipe keeps 235px sidebar on tablet/desktop.
+   responsiveGeometry:[{maxWidth:620,
+    geometry:{gridTemplateColumns:'minmax(0,1fr)'}}]});
   nav=units.layout.create(main,{variant:'stack-compact'});
   const work=units.layout.create(main,{variant:'stack-compact'});
   // Core-accepted geometry widens the parameter editor; a Core-managed

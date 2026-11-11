@@ -77,6 +77,15 @@ if [[ $(wc -c < "$OUT/phone.png") -le 4000 ]]; then
   echo "CORE_PHONE_SCREENSHOT_EMPTY: inspect emulator display" >&2
   exit 1
 fi
+# In the one-column phone layout the Project Explorer precedes the editor.
+# Scroll the actual app, then capture evidence that parameter content is reachable.
+adb shell input swipe 275 550 275 170 500
+sleep 2
+adb exec-out screencap -p > "$OUT/phone-scrolled.png"
+if [[ $(wc -c < "$OUT/phone-scrolled.png") -le 4000 ]]; then
+  echo "CORE_PHONE_SCROLLED_SCREENSHOT_EMPTY" >&2
+  exit 1
+fi
 
 # Exercise adaptive DKDS Core layouts at tablet-landscape dimensions using
 # the SAME offline app process; keep both original PNGs as UI evidence.

@@ -44,6 +44,9 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      hasTerminalEditor:[...document.querySelectorAll('[data-dkds-unit-template="panel-v2"]')]
       .some(node=>node.textContent.includes('Terminal'))||
       document.body.innerText.includes('Terminal'),
+     hasRedundant4200Header:[...document.querySelectorAll('.analysis-page-header')]
+      .some(node=>node.textContent.trim()==='4200A'&&
+       node.getBoundingClientRect().height>0),
      hasDeviceNavigation:document.body.innerText.includes('＋ Device')&&
       document.body.innerText.includes('MOSFET'),
      terminalGrid:(()=>{
@@ -83,7 +86,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        state.selectedSuper!=='com.dkts.keithley-4200'||!state.superAvailable||
        state.activeActivity!=='dkts-keithley-4200'||state.neutralMainVisible||
        !state.hasNativePageTabs||!state.hasTerminalEditor||
-       !state.hasDeviceNavigation)return;
+       !state.hasDeviceNavigation||state.hasRedundant4200Header)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();

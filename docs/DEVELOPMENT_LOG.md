@@ -217,3 +217,14 @@
 - 下载并检查 #70 的 Android Emulator Artifact（`DKTS-Core-Android-Emulator-V0.3.13-PR70`）：`startup.txt` 显示 `Status: ok`, `LaunchState: COLD`, `MainActivity`，`pid.txt` 有进程号，`runtime-errors.txt` 与 `crash.log` 均为空。但 `screen.png` **被 Android 首次 immersive-fullscreen 系统提示“Viewing full screen / Got it”遮挡**，属于真实 UI 验收盲点，虽然背后 DKDS Core 4200A Page 已可见。
 - DKTS-only 改进：在 Core Preview 启动前静默确认 Android 全屏引导；用 UI hierarchy 检测并在固定 320×640 的模拟器上有条件关闭提示，拒绝残留系统遮挡；分别截取真实 320×640 窄屏和 1024×768 平板横屏，校验 PNG 真实尺寸、进程存活并保留文件。增加静态回归测试。UI 是否符合 FS-Pro 层级/手势仍需核查新截图，不因这次修改预先声称完成。
 - GitHub PR 保持 draft；仅 DKTS 仓库发生变更。稳定发行仍为 V0.3.13 a135，预览 Build 使用 V0.3.13 PR CI 运行号，更新与 Keithley 4200A 实机数据尚未验收。
+
+## 2026-11-11 / Windows Core 真截图：去掉重复的 4200A Page Header
+- 下载并直接检查 Windows Core Preview #70 的 `core-host.png`（1200×760）。窗口上方 DKDS Host 原生 Activity Bar 已有 `4200A`；下方 42px 高的 `analysis-page-header` 再次显示 `4200A`，占据宝贵工作区高度。该 Header 是 DKTS 插件手动 `units.pageHeader.create(...title:'4200A')` 构建，并不是框架强制插入。
+- 对照固定只读 DKDS Core 的 `src/core/ui/modules/composition/unit-template-foundation.js` 和 `src/styles/structure/plugin-workspace.css`：SUPER 根页面的 import 操作本就隐藏，Page Header 与 Host 的 Activity Bar 重复。因此在 DKTS 原生插件移除这一无用 Header/空动作槽，**仍使用 DKDS 的 page.create/body、Workspace Unit、Tab、PlotView、Theme 等原生服务**，不改 DKDS 样式或宿主。
+- Core mock 新增禁用冗余 Page Header 的检查；真 Electron smoke 检测可见的同名 `analysis-page-header` 并拒绝回归。具体尺寸效果以后续截图为准，不把代码检查当作视觉验收。
+- V0.3.13 程序版本保持不变，Core PR 仍为预览，不改变当前正式版 a135。
+
+## 2026-11-11 / Android Core 窄屏布局修正，保持 DKDS Unit 规范
+- Core Host Framework Contract #72 **全通过**（https://github.com/davidkane0526/DK-Test-Studio/actions/runs/42967419152），下载 Android 模拟器实际 `phone.png`（320×640）与 `tablet-landscape.png`（1024×768）人工复核。系统全屏弹窗已经消失，安装、Activity/进程、错误日志正常。但 320px 手机上 Project Explorer 和参数编辑器仍被固定 150px/150px 双列割裂，严重影响可用性；1024px 横屏基本正常。
+- 查固定只读 DKDS Core `src/core/ui/modules/composition/unit-template-layout-spec.js`：`sidebar-main-compact` 的原始 recipe 在宽度 <=760 时强制 `150px minmax(0,1fr)`，并不会进一步自动切为单列。继续使用相同宿主 `sidebar-main-compact` Layout Unit，只按 SDK 允许的 `responsiveGeometry: [{maxWidth:620,geometry:{gridTemplateColumns:'minmax(0,1fr)'}}]` 显式覆盖。DKDS Runtime 的 `LayoutUnitRuntime.bindLayout` 在 recipe 后应用该合法 Geometry，故 <=620px Project Explorer 与参数编辑器纵向排列；宽屏仍继承 235px 紧凑侧栏，未引入插件 CSS/iframe。
+- 在 Core native mock 中精确检查此 override，不放松其它几何白名单；Android 模拟器增加窄屏顶端、窄屏实际手势滑动后、1024×768 平板三张截图。后续 CI 和真实图必须验证 320px 不再左右分栏且参数可触达。此计划仅改善 DKTS Core 预览，不修改 DKDS 上游。
