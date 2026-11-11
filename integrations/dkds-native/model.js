@@ -127,7 +127,8 @@
   activeDeviceId:'device-1',devices:[{id:'device-1',name:'MOSFET'}],
   activeRoutineId:'routine-1',
   routines:[{id:'routine-1',deviceId:'device-1',name:'Routine 1'}],
-  specs:[],pages:[page()]});
+  specs:[],pages:[page()],ui:{graphs:{count:4,
+   kinds:['iv','transfer','it','raw'],sources:['','','','']}}});
  function validate(state){
   if(state?.schema!==1||!Array.isArray(state.pages)||!state.pages.length||
      state.pages.length>128||!Number.isSafeInteger(state.sequence)||state.sequence<1)
@@ -242,6 +243,16 @@
    }
    validateSweep(p);
   }
+  // UI plot layout is canonical project state and survives Core workspace reopening.
+  if(!state.ui||typeof state.ui!=='object')state.ui={};
+  if(!state.ui.graphs)state.ui.graphs=initial().ui.graphs;
+  const graphs=state.ui.graphs;
+  if(![1,2,4].includes(Number(graphs.count))||!Array.isArray(graphs.kinds)||
+     graphs.kinds.length!==4||!Array.isArray(graphs.sources)||graphs.sources.length!==4)
+   throw Error('Invalid persisted plot window state');
+  if(graphs.kinds.some(kind=>!['iv','transfer','it','raw'].includes(kind))||
+     graphs.sources.some(id=>typeof id!=='string'||id.length>160))
+   throw Error('Invalid plot selection');
   if(!ids.has(state.activeId))throw Error('Active Page missing');
   state.activeRoutineId=state.pages.find(p=>p.id===state.activeId).routineId;
   state.activeDeviceId=routineOwners.get(state.activeRoutineId);

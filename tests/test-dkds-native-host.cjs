@@ -180,6 +180,7 @@ const ctx={
  assert.ok(map,'port assignment is a Core field');
  map.spec.onChange({target:{value:'SMU1'}});
  assert.equal(state.pages[0].terminals[0].resource,'SMU1');
+ assert.equal(state.ui.graphs.count,4,'window layout persists in project slice');
  assert.ok(record.panels.some(x=>x.title==='Terminal Settings'),
   'assigned ports now share one compact Core-owned Terminal Settings panel');
  assert.ok(record.panels.some(x=>x.title==='Xsweep · D / SMU1'),

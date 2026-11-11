@@ -27,7 +27,25 @@
    plotCache.set(key,next);
    return next;
   }
-    function refreshData(){
+    function syncGraphSettings(){
+   const settings=state().ui.graphs;
+   frameLayout=String(settings.count);
+   frameKinds=[...settings.kinds];
+   frameSelections=[...settings.sources];
+  }
+  function saveGraphSetting(index,field,value){
+   const settings=state();
+   if(index<0)settings.ui.graphs.count=Number(value);
+   else if(field==='kind')settings.ui.graphs.kinds[index]=String(value);
+   else settings.ui.graphs.sources[index]=String(value);
+   const next=model.validate(settings);
+   store.patch(next);
+   ctx.project.capture?.();
+   syncGraphSettings();
+   applyFrameLayout();
+   for(const item of plots)item?.requestRender?.('frame-setting');
+  }
+  function refreshData(){
    plotCache.clear();
    const items=sources();
    if(dataNote)dataNote.textContent='数据中心：'+items.length+' 组（仅显示已分配源）';
@@ -195,10 +213,7 @@
      frameSelections[i]='';
     host.replaceChildren();
     units.field.create(host,{kind:'select',label:'数据源',value:frameSelections[i],
-     options,onChange:e=>{
-      frameSelections[i]=String(e.target.value||'');
-      plots[i]?.requestRender?.('frame-data-source');
-     }});
+     options,onChange:e=>saveGraphSetting(i,'source',e.target.value||'')});
    }
   }
   async function exportOriginalCsv(index){
@@ -250,6 +265,7 @@
    if(!nav||!parameters)return;
    updateEditorLayout();
    const s=state(),p=active();
+   syncGraphSettings();applyFrameLayout();
    const selectedKind=kindField?.control?.value||'iv';
    nav.replaceChildren();
    // Real DKDS Core Units own the Device/Routine/Page/Spec project tree.
@@ -484,10 +500,11 @@
   // Four independent DKDS PlotView subwindows, each with its own host controls.
   // Never synthesize measurement samples in an offline UI.
   const frameTools=units.layout.create(plotArea,{variant:'row-wrap'});
+  syncGraphSettings();
   units.field.create(frameTools,{kind:'select',label:'图窗布局',value:frameLayout,
    options:[{value:'1',label:'单窗口'},{value:'2',label:'双窗口'},
     {value:'4',label:'四宫格'}],
-   onChange:e=>{frameLayout=e.target.value;applyFrameLayout();}});
+   onChange:e=>saveGraphSetting(-1,'count',e.target.value)});
   const groupHost=units.layout.create(plotArea,{variant:'identity'});
   frameGroup=units.plotGroup.create(groupHost,{columns:2,preferredColumns:2,
    maxColumns:4,minItemWidth:260,responsive:true,density:'regular',
@@ -501,9 +518,7 @@
     variant:'plot',title:frameTitles[index],actionHost:true});
    const typeHost=units.layout.create(graphic.body,{variant:'row-wrap'});
    units.field.create(typeHost,{kind:'select',label:'显示',value:frameKinds[index],
-    options:FRAME_OPTIONS,onChange:e=>{
-     frameKinds[index]=e.target.value;plots[index]?.requestRender?.('frame-kind');
-    }});
+    options:FRAME_OPTIONS,onChange:e=>saveGraphSetting(index,'kind',e.target.value)});
    const sourceHost=units.layout.create(graphic.body,{variant:'identity'});
    frameSourceHosts.push(sourceHost);
    const exportControls=units.layout.create(graphic.body,{variant:'row-wrap'});
