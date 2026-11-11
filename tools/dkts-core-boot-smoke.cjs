@@ -93,7 +93,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        state.brand!=='DK Test Studio'||
        state.selectedSuper!=='com.dkts.keithley-4200'||!state.superAvailable||
        state.activeActivity!=='dkts-keithley-4200'||state.neutralMainVisible||
-       !state.hasNativePageTabs||!state.hasTerminalEditor||
+       state.hasNativePageTabs||state.hasTerminalEditor||
        !state.hasDeviceNavigation||state.hasRedundant4200Header||
        state.nativePlotGroupCount!==1||state.nativePlotHeaderCount<4)return;
    const img=await win.webContents.capturePage();
