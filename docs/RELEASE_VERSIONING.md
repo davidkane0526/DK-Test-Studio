@@ -21,3 +21,9 @@
 - 当前 `ui-update.yml` 只为每次 main 更新分配相同 Git SHA 对应的 `aNNN` 修订号并执行测试，不再把旧壳的 UI Bundle 当作 Core 可热更新资源。**这是未完成项，不是取消用户的热更新需求。**
 - 在 Core-compatible UI bundle、生产签名、固定包名完整更新、哈希校验与失败回退通过以前，仅提供独立包名 `studio.dk.test.corepreview` 的测试签名 Android 预览和独立 Windows Portable 预览，明示不得覆盖稳定版。之后恢复相同 V/a 的正式双平台完整包和可用热更。
 - Release 成功状态、EXE/APK 实际附件和 Android/Windows 真机截图以 Actions 输出为证，不以代码存在推定完成；真机 KXCI 与数据中心全链路仍待验收。
+
+## 2026-11-12 Android Core Preview 更新安全改进（验收进行中）
+- `stage-dkds-host.cjs` 现将 Actions Core 构建序号映射为 Android `versionCode=100000+buildNumber`，避免所有 Core 预览永远使用 `versionCode=1`。主版本 `V0.3.13` 不因构建而改动；每次 main 修订仍产生 `aNNN`。
+- 真正 DKDS Core 编译、测试和模拟器启动仍在不含签名秘密的构建任务执行。新增签名任务只使用构建好的 APK 与原 DKTS 固定 PKCS12 Secret，执行 Android `apksigner` 重签名、`android/signing-certificate.sha256` 指纹和包名/版本一致性校验。未配置密钥、证书偏移或签名失败时不标记为 FIXED-SIGNED。
+- Core 发布任务仅在存在已验签的固定签名 Artifact 时优先选择 `FIXED-SIGNED`，否则明确使用 `TEST-SIGNED` 标签并警告。**此前已安装的随机测试签名预览与未来固定签名预览可能需要一次迁移，不得宣传无缝覆盖。**
+- 上述流程已提交，固定签名与模拟器/OPPO 真实安装验收以对应新 CI 为准。UI 热更/完整安装签名回退仍是独立未完成项。
