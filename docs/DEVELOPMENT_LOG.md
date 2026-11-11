@@ -190,3 +190,8 @@
 - Core Android 预览切换为 `assembleRelease`，仍使用自动生成的 **Android Debug 测试签名**及隔离包名 `studio.dk.test.corepreview`，不使用正式 DKTS 稳定签名，也不上传到正式 Release。
 - CI 强制验证 Android arm64/x86_64 native libraries、`assets/index.android.bundle`、debug signer、API36 模拟器实际安装启动、React Native 明确的离线加载/崩溃错误与截图文件。编译、签名和安装是否成功以下次 CI 为准，绝不把此预览称为正式版。
 - 原始 DKDS 仓库仍只读；没有向实机 Keithley 4200A 输出电压，没有采集仪器 raw 数据。正式版版本仍 V0.3.13 a135，Core PR 只记录自己的 CI 序号。
+
+## 2026-11-11 / 离线 Android 工作流 YAML 修复（未到编译阶段）
+- `4551786` 的 Core Android 工作流 #66 未创建任何 job，GitHub 判定 YAML 无效。核查发现程序化文本替换把正则表达式中的 `$'` 误解析为 JavaScript replacement suffix，引入重复工作流尾段和不闭合的 grep 字符串。
+- 不从受损文件继续补丁，而是从此前正常解析的 `5db82b` 工作流重建，使用 callback replacement 避免 `$'` 特殊展开；改用无需行尾 `$` 的 `grep -Fxq` 精确检查 `assets/index.android.bundle`。增加关键工作流步骤的数量检查，确保无重复 Android Job 和 heredoc。
+- 重新提交后的 CI 必须正常解析、执行 Release JS Bundle 检查和 Android 16 启动，不能把错误提交的构建视为完成。
