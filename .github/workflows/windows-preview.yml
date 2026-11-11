@@ -60,6 +60,13 @@ jobs:
           (cd out && sha256sum *.exe *.apk > SHA256SUMS.txt)
           printf 'Build source: %s\nCore workflow: %s\nRevision: a%s\nPreview package ID: studio.dk.test.corepreview\n' \
             "$CORE_SHA" "${{ github.event.workflow_run.id }}" "$revision" > out/PROVENANCE.txt
+      - name: Retain verified EXE, APK, SHA256 and provenance even if Release permission is denied
+        uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-Core-Verified-Packages-${{ steps.identity.outputs.ui_revision }}-run${{ github.event.workflow_run.id }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 30
       - name: Publish only the verified Core Preview, never a stable update
         env:
           GH_TOKEN: ${{ github.token }}
