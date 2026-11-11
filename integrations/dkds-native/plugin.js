@@ -6,10 +6,10 @@
   if(typeof measurementData?.publishRaw!=='function')throw Error('KXCI Data Center publisher missing');
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
-  let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSourceHosts=[],frameSelections=['','','',''],frameKinds=['iv','transfer','it','raw'],frameGroup=null,frameTableHosts=[],framePlotHosts=[],frameTables=[],frameLayout='4',nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
+  let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSelections=['','','',''],frameKinds=['iv','transfer','it','raw'],frameGroup=null,frameTableHosts=[],framePlotHosts=[],frameTables=[],frameLayout='4',nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
   let editorSection='sweep',editorOpen=false,workRegion=null,editorRegion=null,plotRegion=null;
   const PAGE_TABS=[['info','信息'],['sweep','扫描'],['target','目标'],['strategy','策略'],['limits','保护'],['variables','页面变量'],['spec','关联规格']];
-  const FRAME_OPTIONS=[{value:'iv',label:'I–V 曲线'},{value:'transfer',label:'转移曲线'},{value:'it',label:'I–t 曲线'},{value:'raw',label:'原始数据'}];
+  const FRAME_OPTIONS=[{value:'iv',label:'I–V'},{value:'transfer',label:'转移'},{value:'it',label:'I–t'},{value:'raw',label:'数据表'}];
   const touchNumeric=Boolean(window.matchMedia?.('(pointer: coarse)')?.matches);
   const state=()=>model.validate(store.get());
   const active=()=>{const s=state();return s.pages.find(x=>x.id===s.activeId);};
@@ -72,8 +72,6 @@
   }
   function refreshData(){
    plotCache.clear();
-   const items=sources();
-   refreshFrameSourceFields();
    refreshRawTables();
    for(const item of plots)item?.requestRender?.('data-artifacts');
   }
@@ -238,21 +236,23 @@
    const list=curves(kind);
    return selected?list.filter(curve=>curve.artifactId===selected):list;
   }
-    function refreshFrameSourceFields(){
-   if(!frameSourceHosts.length)return;
+    function frameDataMenu(index){
    const available=sources();
-   const options=[{value:'',label:'全部数据'},
-    ...available.map(item=>({value:String(item.artifactId),label:String(item.name||item.artifactId)}))];
-   for(let i=0;i<frameSourceHosts.length;i++){
-    const host=frameSourceHosts[i];
-    if(!host)continue;
-    if(frameSelections[i]&&!available.some(item=>item.artifactId===frameSelections[i]))
-     frameSelections[i]='';
-    host.replaceChildren();
-    units.field.create(host,{kind:'select',label:'数据源',controlOnly:true,
-     attributes:{'aria-label':'图窗 '+(i+1)+' 数据源','title':'数据源'},value:frameSelections[i],
-     options,onChange:e=>saveGraphSetting(i,'source',e.target.value||'')});
-   }
+   const selected=frameSelections[index]||'';
+   // The DKDS Action Menu owns source choices and export instead of
+   // squeezing two full-width fields into the mobile PlotView titlebar.
+   return [
+    {id:'source-all',label:(selected===''?'✓ ':'')+'全部已分配数据',
+     onInvoke:()=>saveGraphSetting(index,'source','')},
+    ...available.map((ref,i)=>({
+     id:'source-'+i,
+     label:(selected===ref.artifactId?'✓ ':'')+String(ref.name||ref.artifactId),
+     onInvoke:()=>saveGraphSetting(index,'source',String(ref.artifactId))
+    })),
+    {id:'export-original',label:'导出完整原始 CSV',
+     onInvoke:()=>exportOriginalCsv(index).catch(error=>
+      ctx.status.set('导出失败：'+String(error.message||error)))}
+   ];
   }
   async function exportOriginalCsv(index){
    // Full-resolution export belongs to canonical Data Center Artifact + DKDS IO.
@@ -561,13 +561,11 @@
    units.field.create(typeHost,{kind:'select',label:'显示',controlOnly:true,
      attributes:{'aria-label':'图窗 '+(index+1)+' 显示内容','title':'显示内容'},value:frameKinds[index],
     options:FRAME_OPTIONS,onChange:e=>saveGraphSetting(index,'kind',e.target.value)});
-   const sourceHost=units.layout.create(graphicHeader.actions,{variant:'identity'});
-   frameSourceHosts.push(sourceHost);
-   const exportControls=units.layout.create(graphicHeader.actions,{variant:'identity'});
-   units.action.create(exportControls,{id:'dkts-export-original-'+(index+1),
-    label:'CSV',title:'导出完整原始 CSV',variant:'quiet',direct:true,
-    onInvoke:()=>exportOriginalCsv(index).catch(error=>
-     ctx.status.set('原始数据导出失败：'+String(error.message||error)))});
+   units.action.create(graphicHeader.actions,{
+    id:'dkts-frame-data-'+(index+1),
+    label:'数据',title:'选择数据中心数据源或导出原始 CSV',
+    menu:true,variant:'quiet',items:()=>frameDataMenu(index)
+   });
    const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
    framePlotHosts.push(plotHost);
    const rawHost=units.layout.create(graphic.body,{variant:'scroll-pane'});
@@ -587,7 +585,6 @@
    if(index===0){plotView=view;plot=instance;}
   }
   applyFrameLayout();
-  refreshFrameSourceFields();
   refreshRawTables();
   // Keep optional dockable Port PRIME; editing of Page is always visible.
   const ports=units.layout.create(null,{variant:'stack-compact'});
