@@ -1,88 +1,44 @@
+# Every DKTS main commit keeps the V0.3.13 aNNN identity.
+# The pre-Core standalone bundle is deliberately NOT offered to DKDS Core:
+# its payload schema is incompatible with the native DKDS host updater.
+# Add a genuine Core-compatible hot bundle only after its rollback tests pass.
 name: Fast UI Hot Update
-run-name: DK Test Studio V0.3.13 a${{ github.run_number }} · UI
+run-name: DK Test Studio V0.3.13 a${{ github.run_number }} · Core Revision
 on:
   push:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
-  ui-update:
-    name: Build and publish V0.3.13 a${{ github.run_number }} UI hot update
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+  core-revision:
+    name: Validate DKDS Core-owned DKTS revision a${{ github.run_number }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Set package and UI hot-update identity
-        id: identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          package_version="$(node -p "require('./package.json').version")"
-          hotfix_id="a$GITHUB_RUN_NUMBER"
-          echo "package_version=$package_version" >> "$GITHUB_OUTPUT"
-          echo "hotfix_id=$hotfix_id" >> "$GITHUB_OUTPUT"
-          echo "DKTS_BUILD_SHA=$GITHUB_SHA" >> "$GITHUB_ENV"
-          echo "DKTS_UI_VERSION=$hotfix_id" >> "$GITHUB_ENV"
-          printf '### DK Test Studio V%s %s\n\nCommit: `%s`\n' "$package_version" "$hotfix_id" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
-      - name: Install pinned scientific renderer dependencies
+      - name: Install pinned DKTS dependencies without Electron binary
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: npm install --no-audit --no-fund
-      - name: Run frontend and interoperability tests
-        run: npm test
-      - name: Install browser test adapter
-        run: npm install --no-save --package-lock=false playwright-core@1.56.1
-      - name: Check real Chrome layout and Android keypad/dropdown interaction
-        run: node tools/ui-visual-smoke.cjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: DKTS-UI-Visual
-          path: dist/ui-visual/*.png
-          if-no-files-found: warn
-      - name: Build UI bundle V${{ steps.identity.outputs.package_version }} ${{ steps.identity.outputs.hotfix_id }}
-        run: node tools/build-ui-bundle.cjs
-      - uses: actions/upload-artifact@v4
-        with:
-          name: DKTS-Fast-UI-Update-${{ steps.identity.outputs.package_version }}-${{ steps.identity.outputs.hotfix_id }}
-          path: |
-            dist/DKTS-UI-bundle.json
-          if-no-files-found: error
-      - name: Publish V${{ steps.identity.outputs.package_version }} ${{ steps.identity.outputs.hotfix_id }} UI Hot Update
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PACKAGE_VERSION: ${{ steps.identity.outputs.package_version }}
-          HOTFIX_ID: ${{ steps.identity.outputs.hotfix_id }}
+      - name: Check UI safety and true native Core plugin contract
+        run: |
+          npm test
+          node tests/test-dkds-native-host.cjs
+      - name: Preserve the exact V/a source revision without publishing legacy UI
         shell: bash
         run: |
           set -euo pipefail
-          # Every successful main commit receives its own UI hot-update ID.
-          # The full-package workflow is triggered after this workflow and
-          # reuses this exact run_number, so both Releases share V/a identity.
-          tag="dkts-ui-$GITHUB_SHA"
-          title="DK Test Studio V$PACKAGE_VERSION $HOTFIX_ID · UI Hot Update"
-          notes="Program package version: V$PACKAGE_VERSION
-          UI hot-update ID: $HOTFIX_ID
-          Commit: $GITHUB_SHA
-
-          This Release contains ONLY the DKTS UI hot-update bundle; DKDS external plugin experiments are developed and validated separately in DK-Test-Studio, never bundled into DKDS and never shipped as an ambiguous component of standalone DKTS. Native changes require the matching full DKTS Windows/Android package; UI-only changes preserve V$PACKAGE_VERSION and advance only $HOTFIX_ID."
-          files=(dist/DKTS-UI-bundle.json)
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
-            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes "$notes"
-          else
-            gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "$title" --notes "$notes" \
-              --prerelease --latest=false
-          fi
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > published.txt
-          printf '%s\n' DKTS-UI-bundle.json | sort > expected.txt
-          diff -u expected.txt published.txt
-          url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
-          echo "UI hot update published: $url"
-          printf '### UI hot update: V%s %s\n\n%s\n\nThe full downloadable package is published separately with the same version identity.\n' "$PACKAGE_VERSION" "$HOTFIX_ID" "$url" >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p dist
+          printf '{"version":"V0.3.13","uiRevision":"a%s","commit":"%s","host":"DKDS Core","hotUpdateAvailable":false,"reason":"Core-compatible verified UI hot bundle is not implemented"}\n' \
+            "$GITHUB_RUN_NUMBER" "$GITHUB_SHA" > dist/DKTS-Core-Revision.json
+          echo "### DKTS V0.3.13 a$GITHUB_RUN_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          echo "Core revision verified; legacy standalone bundle NOT published." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-Core-Revision-V0.3.13-a${{ github.run_number }}
+          path: dist/DKTS-Core-Revision.json
+          if-no-files-found: error
