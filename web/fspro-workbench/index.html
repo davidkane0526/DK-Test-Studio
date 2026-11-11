@@ -45,7 +45,7 @@
   <aside class="tree-pane" id="tree-pane">
     <div class="pane-title"><strong>Project Explorer</strong><button class="icon-button" id="collapse-tree" title="关闭项目导航">‹</button></div>
     <div class="tree-group">
-      <div class="tree-root"><span class="tree-icon">▣</span> Research Project</div>
+      <button type="button" class="tree-root" id="project-overview" aria-label="返回工程数据图"><span class="tree-icon">▣</span> Research Project</button>
       <div class="tree-node tree-device"><span class="tree-guide">└</span><span class="tree-icon">▤</span><label for="device-picker">Device</label><select id="device-picker" aria-label="当前 Device"></select></div>
       <div id="routine-list" class="routine-list"></div>
       <div id="spec-list" class="spec-list"></div>
@@ -60,7 +60,7 @@
     </div>
     <div class="tree-foot"><span>已保存：<strong id="saved-state">本会话</strong></span><button id="export-project" class="subtle-button">导出工程 JSON</button></div>
   </aside>
-  <main class="main-pane">
+  <main class="main-pane" id="main-pane" aria-label="测试工作区">
     <div class="page-header">
       <div><div class="eyebrow">EDIT PAGE</div><div class="page-name-line"><h1 id="page-heading">I–V Sweep</h1><span id="kind-tag" class="type-tag">SMU</span></div></div>
       <div class="page-actions"><button id="validate" class="primary-button">校验规划</button><button id="save" class="secondary-button">保存</button><button class="secondary-button" id="start" disabled title="网页 Demo 禁止仪器输出">▶ 测试</button><button class="secondary-button" disabled>■ 停止</button></div>
@@ -81,7 +81,6 @@
       <button role="tab" data-section="variables" aria-selected="false">Page Var</button>
       <button role="tab" data-section="spec" aria-selected="false">Associate Spec</button>
     </nav>
-    <div class="work-split">
       <section class="editor-pane" id="editor-pane" aria-label="测试参数">
         <div data-panel="info" hidden>
           <div class="section-card"><div class="section-head"><h2>Page Information</h2></div><div class="form-grid">
@@ -146,7 +145,6 @@
         <div id="raw-view" class="data-view" hidden><div class="raw-placeholder">尚无仪器原始采样数据</div></div>
         <div class="data-bottom"><strong>Result</strong><div class="run-stats"><div><span>Samples</span><strong>—</strong></div><div><span>Run</span><strong>—</strong></div><div><span>Elapsed</span><strong>—</strong></div></div></div>
       </aside>
-    </div>
   </main>
 </div>
 <footer class="statusbar"><div><span class="status-led"></span><span id="status-text">工程就绪 · 网页预览不执行仪器命令</span></div><div class="status-right"><span id="points-summary">21 planned points</span><span class="foot-sep"></span><span>4200A · Offline</span><button id="lang-toggle" title="语言">中 / EN</button></div></footer>
