@@ -178,8 +178,12 @@ const ctx={
  record.plots[0].getCurves();
  assert.equal(reads.length,beforePlotReads+4,'Artifact revision change invalidates curves');
  assert.ok(reads.every(r=>r.limit<=65536));
- const exportButton=record.actions.find(x=>x.id==='dkts-export-original-1');
- assert.ok(exportButton,'export runs via DKDS unit action');
+ const dataMenu=record.actions.find(x=>x.id==='dkts-frame-data-1');
+ assert.ok(dataMenu?.menu===true,'mobile PlotView uses one canonical DKDS Action menu for sources/export');
+ const entries=dataMenu.items();
+ assert.ok(entries.some(x=>x.id==='source-all'));
+ const exportButton=entries.find(x=>x.id==='export-original');
+ assert.ok(exportButton,'full-resolution export is a DKDS menu action');
  await exportButton.onInvoke();
  assert.equal(record.exports.length,1,'raw data exported only through DKDS IO');
  assert.equal(record.exports[0].rows.length,3);
