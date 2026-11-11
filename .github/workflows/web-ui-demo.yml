@@ -33,21 +33,26 @@ jobs:
         run: node tools/build-web-demo-single-file.cjs
       - name: Verify offline-only instrument boundary and relative assets
         run: node --test tests/web-ui-demo.test.cjs
-      - name: Make Chinese fonts available for visual screenshots
+      - name: Use Noto CJK font for reproducible Chinese UI screenshots
         shell: bash
         run: |
           set -euo pipefail
           if fc-list :lang=zh family | grep -q .; then
-            echo "Chinese font already provided by GitHub runner."
+            echo "A CJK font is already available on the runner."
           else
-            # Do not fail a validated UI build just because Ubuntu mirrors or
-            # security.ubuntu.com temporarily cannot resolve (2026-11-11).
-            # Real Chromium screenshots and UI assertions still run below.
-            if timeout 65s sudo apt-get -o Acquire::Retries=1 update -qq &&
-               timeout 65s sudo apt-get -o Acquire::Retries=1 install -y -qq fonts-noto-cjk; then
-              echo "CJK screenshot font installed."
+            # Ubuntu APT mirrors sometimes fail DNS; fetch the public Noto font
+            # from its canonical upstream solely for CI screenshots. It is not
+            # copied into any application asset or user-download artifact.
+            font="$RUNNER_TEMP/NotoSansCJKsc-Regular.otf"
+            url="https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf"
+            if curl -fLsS --retry 2 --connect-timeout 10 --max-time 55 "$url" -o "$font" &&
+               [ "$(stat -c%s "$font")" -gt 10000000 ] &&
+               fc-scan "$font" | grep -qi 'Noto Sans CJK SC'; then
+              mkdir -p "$HOME/.local/share/fonts"
+              cp "$font" "$HOME/.local/share/fonts/NotoSansCJKsc-Regular.otf"
+              echo "Chinese font checked and installed for Chromium screenshots."
             else
-              echo "::warning::CJK font download unavailable; Chromium UI testing will continue. Screenshot glyphs require inspection."
+              echo "::warning::Could not obtain CJK font. Visual assertions will still run; inspect screenshots for missing glyphs."
             fi
           fi
           fc-cache -f || true
