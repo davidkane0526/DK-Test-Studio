@@ -128,3 +128,25 @@ dialog{border:1px solid var(--dkui-control-border);background:var(--dkui-surface
   max-height:340px;
  }
 }
+
+/* Project-level independent graph frames; existing parameter controls unchanged. */
+.frame-layout-picker{display:flex;align-items:center;gap:7px;color:var(--dkui-text-soft);white-space:nowrap}
+.frame-layout-picker select{height:27px;min-width:88px}
+.frame-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(210px,1fr));flex:1;min-height:0;gap:9px;padding:9px;overflow:auto;background:var(--dkui-canvas)}
+.frame-grid[data-layout="1"]{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(250px,1fr)}
+.frame-grid[data-layout="2"]{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:minmax(250px,1fr)}
+.frame-grid[data-layout="1"] .frame-card:nth-child(n+2),.frame-grid[data-layout="2"] .frame-card:nth-child(n+3){display:none!important}
+.frame-card{display:flex;flex-direction:column;min-width:0;min-height:190px;border:1px solid var(--dkui-divider);border-radius:7px;overflow:hidden;background:var(--dkui-surface)}
+.frame-head{display:flex;justify-content:space-between;align-items:center;gap:8px;height:36px;min-height:36px;padding:0 10px;border-bottom:1px solid var(--dkui-divider);background:var(--dkui-surface-soft)}
+.frame-head strong{font-size:11.5px}.frame-head label{display:flex;align-items:center;gap:5px;color:var(--dkui-text-soft);white-space:nowrap}
+.frame-head select{height:25px;min-width:84px;font-size:10.5px}
+.frame-body{display:flex;flex:1;min-height:0;overflow:auto}
+.frame-body>.data-view{flex:1;min-width:0;padding:8px;overflow:auto}
+.frame-body #plan-plot{height:auto;min-height:100px;max-height:210px;width:100%}
+.frame-body #measurement-plot{height:170px;min-height:130px}
+.frame-empty{margin:auto;padding:16px;text-align:center;color:var(--dkui-muted);font-size:11px}
+.main-pane.editor-open .frame-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(4,minmax(180px,auto))}
+.main-pane.editor-open .frame-grid[data-layout="1"]{grid-template-rows:minmax(180px,1fr)}
+.main-pane.editor-open .frame-grid[data-layout="2"]{grid-template-rows:repeat(2,minmax(180px,1fr))}
+@media(max-width:990px){.frame-grid,.frame-grid[data-layout="2"]{grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(4,minmax(200px,auto))}.frame-grid[data-layout="2"]{grid-template-rows:repeat(2,minmax(200px,auto))}.frame-grid[data-layout="1"]{grid-template-rows:minmax(200px,1fr)}}
+@media(max-width:850px){.frame-grid{gap:7px;padding:7px}.data-bottom{flex:0 0 65px;padding:5px 9px}.data-bottom .run-stats{padding-top:4px}}

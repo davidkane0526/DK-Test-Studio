@@ -130,9 +130,17 @@
         <div data-panel="spec" hidden><div class="section-card"><div class="section-head"><h2>Associate Spec</h2></div><label class="inline-spec"><input type="checkbox" id="associate-spec"> 将当前 Page 关联至器件 Spec</label><div class="spec-link-row"><label>关联 Spec<select id="associate-spec-picker"><option value="">未关联</option></select></label><button id="spec-add-inline" class="tiny-button" type="button">＋ Spec</button></div><p class="table-note">Spec 是项目内独立对象，关联关系与扫描参数一同保存。网页预览不会执行 Spec 判定。</p></div></div>
       </section>
       <aside class="data-pane" id="data-pane">
-        <div class="data-header"><div class="section-label"><h2>Data / Graph</h2></div>
-          <div class="data-tabs"><button class="active" data-data-view="plan">Plan</button><button data-data-view="graph">Graph</button><button data-data-view="raw">Raw</button></div>
+        <div class="data-header"><div class="section-label"><h2>绘图区</h2></div>
+          <label class="frame-layout-picker">子窗口 <select id="frame-layout" aria-label="子窗口布局">
+            <option value="1">单窗口</option><option value="2">双窗口</option><option value="4" selected>四宫格</option>
+          </select></label>
         </div>
+        <div class="frame-grid" id="frame-grid" data-layout="4">
+          <section class="frame-card" data-frame="1" aria-label="图窗 1">
+            <div class="frame-head"><strong>图窗 1</strong>
+              <div class="data-tabs"><button class="active" data-data-view="plan">规划</button><button data-data-view="graph">实测</button><button data-data-view="raw">数据</button></div>
+            </div>
+            <div class="frame-body">
         <div id="plan-view" class="data-view">
           <div class="plot-caption">Sweep Program · 仅规划波形</div>
           <svg id="plan-plot" viewBox="0 0 680 310" role="img" aria-label="规划电压波形"></svg>
@@ -143,7 +151,28 @@
           <div class="empty-chart" id="data-empty">暂无仪器实测数据</div>
         </div>
         <div id="raw-view" class="data-view" hidden><div class="raw-placeholder">尚无仪器原始采样数据</div></div>
-        <div class="data-bottom"><strong>Result</strong><div class="run-stats"><div><span>Samples</span><strong>—</strong></div><div><span>Run</span><strong>—</strong></div><div><span>Elapsed</span><strong>—</strong></div></div></div>
+            </div>
+          </section>
+          <section class="frame-card" data-frame="2" aria-label="图窗 2">
+            <div class="frame-head"><strong>图窗 2</strong><label>显示 <select data-frame-kind="2" aria-label="图窗 2 图表类型">
+              <option value="iv">I–V</option><option value="transfer" selected>转移特性</option><option value="it">I–t</option><option value="raw">数据表</option>
+            </select></label></div>
+            <div class="frame-body"><div class="frame-empty" data-empty-frame="2">暂无原始测量数据</div></div>
+          </section>
+          <section class="frame-card" data-frame="3" aria-label="图窗 3">
+            <div class="frame-head"><strong>图窗 3</strong><label>显示 <select data-frame-kind="3" aria-label="图窗 3 图表类型">
+              <option value="iv">I–V</option><option value="transfer">转移特性</option><option value="it" selected>I–t</option><option value="raw">数据表</option>
+            </select></label></div>
+            <div class="frame-body"><div class="frame-empty" data-empty-frame="3">暂无原始测量数据</div></div>
+          </section>
+          <section class="frame-card" data-frame="4" aria-label="图窗 4">
+            <div class="frame-head"><strong>图窗 4</strong><label>显示 <select data-frame-kind="4" aria-label="图窗 4 图表类型">
+              <option value="iv">I–V</option><option value="transfer">转移特性</option><option value="it">I–t</option><option value="raw" selected>数据表</option>
+            </select></label></div>
+            <div class="frame-body"><div class="frame-empty" data-empty-frame="4">暂无原始测量数据</div></div>
+          </section>
+        </div>
+        <div class="data-bottom"><strong>测量结果</strong><div class="run-stats"><div><span>Samples</span><strong>—</strong></div><div><span>Run</span><strong>—</strong></div><div><span>Elapsed</span><strong>—</strong></div></div></div>
       </aside>
   </main>
 </div>

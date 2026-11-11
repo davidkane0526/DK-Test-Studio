@@ -27,7 +27,7 @@ let state={
  routines:[{id:'routine-1',deviceId:'device-1',name:'Routine 1'}],activeRoutineId:'routine-1',specs:[],
  pages:[defaults('iv'),defaults('transfer'),defaults('pund')],
  activePage:0,section:'sweep',dataView:'plan',navOpen:false,editorOpen:false,
- theme:'light',lang:'zh',portsVisible:true
+ theme:'light',lang:'zh',portsVisible:true,frameLayout:'4',frameKinds:['transfer','it','raw']
 };
 try{
  const stored=JSON.parse(localStorage.getItem(STORAGE)||sessionStorage.getItem(STORAGE)||'null');
@@ -38,6 +38,8 @@ try{
 }catch{}
 // Always start with the project graph; previous selected Page is not auto-opened.
 state.editorOpen=false;
+if(!['1','2','4'].includes(String(state.frameLayout)))state.frameLayout='4';
+if(!Array.isArray(state.frameKinds)||state.frameKinds.length!==3)state.frameKinds=['transfer','it','raw'];
 if(!Array.isArray(state.devices)||!state.devices.length||state.devices.length>100)
  state.devices=[{id:'device-1',name:'MOSFET'}];
 if(!Array.isArray(state.routines)||!state.routines.length||state.routines.length>100)
@@ -229,7 +231,7 @@ function renderPage(){
  picker.value=linked?page.associateSpecId:'';
  picker.disabled=!allowedSpecs.length;
  tree();ports();renderSegments('x');renderSegments('p');terminalSettings();rows('target');rows('var');
- openSection(state.section);openDataView(state.dataView);updatePlan(false);
+ openSection(state.section);openDataView(state.dataView);updatePlan(false);updateFrameWindows();
 }
 function openSection(section){
  if(!['info','sweep','target','strategy','limits','variables','spec'].includes(section))section='sweep';
@@ -237,6 +239,17 @@ function openSection(section){
  document.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==section);
  document.querySelectorAll('[data-section]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.section===section)));
  save();
+}
+function updateFrameWindows(){
+ $('frame-grid').dataset.layout=String(state.frameLayout);
+ $('frame-layout').value=String(state.frameLayout);
+ for(const card of document.querySelectorAll('[data-frame-kind]')){
+  const i=Number(card.dataset.frameKind)-2;
+  card.value=state.frameKinds[i];
+  // A static web preview never constructs a substitute for instrument raw samples.
+  const empty=document.querySelector('[data-empty-frame="'+(i+2)+'"]');
+  if(empty)empty.textContent=card.value==='raw'?'暂无原始采样数据':'暂无原始测量数据';
+ }
 }
 function openDataView(view){
  if(!['plan','graph','raw'].includes(view))view='plan';
@@ -441,6 +454,13 @@ document.addEventListener('input',event=>{
 });
 document.addEventListener('change',event=>{
  const t=event.target;
+ if(t.id==='frame-layout'){
+  state.frameLayout=t.value;updateFrameWindows();save();return;
+ }
+ if(t.dataset.frameKind){
+  state.frameKinds[Number(t.dataset.frameKind)-2]=t.value;
+  updateFrameWindows();save();return;
+ }
  if(t.dataset.port){
   const role=t.dataset.port,p=current(),used=roles.filter(r=>r!==role&&p.terminals[r]===t.value);
   if(t.value!=='None'&&t.value!=='GNDU'&&used.length){
