@@ -39,8 +39,8 @@ const units={
      'repeat(2,minmax(0,1fr))');
    }
    if(spec.variant==='responsive-two-column'){
-    assert.equal(spec.geometry?.gridTemplateColumns,
-     'minmax(0,1.25fr) minmax(320px,.75fr)');
+    assert.ok(['minmax(0,1.25fr) minmax(320px,.75fr)',
+      'repeat(2,minmax(0,1fr))'].includes(spec.geometry?.gridTemplateColumns));
     assert.equal(spec.responsiveGeometry?.[0]?.maxWidth,680);
     assert.equal(spec.responsiveGeometry?.[0]?.geometry?.gridTemplateColumns,
      'minmax(0,1fr)');
@@ -139,10 +139,12 @@ const ctx={
  record.tabs.at(-1).onChange('sweep');
 
  assert.equal(record.panels.some(x=>x.title==='D · SMU1'),false,'None port does not render parameter panel');
- assert.equal(record.plots.length,1);
+ assert.equal(record.plots.length,4,'four actual DKDS scientific plots');
  assert.equal(record.headers.some(x=>x.kind==='plot'&&x.variant==='plot'),true,
    'DKDS Core owns the canonical chart title');
- assert.equal(record.plotViews.length,1);
+ assert.equal(record.plotViews.length,4,'four independent DKDS PlotView hosts');
+ assert.deepEqual([...new Set(record.plotViews.map(x=>x.id))].length,4);
+ assert.ok(record.fields.some(x=>x.spec.label==='子窗口'),'native project graph layout selector');
  assert.equal(record.plotViews[0].spec.variant,'complete');
  assert.deepEqual([...record.plotViews[0].spec.placements],['home','float','global']);
  assert.equal(record.plotViews[0].spec.images,true);

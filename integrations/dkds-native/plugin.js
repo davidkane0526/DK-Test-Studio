@@ -5,7 +5,7 @@
   const model=ctx.modules.require('model'),units=ctx.ui.unitTemplates;
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
-  let wb=null,plot=null,plotView=null,nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
+  let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameGrid=null,frameLayout='4',nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
   let editorSection='sweep',editorOpen=false,workRegion=null,editorRegion=null,plotRegion=null;
   const PAGE_TABS=[['info','Info'],['sweep','Sweep'],['target','Target'],['strategy','Strategy'],['limits','Limits'],['variables','Page Var'],['spec','Associate Spec']];
   const touchNumeric=Boolean(window.matchMedia?.('(pointer: coarse)')?.matches);
@@ -29,7 +29,7 @@
    plotCacheKey='';
    const items=sources();
    if(dataNote)dataNote.textContent='数据中心：'+items.length+' 组';
-   plot?.requestRender?.('data-artifacts');
+   for(const item of plots)item?.requestRender?.('data-artifacts');
   }
   function commitTransaction(fn){
    try{persist(fn());}
@@ -168,7 +168,15 @@
     });
    }
   }
+  function applyFrameLayout(){
+   const small=Boolean(window.matchMedia?.('(max-width: 680px)')?.matches);
+   if(frameGrid?.style)frameGrid.style.gridTemplateColumns=
+    frameLayout==='1'||small?'minmax(0,1fr)':'repeat(2,minmax(0,1fr))';
+   for(let i=0;i<frameCards.length;i++)if(frameCards[i]?.style)
+    frameCards[i].style.display=frameLayout==='1'&&i>0||frameLayout==='2'&&i>1?'none':'';
+  }
   function updateEditorLayout(){
+   applyFrameLayout();
    const narrow=Boolean(window.matchMedia?.('(max-width: 680px)')?.matches);
    if(workRegion?.style)workRegion.style.gridTemplateColumns=
     editorOpen&&!narrow?'minmax(0,1.25fr) minmax(320px,.75fr)':'minmax(0,1fr)';
@@ -413,21 +421,41 @@
   parameters=units.layout.create(editor,{variant:'stack-compact'});
   const plotArea=units.layout.create(work,{variant:'stack-comfortable'});
   workRegion=work;editorRegion=editor;plotRegion=plotArea;
-  const graphic=units.panel.create(plotArea,{variant:'plot-card',
-   header:false,sizing:'content'});
-  if(graphic.element?.style)graphic.element.style.minHeight='min(64dvh,600px)';
-  const graphicHeader=units.header.create(graphic.body,{kind:'plot',
-   variant:'plot',title:'Data / Graph',actionHost:true});
-  const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
-  plotView=units.plotView.adopt('dkts-4200a-main-plot',graphic.element,{
-   variant:'complete',title:'Data / Graph',plot:plotHost,
-   header:graphicHeader.element,actionsHost:graphicHeader.actions,
-   fileStem:'DKTS_4200A_plot',images:true,copy:false,csv:false,
-   placements:['home','float','global'],stateVersion:'dkts-native-v3'});
-  plot=units.scientificPlot.create(plotHost,{variant:'curve',
-   source:'dkts-native',xTitle:'Voltage / Time',yTitle:'Current (A)',
-   getCurves:curves,getMarkers:()=>[]});
-  dataNote=units.note.create(plotArea,{variant:'meta',text:'Data Center · 0'});
+  // Four independent DKDS PlotView subwindows, each with its own host controls.
+  // Never synthesize measurement samples in an offline UI.
+  const frameTools=units.layout.create(plotArea,{variant:'row-wrap'});
+  units.field.create(frameTools,{kind:'select',label:'子窗口',value:frameLayout,
+   options:[{value:'1',label:'单窗口'},{value:'2',label:'双窗口'},
+    {value:'4',label:'四宫格'}],
+   onChange:e=>{frameLayout=e.target.value;applyFrameLayout();}});
+  frameGrid=units.layout.create(plotArea,{variant:'responsive-two-column',
+   geometry:{gridTemplateColumns:'repeat(2,minmax(0,1fr))'},
+   responsiveGeometry:[{maxWidth:680,
+    geometry:{gridTemplateColumns:'minmax(0,1fr)'}}]});
+  const frameTitles=['图窗 1 · I–V','图窗 2 · 转移特性','图窗 3 · I–t','图窗 4 · 数据'];
+  for(let index=0;index<4;index++){
+   const graphic=units.panel.create(frameGrid,{variant:'plot-card',
+    header:false,sizing:'content'});
+   frameCards.push(graphic.element);
+   if(graphic.element?.style)graphic.element.style.minHeight='min(31dvh,255px)';
+   const graphicHeader=units.header.create(graphic.body,{kind:'plot',
+    variant:'plot',title:frameTitles[index],actionHost:true});
+   const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
+   const view=units.plotView.adopt('dkts-4200a-frame-'+(index+1),graphic.element,{
+    variant:'complete',title:frameTitles[index],plot:plotHost,
+    header:graphicHeader.element,actionsHost:graphicHeader.actions,
+    fileStem:'DKTS_4200A_frame_'+(index+1),images:true,copy:false,csv:false,
+    placements:['home','float','global'],stateVersion:'dkts-native-v4'});
+   // The raw data frame is intentionally empty without an instrument data table.
+   const instance=units.scientificPlot.create(plotHost,{variant:'curve',
+    source:'dkts-native-frame-'+(index+1),
+    xTitle:index===2?'Time (s)':'Voltage (V)',yTitle:'Current (A)',
+    getCurves:index===3?()=>[]:curves,getMarkers:()=>[]});
+   plotViews.push(view);plots.push(instance);
+   if(index===0){plotView=view;plot=instance;}
+  }
+  applyFrameLayout();
+  dataNote=units.note.create(plotArea,{variant:'meta',text:'数据中心 · 0'});
   // Keep optional dockable Port PRIME; editing of Page is always visible.
   const ports=units.layout.create(null,{variant:'stack-compact'});
   portFields=ports;
@@ -452,6 +480,7 @@
   render();refreshData();
   ctx.status.set('4200A 工作区已加载；原生输出禁用');
   return {deactivate(){window.removeEventListener?.('resize',updateEditorLayout);
-   pad?.close?.();off?.();plot?.dispose?.();plotView?.dispose?.();wb?.dispose?.();}};
+   pad?.close?.();off?.();for(const item of plots)item?.dispose?.();
+   for(const item of plotViews)item?.dispose?.();wb?.dispose?.();}};
  });
 })();
