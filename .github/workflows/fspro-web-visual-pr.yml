@@ -1,0 +1,47 @@
+name: DKTS FS-Pro Web UI Hierarchy (PR-only visual acceptance)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'web/fspro-workbench/**'
+      - 'tools/build-web-demo.cjs'
+      - 'tools/web-demo-visual-smoke.cjs'
+      - 'tests/web-ui-demo.test.cjs'
+      - '.github/workflows/fspro-web-visual-pr.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: npm install --no-audit --no-fund
+      - name: Build FS-Pro Web preview
+        run: |
+          node tools/build-ui-system.cjs
+          node tools/prepare-dkds-plot-vendor.cjs
+          node tools/build-web-demo.cjs
+      - name: Test graph/editor hierarchy and offline safety
+        run: node --test tests/web-ui-demo.test.cjs
+      - name: Prepare Chromium/CJK rendering
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk
+          npm install --no-save --package-lock=false playwright-core@1.56.1
+      - name: Desktop and Android-width interaction screenshots
+        run: node tools/web-demo-visual-smoke.cjs
+      - name: Upload visible screenshots for review
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: DKTS-FSPro-Project-Graph-Page-Editor-Visual
+          path: dist/web-demo-visual/*.png
+          if-no-files-found: warn
