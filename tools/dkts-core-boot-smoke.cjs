@@ -66,9 +66,9 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
         y=>coords.filter(p=>p.y===y&&p.w>0).length)),
        coords};
      })(),
-     nativePlotGroupCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-plot-group="plot-group-v2"]').length,
-     nativePlotViewCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-plot-view="plot-view-v2"]').length,
-     nativePlotHeaderCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-template="plot-header-v2"]').length,
+     nativePlotGroupCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-plot-group="four-independent-frames"]').length,
+     nativePlotViewCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-plot-frame]').length,
+     nativePlotHeaderCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-plot-header]').length,
      keptDataCenter:ids.includes('builtin.data-center'),
      keptConnectivity:ids.includes('builtin.connectivity-center'),
      keptTheme:ids.some(x=>x.startsWith('com.dkds.theme.')),
@@ -95,7 +95,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        state.activeActivity!=='dkts-keithley-4200'||state.neutralMainVisible||
        state.hasNativePageTabs||state.hasTerminalEditor||
        !state.hasDeviceNavigation||state.hasRedundant4200Header||
-       state.nativePlotGroupCount!==1||state.nativePlotHeaderCount<4)return;
+       state.nativePlotGroupCount!==1||state.nativePlotViewCount!==4||
+       state.nativePlotHeaderCount!==4)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();
@@ -137,12 +138,13 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
     const tabs=[...document.querySelectorAll('[data-dkds-unit-template="tabs-v2"]')];
     const visible=tabs.some(el=>el.getBoundingClientRect().width>60&&
      el.getBoundingClientRect().height>0&&el.textContent.includes('扫描'));
-    const heading=[...document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-template="panel-header-v2"]')]
-     .find(el=>el.textContent.includes('绘图区'));
+    // A visible back-to-graphs action also contains 绘图区; it is NOT the graph
+    // panel heading. Inspect the unique graph surface instead of matching text.
+    const graph=document.querySelector('#dktsKeithley4200Page [data-dkts-view="graph"]');
     const back=[...document.querySelectorAll('button')].some(el=>el.textContent.includes('← 绘图区'));
     return {visible,tabCount:tabs.length,backButton:back,
-     graphHeadingHidden:!heading||heading.getBoundingClientRect().height===0,plotHeaders:
-     document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-template="plot-header-v2"]').length};
+     graphHeadingHidden:!graph||graph.getBoundingClientRect().height===0,plotHeaders:
+     document.querySelectorAll('#dktsKeithley4200Page [data-dkts-plot-header]').length};
    })()`,true);
    if(!pageEditor.visible||!pageEditor.backButton||!pageEditor.graphHeadingHidden)throw Error('FS-Pro Page editor hierarchy invalid: '+JSON.stringify(pageEditor));
    const pageImage=await win.webContents.capturePage();
