@@ -15,12 +15,16 @@ vm.runInNewContext(fs.readFileSync(dir+'/measurement-data.js','utf8'),sandbox,{f
 vm.runInNewContext(fs.readFileSync(dir+'/plugin.js','utf8'),sandbox,{filename:'plugin.js'});
 assert.equal(definitions.length,1);
 const record={actions:[],fields:[],panels:[],plots:[],plotViews:[],headers:[],
- listItems:[],popovers:[],plotGroups:[],closedPads:0,top:null,activity:null,composed:null,disposals:0,captures:0,status:[],pageHeaders:0,fullReads:0,exports:[]};
+ listItems:[],popovers:[],plotGroups:[],tables:[],closedPads:0,top:null,activity:null,composed:null,disposals:0,captures:0,status:[],pageHeaders:0,fullReads:0,exports:[]};
 const el=()=>({children:[],textContent:'',replaceChildren(){this.children=[];}});
 const units={
  pageHeader:{create:()=>{record.pageHeaders++;return {actions:el()}}},page:{create:()=>({element:el()})},
  header:{create:(host,spec)=>{record.headers.push(spec);return{element:el(),actions:el()}}},
  plotView:{adopt:(id,card,spec)=>{record.plotViews.push({id,spec});return {dispose:()=>record.disposals++}}},
+  table:{mount:(id,host,spec)=>{
+   const row={id,spec,updates:[],setData:(columns,rows)=>row.updates.push({columns,rows}),
+    dispose:()=>record.disposals++};record.tables.push(row);return row;
+  }},
   plotGroup:{create:(host,spec)=>{record.plotGroups.push(spec);return{
    adoptPlot:(id,card,config)=>{record.plotViews.push({id,spec:config});return{dispose:()=>record.disposals++}},
    setColumns:count=>{record.groupColumns=count},dispose:()=>record.disposals++};}},
@@ -147,6 +151,7 @@ const ctx={
 
  assert.equal(record.panels.some(x=>x.title==='D · SMU1'),false,'None port does not render parameter panel');
  assert.equal(record.plotGroups.length,1,'four plot windows share canonical DKDS managed PlotGroup');
+  assert.equal(record.tables.length,4,'raw tables must use DKDS Unit Table, not HTML placeholders');
   assert.equal(record.plots.length,4,'four actual DKDS scientific plots');
  assert.equal(record.headers.some(x=>x.kind==='plot'&&x.variant==='plot'),true,
    'DKDS Core owns the canonical chart title');

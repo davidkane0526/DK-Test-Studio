@@ -27,6 +27,7 @@
     "ui.workspace",
     "ui.unit-templates",
     "ui.scientific-plot",
+    "ui.table",
     "ui.activities",
     "ui.top-workspace",
     "ui.pages"

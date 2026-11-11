@@ -1,12 +1,12 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.1","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","measurement-data.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]}};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.1","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","measurement-data.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]}};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),measurementData=ctx.modules.require('measurementData'),units=ctx.ui.unitTemplates;
   if(typeof measurementData?.publishRaw!=='function')throw Error('KXCI Data Center publisher missing');
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
-  let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSourceHosts=[],frameSelections=['','','',''],frameKinds=['iv','transfer','it','raw'],frameGroup=null,frameLayout='4',nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
+  let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSourceHosts=[],frameSelections=['','','',''],frameKinds=['iv','transfer','it','raw'],frameGroup=null,frameTableHosts=[],framePlotHosts=[],frameTables=[],frameLayout='4',nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
   let editorSection='sweep',editorOpen=false,workRegion=null,editorRegion=null,plotRegion=null;
   const PAGE_TABS=[['info','信息'],['sweep','扫描'],['target','目标'],['strategy','策略'],['limits','保护'],['variables','页面变量'],['spec','关联规格']];
   const FRAME_OPTIONS=[{value:'iv',label:'I–V 曲线'},{value:'transfer',label:'转移曲线'},{value:'it',label:'I–t 曲线'},{value:'raw',label:'原始数据'}];
@@ -43,13 +43,38 @@
    ctx.project.capture?.();
    syncGraphSettings();
    applyFrameLayout();
+   refreshRawTables();
    for(const item of plots)item?.requestRender?.('frame-setting');
+  }
+  function refreshRawTables(){
+   const available=sources();
+   for(let index=0;index<frameTables.length;index++){
+    const raw=frameKinds[index]==='raw';
+    if(frameTableHosts[index]?.style)frameTableHosts[index].style.display=raw?'':'none';
+    if(framePlotHosts[index]?.style)framePlotHosts[index].style.display=raw?'none':'';
+    if(!raw)continue;
+    const ref=frameSelections[index]
+     ?available.find(item=>item.artifactId===frameSelections[index])
+     :available.length===1?available[0]:null;
+    if(!ref){frameTables[index].setData([],[]);continue;}
+    const cols=ctx.data.artifacts.columnMetadata(ref.artifactId);
+    if(!Array.isArray(cols)||!cols.length){frameTables[index].setData([],[]);continue;}
+    const count=Math.min(200,...cols.map(col=>Number(col.length)||0));
+    if(count<1){frameTables[index].setData([],[]);continue;}
+    const slices=cols.map(col=>ctx.data.artifacts.readColumnRange(ref.artifactId,
+     col.id||col.key,{start:0,limit:count}));
+    const rows=Array.from({length:count},(_,i)=>Object.fromEntries(cols.map((col,c)=>
+     [col.key||col.id,slices[c]?.values?.[i]??null])));
+    frameTables[index].setData(cols.map(col=>({key:col.key||col.id,
+     label:col.name||col.key||col.id})),rows);
+   }
   }
   function refreshData(){
    plotCache.clear();
    const items=sources();
    if(dataNote)dataNote.textContent='数据中心：'+items.length+' 组（仅显示已分配源）';
    refreshFrameSourceFields();
+   refreshRawTables();
    for(const item of plots)item?.requestRender?.('data-artifacts');
   }
   function commitTransaction(fn){
@@ -527,6 +552,12 @@
     onInvoke:()=>exportOriginalCsv(index).catch(error=>
      ctx.status.set('原始数据导出失败：'+String(error.message||error)))});
    const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
+   framePlotHosts.push(plotHost);
+   const rawHost=units.layout.create(graphic.body,{variant:'scroll-pane'});
+   frameTableHosts.push(rawHost);
+   frameTables.push(units.table.mount('dkts-frame-'+(index+1)+'-raw',rawHost,{
+    variant:'standard',persistKey:'dkts-frame-'+(index+1)+'-raw',
+    appearance:{density:'compact',stripe:'subtle'},columns:[],rows:[]}));
    const view=frameGroup.adoptPlot('dkts-4200a-frame-'+(index+1),graphic.element,{
     variant:'complete',title:frameTitles[index],plot:plotHost,
     header:graphicHeader.element,actionsHost:graphicHeader.actions,
@@ -543,6 +574,7 @@
   }
   applyFrameLayout();
   refreshFrameSourceFields();
+  refreshRawTables();
   dataNote=units.note.create(plotArea,{variant:'meta',text:'数据中心 · 0'});
   // Keep optional dockable Port PRIME; editing of Page is always visible.
   const ports=units.layout.create(null,{variant:'stack-compact'});
@@ -569,6 +601,7 @@
   ctx.status.set('4200A 工作区已加载；原生输出禁用');
   return {deactivate(){window.removeEventListener?.('resize',updateEditorLayout);
    pad?.close?.();off?.();for(const item of plots)item?.dispose?.();
-   for(const item of plotViews)item?.dispose?.();frameGroup?.dispose?.();wb?.dispose?.();}};
+   for(const item of plotViews)item?.dispose?.();
+   for(const item of frameTables)item?.dispose?.();frameGroup?.dispose?.();wb?.dispose?.();}};
  });
 })();
