@@ -8,14 +8,15 @@
     "test": "node tools/build-ui-system.cjs && node --test tests/*.test.cjs",
     "identify": "node cli/identify.cjs",
     "serve": "node tools/build-ui-system.cjs && node tools/prepare-dkds-plot-vendor.cjs && node src/server.cjs",
-    "start": "node tools/build-ui-system.cjs && node tools/prepare-dkds-plot-vendor.cjs && electron desktop/main.cjs",
-    "dist:win": "node tools/build-ui-system.cjs && node tools/prepare-dkds-plot-vendor.cjs && electron-builder --win portable",
+    "start": "node tools/launch-core-mainline.cjs",
     "plugin:build": "node tools/build-ui-system.cjs && node tools/build-dkds-plugin.cjs",
     "icons:build": "node tools/generate-app-icons.cjs",
     "prepare:plot-vendor": "node tools/prepare-dkds-plot-vendor.cjs",
     "hardware:export": "node tools/export-hardware-capabilities.cjs",
     "build:ui": "node tools/build-ui-system.cjs",
-    "plugin:native": "node tools/build-dkds-native-plugin.cjs"
+    "plugin:native": "node tools/build-dkds-native-plugin.cjs",
+    "start:legacy": "node tools/build-ui-system.cjs && node tools/prepare-dkds-plot-vendor.cjs && electron desktop/main.cjs",
+    "dist:win:legacy": "node tools/build-ui-system.cjs && node tools/prepare-dkds-plot-vendor.cjs && electron-builder --win portable"
   },
   "engines": {
     "node": ">=20.0.0"
