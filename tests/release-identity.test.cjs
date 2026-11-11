@@ -20,25 +20,26 @@ test('the full package version stays fixed while each UI build has an a-number i
   assert.match(stamper,/dkts-ui-release/);
   assert.match(stamper,/Embedded package/);
 });
-test('UI and full-package Actions share one run number and publish both Releases for every successful main commit',()=>{
+test('Core revision and validated preview packages share one V/a identity and source commit',()=>{
   const ui=read('.github/workflows/ui-update.yml');
   const full=read('.github/workflows/windows-preview.yml');
-  const packageVersion=JSON.parse(read('package.json')).version;
-  assert(ui.includes('run-name: DK Test Studio V'+packageVersion+' a${{ github.run_number }}'));
-  assert(full.includes('run-name: DK Test Studio V'+packageVersion+' a${{ github.event.workflow_run.run_number }}'));
-  assert.match(ui,/hotfix_id="a\$GITHUB_RUN_NUMBER"/);
-  assert.match(ui,/DKTS_UI_VERSION=\$hotfix_id/);
-  assert(ui.includes('DK Test Studio V$PACKAGE_VERSION $HOTFIX_ID · UI Hot Update'));
-  assert.match(ui,/full downloadable package/i);
+  const pkg=JSON.parse(read('package.json'));
+  assert(ui.includes('run-name: DK Test Studio V'+pkg.version+' a${{ github.run_number }}'));
+  assert.match(ui,/hotUpdateAvailable/);
+  assert.match(ui,/GITHUB_RUN_NUMBER/);
+  assert.doesNotMatch(ui,/gh release create/);
   assert.match(full,/workflow_run:/);
-  assert.match(full,/workflows: \["Fast UI Hot Update"\]/);
-  assert.match(full,/DKTS_BUILD_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
-  assert.match(full,/DKTS_UI_VERSION: a\$\{\{ github\.event\.workflow_run\.run_number \}\}/);
-  assert(full.includes('tag="dkts-preview-v${package_version}-${hotfix_id}"'));
-  assert(full.includes('DK Test Studio V${package_version} ${hotfix_id} · Full Package'));
-  assert.match(full,/Matching UI hot update/);
-  assert.doesNotMatch(full,/paths:/);
+  assert.match(full,/workflows: \["DKTS DKDS-Framework Contract \(read-only upstream\)"\]/);
+  assert.match(full,/github\.event\.workflow_run\.head_sha/);
+  assert.match(full,/ui-update\.yml\/runs/);
+  assert.match(full,/head_sha="\$CORE_SHA"/);
+  assert(full.includes('tag="dkts-core-preview-v'+pkg.version+'-$UI_REV"'));
+  assert.match(full,/--prerelease/);
+  assert.match(full,/DKTS-Core-Preview-Windows/);
+  assert.match(full,/DKTS-Core-Preview-Android-TEST-SIGNED/);
+  assert.doesNotMatch(full,/DKTS standalone complete package/);
 });
+
 test('the installed application offers only UI hot updates and shows aNNNN only in the hidden update panel',()=>{
   const html=read('web/index.html'),app=read('web/app.js');
   const packageVersion=JSON.parse(read('package.json')).version;
@@ -61,14 +62,17 @@ test('Windows and Android hot-update verifiers persist the same a-number and pac
   assert.match(android,/meta\.put\("packageVersion",bundle\.getString\("packageVersion"\)\)/);
 });
 
-test('Windows desktop releases build and publish only the Portable executable',()=>{
+test('Core Windows mainline is a separately verified Portable preview, never legacy installer',()=>{
   const pkg=JSON.parse(read('package.json'));
-  const workflow=read('.github/workflows/windows-preview.yml');
+  const coreCI=read('.github/workflows/dkts-framework-contract.yml');
+  const release=read('.github/workflows/windows-preview.yml');
   assert.deepEqual(pkg.build.win.target.map(item=>item.target),['portable']);
-  assert.match(pkg.scripts['dist:win'],/electron-builder --win portable$/);
-  assert.match(workflow,/Build Windows Portable/);
-  assert.match(workflow,/electron-builder --win portable/);
-  assert.match(workflow,/release\/windows -name '\*Portable\*\.exe'/);
-  assert.match(workflow,/release -type f \| wc -l\)" -eq 4/);
-  assert.doesNotMatch(workflow,/Setup.*\.exe|--win nsis/);
+  assert.equal(pkg.scripts.start,'node tools/launch-core-mainline.cjs');
+  assert.match(pkg.scripts['dist:win:legacy'],/electron-builder --win portable$/);
+  assert.match(coreCI,/Actual DKDS Core Electron boot/);
+  assert.match(coreCI,/npx electron-builder --win portable --x64 --publish never/);
+  assert.match(release,/DKTS-Core-Preview-Windows/);
+  assert.match(release,/file -b/);
+  assert.match(release,/SHA256SUMS\.txt/);
+  assert.doesNotMatch(release,/Setup.*\.exe|--win nsis/);
 });
