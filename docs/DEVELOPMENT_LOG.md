@@ -286,3 +286,5 @@
 - [41671fe3f](https://github.com/davidkane0526/DK-Test-Studio/commit/41671fe3f7b4e834910611beb27139991f747986)：Core Preview 的 Android 版本码绑定工作流 run number，避免版本码一直为 1，增加输入保护与断言。[017926f2](https://github.com/davidkane0526/DK-Test-Studio/commit/017926f23732a586342ad8bebdb52e7b694fa9ba)：在真正 DKDS Core APK 构建任务之外设置独立的、可选的原 DKTS 固定密钥签名 job，使用可信已固定的签名指纹和包名/版本校验，秘密仅传给签名步骤。[0c9fe9ac](https://github.com/davidkane0526/DK-Test-Studio/commit/0c9fe9ac03047c907c7d36bbe761f178f5b6aee7)：Core Preview Release 在存在可信签名 Artifact 时优先固定签名，否则仍标记 TEST-SIGNED，不虚构签名成功。完整签名 CI 结果仍待验证。
 - [b23ed534](https://github.com/davidkane0526/DK-Test-Studio/commit/b23ed534ba6d66c405b66c3219c8ff703b71569a)：网页截图 CI 为中文字体增加 Github Noto CJK 源下载校验，不将字体文件放入用户安装包，避免 apt DNS 故障导致 UI 检查失败。
 - 本次仅修改 DKTS 仓库；没有提交任何 DKDS 上游文件。剩余验收：签名步骤和最终固定签名 Release、Core 热更新与完整升级回退、Android OPPO 真机界面、4200A KXCI 输出安全与 Data Center 完整原始数据链路。
+
+- 2026-11-12 Core 主线完整发行触发纠偏：取消只针对部分路径的 `push.paths` 过滤器，确保 DKTS `main` 每一次提交都会触发真正 DKDS Core 的 Windows/Android 构建；保留 UI 修订 `aNNN` 与 Core 发行相同 SHA 的校验。变更和回归断言只在 DKTS，DKDS 上游未动。此前未触发 Core 的旧提交不会被冒称已有对应完整包；新规则从此次提交起生效。

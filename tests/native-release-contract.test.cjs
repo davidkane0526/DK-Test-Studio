@@ -48,3 +48,12 @@ test('optional pinned signer receives no DKDS source and verifies the real APK c
  assert.match(fragment,/studio\.dk\.test\.corepreview/);
  assert.doesNotMatch(fragment,/Checkout pinned DKDS|repository: davidkane0526\/DK-Data-Studio/);
 });
+
+test('every DKTS main push builds genuine DKDS Core Windows/Android packages, not only selected files',()=>{
+ const core=read('.github/workflows/dkts-framework-contract.yml');
+ const publisher=read('.github/workflows/windows-preview.yml');
+ assert(core.includes('  push:\n    branches: [main]\n  workflow_dispatch:'));
+ assert.doesNotMatch(core,/  push:\n    branches: \[main\]\n    paths:/);
+ assert.match(publisher,/workflow_run:/);
+ assert.match(publisher,/DKTS DKDS-Framework Contract \(read-only upstream\)/);
+});
