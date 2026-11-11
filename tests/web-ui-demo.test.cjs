@@ -115,6 +115,9 @@ test('results graph is a project-level sibling, test parameters are opt-in',()=>
  assert.doesNotMatch(html,/class="work-split"/);
  assert.match(html,/id="project-overview"/);
  assert.match(css,/\.main-pane:not\(\.editor-open\)>\.editor-pane\{display:none!important\}/);
+ assert.match(css,/\.main-pane\.editor-open>\.data-pane\{display:none!important\}/);
+ assert.match(html,/id="back-to-graphs"/);
+ assert.match(app,/\$\('back-to-graphs'\)\.addEventListener/);
  assert.match(app,/state\.editorOpen=false;/);
  assert.match(app,/state\.editorOpen=true;/);
  assert.match(app,/\$\('main-pane'\)\.classList\.toggle\('editor-open'/);

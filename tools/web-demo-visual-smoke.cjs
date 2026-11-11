@@ -47,7 +47,7 @@ async function inspect(browser,url,width,height,mobile){
  if(mobile)await page.locator('#nav-toggle').click();
  await page.locator('.page-tree').first().click();
  assert.equal(await page.locator('#editor-pane').isVisible(),true,'Clicking a test Page opens its parameters');
- assert.equal(await page.locator('#data-pane').isVisible(),true,'Graph must not disappear when editor opens');
+ assert.equal(await page.locator('#data-pane').isVisible(),false,'Page editor must replace the graph, not share a split column');
  await page.locator('#p-enabled').check();
  assert.equal(await page.locator('#p-fields').isVisible(),true);
  assert.match(await page.locator('#plan-summary').innerText(),/Psweep/);
@@ -93,6 +93,9 @@ async function inspect(browser,url,width,height,mobile){
  assert.equal(await page.locator('.routine-heading').count(),2);
  assert.match(await page.locator('#breadcrumb').innerText(),/MOSFET/);
  await page.screenshot({path:path.join(shots,mobile?'tablet-fspro-project.png':'desktop-fspro-project.png'),fullPage:true});
+ await page.locator('#back-to-graphs').click();
+ assert.equal(await page.locator('#editor-pane').isVisible(),false,'Page back action must close editor');
+ assert.equal(await page.locator('#data-pane').isVisible(),true,'Page back action must restore project graph');
  if(mobile)await page.locator('#nav-toggle').click();
  await page.locator('#project-overview').click();
  assert.equal(await page.locator('#editor-pane').isVisible(),false,'Project overview must hide parameters');

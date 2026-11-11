@@ -494,6 +494,7 @@ $('export-project').addEventListener('click',doExport);
 $('project-overview').addEventListener('click',()=>{
  state.editorOpen=false;renderPage();save();closeNav();status('工程数据图');
 });
+$('back-to-graphs').addEventListener('click',()=>$('project-overview').click());
 $('ports-toggle').addEventListener('click',()=>{state.portsVisible=!state.portsVisible;ports();save();});
 $('theme-toggle').addEventListener('click',()=>{
  state.theme=state.theme==='light'?'dark':'light';
