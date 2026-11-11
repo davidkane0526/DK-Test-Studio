@@ -77,6 +77,11 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
     };
    })()`,true);
    lastProbe=state;
+   if(attempts===4){
+    // Keep real Electron pixels even when a changed UI acceptance predicate fails.
+    const diagnostic=await win.webContents.capturePage();
+    if(!diagnostic.isEmpty())fs.writeFileSync(path.join(dir,'core-host-diagnostic.png'),diagnostic.toPNG());
+   }
    // A failed plugin activation is deterministic; fail fast and report the
    // actual Core error instead of making developers wait for a generic timeout.
    if(attempts>=3&&state.manager4200?.status==='error')

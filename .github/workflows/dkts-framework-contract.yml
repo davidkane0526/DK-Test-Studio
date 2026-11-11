@@ -160,6 +160,7 @@ jobs:
         run: |
           npx electron-builder --win portable --x64 --publish never
       - name: Upload Core Preview screenshot, evidence and portable app (NOT stable Release)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: DKTS-Core-Preview-Windows-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
@@ -167,8 +168,9 @@ jobs:
             dist/core-smoke-evidence/report.json
             dist/core-smoke-evidence/core-host.png
             dist/core-smoke-evidence/core-host-narrow.png
+            dist/core-smoke-evidence/core-host-diagnostic.png
             dist/dkts-framework-staging/dist/*.exe
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 15
 
   android-core-preview:
