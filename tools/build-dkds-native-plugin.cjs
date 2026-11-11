@@ -12,7 +12,7 @@ if(!manifest.workspace||manifest.workspace.role!=='top'||
    manifest.window?.activity!==manifest.workspace.activity)
  throw Error('Native DKDS TOP workspace contract required');
 const scripts=manifest.scripts;
-if(!Array.isArray(scripts)||scripts.join(',')!=='model.js,plugin.js')
+if(!Array.isArray(scripts)||scripts.join(',')!=='model.js,measurement-data.js,plugin.js')
  throw Error('Native plugin script order is not validated');
 const files={};
 for(const name of scripts){

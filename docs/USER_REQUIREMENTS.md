@@ -63,3 +63,37 @@
 > 继续吧 注意增加版本号
 
 **验收**：在 DKTS 内继续推进已确认的 FS-Pro/DKDS Core 路线，任何新交付均明确标注对应的程序版本 `Vx.y.z`、开发/热更新编号 `aNNN` 和提交 SHA。仅可热更新的界面改动保持 `V0.3.13` 包版本不变，递增 a 编号，并提供同一 V/a 的完整 Windows/Android 下载包；不得因“继续”修改 DKDS。发布需经 CI 验证，不能把 PR 预览或未完成的 Core Host 冒充稳定版。
+## 2026-11-10 原话 [R-20261110-005]
+> 继续，你应该还记得我让你不要动DKDS吧？？？
+
+**验收与治理**：此句含对 DKDS 写保护的再次明确确认，属于非单纯“继续”的要求。无论开发何种 DKTS UI、Core 派生宿主、GitHub Actions、Windows/Android 安装包，都不得修改 `davidkane0526/DK-Data-Studio` 的源码、提交、分支、插件、更新源及 Releases。只可在 DKTS 仓库创建派生复制、对只读上游执行检查，并在 DKTS 自己的暂存目录构建。任何 DKDS 直接写入必须另获用户明确授权。“继续”本身永不授权对 DKDS 的修改。
+
+
+## 2026-11-10 原话 [R-20261110-006]
+> 继续吧 当前移动和桌面端UI太粗糙了，甚至比不上网页端
+
+**验收**：以已通过网页截图评审的 FS-PRO 工作区为最低视觉与交互基线，重点完善 Windows 与 Android 的真正 DKDS Core 宿主，而非重复构造离线页面。首次进入 4200A 即可看到结构清晰的 Project / Device / Routine / Page 导航、展开可编辑的 Sweep/Terminal/Target/Strategy/Limit 等 Page 参数、与 DKDS Scientific Plot 并列的数据区；统一控件间距/尺寸/标题层级，适配 1200px 桌面与约 744px 平板，不能将重要参数默认藏在 PRIME 标签下。必须使用 DKDS 正式 Unit SDK 组件与主题/数据契约，不添加独立假宿主，不改 DKDS 上游。真实 Electron 截图和 Android 产物通过 CI 验证，明确区分 UI 验收、模拟测试和物理硬件验证。
+
+## 2026-11-11 原话 [R-20261111-002]（网页汉化、数据图层级、三端一致、旧分支审计）
+> 进展如何？我先说明，网页版的UI我都不太满意，汉化不够充分，且数据图的层级不应该和参数设置在一起，而当前桌面端和移动端的UI更差，我是不能接受的，我不明白你为什么连网页端的样式都重复不出来。另外，我要强调的是，[https://github.com/davidkane0526/DK-Data-Studio/tree/feat/4200a-fspro-rebuild](https://github.com/davidkane0526/DK-Data-Studio/tree/feat/4200a-fspro-rebuild) 你曾错误的遗留，这个分支我准备删掉，你先看看对你有没有用。此外，你要复刻fs-pro的UI逻辑和层级，我曾把开发包发给你，你还有么？你还记得么？你还遵循我的要求么？
+
+**本次具体验收**：依据原厂《LabExpress 用户使用手册》中文 106 页和 V6 规范进行结构级复刻，Edit Page 与独立主图表区域分离，Sweep/Target/Strategy 为主标签，Limits/Page Var/Associate Spec 仍属于 Sweep 下方三栏；默认中文完全汉化，可切英文；Windows/Android/Web 使用同一真实 DKDS Core 组件和 FS-Pro 编辑器，必须进行视觉并排截图验收；原旧 DKDS 分支只读参考、无授权不得改动或删除。旧分支相关源码仅作为 DKTS 开发分支中的 `docs/reference/legacy-fspro-20261109/` 文档档案保存，**不进入运行产物**。跟踪：[Issue #20](https://github.com/davidkane0526/DK-Test-Studio/issues/20)。
+
+## 2026-11-11 原话 [R-20261111-003]（附截图后收窄范围）
+> 我需要明确告诉你的是，网页端我截图区域大部分我是满意的，除了布局上应该把数据图区域放到上一层，只有点击具体测试项目才显示参数设置。所有你只有这部分需要改，其他可以不动。
+> 今天必须把所有UI都完成，你现在是完全基于DKDS框架了么？如果不是，我完全不明白你为什么没做到。
+> 清理掉其余没用的分支，你最近智商很低，你已经多次出现回退了
+
+强制范围：除图表独立到工程主层、点击测试 Page 显示参数编辑外，不随意修改用户已接受的网页控件、配色、扫描表格、端口设置。桌面/Android 复用真正 DKDS Core 宿主。需求和日志记录 GitHub，旧分支先归档 SHA 再清理，活跃 PR 分支保留。详见 Issue #20。
+
+## 2026-11-11 [R-20261111-005] 原话：复用 DKDS 绘图、数据中心与导出；PR #8 淘汰
+> 那你做吧，然后我要删掉这个分支。此外，从图中来看，你完全没继承DKDS对于数据图的要求，我定义过很明确的要求。所以你真的基于DKDS了么？数据接入数据中心了么？导出数据接入DKDS框架了么？
+
+验收：**仅 DKTS**，不能改动上游 DKDS；图窗布局、图窗标题、手势交互、主题、下拉、悬浮操作必须是实际 DKDS Core PlotView/ScientificPlot/Unit 模板，不得由网页 FS-Pro 独立容器或模拟 SVG 冒充。每个图窗独立选择已获 DKDS Data Center 分配的真实 Artifact，原始数据必须进入 canonical DataTable，具有 TI 响应来源与采集 metadata。图像导出使用 DKDS PlotView，原始 CSV 使用 DKDS IO 和 Data Center 原始列，禁止将抽稀后的图点当原始 CSV，禁止静默截断。硬件采集未打通时不得声称已经入库。
+PR #8 旧宿主分支安全功能应与新 Core 验证一致后由归档记录取代，PR 关闭，原分支保留由用户删除。正式新 Core 的 Vx.y.z+aNNN、APK 签名、回退、热更全部完成真实端到端测试前不得发布替换稳定包。
+
+## 2026-11-11 [R-20261111-006] 当天完成 UI 与中断恢复
+> 继续 今天要完成UI部分
+> ？？？？？？？？？？？？？我等了几个小时，你来一个 消息传输超时。请重试。？ openai 你也太会偷懒了
+
+要求：不能用计划或长时间无结果代替实际开发；消息中断后从 GitHub 真实提交与 CI 恢复，给出实际可检查的 Windows/Android 产物、截图、明确的通过/未通过结论。UI 优先：已接受的 Web 参数表格不重写；Project → Device → Routine → Page 分层；Project 层的 DKDS PlotGroup 独立显示多个真实图窗，点击 Page 才显示全宽参数编辑；Page 编辑可显式返回绘图区。窄屏 PlotView 标题、数据源和导出入口不能挤压裁剪；默认中文，技术缩写保留；严格使用 DKDS Unit/API，DKDS 上游仓库不得修改。未经 Android 真机与实际仪器验证不得声称全面完成。

@@ -1,11 +1,16 @@
 (() => {
  'use strict';
  const KINDS=Object.freeze([
-  {id:'iv',label:'I–V Sweep',testType:'DC'},
-  {id:'transfer',label:'Transfer Sweep',testType:'DC'},
-  {id:'time',label:'Time Sweep',testType:'IVT'},
-  {id:'pulse',label:'Pulse Sweep',testType:'Pulse'},
-  {id:'cv',label:'C–V Sweep',testType:'CV'}
+  {id:'iv',label:'I–V 扫描',testType:'DC'},
+  {id:'transfer',label:'转移特性',testType:'DC'},
+  {id:'output',label:'输出特性',testType:'DC'},
+  {id:'pund',label:'PUND',testType:'Pulse'},
+  {id:'endurance',label:'耐久性',testType:'Cycle'},
+  {id:'retention',label:'保持特性',testType:'Time'},
+  {id:'arb',label:'任意波形',testType:'Pulse'},
+  {id:'time',label:'时间扫描',testType:'IVT'},
+  {id:'pulse',label:'脉冲扫描',testType:'Pulse'},
+  {id:'cv',label:'C–V 扫描',testType:'CV'}
  ]);
  const clone=x=>JSON.parse(JSON.stringify(x));
  // Offline scan structure mirrors the nested Xsweep/Psweep programming model.
@@ -112,21 +117,93 @@
   logical,resource:'None',sourceMode:'voltage',role:i===0?'X':'CONDITION',
   bias:'0',start:'0',stop:'2',step:'0.1',compliance:'0.01',rangeMode:'auto',rangeValue:'1e-6'
  }));
- const page=(kind='iv',id='page-1')=>{
+ const page=(kind='iv',id='page-1',routineId='routine-1')=>{
   const type=KINDS.find(x=>x.id===kind);if(!type)throw Error('Unknown test type');
-  return {id,kind,name:type.label,testType:type.testType,terminals:ports(),sweep:defaultSweep()};
+  return {id,routineId,kind,name:type.label,testType:type.testType,note:'',
+   terminals:ports(),sweep:defaultSweep(),
+   target:{logical:'D',quantity:'Current'},variables:[]};
  };
- const initial=()=>({schema:1,sequence:1,activeId:'page-1',pages:[page()]});
+ const initial=()=>({schema:1,sequence:1,activeId:'page-1',
+  activeDeviceId:'device-1',devices:[{id:'device-1',name:'MOSFET'}],
+  activeRoutineId:'routine-1',
+  routines:[{id:'routine-1',deviceId:'device-1',name:'测试流程 1'}],
+  specs:[],pages:[page()],ui:{graphs:{count:4,
+   kinds:['iv','transfer','it','raw'],sources:['','','','']}}});
  function validate(state){
   if(state?.schema!==1||!Array.isArray(state.pages)||!state.pages.length||
      state.pages.length>128||!Number.isSafeInteger(state.sequence)||state.sequence<1)
    throw Error('Invalid DKTS project state');
   state=clone(state);
+  // Schema-1 snapshots predate Device ownership. Migrate in a cloned state
+  // only; never change an already persisted project while merely validating.
+  if(!Array.isArray(state.devices))
+   state.devices=[{id:'device-1',name:'MOSFET'}];
+  if(!state.devices.length||state.devices.length>100)
+   throw Error('Invalid Device count');
+  const deviceIds=new Set();
+  for(const device of state.devices){
+   if(!/^device-[A-Za-z0-9-]+$/.test(device?.id||'')||
+      deviceIds.has(device.id)||typeof device.name!=='string'||
+      !device.name.trim()||device.name.length>64)
+    throw Error('Invalid Device');
+   deviceIds.add(device.id);
+  }
+  if(!Array.isArray(state.routines)||!state.routines.length)
+   state.routines=[{id:'routine-1',deviceId:state.devices[0].id,name:'测试流程 1'}];
+  if(state.routines.length>100)throw Error('Too many Routines');
+  const routineIds=new Set(),routineOwners=new Map();
+  for(const routine of state.routines){
+   if(!routine.deviceId)routine.deviceId=state.devices[0].id;
+   if(!/^routine-[A-Za-z0-9-]+$/.test(routine?.id||'')||
+      routineIds.has(routine.id)||typeof routine.name!=='string'||
+      !routine.name.trim()||routine.name.length>64||
+      !deviceIds.has(routine.deviceId))throw Error('Invalid Routine or Device ownership');
+   routineIds.add(routine.id);
+   routineOwners.set(routine.id,routine.deviceId);
+  }
+  if(!Array.isArray(state.specs))state.specs=[];
+  if(state.specs.length>100)throw Error('Too many Specs');
+  const specIds=new Set(),specOwners=new Map();
+  for(const spec of state.specs){
+   if(!spec.deviceId)spec.deviceId=state.devices[0].id;
+   if(!/^spec-[A-Za-z0-9-]+$/.test(spec?.id||'')||
+      specIds.has(spec.id)||typeof spec.name!=='string'||
+      !spec.name.trim()||spec.name.length>64||
+      !deviceIds.has(spec.deviceId))throw Error('Invalid Spec or Device ownership');
+   specIds.add(spec.id);
+   specOwners.set(spec.id,spec.deviceId);
+  }
   const ids=new Set();
   for(const p of state.pages){
+   if(!p.routineId)p.routineId=state.routines[0].id;
+   if(!routineIds.has(p.routineId))throw Error('Page references an unknown Routine');
+   if(p.associateSpecId===undefined)p.associateSpecId=null;
+   if(p.associateSpecId!==null&&
+      (!specIds.has(p.associateSpecId)||
+       specOwners.get(p.associateSpecId)!==routineOwners.get(p.routineId)))
+    throw Error('Page Spec must belong to the same Device');
    if(!/^page-[1-9]\d*$/.test(p?.id||'')||ids.has(p.id)||!KINDS.some(k=>k.id===p.kind)||
       !Array.isArray(p.terminals)||p.terminals.length!==4)throw Error('Invalid Page');
    ids.add(p.id);
+   if(typeof p.name!=='string'||!p.name.trim()||p.name.length>64)
+    throw Error('Invalid Page name');
+   if(p.note===undefined)p.note='';
+   if(typeof p.note!=='string'||p.note.length>512)throw Error('Invalid Page note');
+   // UI planning metadata is never a hardware execution permission.
+   if(!p.target)p.target={logical:'D',quantity:'Current'};
+   if(!['D','G','S','B'].includes(p.target.logical)||
+      !['Current','Voltage'].includes(p.target.quantity))throw Error('Invalid Target plan');
+   if(!Array.isArray(p.variables))p.variables=[];
+   if(p.variables.length>32)throw Error('Too many Page variables');
+   const variableNames=new Set();
+   for(const variable of p.variables){
+    if(!/^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(variable?.name||'')||
+       variableNames.has(variable.name))throw Error('Invalid or duplicate Page variable name');
+    variableNames.add(variable.name);
+    numeric(variable.value,'Page variable');
+    if(typeof variable.unit!=='string'||variable.unit.length>12)
+     throw Error('Invalid Page variable unit');
+   }
    const resources=new Set(),roles=new Set(),logicals=new Set();
    for(const t of p.terminals){
     if(logicals.has(t.logical))throw Error('Duplicate logical terminal: '+t.logical);
@@ -166,12 +243,78 @@
    }
    validateSweep(p);
   }
+  // UI plot layout is canonical project state and survives Core workspace reopening.
+  if(!state.ui||typeof state.ui!=='object')state.ui={};
+  if(!state.ui.graphs)state.ui.graphs=initial().ui.graphs;
+  const graphs=state.ui.graphs;
+  if(![1,2,4].includes(Number(graphs.count))||!Array.isArray(graphs.kinds)||
+     graphs.kinds.length!==4||!Array.isArray(graphs.sources)||graphs.sources.length!==4)
+   throw Error('Invalid persisted plot window state');
+  if(graphs.kinds.some(kind=>!['iv','transfer','it','raw'].includes(kind))||
+     graphs.sources.some(id=>typeof id!=='string'||id.length>160))
+   throw Error('Invalid plot selection');
   if(!ids.has(state.activeId))throw Error('Active Page missing');
+  state.activeRoutineId=state.pages.find(p=>p.id===state.activeId).routineId;
+  state.activeDeviceId=routineOwners.get(state.activeRoutineId);
   return state;
  }
- function add(s,kind){
+ function add(s,kind,routineId){
   s=validate(s);const id='page-'+(s.sequence+1);
-  s.sequence++;s.pages.push(page(kind,id));s.activeId=id;return validate(s);
+  const target=routineId||s.activeRoutineId;
+  if(!s.routines.some(r=>r.id===target))throw Error('Unknown Routine');
+  s.sequence++;s.pages.push(page(kind,id,target));
+  s.activeId=id;s.activeRoutineId=target;return validate(s);
+ }
+ function addRoutine(s,deviceId){
+  s=validate(s);
+  if(s.routines.length>=100||s.pages.length>=128)
+   throw Error('Maximum Routines or Pages reached');
+  const owner=deviceId||s.activeDeviceId;
+  if(!s.devices.some(d=>d.id===owner))throw Error('Unknown Device');
+  const routineId='routine-'+(s.routines.length+1);
+  if(s.routines.some(r=>r.id===routineId))throw Error('Duplicate Routine ID');
+  s.routines.push({id:routineId,deviceId:owner,name:'测试流程 '+(s.routines.length+1)});
+  return add(s,'iv',routineId);
+ }
+ function addDevice(s){
+  s=validate(s);
+  if(s.devices.length>=100)throw Error('Maximum 100 Devices');
+  const deviceId='device-'+(s.devices.length+1);
+  if(s.devices.some(d=>d.id===deviceId))throw Error('Duplicate Device ID');
+  s.devices.push({id:deviceId,name:'器件 '+(s.devices.length+1)});
+  return addRoutine(s,deviceId);
+ }
+ function selectDevice(s,deviceId){
+  s=validate(s);
+  if(!s.devices.some(d=>d.id===deviceId))throw Error('Unknown Device');
+  const routine=s.routines.find(r=>r.deviceId===deviceId);
+  if(!routine)return addRoutine(s,deviceId);
+  return selectRoutine(s,routine.id);
+ }
+ function selectRoutine(s,routineId){
+  s=validate(s);
+  if(!s.routines.some(r=>r.id===routineId))throw Error('Unknown Routine');
+  const first=s.pages.find(p=>p.routineId===routineId);
+  if(!first)return add(s,'iv',routineId);
+  s.activeId=first.id;s.activeRoutineId=routineId;
+  return validate(s);
+ }
+ function addSpec(s){
+  s=validate(s);
+  if(s.specs.length>=100)throw Error('Maximum 100 Specs');
+  const id='spec-'+(s.specs.length+1);
+  if(s.specs.some(spec=>spec.id===id))throw Error('Duplicate Spec ID');
+  s.specs.push({id,deviceId:s.activeDeviceId,name:'Spec '+(s.specs.length+1)});
+  return associateSpec(s,id);
+ }
+ function associateSpec(s,specId){
+  s=validate(s);
+  if(specId!==null&&!s.specs.some(spec=>spec.id===specId&&
+      spec.deviceId===s.activeDeviceId))
+   throw Error('Spec belongs to another Device or is unknown');
+  const active=s.pages.find(p=>p.id===s.activeId);
+  active.associateSpecId=specId;
+  return validate(s);
  }
  function remove(s,id){
   s=validate(s);
@@ -184,7 +327,50 @@
  }
  function select(s,id){
   s=validate(s);if(!s.pages.some(x=>x.id===id))throw Error('Page missing');
-  s.activeId=id;return s;
+  s.activeId=id;s.activeRoutineId=s.pages.find(p=>p.id===id).routineId;return s;
+ }
+ function editPage(s,changes){
+  s=validate(s);
+  if(!changes||typeof changes!=='object'||
+     Object.keys(changes).some(k=>!['name','note'].includes(k)))
+   throw Error('Invalid Page metadata change');
+  Object.assign(s.pages.find(p=>p.id===s.activeId),changes);
+  return validate(s);
+ }
+ function editTarget(s,changes){
+  s=validate(s);
+  if(!changes||typeof changes!=='object'||
+     Object.keys(changes).some(k=>!['logical','quantity'].includes(k)))
+   throw Error('Invalid Target change');
+  Object.assign(s.pages.find(p=>p.id===s.activeId).target,changes);
+  return validate(s);
+ }
+ function addVariable(s){
+  s=validate(s);
+  const vars=s.pages.find(p=>p.id===s.activeId).variables;
+  if(vars.length>=32)throw Error('Maximum 32 Page variables');
+  let index=vars.length+1;
+  while(vars.some(row=>row.name==='var'+index))index++;
+  vars.push({name:'var'+index,value:'0',unit:'V'});
+  return validate(s);
+ }
+ function editVariable(s,index,changes){
+  s=validate(s);
+  if(!Number.isInteger(index)||!changes||typeof changes!=='object'||
+     Object.keys(changes).some(k=>!['name','value','unit'].includes(k)))
+   throw Error('Invalid Page variable change');
+  const vars=s.pages.find(p=>p.id===s.activeId).variables;
+  if(index<0||index>=vars.length)throw Error('Page variable missing');
+  Object.assign(vars[index],changes);
+  return validate(s);
+ }
+ function removeVariable(s,index){
+  s=validate(s);
+  const vars=s.pages.find(p=>p.id===s.activeId).variables;
+  if(!Number.isInteger(index)||index<0||index>=vars.length)
+   throw Error('Page variable missing');
+  vars.splice(index,1);
+  return validate(s);
  }
  function edit(s,logical,values){
   s=validate(s);
@@ -258,7 +444,7 @@
  // Core owns the canonical DataTable buffer and the drawing engine.
  // A curve reads bounded, immutable column slices instead of copying a whole
  // Artifact with artifacts.get(). Display decimation never changes raw data.
- function curvesFromArtifacts(refs,store,{maxRead=65536,maxDisplay=8192}={}){
+ function curvesFromArtifacts(refs,store,{maxRead=65536,maxDisplay=8192,axis='iv'}={}){
   const out=[];
   if(!Array.isArray(refs)||!store?.columnMetadata||!store?.readColumnRange)return out;
   const budget=Math.max(1,Math.min(65536,Math.floor(Number(maxRead)||65536)));
@@ -268,11 +454,17 @@
    const id=String(ref.artifactId),cols=store.columnMetadata(id);
    if(!Array.isArray(cols)||!cols.length)continue;
    const norm=c=>String(c.key||c.name||c.id||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-   const choose=(keys,role)=>cols.find(c=>keys.includes(norm(c)))||
-    cols.find(c=>c.role===role);
-   const x=choose(['vdset','vd','voltage','vds','vg','vgs','time','t','x'],'x');
-   const y=choose(['id','current','ids','i','y'],'y');
-   if(!x||!y||x===y)continue;
+   const choose=(keys,role,allowRole=true)=>cols.find(c=>keys.includes(norm(c)))||
+    (allowRole?cols.find(c=>c.role===role):null);
+   const xkeys={
+    iv:['drainvoltagev','vdset','vd','voltage','vds','drainvoltage','x'],
+    transfer:['gatevoltagev','vg','vgs','gatevoltage'],
+    it:['times','time','elapsedseconds','seconds','t']
+   };
+   if(!Object.prototype.hasOwnProperty.call(xkeys,axis))throw Error('Unknown graph axis');
+   const x=choose(xkeys[axis],'x',axis==='iv');
+   const y=choose(['draincurrenta','id','current','ids','i','draincurrent','y'],'y');
+      if(!x||!y||x===y)continue;
    const total=Math.min(Number(x.length)||0,Number(y.length)||0);
    if(!Number.isSafeInteger(total)||total<=0)continue;
    // Span the entire raw table, not just the first 65536 rows. All accesses
@@ -337,6 +529,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,initial,validate,add,remove,select,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,addSpec,associateSpec,remove,select,editPage,editTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

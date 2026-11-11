@@ -6,6 +6,7 @@
   "entry": "plugin.js",
   "scripts": [
     "model.js",
+    "measurement-data.js",
     "plugin.js"
   ],
   "enabled": true,
@@ -19,11 +20,14 @@
     "project",
     "state",
     "modules",
+    "io",
+    "data.model",
     "data.sources",
     "data.artifacts",
     "ui.workspace",
     "ui.unit-templates",
     "ui.scientific-plot",
+    "ui.table",
     "ui.activities",
     "ui.top-workspace",
     "ui.pages"
@@ -48,7 +52,8 @@
     "role": "top",
     "activity": "dkts-keithley-4200",
     "icon": "▦",
-    "title": "4200A 测试"
+    "title": "4200A 测试",
+    "defaultSuper": true
   },
   "window": {
     "activity": "dkts-keithley-4200",

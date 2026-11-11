@@ -80,6 +80,7 @@ jobs:
           repository: davidkane0526/DK-Data-Studio
           ref: 20f056851a61d2144e9524c3ed568628d4b8557c
           path: compat/dkds
+          persist-credentials: false
       - name: Verify the DKDS package uses the external installation path
         run: node tools/verify-dkds-installability.cjs compat/dkds
       - name: Validate DKDS Plugin API and layout

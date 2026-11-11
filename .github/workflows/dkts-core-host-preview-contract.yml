@@ -1,0 +1,32 @@
+name: DKTS Core Host Preview Contract
+run-name: DK Test Studio V0.3.13 · Core Host PR Preview #${{ github.run_number }}
+on:
+  push:
+    branches: [feat/dkts-core-host-boot]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-core-native-workbench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned DKTS dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: npm install --no-audit --no-fund
+      - name: Run DKTS test suite
+        run: npm test
+      - name: Verify native DKDS Unit Routine/Page tree
+        run: node tests/test-dkds-native-host.cjs
+      - name: Build DKTS-owned native plugin without touching DKDS
+        run: node tools/build-dkds-native-plugin.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-Core-Native-Plugin-V0.3.13-PR${{ github.run_number }}
+          path: dist/DKTS-4200A-native-v0.8.1.dkplugin
+          if-no-files-found: error
