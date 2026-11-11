@@ -38,7 +38,7 @@
   <div class="appbar-right"><span class="offline-chip"><i></i>离线预览</span><button id="theme-toggle" class="icon-button" aria-label="切换主题" title="明暗主题">◐</button></div>
 </header>
 <div class="chrome-row">
-  <div class="toolbar-left"><span class="compact-caption">PROJECT</span><button id="new-routine" class="tool-button" title="新增 Routine">＋ Routine</button><button id="new-page" class="tool-button" title="新增 Page">＋ Page</button><button id="new-spec" class="tool-button" title="新增 Spec">＋ Spec</button></div>
+  <div class="toolbar-left"><span class="compact-caption">PROJECT</span><button id="new-device" class="tool-button" title="新增 Device">＋ Device</button><button id="new-routine" class="tool-button" title="新增 Routine">＋ Routine</button><button id="new-page" class="tool-button" title="新增 Page">＋ Page</button><button id="new-spec" class="tool-button" title="新增 Spec">＋ Spec</button></div>
   <div class="toolbar-right"><span class="breadcrumb" id="breadcrumb">Project / Device / Routine / Page</span><span class="readonly-tag">UI DEMO · NO HARDWARE</span></div>
 </div>
 <div class="shell" id="shell">
@@ -46,7 +46,7 @@
     <div class="pane-title"><strong>Project Explorer</strong><button class="icon-button" id="collapse-tree" title="关闭项目导航">‹</button></div>
     <div class="tree-group">
       <div class="tree-root"><span class="tree-icon">▣</span> Research Project</div>
-      <div class="tree-node tree-device"><span class="tree-guide">└</span><span class="tree-icon">▤</span> Device / MOSFET</div>
+      <div class="tree-node tree-device"><span class="tree-guide">└</span><span class="tree-icon">▤</span><label for="device-picker">Device</label><select id="device-picker" aria-label="当前 Device"></select></div>
       <div id="routine-list" class="routine-list"></div>
       <div id="spec-list" class="spec-list"></div>
     </div>

@@ -24,6 +24,7 @@ async function inspect(browser,url,width,height,mobile){
  await page.waitForFunction(()=>window.DKTSFSProDemo?.preview===true,null,{timeout:15000});
  assert.equal(await page.locator('.page-tree').count(),3);
  assert.equal(await page.locator('.routine-heading').count(),1);
+ assert.equal(await page.locator('#device-picker option').count(),1);
  assert.equal(await page.locator('.page-tabs [role="tab"]').count(),7);
  assert.equal(await page.locator('#x-segments tr').count(),1);
  assert.equal(await page.locator('#start').isDisabled(),true);
@@ -59,6 +60,21 @@ async function inspect(browser,url,width,height,mobile){
  assert.equal(await page.locator('#associate-spec').isChecked(),true);
  const linked=await page.evaluate(()=>window.DKTSFSProDemo.snapshot());
  assert.equal(linked.pages[4].associateSpecId,linked.specs[0].id);
+ assert.equal(linked.specs[0].deviceId,linked.devices[0].id);
+ await page.locator('#new-device').click();
+ assert.equal(await page.locator('#device-picker option').count(),2);
+ assert.equal(await page.locator('.routine-heading').count(),1);
+ assert.equal(await page.locator('.page-tree').count(),1);
+ assert.match(await page.locator('#breadcrumb').innerText(),/Device 2/);
+ assert.equal(await page.locator('#associate-spec-picker option').count(),1);
+ await page.locator('#new-spec').click();
+ const isolated=await page.evaluate(()=>window.DKTSFSProDemo.snapshot());
+ assert.equal(isolated.specs[1].deviceId,isolated.devices[1].id);
+ assert.equal(isolated.pages.at(-1).associateSpecId,isolated.specs[1].id);
+ assert.equal(await page.locator('#associate-spec-picker option').count(),2);
+ await page.locator('#device-picker').selectOption(isolated.devices[0].id);
+ assert.equal(await page.locator('.routine-heading').count(),2);
+ assert.match(await page.locator('#breadcrumb').innerText(),/MOSFET/);
  await page.screenshot({path:path.join(shots,mobile?'tablet-fspro-project.png':'desktop-fspro-project.png'),fullPage:true});
  if(mobile){await page.locator('#nav-toggle').click();assert.equal(await page.locator('.shell.nav-open').count(),1);
    await page.screenshot({path:path.join(shots,'tablet-fspro-navigation.png'),fullPage:true});}

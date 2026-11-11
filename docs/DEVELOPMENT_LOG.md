@@ -71,3 +71,9 @@
 ## 2026-11-10 / FS-Pro 真实 Spec 对象与 Page↔Spec 关联
 - 网页此前只有“Associate Spec”复选框，没有 Spec 实体。新增单独的 Spec 集合、项目树入口、Spec 选择器及可持久化的 `associateSpecId`，项目导出带 Spec 和 Routine 与 Page 所有权。
 - 保持只规划、无测量输出、无虚构原始采集。新增 Chromium 测试要求新建 Spec 并验证 Page 关联。该层目前实现于 DKTS Web FS-Pro 预览，Core 宿主尚未集成 Spec，同样不声称像素级 1:1 验收。
+
+## 2026-11-11 / FS-Pro Device 归属与发行版本
+- 需求 R-20261111-001（用户原话已由 `3319f73` 入账）。DKTS Web 工作区将固定的 MOSFET 占位文字改为可创建/切换的 Device 实体，Routine 与 Spec 按设备归属隔离，Page 仍归属于 Routine。
+- 对浏览器历史本地状态补充向后兼容的 Device ID，导出的规划 JSON 升级 v2 并包含 devices/routines/specs/pages；增加 Node 静态检查和 Chromium 桌面/平板的跨设备 Spec 隔离测试。
+- 主程序 V0.3.13 不变；GitHub Actions 负责自动递增 `aNNN` 并发布匹配的 Windows/Android 全量包与 UI bundle，实际成功情况以工作流与 Release 为准。网页仍为离线预览，DKDS Core PR #18 及实机 4200A 均尚未验收。
+- 未修改 DKDS。

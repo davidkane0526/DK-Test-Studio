@@ -23,7 +23,8 @@ const defaults=kind=>({
  variables:[],associateSpec:false,scanMode:'linear',speed:'Normal',pointDelay:20
 });
 let state={
- routines:[{id:'routine-1',name:'Routine 1'}],activeRoutineId:'routine-1',specs:[],
+ devices:[{id:'device-1',name:'MOSFET'}],activeDeviceId:'device-1',
+ routines:[{id:'routine-1',deviceId:'device-1',name:'Routine 1'}],activeRoutineId:'routine-1',specs:[],
  pages:[defaults('iv'),defaults('transfer'),defaults('pund')],
  activePage:0,section:'sweep',dataView:'plan',navOpen:false,
  theme:'light',lang:'zh',portsVisible:true
@@ -35,11 +36,19 @@ try{
   if(pages.length){state={...state,...stored,pages};state.activePage=Math.max(0,Math.min(pages.length-1,Number(state.activePage)||0));}
  }
 }catch{}
+if(!Array.isArray(state.devices)||!state.devices.length||state.devices.length>100)
+ state.devices=[{id:'device-1',name:'MOSFET'}];
 if(!Array.isArray(state.routines)||!state.routines.length||state.routines.length>100)
- state.routines=[{id:'routine-1',name:'Routine 1'}];
+ state.routines=[{id:'routine-1',deviceId:state.devices[0].id,name:'Routine 1'}];
+for(const routine of state.routines)
+ if(!state.devices.some(d=>d.id===routine.deviceId))routine.deviceId=state.devices[0].id;
 for(const page of state.pages)
  if(!state.routines.some(r=>r.id===page.routineId))page.routineId=state.routines[0].id;
 if(!Array.isArray(state.specs)||state.specs.length>100)state.specs=[];
+for(const spec of state.specs)
+ if(!state.devices.some(d=>d.id===spec.deviceId))spec.deviceId=state.devices[0].id;
+const selectedRoutine=state.routines.find(r=>r.id===state.pages[state.activePage].routineId);
+state.activeRoutineId=selectedRoutine.id;state.activeDeviceId=selectedRoutine.deviceId;
 const current=()=>state.pages[state.activePage];
 const save=()=>{
  try{localStorage.setItem(STORAGE,JSON.stringify(state));$('saved-state').textContent='已保存';}
@@ -62,8 +71,11 @@ function ensureShape(page){
 }
 state.pages.forEach(ensureShape);
 function tree(){
+ const picker=$('device-picker');picker.replaceChildren();
+ for(const device of state.devices)picker.add(new Option(device.name,device.id));
+ picker.value=state.activeDeviceId;
  const parent=$('routine-list');parent.replaceChildren();
- for(const routine of state.routines){
+ for(const routine of state.routines.filter(r=>r.deviceId===state.activeDeviceId)){
   const block=document.createElement('div');block.className='routine-block';
   const title=document.createElement('button');title.type='button';
   title.className='routine-heading'+(routine.id===state.activeRoutineId?' active':'');
@@ -91,10 +103,11 @@ function tree(){
   block.append(children);parent.append(block);
  }
  const target=$('spec-list');target.replaceChildren();
- if(state.specs.length){
+ const visibleSpecs=state.specs.filter(s=>s.deviceId===state.activeDeviceId);
+ if(visibleSpecs.length){
   const header=document.createElement('div');header.className='spec-tree-header';
   header.textContent='SPEC';target.append(header);
-  for(const spec of state.specs){
+  for(const spec of visibleSpecs){
    const b=document.createElement('button');b.type='button';b.className='spec-tree';
    b.dataset.specId=spec.id;b.innerHTML='<span>◇</span>'+esc(spec.name);
    b.addEventListener('click',()=>{
@@ -181,9 +194,11 @@ function renderPage(){
  const page=ensureShape(current());
  state.activeRoutineId=page.routineId;
  const routine=state.routines.find(r=>r.id===page.routineId);
+ const device=state.devices.find(d=>d.id===routine?.deviceId);
+ state.activeDeviceId=device?.id||state.devices[0].id;
  $('page-heading').textContent=page.name;
  $('kind-tag').textContent=KINDS[page.kind][1];
- $('breadcrumb').textContent='Research Project / MOSFET / '+(routine?.name||'Routine')+' / '+page.name;
+ $('breadcrumb').textContent='Research Project / '+(device?.name||'Device')+' / '+(routine?.name||'Routine')+' / '+page.name;
  $('page-name').value=page.name;
  $('test-kind').value=page.kind;
  $('loops').value=page.loops;
@@ -199,13 +214,14 @@ function renderPage(){
  $('speed-global').value=page.speed||'Normal';
  $('point-delay').value=page.pointDelay??20;
  $('strategy-loops').value=page.loops;
- const linked=!!page.associateSpec&&state.specs.some(s=>s.id===page.associateSpecId);
+ const allowedSpecs=state.specs.filter(s=>s.deviceId===state.activeDeviceId);
+ const linked=!!page.associateSpec&&allowedSpecs.some(s=>s.id===page.associateSpecId);
  $('associate-spec').checked=linked;
  const picker=$('associate-spec-picker');picker.replaceChildren();
  picker.add(new Option('未关联',''));
- for(const spec of state.specs)picker.add(new Option(spec.name,spec.id));
+ for(const spec of allowedSpecs)picker.add(new Option(spec.name,spec.id));
  picker.value=linked?page.associateSpecId:'';
- picker.disabled=!state.specs.length;
+ picker.disabled=!allowedSpecs.length;
  tree();ports();renderSegments('x');renderSegments('p');terminalSettings();rows('target');rows('var');
  openSection(state.section);openDataView(state.dataView);updatePlan(false);
 }
@@ -311,21 +327,39 @@ function plot(points){
 function closeNav(){state.navOpen=false;$('shell').classList.remove('nav-open');}
 function addPage(kind,routineId=state.activeRoutineId){
  if(!state.routines.some(r=>r.id===routineId))routineId=state.routines[0].id;
- const page=defaults(kind);page.routineId=routineId;
+ const routine=state.routines.find(r=>r.id===routineId);
+ const page=defaults(kind);page.routineId=routineId;state.activeDeviceId=routine.deviceId;
  state.pages.push(page);state.activePage=state.pages.length-1;
  state.activeRoutineId=routineId;state.section='sweep';
  renderPage();save();closeNav();status('已添加 '+page.name+' Page');
 }
-function addRoutine(){
- if(state.routines.length>=100){status('最多 100 个 Routine');return;}
+function addRoutine(deviceId=state.activeDeviceId){
+ if(state.routines.length>=100||state.pages.length>=100){status('Routine 或 Page 已达到上限');return;}
  const id='routine-'+Math.random().toString(36).slice(2,9);
- const routine={id,name:'Routine '+(state.routines.length+1)};
- state.routines.push(routine);state.activeRoutineId=id;
+ const routine={id,deviceId,name:'Routine '+(state.routines.length+1)};
+ state.routines.push(routine);state.activeRoutineId=id;state.activeDeviceId=deviceId;
  addPage('iv',id);status('已创建 '+routine.name+' 与初始 I–V Page');
+}
+function addDevice(){
+ if(state.devices.length>=100||state.routines.length>=100||state.pages.length>=100){
+  status('Device、Routine 或 Page 已达到上限');return;
+ }
+ const device={id:'device-'+Math.random().toString(36).slice(2,9),
+  name:'Device '+(state.devices.length+1)};
+ state.devices.push(device);state.activeDeviceId=device.id;
+ addRoutine(device.id);status('已创建 '+device.name+' 与初始 Routine / Page');
+}
+function selectDevice(deviceId){
+ if(!state.devices.some(d=>d.id===deviceId))return;
+ state.activeDeviceId=deviceId;
+ const ids=new Set(state.routines.filter(r=>r.deviceId===deviceId).map(r=>r.id));
+ const index=state.pages.findIndex(p=>ids.has(p.routineId));
+ if(index<0)addRoutine(deviceId);
+ else{state.activePage=index;renderPage();save();closeNav();}
 }
 function addSpec(){
  if(state.specs.length>=100){status('最多 100 个 Spec');return;}
- const spec={id:'spec-'+Math.random().toString(36).slice(2,9),
+ const spec={id:'spec-'+Math.random().toString(36).slice(2,9),deviceId:state.activeDeviceId,
   name:'Spec '+(state.specs.length+1)};
  state.specs.push(spec);current().associateSpec=true;
  current().associateSpecId=spec.id;state.section='spec';
@@ -334,9 +368,9 @@ function addSpec(){
 function openPicker(){$('choose-kind').showModal();}
 function doExport(){
  save();
- const payload={format:'dkts-fspro-page-plan',version:1,source:'web-ui-preview',
+ const payload={format:'dkts-fspro-page-plan',version:2,source:'web-ui-preview',
   warning:'Not verified or executable on Keithley 4200A',
-   routines:state.routines,specs:state.specs,pages:state.pages};
+   devices:state.devices,routines:state.routines,specs:state.specs,pages:state.pages};
  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
  const href=URL.createObjectURL(blob),link=document.createElement('a');
  link.href=href;link.download='DKTS-Page-Plan.json';link.click();
@@ -385,8 +419,9 @@ document.addEventListener('input',event=>{
   fixedBiases();
  }
  if(t.id==='associate-spec'){
-   p.associateSpec=t.checked&&state.specs.length>0;
-   if(p.associateSpec&&!p.associateSpecId)p.associateSpecId=state.specs[0].id;
+   const candidates=state.specs.filter(s=>s.deviceId===state.activeDeviceId);
+   p.associateSpec=t.checked&&candidates.length>0;
+   if(p.associateSpec&&!candidates.some(s=>s.id===p.associateSpecId))p.associateSpecId=candidates[0].id;
    $('associate-spec').checked=p.associateSpec;
    $('associate-spec-picker').value=p.associateSpec?p.associateSpecId:'';
  }
@@ -417,7 +452,9 @@ for(const axis of ['x','p'])$(axis+'-add').addEventListener('click',()=>{
 });
 $('validate').addEventListener('click',()=>updatePlan(true));
 $('save').addEventListener('click',()=>{save();status('规划已保存至当前浏览器会话');});
-$('new-routine').addEventListener('click',addRoutine);
+$('new-device').addEventListener('click',addDevice);
+$('new-routine').addEventListener('click',()=>addRoutine());
+$('device-picker').addEventListener('change',e=>selectDevice(e.target.value));
 $('new-page').addEventListener('click',openPicker);
 $('new-spec').addEventListener('click',addSpec);
 $('spec-add-inline').addEventListener('click',addSpec);
@@ -456,7 +493,7 @@ $('var-add').addEventListener('click',()=>{
 window.DKTSFSProDemo=Object.freeze({
  preview:true,instrumentOutput:false,syntheticRawData:false,
  snapshot:()=>structuredClone(state),calculate:()=>PLAN.calculate(current()),
- createPage:addPage,createRoutine:addRoutine,createSpec:addSpec
+ createPage:addPage,createRoutine:addRoutine,createDevice:addDevice,selectDevice,createSpec:addSpec
 });
 document.body.dataset.theme=state.theme;
 renderPage();

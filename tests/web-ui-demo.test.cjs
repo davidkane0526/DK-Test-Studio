@@ -95,3 +95,11 @@ test('web planner does not silently truncate sweep endpoints or relax KXCI segme
   page.xSweep.segments[0].stepV=1;
   assert.throws(()=>planner.calculate(page),/单点段必须使用 0 步长/);
 });
+
+test('FS-Pro Device owns Routines/Specs and exports device associations',()=>{
+ const app=fs.readFileSync(path.join(root,'web/fspro-workbench/app.js'),'utf8');
+ const html=fs.readFileSync(path.join(root,'web/fspro-workbench/index.html'),'utf8');
+ for(const marker of ['id="new-device"','id="device-picker"'])assert.ok(html.includes(marker));
+ for(const marker of ['function addDevice(','r.deviceId===state.activeDeviceId','s.deviceId===state.activeDeviceId','devices:state.devices,routines:state.routines'])assert.ok(app.includes(marker),marker);
+ assert.ok(!app.includes("'Research Project / MOSFET / '"));
+});

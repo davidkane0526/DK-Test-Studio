@@ -83,3 +83,6 @@ dialog{border:1px solid var(--dkui-control-border);background:var(--dkui-surface
 .spec-link-row{display:flex;align-items:end;gap:8px;padding:0 12px 12px}
 .spec-link-row label{display:flex;flex-direction:column;gap:4px;flex:1;font-size:10px;color:var(--dkui-text-soft)}
 .spec-link-row select{max-width:300px}
+
+/* FS-Pro project Device selection; does not change parameter inspector ownership. */
+.tree-device{gap:5px}.tree-device label{font-size:11px}.tree-device select{height:26px;flex:1;min-width:0;font-size:11px}
