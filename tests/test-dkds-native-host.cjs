@@ -134,7 +134,7 @@ const ctx={
   'native DKDS workbench must use host-managed FS-Pro project sidebar');
  assert.ok(record.layouts.includes('stack-compact'),
   'Project Explorer uses compact native DKDS Unit sizing');
- const projectHeader=record.headers.find(x=>x.eyebrow==='项目');
+ const projectHeader=record.headers.find(x=>x.title==='项目导航');
  assert.ok(projectHeader);
  assert.equal(projectHeader.meta,'','Device selector already displays selected device; do not repeat it');
  assert.equal(record.listItems.find(x=>x.title==='Routine 1')?.selected,false,

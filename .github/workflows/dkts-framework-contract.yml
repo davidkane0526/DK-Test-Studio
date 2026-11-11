@@ -168,6 +168,7 @@ jobs:
             dist/core-smoke-evidence/report.json
             dist/core-smoke-evidence/core-host.png
             dist/core-smoke-evidence/core-host-narrow.png
+            dist/core-smoke-evidence/core-host-page.png
             dist/core-smoke-evidence/core-host-diagnostic.png
             dist/dkts-framework-staging/dist/*.exe
           if-no-files-found: warn

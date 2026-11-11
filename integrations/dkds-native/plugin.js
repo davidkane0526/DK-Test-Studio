@@ -310,7 +310,7 @@
    const device=s.devices.find(d=>d.id===s.activeDeviceId);
    const visibleSpecs=s.specs.filter(spec=>spec.deviceId===s.activeDeviceId);
    const projectHeader=units.header.create(nav,{kind:'panel',variant:'content',
-    eyebrow:'项目',title:'研究工程',meta:''});
+    title:'项目导航',meta:''});
    // The existing Project heading is the graph-level navigation target.
    if(projectHeader?.element?.addEventListener){
     const home=()=>{editorOpen=false;render();};

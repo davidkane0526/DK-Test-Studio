@@ -125,7 +125,27 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
     win.setSize(...oldSize);
     win.setMinimumSize(...oldMin);
    }
+   // Real Core Page activation (not a static web DOM picture).
+   const pageClicked=await win.webContents.executeJavaScript(`(()=>{
+    const button=[...document.querySelectorAll('button[data-dkds-unit-template="list-item-v2"]')]
+     .find(node=>node.textContent.includes('I–V Sweep')||node.textContent.includes('I-V Sweep'));
+    if(!button)return false;button.click();return true;
+   })()`,true);
+   if(!pageClicked)throw Error('FS-Pro Page navigation item unavailable in real Electron DOM');
+   await new Promise(resolve=>setTimeout(resolve,350));
+   const pageEditor=await win.webContents.executeJavaScript(`(()=>{
+    const tabs=[...document.querySelectorAll('[data-dkds-unit-template="tabs-v2"]')];
+    const visible=tabs.some(el=>el.getBoundingClientRect().width>60&&
+     el.getBoundingClientRect().height>0&&el.textContent.includes('扫描'));
+    return {visible,tabCount:tabs.length,plotHeaders:
+     document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-template="plot-header-v2"]').length};
+   })()`,true);
+   if(!pageEditor.visible)throw Error('FS-Pro Page editor not visible after Page click: '+JSON.stringify(pageEditor));
+   const pageImage=await win.webContents.capturePage();
+   if(pageImage.isEmpty())throw Error('Core Page editor screenshot empty');
+   fs.writeFileSync(path.join(dir,'core-host-page.png'),pageImage.toPNG());
    const report={ok:true,kind:'DKTS-derived-real-DKDS-Electron-host',
+    pageEditor,
     narrowScreenshot:narrowSize,
     ...state,screenSize:size,uniqueSampleColors:unique.size,
     previewOnly:true,hasOutputVerification:false,attempts,elapsedMs:Date.now()-started};
