@@ -12,10 +12,18 @@ if(!manifest.workspace||manifest.workspace.role!=='top'||
    manifest.window?.activity!==manifest.workspace.activity)
  throw Error('Native DKDS TOP workspace contract required');
 const scripts=manifest.scripts;
-if(!Array.isArray(scripts)||scripts.join(',')!=='model.js,measurement-data.js,plugin.js')
+if(!Array.isArray(scripts)||
+ scripts.join(',')!=='model.js,measurement-data.js,ui-shell.js,plugin.js')
  throw Error('Native plugin script order is not validated');
+if(!Array.isArray(manifest.styles)||
+ manifest.styles.join(',')!=='ui-shell.css')
+ throw Error('Native plugin stylesheet declaration is not validated');
 const files={};
-for(const name of scripts){
+for(const name of [...scripts,...manifest.styles]){
+ // Manifest file names are a fixed allowlist. No path traversal, remote URLs
+ // or untrusted module names may reach the packaged SDK plugin.
+ if(!/^(?:model\\.js|measurement-data\\.js|ui-shell\\.js|plugin\\.js|ui-shell\\.css)$/.test(name))
+  throw Error('Unapproved plugin source '+name);
  const full=path.join(folder,name);
  if(!fs.statSync(full).isFile())throw Error('Missing plugin source '+name);
  files[name]=fs.readFileSync(full,'utf8');
