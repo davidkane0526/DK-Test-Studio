@@ -1,0 +1,53 @@
+/* DKTS-only domain geometry. No DKDS chrome, controls, plot headers or
+   application theme is restyled here. Plugin API 1.19 manifest styles asset. */
+#dktsKeithley4200Page [data-dkts-shell]{
+ display:grid!important;grid-template-columns:252px minmax(0,1fr)!important;
+ position:relative;min-width:0;min-height:0;max-width:100%;
+ align-items:stretch;overflow:visible
+}
+#dktsKeithley4200Page [data-dkts-nav]{
+ min-width:0;min-height:0;box-sizing:border-box;
+ padding:9px 10px 12px;overflow-y:auto;overflow-x:hidden
+}
+#dktsKeithley4200Page [data-dkts-work]{
+ min-width:0;min-height:0;overflow:auto
+}
+#dktsKeithley4200Page [data-dkts-editor]{
+ min-width:0;min-height:0;box-sizing:border-box;
+ padding:10px 12px 16px;overflow:auto
+}
+#dktsKeithley4200Page [data-dkts-view="graph"]{
+ min-width:0;min-height:0;box-sizing:border-box;
+ padding:8px 10px;display:flex!important;flex-direction:column;gap:7px
+}
+#dktsKeithley4200Page [data-dkts-plot-group]{
+ flex:1;min-width:0;min-height:0;overflow:auto;scrollbar-width:thin
+}
+#dktsKeithley4200Page [data-dkts-new-page]{margin-top:7px}
+#dktsKeithley4200Page [data-dkts-nav-scrim],
+#dktsKeithley4200Page [data-dkts-nav-toggle]{display:none}
+@media(max-width:900px){
+ #dktsKeithley4200Page [data-dkts-shell]{
+  grid-template-columns:minmax(0,1fr)!important
+ }
+ #dktsKeithley4200Page [data-dkts-nav]{
+  position:absolute;left:0;top:0;bottom:0;width:min(280px,84vw);
+  z-index:21;transform:translateX(-105%);transition:transform 150ms ease;
+  background:Canvas;color:CanvasText;
+  box-shadow:5px 0 18px color-mix(in srgb,black 13%,transparent)
+ }
+ #dktsKeithley4200Page [data-dkts-work]{grid-column:1/-1}
+ #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav]{
+  transform:translateX(0)
+ }
+ #dktsKeithley4200Page [data-dkts-nav-scrim]{
+  position:absolute;inset:0;z-index:20;
+  background:color-mix(in srgb,black 23%,transparent)
+ }
+ #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav-scrim]{display:block}
+ #dktsKeithley4200Page [data-dkts-nav-toggle]{display:inline-flex}
+}
+@media(max-width:540px){
+ #dktsKeithley4200Page [data-dkts-editor]{padding:8px 8px 14px}
+ #dktsKeithley4200Page [data-dkts-view="graph"]{padding:6px;gap:5px}
+}

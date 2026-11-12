@@ -49,7 +49,10 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        node.getBoundingClientRect().height>0),
      hasDeviceNavigation:!!document.querySelector('#dktsKeithley4200Page [data-dkts-nav]')&&
        document.body.innerText.includes('MOSFET')&&document.body.innerText.includes('项目'),
-      scopedGeometryLoaded:!!document.querySelector('style[data-dkts-style="4200a"]'),
+      scopedGeometryLoaded:(()=>{
+       const root=document.querySelector('#dktsKeithley4200Page [data-dkts-shell]');
+       return !!root&&getComputedStyle(root).gridTemplateColumns.startsWith('252px');
+      })(),
       projectSidebarWidth:(()=>{
        const node=document.querySelector('#dktsKeithley4200Page [data-dkts-nav]');
        return node?Math.round(node.getBoundingClientRect().width):0;

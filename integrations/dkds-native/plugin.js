@@ -1,6 +1,6 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.1","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","measurement-data.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]}};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.1","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","measurement-data.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"]};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),measurementData=ctx.modules.require('measurementData'),units=ctx.ui.unitTemplates,uiShell=ctx.modules.require('uiShell');
   if(typeof measurementData?.publishRaw!=='function')throw Error('KXCI Data Center publisher missing');
@@ -531,7 +531,7 @@
   // Core SDK owns the native Page editor and real PlotView, without a separate browser shell.
   const main=units.layout.create(null,{variant:'sidebar-main-standard'});
   nav=units.layout.create(main,{variant:'stack-compact'});
-  projectSurface=uiShell.attach(main,nav);
+  projectSurface=uiShell.attach(units,main,nav);
   // DKDS Core workbench owns both the independent result graph and Page inspector.
   // One semantic Core content stack. Selecting a Page replaces the graph
   // surface with a full-width parameter editor; it is not a sibling column.
@@ -598,7 +598,7 @@
     variant:'complete',title:frameTitles[index],plot:plotHost,
     header:graphicHeader.element,actionsHost:graphicHeader.actions,
     fileStem:'DKTS_4200A_frame_'+(index+1),images:true,copy:true,csv:false,
-    detailGeometry:{contentAspectRatio:1.65,contentMinHeightPx:190,contentMaxHeightPx:520},
+    detailGeometry:{contentAspectRatio:2.05,contentMinHeightPx:164,contentMaxHeightPx:300},
     placements:['home','left','right','bottom','float','global'],stateVersion:'dkts-native-v5'});
    // Recreate only the scientific surface when this window changes axes.
    const instance=createFramePlot(index);
