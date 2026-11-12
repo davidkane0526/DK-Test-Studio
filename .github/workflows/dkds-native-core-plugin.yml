@@ -52,7 +52,11 @@ jobs:
           assert.equal(p.manifest.workspace.role,'top');
           assert.equal(typeof p.files['model.js'],'string');
           assert.equal(typeof p.files['plugin.js'],'string');
-          assert.ok(!p.manifest.styles?.length,'no private theme overrides');
+          assert.deepEqual(p.manifest.styles,['ui-shell.css'],'SDK-approved plugin-only geometry stylesheet');
+          assert.equal(typeof p.files['ui-shell.js'],'string');
+          assert.equal(typeof p.files['ui-shell.css'],'string');
+          assert(!p.files['ui-shell.css'].includes('.dkds-plugin-workspace'),
+            'DKDS Core shell must not be styled by plugin');
           console.log('Validated DKTS-owned native plugin package with DKDS SDK 1.19');
           NODE
       - name: Check actual DKDS desktop plugin installer and TOP window parser
