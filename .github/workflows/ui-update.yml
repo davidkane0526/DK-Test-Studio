@@ -1,44 +1,194 @@
-# Every DKTS main commit keeps the V0.3.13 aNNN identity.
-# The pre-Core standalone bundle is deliberately NOT offered to DKDS Core:
-# its payload schema is incompatible with the native DKDS host updater.
-# Add a genuine Core-compatible hot bundle only after its rollback tests pass.
-name: Fast UI Hot Update
-run-name: DK Test Studio V0.3.13 a${{ github.run_number }} · Core Revision
+name: DKTS Core UI Hot Update
+run-name: DKTS Core UI · V0.3.13 · ${{ github.sha }}
 on:
   push:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
+  actions: read
+concurrency:
+  group: dkts-core-ui-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  core-revision:
-    name: Validate DKDS Core-owned DKTS revision a${{ github.run_number }}
+  classify:
+    name: Decide whether this commit needs CSS hot update or a native package
     runs-on: ubuntu-24.04
-    timeout-minutes: 18
+    outputs:
+      update_channel: ${{ steps.scope.outputs.update_channel }}
+      hot_update_available: ${{ steps.scope.outputs.hot_update_available }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Classify source changes
+        id: scope
+        env:
+          DKTS_BASE_SHA: ${{ github.event.before || '' }}
+          DKTS_FORCE_FULL_APP: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+        run: node tools/classify-core-update.cjs
+
+  identity:
+    name: Resolve the canonical Core workflow aNNN
+    needs: classify
+    if: ${{ needs.classify.outputs.update_channel == 'ui-hot' && github.event_name == 'push' }}
+    runs-on: ubuntu-24.04
+    outputs:
+      build_number: ${{ steps.identity.outputs.build_number }}
+      build_id: ${{ steps.identity.outputs.build_id }}
+      app_version: ${{ steps.identity.outputs.app_version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install pinned DKTS dependencies without Electron binary
+      - name: Find this commit's DKDS Core workflow run
+        id: core
         env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-        run: npm install --no-audit --no-fund
-      - name: Check UI safety and true native Core plugin contract
-        run: |
-          npm test
-          node tests/test-dkds-native-host.cjs
-      - name: Preserve the exact V/a source revision without publishing legacy UI
+          GH_TOKEN: ${{ github.token }}
+          CORE_SHA: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist
-          printf '{"version":"V0.3.13","uiRevision":"a%s","commit":"%s","host":"DKDS Core","hotUpdateAvailable":false,"reason":"Core-compatible verified UI hot bundle is not implemented"}\n' \
-            "$GITHUB_RUN_NUMBER" "$GITHUB_SHA" > dist/DKTS-Core-Revision.json
-          echo "### DKTS V0.3.13 a$GITHUB_RUN_NUMBER" >> "$GITHUB_STEP_SUMMARY"
-          echo "Core revision verified; legacy standalone bundle NOT published." >> "$GITHUB_STEP_SUMMARY"
+          revision=""
+          for attempt in $(seq 1 30); do
+            revision="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/dkts-framework-contract.yml/runs" \
+              -f head_sha="$CORE_SHA" -f event=push -f per_page=30 \
+              --jq '.workflow_runs | sort_by(.created_at) | last | .run_number // empty' || true)"
+            if [[ "$revision" =~ ^[1-9][0-9]*$ ]]; then break; fi
+            sleep 2
+          done
+          [[ "$revision" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::No matching DKDS Core run was found for this commit; refusing to invent a build identity."
+            exit 1
+          }
+          echo "build_number=$revision" >> "$GITHUB_OUTPUT"
+      - name: Derive V/a identity and Android versionCode from the Core run
+        id: identity
+        env:
+          DKTS_BUILD_NUMBER: ${{ steps.core.outputs.build_number }}
+        run: node tools/resolve-core-build-identity.cjs
+
+  build-ui-hot:
+    name: Build and verify the DKTS CSS-only hot bundle
+    needs: [classify, identity]
+    if: ${{ needs.classify.outputs.update_channel == 'ui-hot' && github.event_name == 'push' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned DKTS dependencies without downloading Electron
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: npm install --no-audit --no-fund
+      - name: Run DKTS regression suite
+        run: npm test
+      - name: Checkout the pinned DKDS framework as read-only source
+        uses: actions/checkout@v4
+        with:
+          repository: davidkane0526/DK-Data-Studio
+          ref: 20f056851a61d2144e9524c3ed568628d4b8557c
+          path: upstream/dkds
+          persist-credentials: false
+      - name: Profile and stage the DKDS Core without touching upstream
+        env:
+          DKTS_PREVIEW_BUILD_NUMBER: ${{ needs.identity.outputs.build_number }}
+        run: |
+          node tools/dkds-host-profile.cjs upstream/dkds dist/dkds-profile.json
+          node tools/stage-dkds-host.cjs upstream/dkds dist/dkts-framework-staging
+      - name: Build the four-file Core UI bundle with the same V/a identity
+        env:
+          DKDS_UI_APP_VERSION: ${{ needs.identity.outputs.app_version }}
+          DKDS_UI_BUILD_ID: ${{ needs.identity.outputs.build_id }}
+          GITHUB_SHA: ${{ github.sha }}
+        working-directory: dist/dkts-framework-staging
+        run: node tools/updates/build-ui-hot-bundle.js ../../dist/DKDS-UI-bundle.json
+      - name: Verify schema, repository, build identity and CSS allowlist
+        env:
+          DKTS_APP_VERSION: ${{ needs.identity.outputs.app_version }}
+          DKTS_BUILD_ID: ${{ needs.identity.outputs.build_id }}
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict');
+          const b=JSON.parse(fs.readFileSync('dist/DKDS-UI-bundle.json','utf8'));
+          assert.equal(b.schema,'dkds-ui-v2');
+          assert.equal(b.repository,'davidkane0526/DK-Test-Studio');
+          assert.equal(b.appVersion,process.env.DKTS_APP_VERSION);
+          assert.equal(b.buildId,process.env.DKTS_BUILD_ID);
+          assert.equal(Object.keys(b.files).length,4);
+          assert(b.files['src/plugins/dkts-4200a/ui-shell.css']);
+          for(const row of Object.values(b.files)){
+            assert(row.bytes>0&&row.sha256.length===64&&row.base64.length>0);
+          }
+          NODE
+      - name: Verify the pinned DKDS checkout remains untouched
+        working-directory: upstream/dkds
+        run: test -z "$(git status --porcelain)"
       - uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Revision-V0.3.13-a${{ github.run_number }}
-          path: dist/DKTS-Core-Revision.json
+          name: DKTS-Core-UI-${{ needs.identity.outputs.build_id }}
+          path: dist/DKDS-UI-bundle.json
           if-no-files-found: error
+          retention-days: 30
+
+  publish-ui-hot:
+    name: Publish the verified DKTS Core CSS hot update
+    needs: [classify, identity, build-ui-hot]
+    if: ${{ github.event_name == 'push' && needs.classify.outputs.update_channel == 'ui-hot' && needs.build-ui-hot.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: DKTS-Core-UI-${{ needs.identity.outputs.build_id }}
+          path: artifacts
+      - name: Verify the downloaded artifact identity again
+        env:
+          DKTS_APP_VERSION: ${{ needs.identity.outputs.app_version }}
+          DKTS_BUILD_ID: ${{ needs.identity.outputs.build_id }}
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict');
+          const b=JSON.parse(fs.readFileSync('artifacts/DKDS-UI-bundle.json','utf8'));
+          assert.equal(b.schema,'dkds-ui-v2');
+          assert.equal(b.repository,'davidkane0526/DK-Test-Studio');
+          assert.equal(b.appVersion,process.env.DKTS_APP_VERSION);
+          assert.equal(b.buildId,process.env.DKTS_BUILD_ID);
+          assert.equal(Object.keys(b.files).length,4);
+          NODE
+      - name: Publish under the same V/a identity used by the Core package
+        env:
+          GH_TOKEN: ${{ secrets.DKTS_RELEASE_TOKEN || github.token }}
+          DKTS_APP_VERSION: ${{ needs.identity.outputs.app_version }}
+          DKTS_BUILD_ID: ${{ needs.identity.outputs.build_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="dkts-ui-v${DKTS_APP_VERSION}-${DKTS_BUILD_ID}"
+          title="DK Test Studio V${DKTS_APP_VERSION} ${DKTS_BUILD_ID} · Core UI Hot Update"
+          cat > release-notes.txt <<EOF
+          Update channel: CSS-only DKDS Core UI hot update.
+          Application version: V${DKTS_APP_VERSION}
+          UI build identity: ${DKTS_BUILD_ID}
+          This release updates only the allowlisted DKTS 4200A workspace stylesheet and DKDS Core shell CSS.
+          The APK and Windows portable package are intentionally not rebuilt for this CSS-only change.
+          Both desktop and Android verify the GitHub asset digest and each CSS resource digest before activation.
+          EOF
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" artifacts/DKDS-UI-bundle.json --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes-file release-notes.txt
+          else
+            gh release create "$tag" artifacts/DKDS-UI-bundle.json --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "$title" --notes-file release-notes.txt \
+              --prerelease --latest=false
+          fi
+          echo "Published $title" >> "$GITHUB_STEP_SUMMARY"
