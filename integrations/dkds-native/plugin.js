@@ -530,8 +530,11 @@
    activity:ACTIVITY,primaryScroll:'safe'});
   // Core SDK owns the native Page editor and real PlotView, without a separate browser shell.
   const main=units.layout.create(null,{variant:'sidebar-main-standard'});
-  nav=units.layout.create(main,{variant:'stack-compact'});
-  projectSurface=uiShell.attach(units,main,nav);
+  const projectPanel=units.panel.create(main,{variant:'control-card',
+   header:false,sizing:'fill'});
+  nav=units.layout.create(projectPanel.body,{variant:'stack-compact'});
+  // DKDS owns the drawer surface paint, not plugin CSS.
+  projectSurface=uiShell.attach(units,main,projectPanel.element);
   // DKDS Core workbench owns both the independent result graph and Page inspector.
   // One semantic Core content stack. Selecting a Page replaces the graph
   // surface with a full-width parameter editor; it is not a sibling column.

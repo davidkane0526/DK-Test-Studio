@@ -33,16 +33,14 @@
  #dktsKeithley4200Page [data-dkts-nav]{
   position:absolute;left:0;top:0;bottom:0;width:min(280px,84vw);
   z-index:21;transform:translateX(-105%);transition:transform 150ms ease;
-  background:Canvas;color:CanvasText;
-  box-shadow:5px 0 18px color-mix(in srgb,black 13%,transparent)
+
  }
  #dktsKeithley4200Page [data-dkts-work]{grid-column:1/-1}
  #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav]{
   transform:translateX(0)
  }
  #dktsKeithley4200Page [data-dkts-nav-scrim]{
-  position:absolute;inset:0;z-index:20;
-  background:color-mix(in srgb,black 23%,transparent)
+  position:absolute;inset:0;z-index:20
  }
  #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav-scrim]{display:block}
  #dktsKeithley4200Page [data-dkts-nav-toggle]{display:inline-flex}

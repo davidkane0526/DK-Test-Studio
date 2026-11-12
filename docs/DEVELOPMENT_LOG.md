@@ -306,3 +306,5 @@
 - 同时更新真正的 DKDS Core mock 宿主测试与 Electron 截图烟测，要求桌面侧栏尺寸在合理范围、窄屏导航默认收起且工作区获得完整宽度。增加独立 drawer DOM/键盘回退测试。构建、真实截图和 Android 模拟器结果必须进一步核查，通过前不称为 UI 完成或正式版。
 
 - 2026-11-12 严格 SDK 校验修正：第一版 CSS/遮罩由 `ui-shell.js` 直接创建 DOM，在 [Core-native SDK 1.19 检查](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43160278647) 被明确拒绝：`raw document DOM is not part of the Plugin API 1.19.0 development contract`。**不绕过该校验。**现改为 `plugin.json.styles=["ui-shell.css"]` 注册 DKTS 插件作用域 CSS，使用 DKDS SDK `units.layout.create(...,{variant:"identity"})` 创建遮罩与 Unit-owned 属性，移除原生 `document.createElement`、独立样式注入及窗口尺寸强行覆盖。所有 CSS 规则仅匹配 `#dktsKeithley4200Page [data-dkts-*]`，不设置宿主状态栏/窗口视口高度，不重绘 DKDS 按钮、表单、PlotView 边框或主题。四图窗高度改由 SDK `PlotView detailGeometry` (`contentAspectRatio:2.05`，最小164px，上限300px)与 PlotGroup 自身的高度策略管理。真实 SDK 重新验证与截图仍待 CI 结果确认。
+
+- 2026-11-12 SDK 视觉归属二次修正：SDK 明确拒绝非主题插件 CSS 的 `background/color/box-shadow`，并非仅拒绝裸 DOM。删去插件覆盖配色/阴影，改由 DKDS 正式 `units.panel.create(main,{variant:"control-card",header:false})` 提供工程导航表面及主题；插件 CSS 只声明插件域的网格、滚动和抽屉位置。任何可运行 UI 都必须通过 SDK 检查，否则不作为验收通过。
