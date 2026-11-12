@@ -176,8 +176,8 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   "const REPO='davidkane0526/DK-Data-Studio';",
   "const REPO='davidkane0526/DK-Test-Studio';");
  replaceExact('desktop/ui-hot-update.js',
-  "const FILES=Object.freeze(['src/styles/structure/connectivity-panels.css',\\n  'src/styles/platform/native-client-shell.css','src/styles/theme/component-appearance.css']);",
-  "const FILES=Object.freeze(['src/styles/structure/connectivity-panels.css',\\n  'src/styles/platform/native-client-shell.css','src/styles/theme/component-appearance.css','src/plugins/dkts-4200a/ui-shell.css']);");
+  "const FILES=Object.freeze(['src/styles/structure/connectivity-panels.css',\n  'src/styles/platform/native-client-shell.css','src/styles/theme/component-appearance.css']);",
+  "const FILES=Object.freeze(['src/styles/structure/connectivity-panels.css',\n  'src/styles/platform/native-client-shell.css','src/styles/theme/component-appearance.css','src/plugins/dkts-4200a/ui-shell.css']);");
  replaceExact('desktop/ui-hot-update.js',
   'const buildIdPattern=/^a\\\\d{4,}$/;',
   'const buildIdPattern=/^a\\\\d+$/;');
@@ -192,7 +192,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   "let status='idle',error='',appVersion=currentVersion,buildId=currentBuildId,tag='',css='',busy=null;");
  replaceExact('desktop/ui-hot-update.js',
   "const value=valid(row.bundle,currentVersion);",
-  "const value=valid(row.bundle,currentVersion);\\n    if(compareUiIdentities({appVersion:row.bundle.appVersion,buildId:row.bundle.buildId},{appVersion:currentVersion,buildId:currentBuildId})<0)throw Error('Cached UI is older than the installed app');");
+  "const value=valid(row.bundle,currentVersion);\n    if(compareUiIdentities({appVersion:row.bundle.appVersion,buildId:row.bundle.buildId},{appVersion:currentVersion,buildId:currentBuildId})<0)throw Error('Cached UI is older than the installed app');");
  replaceExact('desktop/ui-hot-update.js',
   "catch{css='';tag='';appVersion=currentVersion;buildId='a0000';}",
   "catch{css='';tag='';appVersion=currentVersion;buildId=currentBuildId;}");
@@ -200,8 +200,8 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   "if(!/^a\\\\d{4,}$/.test(buildId))",
   "if(!/^a\\\\d+$/.test(buildId))");
  replaceExact('tools/updates/build-ui-hot-bundle.js',
-  "  'src/styles/platform/native-client-shell.css',\\n  'src/styles/theme/component-appearance.css'",
-  "  'src/styles/platform/native-client-shell.css',\\n  'src/styles/theme/component-appearance.css',\\n  'src/plugins/dkts-4200a/ui-shell.css'");
+  "  'src/styles/platform/native-client-shell.css',\n  'src/styles/theme/component-appearance.css'",
+  "  'src/styles/platform/native-client-shell.css',\n  'src/styles/theme/component-appearance.css',\n  'src/plugins/dkts-4200a/ui-shell.css'");
  replaceExact('tools/updates/build-ui-hot-bundle.js',
   "repository:'davidkane0526/DK-Data-Studio'",
   "repository:'davidkane0526/DK-Test-Studio'");
@@ -254,8 +254,8 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
    'private static final Pattern TAG=Pattern.compile("dkds-(?:ui|android)-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-[0-9]+");',
    'private static final Pattern TAG=Pattern.compile("^dkts-ui-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d+)$");');
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
-   'private static final String[] FILES={"src/styles/structure/connectivity-panels.css",\\n    "src/styles/platform/native-client-shell.css","src/styles/theme/component-appearance.css"};',
-   'private static final String[] FILES={"src/styles/structure/connectivity-panels.css",\\n    "src/styles/platform/native-client-shell.css","src/styles/theme/component-appearance.css","src/plugins/dkts-4200a/ui-shell.css"};');
+   'private static final String[] FILES={"src/styles/structure/connectivity-panels.css",\n    "src/styles/platform/native-client-shell.css","src/styles/theme/component-appearance.css"};',
+   'private static final String[] FILES={"src/styles/structure/connectivity-panels.css",\n    "src/styles/platform/native-client-shell.css","src/styles/theme/component-appearance.css","src/plugins/dkts-4200a/ui-shell.css"};');
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
    'private volatile String status="idle",version="",tag="",error="",css="";',
    'private volatile String status="idle",version="",buildId="a0",tag="",error="",css="";');
@@ -269,11 +269,11 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
    'catch(Exception ignored){css="";tag="";version="";}',
    'catch(Exception ignored){css="";tag="";version="";buildId="a0";}');
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
-   '    }\\n  }\\n  private static void copy(File a,File b)throws Exception{',
-   '    }\\n    try{String installed=installedBuildId();if(DkdsAppUpdateManager.compareBuildIds(buildId,installed)<0){css="";tag="";version="";buildId=installed;}}catch(Exception ignored){}\\n  }\\n  private static void copy(File a,File b)throws Exception{');
+   '    }\n  }\n  private static void copy(File a,File b)throws Exception{',
+   '    }\n    try{String installed=installedBuildId();if(DkdsAppUpdateManager.compareBuildIds(buildId,installed)<0){css="";tag="";version="";buildId=installed;}}catch(Exception ignored){}\n  }\n  private static void copy(File a,File b)throws Exception{');
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
    '  private String installedVersion()throws Exception{',
-   '  private String installedBuildId()throws Exception{int code=activity.getPackageManager().getPackageInfo(activity.getPackageName(),0).versionCode;return code>=100000?"a"+(code-100000):"a0";}\\n  private String installedVersion()throws Exception{');
+   '  private String installedBuildId()throws Exception{int code=activity.getPackageManager().getPackageInfo(activity.getPackageName(),0).versionCode;return code>=100000?"a"+(code-100000):"a0";}\n  private String installedVersion()throws Exception{');
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
    'return candidate[0].equals(current[0])&&candidate[1].equals(current[1]);',
    'return available.equals(installed);');
@@ -285,7 +285,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
    'String ver=doc.optString("appVersion");');
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
    'JSONObject files=doc.getJSONObject("files");',
-   'if(!doc.optString("buildId").matches("a\\\\d+"))throw new SecurityException("Invalid UI build identity");\\n    JSONObject files=doc.getJSONObject("files");');
+   'if(!doc.optString("buildId").matches("a\\\\d+"))throw new SecurityException("Invalid UI build identity");\n    JSONObject files=doc.getJSONObject("files");');
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
    'return new JSONObject().put("status",status).put("version",version).put("tag",tag).put("error",error).put("applied",!css.isEmpty());',
    'return new JSONObject().put("status",status).put("appVersion",version).put("version",version).put("buildId",buildId).put("tag",tag).put("error",error).put("applied",!css.isEmpty());');
@@ -303,7 +303,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
    'chosen=row;asset=target;latestTag=row.getString("tag_name");latestVersion=tagVersion;latestBuildId=tagBuildId;latestRun=run;');
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
    'if(chosen==null||latestTag.equals(tag)){status="current";return;}',
-   'String floor=installedBuildId();if(DkdsAppUpdateManager.compareBuildIds(buildId,floor)>0)floor=buildId;\\n        if(chosen==null||DkdsAppUpdateManager.compareBuildIds(latestBuildId,floor)<=0){status="current";return;}');
+   'String floor=installedBuildId();if(DkdsAppUpdateManager.compareBuildIds(buildId,floor)>0)floor=buildId;\n        if(chosen==null||DkdsAppUpdateManager.compareBuildIds(latestBuildId,floor)<=0){status="current";return;}');
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
    'if(!latestVersion.equals(bundle.optString("version")))throw new SecurityException("UI version mismatch");',
    'if(!latestVersion.equals(bundle.optString("appVersion"))||!latestBuildId.equals(bundle.optString("buildId")))throw new SecurityException("UI version/build identity mismatch");');

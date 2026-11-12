@@ -35,7 +35,7 @@ test('DKTS Core staging stamps the same identity into Windows and Android',()=>{
   const stage=fs.readFileSync(path.join(root,'tools/stage-dkds-host.cjs'),'utf8');
   assert.match(stage,/pkg\.dktsBuildId=identity\.buildId/);
   assert.match(stage,/mobile\.expo\.android\.versionCode=identity\.versionCode/);
-  assert.match(stage,/const previewId='studio\\.dk\\.test\\.corepreview'/);
+  assert.match(stage,/const previewId='studio\.dk\.test\.corepreview'/);
   assert.match(stage,/DKTS-Core-Preview-Windows-V/);
   assert.match(stage,/currentBuildId=require\('\.\.\/\.\.\/package\.json'\)\.dktsBuildId/);
   assert.match(stage,/DKTS-Core-Preview-Android-FIXED-SIGNED-V/);

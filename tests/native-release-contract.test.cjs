@@ -6,7 +6,8 @@ test('Core mainline release contains only isolated native preview packages and n
  const fast=read('.github/workflows/ui-update.yml');
  const full=read('.github/workflows/dkts-framework-contract.yml');
  const core=read('.github/workflows/dkts-framework-contract.yml');
- assert.match(fast,/hotUpdateAvailable/);
+ assert.match(fast,/hot_update_available/);
+ assert.match(fast,/update_channel == 'ui-hot'/);
  assert.doesNotMatch(fast,/files=\(dist\/DKTS-UI-bundle\.json\)/);
  assert.match(full,/DKTS-Core-Preview-Windows/);
  assert.match(full,/DKTS-Core-Preview-Android-TEST-SIGNED/);
@@ -41,7 +42,7 @@ test('optional pinned signer receives no DKDS source and verifies the real APK c
  const y=read('.github/workflows/dkts-framework-contract.yml');
  const fragment=y.split('  android-core-fixed-sign-preview:')[1];
  assert.ok(fragment,'fixed certificate step must exist');
- assert.match(fragment,/needs: android-core-preview/);
+ assert.match(fragment,/needs: \[change-scope, android-core-preview\]/);
  assert.match(fragment,/continue-on-error: true/);
  assert.match(fragment,/DKTS_ANDROID_KEYSTORE_B64/);
  assert.match(fragment,/--ks-type PKCS12/);
@@ -85,7 +86,7 @@ test('Core release runs only after same main push native Windows and Android acc
  const core=read('.github/workflows/dkts-framework-contract.yml');
  const old=read('.github/workflows/dkts-framework-contract.yml');
  const pub=core.slice(core.indexOf('  publish-core-preview:'));
- assert.match(pub,/needs: \[framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview\]/);
+ assert.match(pub,/needs: \[change-scope, framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview\]/);
  assert.match(pub,/github\.event_name == 'push'/);
  assert.match(pub,/needs\.android-core-preview\.result == 'success'/);
  assert.match(pub,/needs\.windows-core-preview\.result == 'success'/);

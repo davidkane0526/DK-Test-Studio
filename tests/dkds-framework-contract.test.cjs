@@ -226,9 +226,9 @@ test('Core Preview Android versionCode is monotonic while visible package versio
  assert.equal(buildIdentity('162').versionCode,100162);
  assert.equal(buildIdentity('163').versionCode,100163);
  assert.equal(buildIdentity('a163').buildId,'a163');
- assert.throws(()=>buildIdentity('0'),/Invalid DKTS build identity/);
- assert.throws(()=>buildIdentity('3.14'),/Invalid DKTS build identity/);
- assert.throws(()=>buildIdentity('10000000'),/Invalid DKTS build identity/);
+ assert.throws(()=>buildIdentity('0'),/positive aNNN/);
+ assert.throws(()=>buildIdentity('3.14'),/positive aNNN/);
+ assert.throws(()=>buildIdentity('10000000'),/positive aNNN/);
  const workflow=fs.readFileSync(path.join(repo,'.github/workflows/dkts-framework-contract.yml'),'utf8');
  assert(workflow.includes('DKTS_PREVIEW_BUILD_NUMBER: ${{ github.run_number }}'));
  assert(workflow.includes('100000+GITHUB_RUN_NUMBER'));
