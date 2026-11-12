@@ -233,9 +233,6 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   replaceExact('mobile/plugins/DkdsAppUpdate.template',
    'if(found==null||compareVersions(found.version,installed)<=0){',
    'int versionOrder=found==null?-1:compareVersions(found.version,installed);\n                if(found==null||versionOrder<0||(versionOrder==0&&compareBuildIds(found.buildId,installedBuildId())<=0)){');
- replaceExact('src/app/modules/floating-docks.js',
-  "if(el)el.textContent=(label[state]||state)+(result.version?' · V'+result.version:'')+\n    (state==='downloading'?' · '+Math.max(0,Math.min(100,Number(result.progress)||0))+'%':'')+",
-  "if(el)el.textContent=(label[state]||state)+(result.version?' · V'+result.version:'')+\n    (result.buildId?' '+result.buildId:'')+\n    (state==='downloading'?' · '+Math.max(0,Math.min(100,Number(result.progress)||0))+'%':'')+");
   replaceExact('mobile/plugins/DkdsAppUpdate.template',
    'if(candidate==null||!candidate.version.equals(found.version)||',
    'if(candidate==null||!candidate.version.equals(found.version)||!candidate.buildId.equals(found.buildId)||');
