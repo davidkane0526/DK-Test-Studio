@@ -352,3 +352,119 @@ jobs:
           path: fixed-signed/
           if-no-files-found: error
           retention-days: 30
+
+  publish-core-preview:
+    needs: [framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview]
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.framework-readonly-check.result == 'success' && needs.windows-core-preview.result == 'success' && needs.android-core-preview.result == 'success' }}
+    permissions:
+      actions: read
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted DKTS fingerprint and source identity
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Download only artifacts of the successful DKTS Core build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CORE_RUN_ID: ${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts signed-artifacts out
+          gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "DKTS-Core-Preview-*" --dir artifacts
+          # Trusted signing job only runs on DKTS main after the untrusted Core
+          # compilation has finished. Its absence cannot masquerade as fixed.
+          if gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+               --pattern "DKTS-Core-Fixed-Signed-Android-*" --dir signed-artifacts; then
+            echo "Fixed-signed Android artifact available."
+          else
+            echo "::warning::No fixed-signed Android asset. Preview will remain TEST-SIGNED."
+          fi
+          find artifacts signed-artifacts -maxdepth 12 -type f -print
+      - name: Verify source identity and both Core Preview packages
+        id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CORE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Fast UI Hot Update assigns aNNN to every main commit. Require the
+          # SAME successful commit/run number, never infer it from the Core job.
+          revision=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ui-update.yml/runs" \
+            -f head_sha="$CORE_SHA" -f event=push -f per_page=30 \
+            --jq '.workflow_runs | map(select(.conclusion == "success")) | .[0].run_number // empty')
+          [[ "$revision" =~ ^[0-9]+$ ]] || { echo "::error::No matching successful Core revision identity"; exit 1; }
+          echo "ui_revision=a$revision" >> "$GITHUB_OUTPUT"
+          echo "core_sha=$CORE_SHA" >> "$GITHUB_OUTPUT"
+          mapfile -d '' exes < <(find artifacts -type f -iname '*.exe' -print0)
+          mapfile -d '' apks < <(find artifacts -type f -name 'app-release.apk' -print0)
+          test "${#exes[@]}" -eq 1
+          test "${#apks[@]}" -eq 1
+          test "$(stat -c%s "${exes[0]}")" -gt 100000
+          test "$(stat -c%s "${apks[0]}")" -gt 100000
+          file -b "${exes[0]}" | grep -q 'PE32'
+          unzip -Z1 "${apks[0]}" | grep -Fxq 'assets/index.android.bundle'
+          cp "${exes[0]}" "out/DKTS-Core-Preview-Windows-V0.3.13-a$revision.exe"
+          mapfile -d '' fixed < <(find signed-artifacts -type f -name 'app-core-fixed-signed.apk' -print0)
+          test "${#fixed[@]}" -le 1
+          if [ "${#fixed[@]}" -eq 1 ]; then
+            cert_file="$(dirname "${fixed[0]}")/certificate.sha256"
+            test -s "$cert_file"
+            expected=$(tr -d ':[:space:]' < android/signing-certificate.sha256 | tr 'A-F' 'a-f')
+            actual=$(tr -d ':[:space:]' < "$cert_file" | tr 'A-F' 'a-f')
+            [ "$actual" = "$expected" ] || { echo "::error::Pinned Android signing fingerprint mismatch"; exit 1; }
+            test "$(stat -c%s "${fixed[0]}")" -gt 100000
+            cp "${fixed[0]}" "out/DKTS-Core-Preview-Android-FIXED-SIGNED-V0.3.13-a$revision.apk"
+            signing="PINNED $actual"
+          else
+            cp "${apks[0]}" "out/DKTS-Core-Preview-Android-TEST-SIGNED-V0.3.13-a$revision.apk"
+            signing="TEST-SIGNED (not safe for in-place upgrades)"
+          fi
+          echo "android_signing=$signing" >> "$GITHUB_OUTPUT"
+          (cd out && sha256sum *.exe *.apk > SHA256SUMS.txt)
+          printf 'Build source: %s\nCore workflow: %s\nRevision: a%s\nPreview package ID: studio.dk.test.corepreview\nAndroid signer: %s\n' \
+            "$CORE_SHA" "${{ github.run_id }}" "$revision" "$signing" > out/PROVENANCE.txt
+      - name: Retain verified EXE, APK, SHA256 and provenance even if Release permission is denied
+        uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-Core-Verified-Packages-${{ steps.identity.outputs.ui_revision }}-run${{ github.run_id }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish only the verified Core Preview, never a stable update
+        env:
+          # Optional fine-grained token scoped to DK-Test-Studio Releases.
+          # GitHub's inherited workflow_run GITHUB_TOKEN may be denied 403
+          # even though Actions artifacts remain downloadable.
+          GH_TOKEN: ${{ secrets.DKTS_RELEASE_TOKEN || github.token }}
+          CORE_SHA: ${{ steps.identity.outputs.core_sha }}
+          UI_REV: ${{ steps.identity.outputs.ui_revision }}
+          SIGNING_STATUS: ${{ steps.identity.outputs.android_signing }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="dkts-core-preview-v0.3.13-$UI_REV"
+          title="DK Test Studio V0.3.13 $UI_REV · DKDS Core Preview"
+          cat > release-notes.txt <<EOF
+          Source commit: $CORE_SHA
+          Version: V0.3.13 $UI_REV
+          Architecture: Genuine DKDS Core staged read-only inside DKTS.
+          Windows: Portable Core Preview, screenshot and Core smoke validated.
+          Android: Separate studio.dk.test.corepreview preview; signer: $SIGNING_STATUS.
+          This is NOT a production in-place upgrade for the old studio.dk.test app.
+          Real 4200A output, production certificate, native UI hot update and
+          native full-update rollback have NOT been hardware-accepted.
+          EOF
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" out/* --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes-file release-notes.txt
+          else
+            gh release create "$tag" out/* --repo "$GITHUB_REPOSITORY" --target "$CORE_SHA" \
+              --title "$title" --notes-file release-notes.txt --prerelease --latest=false
+          fi
+          echo "Verified DKDS Core Preview: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"

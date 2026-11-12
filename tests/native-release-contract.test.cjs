@@ -77,3 +77,20 @@ test('Core publisher checks out DKTS before downloading artifacts to avoid delet
    'checkout must precede artifact downloads and identity verification');
  assert.match(flow,/mkdir -p artifacts signed-artifacts out/);
 });
+
+test('Core release runs only after same main push native Windows and Android acceptance',()=>{
+ const core=read('.github/workflows/dkts-framework-contract.yml');
+ const old=read('.github/workflows/windows-preview.yml');
+ const pub=core.slice(core.indexOf('  publish-core-preview:'));
+ assert.match(pub,/needs: \[framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview\]/);
+ assert.match(pub,/github\.event_name == 'push'/);
+ assert.match(pub,/needs\.android-core-preview\.result == 'success'/);
+ assert.match(pub,/needs\.windows-core-preview\.result == 'success'/);
+ assert.match(pub,/contents: write/);
+ assert.match(pub,/github\.run_id/);
+ assert.match(pub,/github\.sha/);
+ assert.match(pub,/Retain verified EXE, APK, SHA256 and provenance/);
+ assert.match(pub,/gh release create/);
+ assert.match(old,/if: \$\{\{ false \}\}/);
+ assert(!core.slice(0,core.indexOf('  publish-core-preview:')).includes('DKTS_RELEASE_TOKEN'));
+});

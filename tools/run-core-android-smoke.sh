@@ -112,11 +112,13 @@ adb shell wm density reset
 adb logcat -d -s ReactNativeJS:E ReactNative:E AndroidRuntime:E > "$OUT/runtime-errors.txt" || true
 adb logcat -d -b crash > "$OUT/crash.log" || true
 if grep -Eiq '(Unable to load script|Could not connect to development server|Unable to resolve module|FATAL EXCEPTION|Invariant Violation:.*bundle)' "$OUT/runtime-errors.txt"; then
-  echo "CORE_OFFLINE_RUNTIME_FAILURE: inspect runtime-errors.txt" >&2
+  echo "CORE_OFFLINE_RUNTIME_FAILURE: Android emulator logcat matched fatal offline runtime error" >&2
+  grep -Ein -C 2 "(Unable to load script|Could not connect to development server|Unable to resolve module|FATAL EXCEPTION|Invariant Violation:.*bundle)" "$OUT/runtime-errors.txt" | tail -n 65 >&2 || true
   exit 1
 fi
 if grep -Fq "Process: $PACKAGE" "$OUT/crash.log"; then
-  echo "CORE_ANDROID_CRASH: inspect crash.log" >&2
+  echo "CORE_ANDROID_CRASH: emulator crash evidence" >&2
+  tail -n 65 "$OUT/crash.log" >&2 || true
   exit 1
 fi
 

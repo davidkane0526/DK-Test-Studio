@@ -17,7 +17,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish-core-preview:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    # Retired after migration to the same main push Core CI publisher.
+    # Leave this historical workflow inert until retired by contract tests.
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
