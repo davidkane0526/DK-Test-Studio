@@ -111,9 +111,12 @@ adb shell wm density reset
 # that the rendered WebView matches FS-Pro on a physical Android tablet.
 adb logcat -d -s ReactNativeJS:E ReactNative:E AndroidRuntime:E > "$OUT/runtime-errors.txt" || true
 adb logcat -d -b crash > "$OUT/crash.log" || true
-if grep -Eiq '(Unable to load script|Could not connect to development server|Unable to resolve module|FATAL EXCEPTION|Invariant Violation:.*bundle)' "$OUT/runtime-errors.txt"; then
+# AndroidRuntime also logs FATAL EXCEPTION from Android's UiAutomation
+# accessibility dumper. Only the app's crash process is authoritative below;
+# the unconditional runtime check is reserved for RN offline-bundle failures.
+if grep -Eiq '(Unable to load script|Could not connect to development server|Unable to resolve module|Invariant Violation:.*bundle)' "$OUT/runtime-errors.txt"; then
   echo "CORE_OFFLINE_RUNTIME_FAILURE: Android emulator logcat matched fatal offline runtime error" >&2
-  grep -Ein -C 2 "(Unable to load script|Could not connect to development server|Unable to resolve module|FATAL EXCEPTION|Invariant Violation:.*bundle)" "$OUT/runtime-errors.txt" | tail -n 65 >&2 || true
+  grep -Ein -C 2 "(Unable to load script|Could not connect to development server|Unable to resolve module|Invariant Violation:.*bundle)" "$OUT/runtime-errors.txt" | tail -n 65 >&2 || true
   exit 1
 fi
 if grep -Fq "Process: $PACKAGE" "$OUT/crash.log"; then

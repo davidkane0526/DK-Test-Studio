@@ -40,3 +40,12 @@ test('Android offline launcher has valid Bash syntax',()=>{
  const check=child.spawnSync('bash',['-n',scriptPath],{encoding:'utf8'});
  assert.equal(check.status,0,check.stderr);
 });
+
+test('system UiAutomation FATAL EXCEPTION cannot fail DKTS unless its own process crashed',()=>{
+ const cmd=script.match(/if grep -Eiq '([^']+)' "\$OUT\/runtime-errors\.txt"; then/);
+ assert.ok(cmd,'offline bundle failure filter must exist');
+ assert.doesNotMatch(cmd[1],/FATAL EXCEPTION/);
+ assert.match(cmd[1],/Unable to load script/);
+ assert.match(script,/if grep -Fq "Process: \$PACKAGE" "\$OUT\/crash\.log"; then/);
+ assert.match(script,/UiAutomation/);
+});
