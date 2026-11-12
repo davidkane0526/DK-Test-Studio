@@ -4,7 +4,7 @@ const fs=require('node:fs'),path=require('node:path');
 const read=p=>fs.readFileSync(path.resolve(__dirname,'..',p),'utf8');
 test('Core mainline release contains only isolated native preview packages and no external plugin override',()=>{
  const fast=read('.github/workflows/ui-update.yml');
- const full=read('.github/workflows/windows-preview.yml');
+ const full=read('.github/workflows/dkts-framework-contract.yml');
  const core=read('.github/workflows/dkts-framework-contract.yml');
  assert.match(fast,/hotUpdateAvailable/);
  assert.doesNotMatch(fast,/files=\(dist\/DKTS-UI-bundle\.json\)/);
@@ -51,17 +51,17 @@ test('optional pinned signer receives no DKDS source and verifies the real APK c
 
 test('every DKTS main push builds genuine DKDS Core Windows/Android packages, not only selected files',()=>{
  const core=read('.github/workflows/dkts-framework-contract.yml').replace(/\r\n/g,'\n');
- const publisher=read('.github/workflows/windows-preview.yml');
+ const publisher=read('.github/workflows/dkts-framework-contract.yml');
  assert(core.includes('  push:\n    branches: [main]\n  workflow_dispatch:'));
  assert.doesNotMatch(core,/  push:\n    branches: \[main\]\n    paths:/);
- assert.match(publisher,/workflow_run:/);
- assert.match(publisher,/DKTS DKDS-Framework Contract \(read-only upstream\)/);
+ assert.match(publisher,/publish-core-preview:/);
+ assert.match(publisher,/github\.event_name == 'push'/);
 });
 
 test('Core preview publisher supports scoped Release token fallback without exposing secrets to DKDS',()=>{
- const release=read('.github/workflows/windows-preview.yml');
+ const release=read('.github/workflows/dkts-framework-contract.yml');
  const core=read('.github/workflows/dkts-framework-contract.yml');
- const publish=release.slice(release.indexOf('- name: Publish only the verified Core Preview'));
+ const publish=release.slice(release.indexOf('  publish-core-preview:'));
  assert.match(publish,/secrets\.DKTS_RELEASE_TOKEN \|\| github\.token/);
  assert.match(publish,/gh release create/);
  assert.match(release,/Retain verified EXE, APK, SHA256 and provenance even if Release permission is denied/);
@@ -70,7 +70,7 @@ test('Core preview publisher supports scoped Release token fallback without expo
 });
 
 test('Core publisher checks out DKTS before downloading artifacts to avoid deleting built EXE/APK',()=>{
- const flow=read('.github/workflows/windows-preview.yml');
+ const flow=read('.github/workflows/dkts-framework-contract.yml');
  const checkout=flow.indexOf('name: Checkout trusted DKTS fingerprint and source identity');
  const download=flow.indexOf('name: Download only artifacts of the successful DKTS Core build');
  const verify=flow.indexOf('name: Verify source identity and both Core Preview packages');
@@ -81,7 +81,7 @@ test('Core publisher checks out DKTS before downloading artifacts to avoid delet
 
 test('Core release runs only after same main push native Windows and Android acceptance',()=>{
  const core=read('.github/workflows/dkts-framework-contract.yml');
- const old=read('.github/workflows/windows-preview.yml');
+ const old=read('.github/workflows/dkts-framework-contract.yml');
  const pub=core.slice(core.indexOf('  publish-core-preview:'));
  assert.match(pub,/needs: \[framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview\]/);
  assert.match(pub,/github\.event_name == 'push'/);
@@ -92,6 +92,6 @@ test('Core release runs only after same main push native Windows and Android acc
  assert.match(pub,/github\.sha/);
  assert.match(pub,/Retain verified EXE, APK, SHA256 and provenance/);
  assert.match(pub,/gh release create/);
- assert.match(old,/if: \$\{\{ false \}\}/);
+ assert.equal(fs.existsSync(require('node:path').resolve(__dirname,'../.github/workflows/windows-preview.yml')),false);
  assert(!core.slice(0,core.indexOf('  publish-core-preview:')).includes('DKTS_RELEASE_TOKEN'));
 });

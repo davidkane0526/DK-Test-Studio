@@ -28,7 +28,7 @@
 - 统一身份仍为 `V0.3.13 aNNN`，其中 V 是主程序版本，a 来自每次 main 提交的修订工作流。
 - 已发布的旧版 `V0.3.13 aNNN · Full Package` 仅供历史对照，**不是新的 DKDS Core 主程序**；旧工作流不再自动把独立壳包装为新 Core。
 - 2026-11-12 已修正网页版与原生 Page 层级一致：Project 层显示四个独立图窗，进入 Page 显示全宽参数编辑，使用“← 绘图区”返回；[网页 UI Demo](https://davidkane0526.github.io/DK-Test-Studio/) 的 Chromium 回归和 Pages 部署已有通过记录。
-- Core Windows/Android 预览须先通过 [Core CI](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 的启动、插件、Android 模拟器和 APK 检查，再由 [Core Preview 发行工作流](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/windows-preview.yml) 在 [Releases](https://github.com/davidkane0526/DK-Test-Studio/releases) 发布**独立预览包**。只有成功发布的 Release 才能称为可下载；不能把未完成的 CI 当成已交付。
+- Core Windows/Android 预览须先通过 [Core CI](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 的启动、插件、Android 模拟器和 APK 检查，再由 [同一 Core CI 的发布任务](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 在 [Releases](https://github.com/davidkane0526/DK-Test-Studio/releases) 发布**独立预览包**。只有成功发布的 Release 才能称为可下载；不能把未完成的 CI 当成已交付。
 - 旧 UI Bundle 格式尚未验证与 Core 热更新机制兼容。暂时只生成 V/a 修订身份，不向 Core 推送不兼容的热更；完成真实 Core-compatible bundle + 校验/回退后恢复自动热更新和匹配正式全量包。
 
 ## 本地审计 DKDS 上游（不修改 DKDS）

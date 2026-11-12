@@ -200,7 +200,7 @@ test('Android 16 immersive mode is coalesced and cannot repeatedly re-enter from
 test('legacy signing identity is pinned, while Core Android debug-signed builds are isolated as previews',()=>{
   const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
   const coreCI=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
-  const release=fs.readFileSync(path.join(root,'.github/workflows/windows-preview.yml'),'utf8');
+  const release=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
   const cert=fs.readFileSync(path.join(root,'android/signing-certificate.sha256'),'utf8').trim();
   assert.match(cert,/^[a-f0-9]{64}$/);
   assert.match(gradle,/signingConfigs\s*\{/);
@@ -211,7 +211,8 @@ test('legacy signing identity is pinned, while Core Android debug-signed builds 
   assert.match(coreCI,/CN=Android Debug/);
   assert.match(release,/TEST-SIGNED/);
   assert.match(release,/NOT a production in-place upgrade/);
-  assert.doesNotMatch(release,/secrets\.DKTS_ANDROID_KEYSTORE_B64/);
+  assert(!release.slice(release.indexOf('  publish-core-preview:')).includes('DKTS_ANDROID_KEYSTORE_B64'));
+  assert.match(release,/android\/signing-certificate\.sha256/);
 });
 test('manual UI update op routes through Android updater without arbitrary TCP access',()=>{
   const java=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');

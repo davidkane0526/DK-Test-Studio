@@ -22,15 +22,15 @@ test('the full package version stays fixed while each UI build has an a-number i
 });
 test('Core revision and validated preview packages share one V/a identity and source commit',()=>{
   const ui=read('.github/workflows/ui-update.yml');
-  const full=read('.github/workflows/windows-preview.yml');
+  const full=read('.github/workflows/dkts-framework-contract.yml');
   const pkg=JSON.parse(read('package.json'));
   assert(ui.includes('run-name: DK Test Studio V'+pkg.version+' a${{ github.run_number }}'));
   assert.match(ui,/hotUpdateAvailable/);
   assert.match(ui,/GITHUB_RUN_NUMBER/);
   assert.doesNotMatch(ui,/gh release create/);
-  assert.match(full,/workflow_run:/);
-  assert.match(full,/workflows: \["DKTS DKDS-Framework Contract \(read-only upstream\)"\]/);
-  assert.match(full,/github\.event\.workflow_run\.head_sha/);
+  assert.match(full,/publish-core-preview:/);
+  assert.match(full,/github\.event_name == 'push'/);
+  assert.match(full,/github\.sha/);
   assert.match(full,/ui-update\.yml\/runs/);
   assert.match(full,/head_sha="\$CORE_SHA"/);
   assert(full.includes('tag="dkts-core-preview-v'+pkg.version+'-$UI_REV"'));
@@ -65,7 +65,7 @@ test('Windows and Android hot-update verifiers persist the same a-number and pac
 test('Core Windows mainline is a separately verified Portable preview, never legacy installer',()=>{
   const pkg=JSON.parse(read('package.json'));
   const coreCI=read('.github/workflows/dkts-framework-contract.yml');
-  const release=read('.github/workflows/windows-preview.yml');
+  const release=read('.github/workflows/dkts-framework-contract.yml');
   assert.deepEqual(pkg.build.win.target.map(item=>item.target),['portable']);
   assert.equal(pkg.scripts.start,'node tools/launch-core-mainline.cjs');
   assert.match(pkg.scripts['dist:win:legacy'],/electron-builder --win portable$/);
