@@ -298,3 +298,9 @@
 - 回归契约改为针对新的同一 push 发行架构；Windows/Android 仍采用 `V0.3.13 aNNN`，不得将已测试的 APK/EXE 与另一次提交混合。没有对应成功发布的 Release 时只报告 Actions Artifact，不宣称完成正式发布。所有修改仅 DKTS，DKDS 上游未修改。
 
 - 2026-11-12 正式交付材料补齐：在 DKTS Core 的同一主分支发行任务中，使用 `tools/export-hardware-capabilities.cjs` 导出 `DKTS-4200A-Hardware-Capability-Database-v1.json`，要求 schema 为 `dkts.4200a.hardware-capabilities.v1` 且正文完整，并把该可移交其他 AI 检查的硬件能力与安全数据库列入 Release 附件和 `SHA256SUMS.txt`。不得从 DKDS 上游获取或修改数据库，数据库来自 DKTS 已测试的单一源码。新 CI 结果仍需实测。
+
+## 2026-11-12 / 用户反馈 UI 极差后的原生 Core 工作区重整（视觉验收待执行）
+- 新增用户需求 [R-20261112-008]，原话“UI极其糟糕”。针对实际 Core Windows 1200×768、Page 编辑与 744×600 窄屏截图定位：原 DKDS Core sidebar-main-compact 在窄屏把工程栏压至 150px，项目操作分散，图窗高度超过可用区域，布局缺乏明确约束。已有 CI 只证明进程启动成功，不等于界面合格。
+- DKTS 侧新增 `integrations/dkds-native/ui-shell.js` 作为插件所加载的原生 UI 附加模块，CSS 严格作用于 `#dktsKeithley4200Page [data-dkts-*]`，不修改 DKDS 的主题、全局组件或绘图引擎；使用 DKDS 官方 `sidebar-main-standard`、`content-actions` 与 PlotGroup，桌面工程栏规范为约 252px；≤900px 采用工程导航抽屉，支持标题栏“项目”、遮罩及 Escape 关闭，避免 150px 侧栏永久占据画布。
+- 工程器件/流程/规格新建集中到 DKDS Action Menu，不再散落三行按钮；页面类型选择及添加整合到同行。仍保留实际 DKDS 项目切换与数据持久化、四个独立 PlotView 和各自的源/绘图菜单、原生科学绘图/手势、Page 全宽编辑和原生数字键盘。PlotGroup 采用紧凑密度，图窗高度受视口约束。无虚构曲线、不放开实际 KXCI 输出，DKDS 只读。
+- 同时更新真正的 DKDS Core mock 宿主测试与 Electron 截图烟测，要求桌面侧栏尺寸在合理范围、窄屏导航默认收起且工作区获得完整宽度。增加独立 drawer DOM/键盘回退测试。构建、真实截图和 Android 模拟器结果必须进一步核查，通过前不称为 UI 完成或正式版。

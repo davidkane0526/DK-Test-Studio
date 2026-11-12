@@ -12,6 +12,7 @@ const sandbox={
 };
 vm.runInNewContext(fs.readFileSync(dir+'/model.js','utf8'),sandbox,{filename:'model.js'});
 vm.runInNewContext(fs.readFileSync(dir+'/measurement-data.js','utf8'),sandbox,{filename:'measurement-data.js'});
+vm.runInNewContext(fs.readFileSync(dir+'/ui-shell.js','utf8'),sandbox,{filename:'ui-shell.js'});
 vm.runInNewContext(fs.readFileSync(dir+'/plugin.js','utf8'),sandbox,{filename:'plugin.js'});
 assert.equal(definitions.length,1);
 const record={actions:[],fields:[],panels:[],plots:[],plotViews:[],headers:[],
@@ -35,7 +36,7 @@ const units={
    // The pinned SDK allows canonical layout recipes; arbitrary geometry
    // values are not guaranteed and previously failed real Core activation.
    assert.ok(['identity','form-grid-2','form-grid-4','row-wrap',
-     'stack-comfortable','stack-compact','sidebar-main-compact','scroll-pane',
+     'stack-comfortable','stack-compact','sidebar-main-standard','content-actions','scroll-pane',
      'responsive-two-column',
      'plot-card-fill','action-grid-4'].includes(spec.variant),
      'Unknown DKDS Unit layout recipe: '+String(spec.variant));
@@ -52,11 +53,10 @@ const units={
     assert.equal(spec.responsiveGeometry?.[0]?.maxWidth,680);
     assert.equal(spec.responsiveGeometry?.[0]?.geometry?.gridTemplateColumns,
      'minmax(0,1fr)');
-   }else if(spec.variant==='sidebar-main-compact'){
+   }else if(spec.variant==='sidebar-main-standard'){
     assert.equal(spec.geometry,undefined);
-    assert.deepEqual(Array.from(spec.responsiveGeometry,row=>Number(row.maxWidth)),[620]);
-    assert.equal(spec.responsiveGeometry[0].geometry.gridTemplateColumns,
-     'minmax(0,1fr)','mobile project tree must stack above the editor');
+    assert.equal(spec.responsiveGeometry,undefined,
+     'responsive drawer keeps the host-managed Unit geometry');
    }else{
     assert.equal(spec.geometry,undefined,
      'DKTS native plugin must not introduce unregistered layout geometry');
@@ -130,11 +130,11 @@ const ctx={
  const instance=await definitions[0].activate(ctx);
  assert.equal(record.top.activity,'dkts-keithley-4200');
  assert.equal(record.pageHeaders,0,'the SUPER host top bar already identifies 4200A; no duplicate 42px page header');
- assert.ok(record.layouts.includes('sidebar-main-compact'),
+ assert.ok(record.layouts.includes('sidebar-main-standard'),
   'native DKDS workbench must use host-managed FS-Pro project sidebar');
  assert.ok(record.layouts.includes('stack-compact'),
   'Project Explorer uses compact native DKDS Unit sizing');
- const projectHeader=record.headers.find(x=>x.title==='项目导航');
+ const projectHeader=record.headers.find(x=>x.title==='项目');
  assert.ok(projectHeader);
  assert.equal(projectHeader.meta,'','Device selector already displays selected device; do not repeat it');
  assert.equal(record.listItems.find(x=>x.title==='测试流程 1')?.selected,false,
@@ -153,7 +153,7 @@ const ctx={
  assert.ok(graphBack,'Page editor offers a visible return to the project-level graphs');
  assert.equal(record.panels.some(x=>x.title==='D · SMU1'),false,'None port does not render parameter panel');
  assert.equal(record.plotGroups.length,1,'four plot windows share canonical DKDS managed PlotGroup');
- assert.equal(record.plotGroups[0].minItemWidth,360,'narrow 744px host should stack PlotViews before controls clip');
+ assert.equal(record.plotGroups[0].minItemWidth,342,'narrow 744px host should stack PlotViews before controls clip');
   assert.equal(record.tables.length,4,'raw tables must use DKDS Unit Table, not HTML placeholders');
   assert.equal(record.plots.length,4,'four actual DKDS scientific plots');
  assert.ok(record.headers.some(x=>x.title==='绘图区'),'project graph heading is managed by DKDS Unit Header');
@@ -221,8 +221,8 @@ const ctx={
  assert.equal(state.pages.length,2);
  assert.equal(state.pages[1].testType,'Pulse');
  assert.equal(state.activeId,'page-2');
- assert.ok([...record.actions].reverse().some(x=>x.id==='close-page-2'),
-  'project tabs can be closed');
+ assert.ok([...record.actions].reverse().find(x=>x.id==='add-project-node').items().some(x=>x.id==='close-page'),
+  'project menu can close the selected Page');
  assert.ok(record.captures>=2,'project history captured on mutation');
  // Navigating back must refresh the current Page's port selector, not reuse
  // the previous Page's stale None/SMU assignment.
@@ -244,14 +244,18 @@ const ctx={
  };
  press('清除');press('1');press('E');press('±');press('6');press('完成');
  assert.equal(state.pages[0].terminals[0].compliance,'1e-6');
- const close=[...record.actions].reverse().find(x=>x.id==='close-page-2');
+ const pulseItem=[...record.listItems].reverse().find(x=>x.title==='脉冲扫描');
+ assert.ok(pulseItem,'new Page remains selectable in the native project tree');
+ pulseItem.onInvoke();
+ const close=[...record.actions].reverse().find(x=>x.id==='add-project-node').items().find(x=>x.id==='close-page');
+ assert.ok(close,'project menu closes current Page');
  close.onInvoke();
  assert.equal(state.pages.length,1);
  assert.equal(state.activeId,'page-1');
  assert.equal(state.pages[0].terminals[0].resource,'SMU1',
   'closing other test preserves active port assignment');
  // True Routine/Page ownership in the DKDS Core host, not a separate web-only sketch.
- const routineAction=[...record.actions].reverse().find(x=>x.id==='add-routine');
+ const routineAction=[...record.actions].reverse().find(x=>x.id==='add-project-node').items().find(x=>x.id==='add-routine');
  assert.ok(routineAction,'native DKDS Unit Project Explorer provides + Routine');
  routineAction.onInvoke();
  assert.equal(state.routines.length,2);
@@ -263,7 +267,7 @@ const ctx={
  oldRoutine.onInvoke();
  assert.equal(state.activeId,'page-1');
  assert.equal(state.activeRoutineId,'routine-1');
- const createSpec=[...record.actions].reverse().find(x=>x.id==='add-spec');
+ const createSpec=[...record.actions].reverse().find(x=>x.id==='add-project-node').items().find(x=>x.id==='add-spec');
  assert.ok(createSpec,'Core host must expose separate Spec creation');
  createSpec.onInvoke();
  assert.equal(state.specs.length,1);
@@ -273,7 +277,7 @@ const ctx={
  specField.spec.onChange({target:{value:''}});
  assert.equal(state.pages[0].associateSpecId,null,'Spec link can be cleared');
  // Real Core Device navigation is a native Unit selector, never a web-only control.
- const addDevice=[...record.actions].reverse().find(x=>x.id==='add-device');
+ const addDevice=[...record.actions].reverse().find(x=>x.id==='add-project-node').items().find(x=>x.id==='add-device');
  assert.ok(addDevice,'DKDS Core Project Explorer must create Device');
  const beforeDeviceFields=record.fields.length;
  addDevice.onInvoke();
@@ -286,7 +290,7 @@ const ctx={
  assert.equal(currentDeviceField.spec.options.length,2);
  assert.ok(!record.fields.slice(beforeDeviceFields).some(x=>x.spec.label==='关联规格'),
   'the second Device without Specs must not expose first-Device spec options');
- const newDeviceSpec=[...record.actions].reverse().find(x=>x.id==='add-spec');
+ const newDeviceSpec=[...record.actions].reverse().find(x=>x.id==='add-project-node').items().find(x=>x.id==='add-spec');
  newDeviceSpec.onInvoke();
  assert.equal(state.specs.length,2);
  assert.equal(state.specs[1].deviceId,'device-2');

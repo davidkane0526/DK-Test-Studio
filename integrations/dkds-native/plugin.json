@@ -7,6 +7,7 @@
   "scripts": [
     "model.js",
     "measurement-data.js",
+    "ui-shell.js",
     "plugin.js"
   ],
   "enabled": true,

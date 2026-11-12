@@ -47,8 +47,13 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      hasRedundant4200Header:[...document.querySelectorAll('.analysis-page-header')]
       .some(node=>node.textContent.trim()==='4200A'&&
        node.getBoundingClientRect().height>0),
-     hasDeviceNavigation:document.body.innerText.includes('＋ 器件')&&
-      document.body.innerText.includes('MOSFET'),
+     hasDeviceNavigation:!!document.querySelector('#dktsKeithley4200Page [data-dkts-nav]')&&
+       document.body.innerText.includes('MOSFET')&&document.body.innerText.includes('项目'),
+      scopedGeometryLoaded:!!document.querySelector('style[data-dkts-style="4200a"]'),
+      projectSidebarWidth:(()=>{
+       const node=document.querySelector('#dktsKeithley4200Page [data-dkts-nav]');
+       return node?Math.round(node.getBoundingClientRect().width):0;
+      })(),
      terminalGrid:(()=>{
       const grid=[...document.querySelectorAll('[data-dkds-unit-layout-recipe="form-grid-4"]')]
        .find(node=>node.querySelectorAll('select').length===4);
@@ -96,7 +101,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        state.hasNativePageTabs||state.hasTerminalEditor||
        !state.hasDeviceNavigation||state.hasRedundant4200Header||
        state.nativePlotGroupCount!==1||state.nativePlotViewCount!==4||
-       state.nativePlotHeaderCount!==4)return;
+       state.nativePlotHeaderCount!==4||!state.scopedGeometryLoaded||
+        state.projectSidebarWidth<238||state.projectSidebarWidth>300)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();
@@ -122,6 +128,21 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
     if(narrowSize.width>850||narrowSize.width<630)
      throw Error('Responsive Core screenshot width out of expected range');
     fs.writeFileSync(path.join(dir,'core-host-narrow.png'),narrow.toPNG());
+     const drawer=await win.webContents.executeJavaScript(`(()=>{
+      const nav=document.querySelector('#dktsKeithley4200Page [data-dkts-nav]');
+      const shell=document.querySelector('#dktsKeithley4200Page [data-dkts-shell]');
+      const work=document.querySelector('#dktsKeithley4200Page [data-dkts-work]');
+      const toggle=document.querySelector('#dktsKeithley4200Page [data-dkts-nav-toggle]');
+      if(!nav||!shell||!work)return {ready:false};
+      const n=nav.getBoundingClientRect(),s=shell.getBoundingClientRect();
+      const w=work.getBoundingClientRect();
+      return {ready:true,sidebarRight:Math.round(n.right-s.left),
+       workWidth:Math.round(w.width),shellWidth:Math.round(s.width),
+       toggleVisible:!!toggle&&toggle.getBoundingClientRect().width>0};
+     })()`,true);
+     if(!drawer.ready||drawer.sidebarRight>25||drawer.workWidth<drawer.shellWidth-24||
+        !drawer.toggleVisible)
+      throw Error('Mobile Core drawer must free graph width when closed: '+JSON.stringify(drawer));
    }finally{
     win.setSize(...oldSize);
     win.setMinimumSize(...oldMin);

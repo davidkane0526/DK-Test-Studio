@@ -1,13 +1,13 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.1","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","measurement-data.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]}};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.1","apiVersion":"1.19.0","entry":"plugin.js","scripts":["model.js","measurement-data.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: host-owned theme, data, scientific plot and project state; output disabled.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.top-workspace","ui.pages"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]}};
  DKDSPlugins.define(manifest,async ctx=>{
-  const model=ctx.modules.require('model'),measurementData=ctx.modules.require('measurementData'),units=ctx.ui.unitTemplates;
+  const model=ctx.modules.require('model'),measurementData=ctx.modules.require('measurementData'),units=ctx.ui.unitTemplates,uiShell=ctx.modules.require('uiShell');
   if(typeof measurementData?.publishRaw!=='function')throw Error('KXCI Data Center publisher missing');
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
   let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSelections=['','','',''],frameKinds=['iv','transfer','it','raw'],frameGroup=null,frameTableHosts=[],framePlotHosts=[],frameTables=[],frameLayout='4',nav=null,parameters=null,portFields=null,dataNote=null,kindField=null,pad=null,inlineTerminals=null,editorTabs=null,editorHeading=null;
-  let editorSection='sweep',editorOpen=false,workRegion=null,editorRegion=null,plotRegion=null;
+  let editorSection='sweep',editorOpen=false,workRegion=null,editorRegion=null,plotRegion=null,projectSurface=null;
   const PAGE_TABS=[['info','信息'],['sweep','扫描'],['target','目标'],['strategy','策略'],['limits','保护'],['variables','页面变量'],['spec','关联规格']];
   const FRAME_OPTIONS=[{value:'iv',label:'I–V'},{value:'transfer',label:'转移'},{value:'it',label:'I–t'},{value:'raw',label:'数据表'}];
   const touchNumeric=Boolean(window.matchMedia?.('(pointer: coarse)')?.matches);
@@ -310,7 +310,19 @@
    const device=s.devices.find(d=>d.id===s.activeDeviceId);
    const visibleSpecs=s.specs.filter(spec=>spec.deviceId===s.activeDeviceId);
    const projectHeader=units.header.create(nav,{kind:'panel',variant:'content',
-    title:'项目导航',meta:''});
+    title:'项目',meta:'',actionHost:true});
+   // Keep project creation in the SDK Action Menu, never three wrapped rows.
+   units.action.create(projectHeader.actions,{id:'add-project-node',label:'＋',
+    title:'新建器件、流程或规格',menu:true,variant:'quiet',items:()=>[
+     {id:'add-device',label:'新建器件',
+      onInvoke:()=>{projectSurface?.close();editorOpen=false;persist(model.addDevice(state()));}},
+     {id:'add-routine',label:'新建流程',
+      onInvoke:()=>{projectSurface?.close();editorOpen=false;persist(model.addRoutine(state()));}},
+     {id:'add-spec',label:'新建规格',
+      onInvoke:()=>{projectSurface?.close();editorOpen=true;persist(model.addSpec(state()));}},
+     ...(state().pages.length>1?[{id:'close-page',label:'关闭当前页面',
+      onInvoke:()=>persist(model.remove(state(),active().id))}]:[])
+    ]});
    // The existing Project heading is the graph-level navigation target.
    if(projectHeader?.element?.addEventListener){
     const home=()=>{editorOpen=false;render();};
@@ -324,19 +336,19 @@
    }
    units.field.create(nav,{kind:'select',label:'器件',value:s.activeDeviceId,
     options:s.devices.map(item=>({value:item.id,label:item.name})),
-    onChange:e=>{editorOpen=false;persist(model.selectDevice(state(),e.target.value));}});
+    onChange:e=>{projectSurface?.close();editorOpen=false;persist(model.selectDevice(state(),e.target.value));}});
    const treeHost=units.layout.create(nav,{variant:'stack-compact'});
    for(const routine of s.routines.filter(r=>r.deviceId===s.activeDeviceId)){
     const routineHost=units.layout.create(treeHost,{variant:'stack-compact'});
     units.list.create(routineHost,{}).item({leading:'▦',title:routine.name,
      selected:false,
-     onInvoke:()=>{editorOpen=false;persist(model.selectRoutine(state(),routine.id));}});
+     onInvoke:()=>{projectSurface?.close();editorOpen=false;persist(model.selectRoutine(state(),routine.id));}});
     for(const page of s.pages.filter(page=>page.routineId===routine.id)){
      const pageHost=units.layout.create(routineHost,{variant:'identity'});
      if(pageHost?.style)pageHost.style.paddingLeft='15px';
      units.list.create(pageHost,{}).item({leading:'▧',title:page.name,
       selected:editorOpen&&page.id===s.activeId,
-      onInvoke:()=>{editorOpen=true;persist(model.select(state(),page.id));}});
+      onInvoke:()=>{projectSurface?.close();editorOpen=true;persist(model.select(state(),page.id));}});
     }
    }
    if(visibleSpecs.length){
@@ -347,25 +359,18 @@
       selected:spec.id===p.associateSpecId,
       onInvoke:()=>persist(model.associateSpec(state(),spec.id))});
    }
-   const actions=units.layout.create(nav,{variant:'row-wrap'});
-   units.action.create(actions,{id:'add-device',label:'＋ 器件',
-    variant:'quiet',onInvoke:()=>{editorOpen=false;persist(model.addDevice(state()));}});
-   units.action.create(actions,{id:'add-routine',label:'＋ 测试流程',
-    variant:'quiet',onInvoke:()=>{editorOpen=false;persist(model.addRoutine(state()));}});
-   units.action.create(actions,{id:'add-spec',label:'＋ 规格',
-    variant:'quiet',onInvoke:()=>{editorOpen=true;persist(model.addSpec(state()));}});
-   if(s.pages.length>1)
-    units.action.create(actions,{id:'close-'+p.id,label:'× 页面',
-     variant:'quiet',onInvoke:()=>persist(model.remove(state(),p.id))});
    if(visibleSpecs.length)
     units.field.create(nav,{kind:'select',label:'关联规格',
      value:p.associateSpecId||'',options:[{value:'',label:'无'},
       ...visibleSpecs.map(spec=>({value:spec.id,label:spec.name}))],
      onChange:e=>persist(model.associateSpec(state(),e.target.value||null))});
-   kindField=units.field.create(nav,{kind:'select',label:'新增测试类型',
+   const newPage=units.layout.create(nav,{variant:'content-actions'});
+   newPage?.setAttribute?.('data-dkts-new-page','true');
+   kindField=units.field.create(newPage,{kind:'select',label:'新增测试类型',
+    controlOnly:true,attributes:{'aria-label':'新增测试类型','title':'新增测试类型'},
     value:selectedKind,options:model.KINDS.map(x=>({value:x.id,label:x.label}))});
-   units.action.create(nav,{id:'add-test',label:'＋ 页面',
-    variant:'quiet',onInvoke:()=>{editorOpen=true;persist(model.add(state(),
+   units.action.create(newPage,{id:'add-test',label:'＋',title:'添加选中类型的测试页面',
+    variant:'quiet',onInvoke:()=>{projectSurface?.close();editorOpen=true;persist(model.add(state(),
      kindField?.control?.value||'iv'));}});
    if(portFields){
     portFields.replaceChildren();
@@ -397,6 +402,10 @@
    const title=units.header.create(editorHeading,{
     kind:'panel',variant:'content',eyebrow:'编辑页面',title:p.name,meta:p.testType
    });
+   const navEditor=units.action.create(title.actions,{id:'dkts-project-toggle-editor',
+    label:'项目',title:'打开或收起工程导航',variant:'quiet',
+    onInvoke:()=>projectSurface?.toggle()});
+   navEditor?.element?.setAttribute?.('data-dkts-nav-toggle','true');
    units.action.create(title.actions,{id:'back-to-graphs',label:'← 绘图区',
     title:'返回工程图表工作区',variant:'quiet',
     onInvoke:()=>{editorOpen=false;render();}});
@@ -520,17 +529,16 @@
   wb=units.workspace.create(container,{variant:'standard',header:false,
    activity:ACTIVITY,primaryScroll:'safe'});
   // Core SDK owns the native Page editor and real PlotView, without a separate browser shell.
-  const main=units.layout.create(null,{variant:'sidebar-main-compact',
-   // DKDS Core SDK 1.19 accepts this registered one-column geometry at 620px.
-   // The unmodified compact recipe keeps 235px sidebar on tablet/desktop.
-   responsiveGeometry:[{maxWidth:620,
-    geometry:{gridTemplateColumns:'minmax(0,1fr)'}}]});
+  const main=units.layout.create(null,{variant:'sidebar-main-standard'});
   nav=units.layout.create(main,{variant:'stack-compact'});
+  projectSurface=uiShell.attach(main,nav);
   // DKDS Core workbench owns both the independent result graph and Page inspector.
   // One semantic Core content stack. Selecting a Page replaces the graph
   // surface with a full-width parameter editor; it is not a sibling column.
   const work=units.layout.create(main,{variant:'stack-compact'});
+  work?.setAttribute?.('data-dkts-work','true');
   const editor=units.layout.create(work,{variant:'stack-compact'});
+  editor?.setAttribute?.('data-dkts-editor','true');
   editorHeading=units.layout.create(editor,{variant:'identity'});
   inlineTerminals=units.layout.create(editor,{variant:'identity'});
   editorTabs=units.layout.create(editor,{variant:'identity'});
@@ -545,6 +553,10 @@
   const plotsHeading=units.header.create(plotArea,{kind:'panel',
    variant:'content',title:'绘图区',actionHost:true});
   const frameTools=units.layout.create(plotsHeading.actions,{variant:'row-wrap'});
+  const navGraph=units.action.create(plotsHeading.actions,{id:'dkts-project-toggle-graph',
+   label:'项目',title:'打开或收起工程导航',variant:'quiet',
+   onInvoke:()=>projectSurface?.toggle()});
+  navGraph?.element?.setAttribute?.('data-dkts-nav-toggle','true');
   syncGraphSettings();
   units.field.create(frameTools,{kind:'select',label:'图窗布局',controlOnly:true,
     attributes:{'aria-label':'图窗布局','title':'图窗布局'},value:frameLayout,
@@ -554,7 +566,7 @@
   const groupHost=units.layout.create(plotArea,{variant:'identity'});
   groupHost?.setAttribute?.('data-dkts-plot-group','four-independent-frames');
   frameGroup=units.plotGroup.create(groupHost,{columns:2,preferredColumns:2,
-   maxColumns:4,minItemWidth:360,responsive:true,density:'regular',
+   maxColumns:4,minItemWidth:342,responsive:true,density:'compact',
    orientationPolicy:{mode:'portrait-offset',offset:-1,minColumns:1}});
   const frameTitles=['图窗 1','图窗 2','图窗 3','图窗 4'];
     for(let index=0;index<4;index++){
@@ -575,6 +587,7 @@
     menu:true,variant:'quiet',items:()=>frameDataMenu(index)
    });
    const plotHost=units.layout.create(graphic.body,{variant:'plot-card-fill'});
+   plotHost?.setAttribute?.('data-dkts-plot-host','true');
    framePlotHosts.push(plotHost);
    const rawHost=units.layout.create(graphic.body,{variant:'scroll-pane'});
    frameTableHosts.push(rawHost);
@@ -617,7 +630,7 @@
   window.addEventListener?.('resize',updateEditorLayout);
   render();refreshData();
   ctx.status.set('4200A 工作区已加载；原生输出禁用');
-  return {deactivate(){window.removeEventListener?.('resize',updateEditorLayout);
+  return {deactivate(){projectSurface?.dispose();window.removeEventListener?.('resize',updateEditorLayout);
    pad?.close?.();off?.();for(const item of plots)item?.dispose?.();
    for(const item of plotViews)item?.dispose?.();
    for(const item of frameTables)item?.dispose?.();frameGroup?.dispose?.();wb?.dispose?.();}};
