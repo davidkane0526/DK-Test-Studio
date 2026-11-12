@@ -37,6 +37,7 @@ test('Core revision and validated preview packages share one V/a identity and so
   assert.match(full,/--prerelease/);
   assert.match(full,/DKTS-Core-Preview-Windows/);
   assert.match(full,/DKTS-Core-Preview-Android-TEST-SIGNED/);
+  assert.match(full,/DKTS-4200A-Hardware-Capability-Database-v1\.json/);
   assert.doesNotMatch(full,/DKTS standalone complete package/);
 });
 

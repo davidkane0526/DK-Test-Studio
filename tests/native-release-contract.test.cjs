@@ -14,6 +14,8 @@ test('Core mainline release contains only isolated native preview packages and n
  assert.match(full,/DKTS-Core-Fixed-Signed-Android/);
  assert.match(full,/android\/signing-certificate\.sha256/);
  assert.match(full,/SHA256SUMS\.txt/);
+ assert.match(full,/DKTS-4200A-Hardware-Capability-Database-v1\.json/);
+ assert.match(full,/sha256sum \*\.exe \*\.apk \*\.json/);
  assert.match(full,/gh run download/);
  assert.match(full,/--prerelease/);
  assert.match(full,/NOT a production in-place upgrade/);

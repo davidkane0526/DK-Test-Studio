@@ -385,6 +385,19 @@ jobs:
             echo "::warning::No fixed-signed Android asset. Preview will remain TEST-SIGNED."
           fi
           find artifacts signed-artifacts -maxdepth 12 -type f -print
+      - name: Export current hardware capability and parameter-safety database
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tools/export-hardware-capabilities.cjs out/DKTS-4200A-Hardware-Capability-Database-v1.json
+          node - <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict');
+          const file='out/DKTS-4200A-Hardware-Capability-Database-v1.json';
+          const doc=JSON.parse(fs.readFileSync(file,'utf8'));
+          assert.equal(doc.schema,'dkts.4200a.hardware-capabilities.v1');
+          assert(fs.statSync(file).size>10000,'capability database unexpectedly short');
+          console.log('Native release capability database:',doc.schema);
+          NODE
       - name: Verify source identity and both Core Preview packages
         id: identity
         env:
@@ -426,7 +439,7 @@ jobs:
             signing="TEST-SIGNED (not safe for in-place upgrades)"
           fi
           echo "android_signing=$signing" >> "$GITHUB_OUTPUT"
-          (cd out && sha256sum *.exe *.apk > SHA256SUMS.txt)
+          (cd out && sha256sum *.exe *.apk *.json > SHA256SUMS.txt)
           printf 'Build source: %s\nCore workflow: %s\nRevision: a%s\nPreview package ID: studio.dk.test.corepreview\nAndroid signer: %s\n' \
             "$CORE_SHA" "${{ github.run_id }}" "$revision" "$signing" > out/PROVENANCE.txt
       - name: Retain verified EXE, APK, SHA256 and provenance even if Release permission is denied
@@ -456,6 +469,7 @@ jobs:
           Architecture: Genuine DKDS Core staged read-only inside DKTS.
           Windows: Portable Core Preview, screenshot and Core smoke validated.
           Android: Separate studio.dk.test.corepreview preview; signer: $SIGNING_STATUS.
+          Capability database: DKTS-4200A-Hardware-Capability-Database-v1.json (SHA-256 verified).
           This is NOT a production in-place upgrade for the old studio.dk.test app.
           Real 4200A output, production certificate, native UI hot update and
           native full-update rollback have NOT been hardware-accepted.

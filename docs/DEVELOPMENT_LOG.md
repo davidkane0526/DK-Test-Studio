@@ -296,3 +296,5 @@
 ## 2026-11-12 / DKTS Core 同一主分支发布入口收敛（持续验证）
 - 原先 `.github/workflows/windows-preview.yml` 使用 `workflow_run` 触发，其 APK/EXE 和固定证书校验已经成功，但 `gh release create` 在独立工作流令牌中多次返回 HTTP 403。现在将发布步骤（下载同 SHA 原生包、严格证书指纹和 SHA-256 检查、保留 Artifacts、建立 Release）移入 `.github/workflows/dkts-framework-contract.yml` 同次 `main push` 的 `publish-core-preview` job。要求 DKDS 只读框架、Windows Electron/Portable、Android 模拟器均成功；固定签名任务独立运行，签名密钥永远不传给 DKDS 源码编译任务。此前的跨工作流发布 YAML 已移除，避免重复、冲突的发行入口。
 - 回归契约改为针对新的同一 push 发行架构；Windows/Android 仍采用 `V0.3.13 aNNN`，不得将已测试的 APK/EXE 与另一次提交混合。没有对应成功发布的 Release 时只报告 Actions Artifact，不宣称完成正式发布。所有修改仅 DKTS，DKDS 上游未修改。
+
+- 2026-11-12 正式交付材料补齐：在 DKTS Core 的同一主分支发行任务中，使用 `tools/export-hardware-capabilities.cjs` 导出 `DKTS-4200A-Hardware-Capability-Database-v1.json`，要求 schema 为 `dkts.4200a.hardware-capabilities.v1` 且正文完整，并把该可移交其他 AI 检查的硬件能力与安全数据库列入 Release 附件和 `SHA256SUMS.txt`。不得从 DKDS 上游获取或修改数据库，数据库来自 DKTS 已测试的单一源码。新 CI 结果仍需实测。
