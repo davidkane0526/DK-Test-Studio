@@ -65,7 +65,8 @@ test('Core preview publisher supports scoped Release token fallback without expo
  assert.match(publish,/secrets\.DKTS_RELEASE_TOKEN \|\| github\.token/);
  assert.match(publish,/gh release create/);
  assert.match(release,/Retain verified EXE, APK, SHA256 and provenance even if Release permission is denied/);
- assert.doesNotMatch(core,/DKTS_RELEASE_TOKEN/,'signing and untrusted upstream Core build must not receive Release token');
+ assert(!core.slice(0,core.indexOf('  publish-core-preview:')).includes('DKTS_RELEASE_TOKEN'),
+  'signing and untrusted upstream Core build must not receive Release token');
 });
 
 test('Core publisher checks out DKTS before downloading artifacts to avoid deleting built EXE/APK',()=>{
