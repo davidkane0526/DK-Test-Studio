@@ -22,7 +22,7 @@ const files={};
 for(const name of [...scripts,...manifest.styles]){
  // Manifest file names are a fixed allowlist. No path traversal, remote URLs
  // or untrusted module names may reach the packaged SDK plugin.
- if(!/^(?:model\\.js|measurement-data\\.js|ui-shell\\.js|plugin\\.js|ui-shell\\.css)$/.test(name))
+ if(!new Set(['model.js','measurement-data.js','ui-shell.js','plugin.js','ui-shell.css']).has(name))
   throw Error('Unapproved plugin source '+name);
  const full=path.join(folder,name);
  if(!fs.statSync(full).isFile())throw Error('Missing plugin source '+name);
