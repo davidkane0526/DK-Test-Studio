@@ -8,7 +8,7 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const {verify}=require('./dkds-host-profile.cjs');
 const {verifyUpdaterParity}=require('./verify-dkds-updater-parity.cjs');
 const {buildIdentity}=require('./core-build-identity.cjs');
-function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpdater=verifyUpdaterParity}={}){
+function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpdater=verifyUpdaterParity,patchUpdaters=true}={}){
  const upstream=path.resolve(source),output=path.resolve(target);
  if(output===upstream||output.startsWith(upstream+path.sep)||
      upstream.startsWith(output+path.sep))throw Error('Unsafe overlapping staging directories');
@@ -111,6 +111,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
  const upstreamBrand=path.join(tmp,'scripts/generate-brand-assets.js');
  fs.appendFileSync(upstreamBrand,
   "\nrequire('../tools/dkts-core-brand.cjs').applyBrand(require('node:path').resolve(__dirname,'..'));\n");
+ if(patchUpdaters){
  // Route both the API manifest and asset URL validation to the DKTS preview release.
  replaceExact('src/app/modules/floating-docks.js',
   "if(el)el.textContent=(label[state]||state)+(result.version?' · V'+result.version:'')+",
@@ -134,6 +135,9 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
  replaceExact('desktop/native-update.js',
   'function pickRelease(releases,currentVersion){',
   "function pickRelease(releases,currentVersion,currentBuildId='a0'){");
+ replaceExact('desktop/native-update.js',
+  'const releaseVersion=releaseMatch[1],releaseBuildId=releaseMatch[2];',
+  'const releaseVersion=releaseMatch[1],releaseBuildId=releaseMatch[2];\n    const expectedVersionCode=100000+Number(releaseBuildId.slice(1));\n    const releaseNotes=String(release.body||\'\');\n    if(!releaseNotes.includes(\'Build identity: \'+releaseBuildId)||!releaseNotes.includes(\'Android versionCode: \'+expectedVersionCode))continue;');
  replaceExact('desktop/native-update.js',
   'if(!match||match[1]!==releaseVersion||match[2]!==releaseBuildId||!newer(releaseVersion,currentVersion))continue;',
   'if(!match||match[1]!==releaseVersion||match[2]!==releaseBuildId||(!newer(releaseVersion,currentVersion)&&!(releaseVersion===currentVersion&&compareBuildIds(releaseBuildId,currentBuildId)>0)))continue;');
@@ -179,11 +183,11 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   "const FILES=Object.freeze(['src/styles/structure/connectivity-panels.css',\n  'src/styles/platform/native-client-shell.css','src/styles/theme/component-appearance.css']);",
   "const FILES=Object.freeze(['src/styles/structure/connectivity-panels.css',\n  'src/styles/platform/native-client-shell.css','src/styles/theme/component-appearance.css','src/plugins/dkts-4200a/ui-shell.css']);");
  replaceExact('desktop/ui-hot-update.js',
-  'const buildIdPattern=/^a\\\\d{4,}$/;',
-  'const buildIdPattern=/^a\\\\d+$/;');
+  'const buildIdPattern=/^a\\d{4,}$/;',
+  'const buildIdPattern=/^a\\d+$/;');
  replaceExact('desktop/ui-hot-update.js',
-  'const releasePattern=/^dkds-(?:ui|android)-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d{4,})$/;',
-  'const releasePattern=/^dkts-ui-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d+)$/;');
+  'const releasePattern=/^dkds-(?:ui|android)-v(\\d+\\.\\d+\\.\\d+)-(a\\d{4,})$/;',
+  'const releasePattern=/^dkts-ui-v(\\d+\\.\\d+\\.\\d+)-(a\\d+)$/;');
  replaceExact('desktop/ui-hot-update.js',
   'function createUiHotUpdater({userData,currentVersion}){',
   "function createUiHotUpdater({userData,currentVersion,currentBuildId='a0'}){");
@@ -197,8 +201,8 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   "catch{css='';tag='';appVersion=currentVersion;buildId='a0000';}",
   "catch{css='';tag='';appVersion=currentVersion;buildId=currentBuildId;}");
  replaceExact('tools/updates/build-ui-hot-bundle.js',
-  "if(!/^a\\\\d{4,}$/.test(buildId))",
-  "if(!/^a\\\\d+$/.test(buildId))");
+  "if(!/^a\\d{4,}$/.test(buildId))",
+  "if(!/^a\\d+$/.test(buildId))");
  replaceExact('tools/updates/build-ui-hot-bundle.js',
   "  'src/styles/platform/native-client-shell.css',\n  'src/styles/theme/component-appearance.css'",
   "  'src/styles/platform/native-client-shell.css',\n  'src/styles/theme/component-appearance.css',\n  'src/plugins/dkts-4200a/ui-shell.css'");
@@ -215,6 +219,9 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   'Pattern.compile("dkds-android-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d{4,})")',
   'Pattern.compile("^dkts-core-preview-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d+)$")');
   replaceExact('mobile/plugins/DkdsAppUpdate.template',
+   'if(row.optBoolean("draft",false)||!tagMatcher.matches())continue;',
+   'if(row.optBoolean("draft",false)||!tagMatcher.matches())continue;\n            long expectedVersionCode=100000L+Long.parseLong(tagMatcher.group(2).substring(1));\n            String releaseNotes=row.optString("body","");\n            if(!releaseNotes.contains("Build identity: "+tagMatcher.group(2))||!releaseNotes.contains("Android versionCode: "+expectedVersionCode))continue;');
+  replaceExact('mobile/plugins/DkdsAppUpdate.template',
    'if(APK_ASSET.equals(item.optString("name")))apk=item;',
    'Matcher asset=APK_ASSET.matcher(item.optString("name"));if(asset.matches()&&releaseVersion.equals(asset.group(1))&&releaseBuildId.equals(asset.group(2)))apk=item;');
   replaceExact('mobile/plugins/DkdsAppUpdate.template',
@@ -222,10 +229,13 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
    'private String installedBuildId(){\n        try{int code=activity.getPackageManager().getPackageInfo(activity.getPackageName(),0).versionCode;return code>=100000?"a"+(code-100000):"a0";}\n        catch(Exception ignored){return "a0";}\n    }\n    JSONObject status() throws org.json.JSONException {');
   replaceExact('mobile/plugins/DkdsAppUpdate.template',
    'return new JSONObject().put("status",state).put("version",version)',
-   'return new JSONObject().put("status",state).put("version",version).put("buildId",candidate==null?"":candidate.buildId).put("installedBuildId",installedBuildId())');
+   'return new JSONObject().put("status",state).put("version",version).put("buildId",candidate==null?installedBuildId():candidate.buildId).put("installedBuildId",installedBuildId())');
   replaceExact('mobile/plugins/DkdsAppUpdate.template',
    'if(found==null||compareVersions(found.version,installed)<=0){',
    'int versionOrder=found==null?-1:compareVersions(found.version,installed);\n                if(found==null||versionOrder<0||(versionOrder==0&&compareBuildIds(found.buildId,installedBuildId())<=0)){');
+ replaceExact('src/app/modules/floating-docks.js',
+  "if(el)el.textContent=(label[state]||state)+(result.version?' · V'+result.version:'')+\n    (state==='downloading'?' · '+Math.max(0,Math.min(100,Number(result.progress)||0))+'%':'')+",
+  "if(el)el.textContent=(label[state]||state)+(result.version?' · V'+result.version:'')+\n    (result.buildId?' '+result.buildId:'')+\n    (state==='downloading'?' · '+Math.max(0,Math.min(100,Number(result.progress)||0))+'%':'')+");
   replaceExact('mobile/plugins/DkdsAppUpdate.template',
    'if(candidate==null||!candidate.version.equals(found.version)||',
    'if(candidate==null||!candidate.version.equals(found.version)||!candidate.buildId.equals(found.buildId)||');
@@ -310,6 +320,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
    'css=nextCss;tag=latestTag;version=latestVersion;status="updated";',
    'css=nextCss;tag=latestTag;version=latestVersion;buildId=latestBuildId;status="updated";');
+ }
 const sourceHash=crypto.createHash('sha256')
   .update(fs.readFileSync(path.join(upstream,'package.json'))).digest('hex');
  const staging={...profile,updaterSafety,upstream:{...profile.upstream,packageSha256:sourceHash},

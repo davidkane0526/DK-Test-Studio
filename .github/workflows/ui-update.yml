@@ -33,7 +33,7 @@ jobs:
         run: node tools/classify-core-update.cjs
 
   identity:
-    name: Resolve the canonical Core workflow aNNN
+    name: Use this UI revision workflow run as canonical aNNN
     needs: classify
     if: ${{ needs.classify.outputs.update_channel == 'ui-hot' && github.event_name == 'push' }}
     runs-on: ubuntu-24.04
@@ -46,31 +46,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Find this commit's DKDS Core workflow run
-        id: core
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CORE_SHA: ${{ github.sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          revision=""
-          for attempt in $(seq 1 30); do
-            revision="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/dkts-framework-contract.yml/runs" \
-              -f head_sha="$CORE_SHA" -f event=push -f per_page=30 \
-              --jq '.workflow_runs | sort_by(.created_at) | last | .run_number // empty' || true)"
-            if [[ "$revision" =~ ^[1-9][0-9]*$ ]]; then break; fi
-            sleep 2
-          done
-          [[ "$revision" =~ ^[1-9][0-9]*$ ]] || {
-            echo "::error::No matching DKDS Core run was found for this commit; refusing to invent a build identity."
-            exit 1
-          }
-          echo "build_number=$revision" >> "$GITHUB_OUTPUT"
-      - name: Derive V/a identity and Android versionCode from the Core run
+      - name: Derive V/a identity and Android versionCode from this UI revision run
         id: identity
         env:
-          DKTS_BUILD_NUMBER: ${{ steps.core.outputs.build_number }}
+          DKTS_BUILD_NUMBER: ${{ github.run_number }}
         run: node tools/resolve-core-build-identity.cjs
 
   build-ui-hot:

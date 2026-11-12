@@ -42,7 +42,7 @@ test('optional pinned signer receives no DKDS source and verifies the real APK c
  const y=read('.github/workflows/dkts-framework-contract.yml');
  const fragment=y.split('  android-core-fixed-sign-preview:')[1];
  assert.ok(fragment,'fixed certificate step must exist');
- assert.match(fragment,/needs: \[change-scope, android-core-preview\]/);
+ assert.match(fragment,/needs: \[change-scope, resolve-build-identity, android-core-preview\]/);
  assert.match(fragment,/continue-on-error: true/);
  assert.match(fragment,/DKTS_ANDROID_KEYSTORE_B64/);
  assert.match(fragment,/--ks-type PKCS12/);
@@ -67,6 +67,8 @@ test('Core preview publisher supports scoped Release token fallback without expo
  const publish=release.slice(release.indexOf('  publish-core-preview:'));
  assert.match(publish,/secrets\.DKTS_RELEASE_TOKEN \|\| github\.token/);
  assert.match(publish,/gh release create/);
+ assert.match(publish,/Build identity: \$UI_REV/);
+ assert.match(publish,/Android versionCode: \$\(\(100000\+\$\{UI_REV#a\}\)\)/);
  assert.match(release,/Retain verified EXE, APK, SHA256 and provenance even if Release permission is denied/);
  assert(!core.slice(0,core.indexOf('  publish-core-preview:')).includes('DKTS_RELEASE_TOKEN'),
   'signing and untrusted upstream Core build must not receive Release token');
@@ -86,7 +88,7 @@ test('Core release runs only after same main push native Windows and Android acc
  const core=read('.github/workflows/dkts-framework-contract.yml');
  const old=read('.github/workflows/dkts-framework-contract.yml');
  const pub=core.slice(core.indexOf('  publish-core-preview:'));
- assert.match(pub,/needs: \[change-scope, framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview\]/);
+ assert.match(pub,/needs: \[change-scope, resolve-build-identity, framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview\]/);
  assert.match(pub,/github\.event_name == 'push'/);
  assert.match(pub,/needs\.android-core-preview\.result == 'success'/);
  assert.match(pub,/needs\.windows-core-preview\.result == 'success'/);
@@ -97,4 +99,14 @@ test('Core release runs only after same main push native Windows and Android acc
  assert.match(pub,/gh release create/);
  assert.equal(fs.existsSync(require('node:path').resolve(__dirname,'../.github/workflows/windows-preview.yml')),false);
  assert(!core.slice(0,core.indexOf('  publish-core-preview:')).includes('DKTS_RELEASE_TOKEN'));
+});
+
+test('the UI revision workflow owns monotonic aNNN and Core package jobs reuse the same-SHA run',()=>{
+ const ui=read('.github/workflows/ui-update.yml');
+ const core=read('.github/workflows/dkts-framework-contract.yml');
+ assert.match(ui,/DKTS_BUILD_NUMBER: \$\{\{ github\.run_number \}\}/);
+ assert.match(core,/actions\/workflows\/ui-update\.yml\/runs/);
+ assert.match(core,/revision="\$CORE_BUILD_NUMBER"/);
+ assert.match(core,/Build identity: \$UI_REV/);
+ assert.match(core,/Android versionCode: \$\(\(100000\+\$\{UI_REV#a\}\)\)/);
 });

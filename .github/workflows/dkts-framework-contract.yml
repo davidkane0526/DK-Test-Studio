@@ -7,9 +7,8 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
+  actions: read
   contents: read
-env:
-  DKTS_PREVIEW_BUILD_NUMBER: ${{ github.run_number }}
 jobs:
   change-scope:
     name: Classify native-package versus CSS-only hot-update changes
@@ -31,8 +30,46 @@ jobs:
           DKTS_FORCE_FULL_APP: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
         run: node tools/classify-core-update.cjs
 
-  framework-readonly-check:
+  resolve-build-identity:
+    name: Resolve canonical UI revision number for this source commit
     needs: change-scope
+    if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' }}
+    runs-on: ubuntu-24.04
+    outputs:
+      build_number: ${{ steps.identity.outputs.build_number }}
+    steps:
+      - name: Resolve the same-SHA UI workflow run number
+        id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CORE_SHA: ${{ github.sha }}
+          CORE_RUN_NUMBER: ${{ github.run_number }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$CORE_RUN_NUMBER"
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            revision=""
+            for attempt in $(seq 1 30); do
+              revision="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ui-update.yml/runs" \
+                -f head_sha="$CORE_SHA" -f event=push -f per_page=30 \
+                --jq '.workflow_runs | sort_by(.created_at) | last | .run_number // empty' || true)"
+              if [[ "$revision" =~ ^[1-9][0-9]*$ ]]; then break; fi
+              sleep 2
+            done
+          fi
+          [[ "$revision" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::Could not resolve a monotonic UI revision number for this SHA."
+            exit 1
+          }
+          echo "build_number=$revision" >> "$GITHUB_OUTPUT"
+          echo "Canonical DKTS build identity: a$revision" >> "$GITHUB_STEP_SUMMARY"
+
+  framework-readonly-check:
+    needs: [change-scope, resolve-build-identity]
+    env:
+      DKTS_PREVIEW_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
     if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' }}
     runs-on: ubuntu-latest
     steps:
@@ -52,11 +89,13 @@ jobs:
         run: node tools/dkds-host-profile.cjs upstream/dkds dist/dkds-profile.json
       - name: Make disposable DKTS-derived full framework source staging
         run: node tools/stage-dkds-host.cjs upstream/dkds dist/dkts-framework-staging
+      - name: Verify staged Windows/Android V+a update contracts
+        run: node tests/test-staged-core-updater.cjs dist/dkts-framework-staging
       - name: Build the Core UI hot-update bundle as a validation artifact
         working-directory: dist/dkts-framework-staging
         run: |
           export DKDS_UI_APP_VERSION="$(node -p "require('./package.json').version")"
-          export DKDS_UI_BUILD_ID="a${GITHUB_RUN_NUMBER}"
+          export DKDS_UI_BUILD_ID="a${DKTS_PREVIEW_BUILD_NUMBER}"
           node tools/updates/build-ui-hot-bundle.js dist/DKDS-UI-bundle.json
       - name: Verify the exact Core hot-update schema and four-file allowlist
         run: |
@@ -66,7 +105,7 @@ jobs:
           assert.equal(b.schema,'dkds-ui-v2');
           assert.equal(b.repository,'davidkane0526/DK-Test-Studio');
           assert.equal(b.appVersion,require('./package.json').version);
-          assert.equal(b.buildId,'a'+process.env.GITHUB_RUN_NUMBER);
+          assert.equal(b.buildId,'a'+process.env.DKTS_PREVIEW_BUILD_NUMBER);
           assert.equal(Object.keys(b.files).length,4);
           assert(b.files['src/plugins/dkts-4200a/ui-shell.css']);
           NODE
@@ -131,7 +170,9 @@ jobs:
           if-no-files-found: error
 
   windows-core-preview:
-    needs: change-scope
+    needs: [change-scope, resolve-build-identity]
+    env:
+      DKTS_PREVIEW_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
     if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' }}
     name: Actual DKDS Core Electron boot and Windows portable preview
     runs-on: windows-latest
@@ -208,13 +249,14 @@ jobs:
           retention-days: 15
 
   android-core-preview:
-    needs: change-scope
+    needs: [change-scope, resolve-build-identity]
     if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' }}
     name: Build DKDS-derived DKTS Android Core Preview (isolated package)
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
       CI: '1'
+      DKTS_PREVIEW_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
     steps:
       - name: Checkout DKTS
         uses: actions/checkout@v4
@@ -259,7 +301,7 @@ jobs:
           test -s "$apk"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -m1 "^package:" | tee dist/dkts-core-android-badging.txt
           grep -q "name='studio.dk.test.corepreview'" dist/dkts-core-android-badging.txt
-          grep -q "versionCode='$((100000+GITHUB_RUN_NUMBER))'" dist/dkts-core-android-badging.txt
+          grep -q "versionCode='$((100000+DKTS_PREVIEW_BUILD_NUMBER))'" dist/dkts-core-android-badging.txt
           unzip -Z1 "$apk" | grep -q 'lib/arm64-v8a/'
           unzip -Z1 "$apk" | grep -q 'lib/x86_64/'
           unzip -Z1 "$apk" | grep -Fxq 'assets/index.android.bundle'
@@ -315,7 +357,9 @@ jobs:
     name: Sign Core Preview APK with pinned DKTS identity (isolated, optional)
     # Deliberately outside the DKDS Core build job: third-party framework
     # build scripts must never see the user's signing key or password.
-    needs: [change-scope, android-core-preview]
+    needs: [change-scope, resolve-build-identity, android-core-preview]
+    env:
+      DKTS_PREVIEW_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-scope.outputs.update_channel == 'full-app' && needs.android-core-preview.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
@@ -369,7 +413,7 @@ jobs:
           "$signer" verify --print-certs "$apk" | grep -q 'CN=Android Debug'
           "$aapt" dump badging "$apk" | grep -m1 '^package:' > original-package.txt
           grep -q "name='studio.dk.test.corepreview'" original-package.txt
-          grep -q "versionCode='$((100000+GITHUB_RUN_NUMBER))'" original-package.txt
+          grep -q "versionCode='$((100000+DKTS_PREVIEW_BUILD_NUMBER))'" original-package.txt
           mkdir -p fixed-signed
           keypath="$RUNNER_TEMP/dkts-pinned-preview.p12"
           trap 'shred -u "$keypath" 2>/dev/null || rm -f "$keypath"' EXIT
@@ -401,7 +445,7 @@ jobs:
           retention-days: 30
 
   publish-core-preview:
-    needs: [change-scope, framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview]
+    needs: [change-scope, resolve-build-identity, framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview]
     if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-scope.result == 'success' && needs.change-scope.outputs.update_channel == 'full-app' && needs.framework-readonly-check.result == 'success' && needs.windows-core-preview.result == 'success' && needs.android-core-preview.result == 'success' }}
     permissions:
       actions: read
@@ -450,12 +494,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CORE_SHA: ${{ github.sha }}
+          CORE_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
         shell: bash
         run: |
           set -euo pipefail
-          # This workflow run number is the canonical aNNN. The same value
-          # is stamped into the Windows package and Android versionCode.
-          revision="$GITHUB_RUN_NUMBER"
+          # The UI revision workflow owns the monotonic aNNN counter. This
+          # same-SHA value is stamped into Windows and Android package metadata.
+          revision="$CORE_BUILD_NUMBER"
           [[ "$revision" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid Core build identity"; exit 1; }
           echo "ui_revision=a$revision" >> "$GITHUB_OUTPUT"
           echo "core_sha=$CORE_SHA" >> "$GITHUB_OUTPUT"
@@ -511,6 +556,9 @@ jobs:
           cat > release-notes.txt <<EOF
           Source commit: $CORE_SHA
           Version: V0.3.13 $UI_REV
+          Build identity: $UI_REV
+          Android versionCode: $((100000+${UI_REV#a}))
+          Revision counter source: ui-update.yml run_number for this exact source commit.
           Architecture: Genuine DKDS Core staged read-only inside DKTS.
           Windows: Portable Core Preview, screenshot and Core smoke validated.
           Android: Separate studio.dk.test.corepreview preview; signer: $SIGNING_STATUS.

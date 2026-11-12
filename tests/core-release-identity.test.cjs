@@ -44,9 +44,13 @@ test('DKTS Core staging stamps the same identity into Windows and Android',()=>{
   assert.equal(require('../package.json').version,'0.3.13');
   const coreWorkflow=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
   assert.match(coreWorkflow,/update_channel == 'full-app'/);
-  assert.match(coreWorkflow,/revision=\"\$GITHUB_RUN_NUMBER\"/);
+  assert.match(coreWorkflow,/revision=\"\$CORE_BUILD_NUMBER\"/);
+  assert.match(coreWorkflow,/actions\/workflows\/ui-update\.yml\/runs/);
+  assert.match(coreWorkflow,/DKTS_PREVIEW_BUILD_NUMBER: \$\{\{ needs\.resolve-build-identity\.outputs\.build_number \}\}/);
   const uiWorkflow=fs.readFileSync(path.join(root,'.github/workflows/ui-update.yml'),'utf8');
   assert.match(uiWorkflow,/dkts-ui-v/);
+  assert.match(uiWorkflow,/DKTS_BUILD_NUMBER: \$\{\{ github\.run_number \}\}/);
+  assert.doesNotMatch(uiWorkflow,/dkts-framework-contract\.yml\/runs/);
   assert.match(uiWorkflow,/build-ui-hot-bundle.js/);
   assert.match(uiWorkflow,/update_channel == 'ui-hot'/);
 });
