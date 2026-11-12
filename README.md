@@ -11,7 +11,7 @@
 - FS-Pro Project → Device → Routine → Page/Spec、Project 层的四个独立 DKDS PlotView、Page 全宽参数编辑，以及 DKDS Data Center / 原始 CSV 接口已有实现。实际 KXCI 输出仍禁用，尚未经过真实 4200A 验收。
 - Windows 原生 Electron Core 工作区与多图窗的启动/截图回归在 `8533798df` 通过；Windows Portable 打包、Android API 36 模拟器和 APK 完整 CI 仍应以各次 Actions 最终结果为准。OPPO 平板及真实仪器未验收。
 - `npm start` 现在运行 `tools/launch-core-mainline.cjs`：若未设置 `DKTS_DKDS_SOURCE`，会在 DKTS 自己的 `.dkts-cache/` 内获取固定 SHA 的只读 DKDS 上游，暂存真实 Core、执行原生构建并启动 Electron；不会修改用户的 DKDS checkout。`npm run start:legacy` 和 `npm run dist:win:legacy` 保留旧壳作历史对照，**不作为新架构正式发布入口**。新 Core 预览由 [只读 Core 工作流](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 构建。
-- Core 预览使用独立 Android 包名 `studio.dk.test.corepreview` 和独立 Windows Portable，不覆盖已安装的 `studio.dk.test` 稳定版。[V0.3.13 a159 Core Preview](https://github.com/davidkane0526/DK-Test-Studio/releases/tag/dkts-core-preview-v0.3.13-a159) 已成功发布 Windows/Android 测试安装包、SHA-256 和来源清单。**a159 Android 仍为 TEST-SIGNED，不应视为可持续覆盖升级的固定签名版本。** 新增了独立固定证书签名、指纹校验与单调版本码流程，只有相应 CI 实际成功后才可称为 FIXED-SIGNED。Core UI 热更新、完整安装升级及回退、OPPO/4200A 真机验收均未完成；旧独立壳 UI Bundle **不得**直接用于 Core。
+- Core 预览使用独立 Android 包名 `studio.dk.test.corepreview` 和独立 Windows Portable，不覆盖已安装的 `studio.dk.test` 稳定版。[V0.3.13 a159 Core Preview](https://github.com/davidkane0526/DK-Test-Studio/releases/tag/dkts-core-preview-v0.3.13-a159) 已成功发布 Windows/Android 测试安装包、SHA-256 和来源清单。**a159 Android 仍为 TEST-SIGNED，不应视为可持续覆盖升级的固定签名版本。** 新增了独立固定证书签名、指纹校验与单调版本码流程，只有相应 CI 实际成功后才可称为 FIXED-SIGNED。Core UI 热更新、完整安装升级及回退、OPPO/4200A 真机验收均未完成；旧独立壳 UI Bundle **不得**直接用于 Core。更新器现在只接受 Release notes 同时证明 `Build identity: aNNN` 和 Android `versionCode: 100000+N` 的 Core 资产，避免旧历史版本的错配计数触发重复安装。
 
 ## 项目入口
 
@@ -25,11 +25,11 @@
 
 ## 版本与安装包（区分正式/预览）
 
-- 统一身份仍为 `V0.3.13 aNNN`，其中 V 是主程序版本，a 来自每次 main 提交的修订工作流。
+- 统一身份仍为 `V0.3.13 aNNN`，其中 V 是主程序版本，a 唯一来自 `ui-update.yml` 的主线运行编号；Core Windows/Android 构建按相同 Git SHA 查询该编号，确保包内身份、Android versionCode、Release 标签和热更新编号一致。
 - 已发布的旧版 `V0.3.13 aNNN · Full Package` 仅供历史对照，**不是新的 DKDS Core 主程序**；旧工作流不再自动把独立壳包装为新 Core。
 - 2026-11-12 已修正网页版与原生 Page 层级一致：Project 层显示四个独立图窗，进入 Page 显示全宽参数编辑，使用“← 绘图区”返回；[网页 UI Demo](https://davidkane0526.github.io/DK-Test-Studio/) 的 Chromium 回归和 Pages 部署已有通过记录。
 - Core Windows/Android 预览须先通过 [Core CI](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 的启动、插件、Android 模拟器和 APK 检查，再由 [同一 Core CI 的发布任务](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 在 [Releases](https://github.com/davidkane0526/DK-Test-Studio/releases) 发布**独立预览包**。只有成功发布的 Release 才能称为可下载；不能把未完成的 CI 当成已交付。
-- 旧 UI Bundle 格式尚未验证与 Core 热更新机制兼容。暂时只生成 V/a 修订身份，不向 Core 推送不兼容的热更；完成真实 Core-compatible bundle + 校验/回退后恢复自动热更新和匹配正式全量包。
+- CSS-only Core UI 热更新已有独立 `dkds-ui-v2` 四文件白名单、SHA-256 和缓存回退路径；完整运行时/原生变化仍必须发布同一 V/a 的 Windows/Android 全量包。真实设备上的热更应用、全量安装和失败回退尚未验收。
 
 ## 本地审计 DKDS 上游（不修改 DKDS）
 

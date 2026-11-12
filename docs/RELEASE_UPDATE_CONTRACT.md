@@ -3,7 +3,7 @@
 ## One canonical V/a identity
 
 - The visible application version is the package semver, currently `V0.3.13`.
-- The canonical build identity `aNNN` comes from the **DKTS Core Preview workflow run number**. The separate UI workflow must resolve that same Core run number for the same commit; it must never use its own workflow run number.
+- The canonical build identity `aNNN` comes from the **DKTS UI revision workflow (`ui-update.yml`) run number**. The Core Preview workflow resolves the `ui-update.yml` run with the exact same source SHA and uses that run number for Windows package metadata and Android `versionCode`. The Core workflow must never substitute its own unrelated run counter. This preserves monotonicity with existing published `aNNN` releases.
 - Windows package metadata stores `dktsBuildId=aNNN`.
 - Android `versionCode` is `100000 + N`, where N is the numeric suffix of the same `aNNN`.
 - The same V/a pair is stamped into package metadata, release tags, Windows and Android assets, updater status, and UI hot-update bundles.
@@ -17,7 +17,7 @@
 - The Android Core Preview is intentionally isolated from the stable `studio.dk.test` application. It must not overwrite or require uninstalling the stable application.
 - Android in-app native updates are offered only when the release contains an APK signed by the pinned DKTS certificate. Unsigned or test-signed artifacts are never accepted by the updater.
 
-The Windows and Android native updaters compare application semver first and numeric build identity second. A newer `aNNN` is therefore a valid update even when the visible version remains `V0.3.13`.
+The Windows and Android native updaters compare application semver first and numeric build identity second. A newer `aNNN` is therefore a valid update even when the visible version remains `V0.3.13`. A Core Preview Release is eligible for in-app update only if its notes attest both `Build identity: aNNN` and `Android versionCode: 100000+N`; legacy releases without this attestation are ignored so a historical tag cannot trigger a same-version reinstall loop.
 
 ## CSS-only hot-update channel
 
