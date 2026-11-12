@@ -43,7 +43,7 @@ function fixture(){
  write('desktop/main.js',[
   "const APP_NAME = 'DK Data Studio';",
   "const APP_ID = 'com.dk.datastudio';"
- ].join('\n'));
+ ].join('\r\n'));
  write('src/app/modules/floating-docks.js',"if(el)el.textContent=(label[state]||state)+(result.version?' · V'+result.version:'')+");
  write('desktop/native-update.js',String.raw`const expected='https://github.com/davidkane0526/DK-Data-Studio/releases/download/'+release.tag_name+'/';
 const RELEASES='https://api.github.com/repos/davidkane0526/DK-Data-Studio/releases?per_page=100';
@@ -150,6 +150,9 @@ test('stage DKDS Core into DKTS directory without touching upstream or shipping 
   assert.throws(()=>stage(f.root,out,{dktsRoot:repo}),/lacks required updater safety contracts/,
    'production staging must reject the deliberately incomplete SDK fixture');
   const p=stage(f.root,out,{dktsRoot:repo,validateUpdater:()=>({verifiedCount:10,testOnly:true}),patchUpdaters:false});
+  const stagedMain=fs.readFileSync(path.join(out,'desktop/main.js'),'utf8');
+  assert(!stagedMain.includes('\r\n'),'staging normalizes CRLF before exact source replacements');
+  assert.match(stagedMain,/DK Test Studio Core Preview/);
   assert.equal(p.derivedDistribution,true);
   assert.equal(p.buildId,'a162');
   assert.equal(p.androidVersionCode,100162);

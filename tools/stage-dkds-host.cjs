@@ -79,7 +79,10 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
  fs.rmSync(generated,{force:true});
  // DKDS's actual Electron boot code is the entrypoint, not a DKTS imitation.
  const replaceExact=(file,search,replace)=>{
-  const target=path.join(tmp,file),value=fs.readFileSync(target,'utf8');
+  const target=path.join(tmp,file);
+  // GitHub Windows runners may check out upstream text as CRLF. Normalize
+  // before exact source anchors so the same pinned adapter works on all OSes.
+  const value=fs.readFileSync(target,'utf8').replace(/\r\n?/g,'\n');
   if(value.split(search).length!==2)throw Error('Pinned DKDS compatibility mismatch: '+file+' / '+search.slice(0,60));
   fs.writeFileSync(target,value.replace(search,replace),'utf8');
  };

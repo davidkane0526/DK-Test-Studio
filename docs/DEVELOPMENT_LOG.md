@@ -317,3 +317,7 @@
 - 在 Framework Contract 中新增 `tests/test-staged-core-updater.cjs`，直接加载真正 DKDS staged Windows updater，测试同 V 新 a、数值排序、历史 Release 拒绝、资产名与 SHA-256；同时静态检查 Android signer/versionCode 和更新面板身份。
 - 本地使用 DKDS 固定 SHA `20f056851a61d2144e9524c3ed568628d4b8557c` 执行 `stage-dkds-host.cjs` 成功，生成测试身份 `V0.3.13 a185` / Android `versionCode 100185`；staged updater contract **PASS**；相关 45 项 Node 回归 **45/45 PASS**；两份修改后的 GitHub Actions YAML 通过 Ruby YAML 解析。完整 `npm test` 当前在本地容器为 192/200 PASS，8 项失败均因此容器未安装 `npm install` 依赖、缺少仓库要求的 D3 7.9.0 vendor 源，并非上述 45 项回归；需由 GitHub CI 在正常依赖安装后验证。
 - 本轮尚未完成 Windows/Android 原生编译、固定签名安装、应用内更新与失败回退实机验收；当前修改仍待新 SHA 的 GitHub Actions 结果确认。所有改动仅在 DKTS；DKDS 仓库和固定上游 SHA 均未写入。
+
+
+## 2026-11-12 / Windows staging line-ending compatibility
+- PR #22 的 Ubuntu Framework staging 和 staged updater contract 已通过；Windows Core Preview 随后发现另一项跨平台问题：GitHub Windows runner 将固定 DKDS 文本文件检出为 CRLF，导致多行 `replaceExact` 锚点无法命中。已在 DKTS staging 副本的 `replaceExact` 读取阶段统一归一化 CRLF/CR 为 LF，并在轻量 fixture 中加入 CRLF 输入回归测试。只转换 DKTS 暂存副本，不修改 DKDS 上游工作区。等待 Windows/Android Core Preview 重跑验证。
