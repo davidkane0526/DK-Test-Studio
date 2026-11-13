@@ -8,7 +8,7 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const {verify}=require('./dkds-host-profile.cjs');
 const {verifyUpdaterParity}=require('./verify-dkds-updater-parity.cjs');
 const {buildIdentity}=require('./core-build-identity.cjs');
-function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpdater=verifyUpdaterParity}={}){
+function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpdater=verifyUpdaterParity,patchUpdaters=true}={}){
  const upstream=path.resolve(source),output=path.resolve(target);
  if(output===upstream||output.startsWith(upstream+path.sep)||
      upstream.startsWith(output+path.sep))throw Error('Unsafe overlapping staging directories');
@@ -34,16 +34,16 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
  pkg.name='dk-test-studio-host';pkg.productName='DK Test Studio';
  // Preview is a separate app identity: never overwrite the installed stable
  // studio.dk.test package before real-host visual and update validation.
- const previewId='studio.dk.test.corepreview';
+ const appId='studio.dk.test';
  pkg.version=dktsPackage.version;pkg.dktsBuildId=identity.buildId;
  if(pkg.build&&typeof pkg.build==='object'){
   pkg.build.productName='DK Test Studio';
-  pkg.build.appId=previewId;
-  pkg.build.productName='DK Test Studio Core Preview';
+  pkg.build.appId=appId;
+  pkg.build.productName='DK Test Studio';
   pkg.build.win={...(pkg.build.win||{}),
-   icon:'assets/dkds-icon.ico',executableName:'DK Test Studio Core Preview'};
+   icon:'assets/dkds-icon.ico',executableName:'DK Test Studio'};
   pkg.build.portable={...(pkg.build.portable||{}),
-   artifactName:'DKTS-Core-Preview-Windows-V'+dktsPackage.version+'-'+identity.buildId+'.${ext}'};
+   artifactName:'DKTS-Windows-V'+dktsPackage.version+'-'+identity.buildId+'.${ext}'};
   delete pkg.build.publish; // No DKDS update origin can leak into DKTS release. 
  }
  fs.writeFileSync(pkgFile,JSON.stringify(pkg,null,2)+'\n');
@@ -53,7 +53,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   mobile.expo.name='DK Test Studio';mobile.expo.slug='dk-test-studio';
   mobile.expo.version=dktsPackage.version;
   if(mobile.expo.android){
-   mobile.expo.android.package=previewId;
+   mobile.expo.android.package=appId;
    mobile.expo.android.versionCode=identity.versionCode;
   }
   fs.writeFileSync(mobileFile,JSON.stringify(mobile,null,2)+'\n');
@@ -79,14 +79,17 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
  fs.rmSync(generated,{force:true});
  // DKDS's actual Electron boot code is the entrypoint, not a DKTS imitation.
  const replaceExact=(file,search,replace)=>{
-  const target=path.join(tmp,file),value=fs.readFileSync(target,'utf8');
+  const target=path.join(tmp,file);
+  // GitHub Windows runners may check out upstream text as CRLF. Normalize
+  // before exact source anchors so the same pinned adapter works on all OSes.
+  const value=fs.readFileSync(target,'utf8').replace(/\r\n?/g,'\n');
   if(value.split(search).length!==2)throw Error('Pinned DKDS compatibility mismatch: '+file+' / '+search.slice(0,60));
   fs.writeFileSync(target,value.replace(search,replace),'utf8');
  };
  replaceExact('desktop/main.js',"const APP_NAME = 'DK Data Studio';",
-  "const APP_NAME = 'DK Test Studio Core Preview';");
+  "const APP_NAME = 'DK Test Studio';");
  replaceExact('desktop/main.js',"const APP_ID = 'com.dk.datastudio';",
-  "const APP_ID = 'studio.dk.test.corepreview';");
+  "const APP_ID = 'studio.dk.test';");
  // On first launch, DKTS should open its 4200A testing workspace, not Data
  // Center. Existing explicit SUPER preferences still override this default.
  replaceExact('src/core/plugins/kernel/modules/workspace/top.js',
@@ -111,7 +114,8 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
  const upstreamBrand=path.join(tmp,'scripts/generate-brand-assets.js');
  fs.appendFileSync(upstreamBrand,
   "\nrequire('../tools/dkts-core-brand.cjs').applyBrand(require('node:path').resolve(__dirname,'..'));\n");
- // Route both the API manifest and asset URL validation to the DKTS preview release.
+ if(patchUpdaters){
+ // Route all updater APIs and assets to the single DKTS V/a release.
  replaceExact('src/app/modules/floating-docks.js',
   "if(el)el.textContent=(label[state]||state)+(result.version?' · V'+result.version:'')+",
   "if(el)el.textContent=(label[state]||state)+(result.version?' · V'+result.version:'')+(result.buildId?' '+result.buildId:'')+");
@@ -123,10 +127,10 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   "const RELEASES='https://api.github.com/repos/davidkane0526/DK-Test-Studio/releases?per_page=100';");
  replaceExact('desktop/native-update.js',
   "const PREVIEW=/^dkds-windows-v(\\d+\\.\\d+\\.\\d+)-(a\\d{4,})$/;",
-  "const PREVIEW=/^dkts-core-preview-v(\\d+\\.\\d+\\.\\d+)-(a\\d+)$/;");
+  "const PREVIEW=/^dkts-v(\\d+\\.\\d+\\.\\d+)-(a\\d+)$/;");
  replaceExact('desktop/native-update.js',
   "const PORTABLE=/^DK-Data-Studio-Portable-(\\d+\\.\\d+\\.\\d+)-(a\\d{4,})-x64\\.exe$/;",
-  "const PORTABLE=/^DKTS-Core-Preview-Windows-V(\\d+\\.\\d+\\.\\d+)-(a\\d+)\\.exe$/;");
+  "const PORTABLE=/^DKTS-Windows-V(\\d+\\.\\d+\\.\\d+)-(a\\d+)\\.exe$/;");
  // The native package updater compares the full V/a identity, not semver alone.
  replaceExact('desktop/native-update.js',
   "const x=/^a(\\d{4,})$/.exec(String(a||'')),y=/^a(\\d{4,})$/.exec(String(b||''));",
@@ -134,6 +138,9 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
  replaceExact('desktop/native-update.js',
   'function pickRelease(releases,currentVersion){',
   "function pickRelease(releases,currentVersion,currentBuildId='a0'){");
+ replaceExact('desktop/native-update.js',
+  'const releaseVersion=releaseMatch[1],releaseBuildId=releaseMatch[2];',
+  'const releaseVersion=releaseMatch[1],releaseBuildId=releaseMatch[2];\n    const expectedVersionCode=100000+Number(releaseBuildId.slice(1));\n    const releaseNotes=String(release.body||\'\');\n    if(!releaseNotes.includes(\'Build identity: \'+releaseBuildId)||!releaseNotes.includes(\'Android versionCode: \'+expectedVersionCode))continue;');
  replaceExact('desktop/native-update.js',
   'if(!match||match[1]!==releaseVersion||match[2]!==releaseBuildId||!newer(releaseVersion,currentVersion))continue;',
   'if(!match||match[1]!==releaseVersion||match[2]!==releaseBuildId||(!newer(releaseVersion,currentVersion)&&!(releaseVersion===currentVersion&&compareBuildIds(releaseBuildId,currentBuildId)>0)))continue;');
@@ -170,8 +177,8 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
  replaceExact('desktop/main-modules/online-update-ipc.js',
   'const hot=createUiHotUpdater({userData,currentVersion});',
   'const hot=createUiHotUpdater({userData,currentVersion,currentBuildId});');
- // The preview updater accepts only DKTS Core Preview V/a assets. Android still
- // requires the exact preview package ID and installed signing certificate.
+ // The unified updater accepts only DKTS V/a assets. Android still
+ // requires the stable DKTS package ID and installed signing certificate.
  replaceExact('desktop/ui-hot-update.js',
   "const REPO='davidkane0526/DK-Data-Studio';",
   "const REPO='davidkane0526/DK-Test-Studio';");
@@ -179,11 +186,11 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   "const FILES=Object.freeze(['src/styles/structure/connectivity-panels.css',\n  'src/styles/platform/native-client-shell.css','src/styles/theme/component-appearance.css']);",
   "const FILES=Object.freeze(['src/styles/structure/connectivity-panels.css',\n  'src/styles/platform/native-client-shell.css','src/styles/theme/component-appearance.css','src/plugins/dkts-4200a/ui-shell.css']);");
  replaceExact('desktop/ui-hot-update.js',
-  'const buildIdPattern=/^a\\\\d{4,}$/;',
-  'const buildIdPattern=/^a\\\\d+$/;');
+  'const buildIdPattern=/^a\\d{4,}$/;',
+  'const buildIdPattern=/^a\\d+$/;');
  replaceExact('desktop/ui-hot-update.js',
-  'const releasePattern=/^dkds-(?:ui|android)-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d{4,})$/;',
-  'const releasePattern=/^dkts-ui-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d+)$/;');
+  'const releasePattern=/^dkds-(?:ui|android)-v(\\d+\\.\\d+\\.\\d+)-(a\\d{4,})$/;',
+  'const releasePattern=/^dkts-v(\\d+\\.\\d+\\.\\d+)-(a\\d+)$/;');
  replaceExact('desktop/ui-hot-update.js',
   'function createUiHotUpdater({userData,currentVersion}){',
   "function createUiHotUpdater({userData,currentVersion,currentBuildId='a0'}){");
@@ -197,8 +204,8 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   "catch{css='';tag='';appVersion=currentVersion;buildId='a0000';}",
   "catch{css='';tag='';appVersion=currentVersion;buildId=currentBuildId;}");
  replaceExact('tools/updates/build-ui-hot-bundle.js',
-  "if(!/^a\\\\d{4,}$/.test(buildId))",
-  "if(!/^a\\\\d+$/.test(buildId))");
+  "if(!/^a\\d{4,}$/.test(buildId))",
+  "if(!/^a\\d+$/.test(buildId))");
  replaceExact('tools/updates/build-ui-hot-bundle.js',
   "  'src/styles/platform/native-client-shell.css',\n  'src/styles/theme/component-appearance.css'",
   "  'src/styles/platform/native-client-shell.css',\n  'src/styles/theme/component-appearance.css',\n  'src/plugins/dkts-4200a/ui-shell.css'");
@@ -210,10 +217,13 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   'private static final String REPO = "davidkane0526/DK-Test-Studio";');
  replaceExact('mobile/plugins/DkdsAppUpdate.template',
   'private static final String APK_ASSET = "DK-Data-Studio-arm64-v8a-release.apk";',
-  'private static final Pattern APK_ASSET = Pattern.compile("DKTS-Core-Preview-Android-FIXED-SIGNED-V(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d+)\\\\.apk");');
+  'private static final Pattern APK_ASSET = Pattern.compile("DKTS-Android-V(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d+)\\\\.apk");');
  replaceExact('mobile/plugins/DkdsAppUpdate.template',
   'Pattern.compile("dkds-android-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d{4,})")',
-  'Pattern.compile("^dkts-core-preview-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d+)$")');
+  'Pattern.compile("^dkts-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d+)$")');
+  replaceExact('mobile/plugins/DkdsAppUpdate.template',
+   'if(row.optBoolean("draft",false)||!tagMatcher.matches())continue;',
+   'if(row.optBoolean("draft",false)||!tagMatcher.matches())continue;\n            long expectedVersionCode=100000L+Long.parseLong(tagMatcher.group(2).substring(1));\n            String releaseNotes=row.optString("body","");\n            if(!releaseNotes.contains("Build identity: "+tagMatcher.group(2))||!releaseNotes.contains("Android versionCode: "+expectedVersionCode))continue;');
   replaceExact('mobile/plugins/DkdsAppUpdate.template',
    'if(APK_ASSET.equals(item.optString("name")))apk=item;',
    'Matcher asset=APK_ASSET.matcher(item.optString("name"));if(asset.matches()&&releaseVersion.equals(asset.group(1))&&releaseBuildId.equals(asset.group(2)))apk=item;');
@@ -222,7 +232,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
    'private String installedBuildId(){\n        try{int code=activity.getPackageManager().getPackageInfo(activity.getPackageName(),0).versionCode;return code>=100000?"a"+(code-100000):"a0";}\n        catch(Exception ignored){return "a0";}\n    }\n    JSONObject status() throws org.json.JSONException {');
   replaceExact('mobile/plugins/DkdsAppUpdate.template',
    'return new JSONObject().put("status",state).put("version",version)',
-   'return new JSONObject().put("status",state).put("version",version).put("buildId",candidate==null?"":candidate.buildId).put("installedBuildId",installedBuildId())');
+   'return new JSONObject().put("status",state).put("version",version).put("buildId",candidate==null?installedBuildId():candidate.buildId).put("installedBuildId",installedBuildId())');
   replaceExact('mobile/plugins/DkdsAppUpdate.template',
    'if(found==null||compareVersions(found.version,installed)<=0){',
    'int versionOrder=found==null?-1:compareVersions(found.version,installed);\n                if(found==null||versionOrder<0||(versionOrder==0&&compareBuildIds(found.buildId,installedBuildId())<=0)){');
@@ -252,7 +262,7 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   'private static final String REPO="davidkane0526/DK-Test-Studio";');
    replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
    'private static final Pattern TAG=Pattern.compile("dkds-(?:ui|android)-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-[0-9]+");',
-   'private static final Pattern TAG=Pattern.compile("^dkts-ui-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d+)$");');
+   'private static final Pattern TAG=Pattern.compile("^dkts-v(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)-(a\\\\d+)$");');
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
    'private static final String[] FILES={"src/styles/structure/connectivity-panels.css",\n    "src/styles/platform/native-client-shell.css","src/styles/theme/component-appearance.css"};',
    'private static final String[] FILES={"src/styles/structure/connectivity-panels.css",\n    "src/styles/platform/native-client-shell.css","src/styles/theme/component-appearance.css","src/plugins/dkts-4200a/ui-shell.css"};');
@@ -310,14 +320,15 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   replaceExact('mobile/plugins/DkdsUiHotUpdate.template',
    'css=nextCss;tag=latestTag;version=latestVersion;status="updated";',
    'css=nextCss;tag=latestTag;version=latestVersion;buildId=latestBuildId;status="updated";');
+ }
 const sourceHash=crypto.createHash('sha256')
   .update(fs.readFileSync(path.join(upstream,'package.json'))).digest('hex');
  const staging={...profile,updaterSafety,upstream:{...profile.upstream,packageSha256:sourceHash},
   dktsVersion:dktsPackage.version,buildId:identity.buildId,androidVersionCode:identity.versionCode,derivedDistribution:true,
   instrumentPlugin:'src/plugins/dkts-4200a (DKTS build only; absent upstream)',
-  previewAppId:previewId,hostRenderer:'src/index.html',
-  previewOnly:true,outputReady:false,
-  updaterOrigin:'davidkane0526/DK-Test-Studio (read-only preview; no production installation)',
+  appId,hostRenderer:'src/index.html',
+  singleApplicationIdentity:true,outputReady:false,
+  updaterOrigin:'davidkane0526/DK-Test-Studio (single V/a release; DKDS upstream read-only)',
   blockingGates:['End-to-end Core UI/native updater, cache verification and rollback tests on both platforms',
    'FS-Pro Edit Page exact hierarchy and production 4200A controller',
    'real Windows/Android host rendering and measurement verification']};

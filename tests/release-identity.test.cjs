@@ -20,30 +20,37 @@ test('the full package version stays fixed while each UI build has an a-number i
   assert.match(stamper,/dkts-ui-release/);
   assert.match(stamper,/Embedded package/);
 });
-test('Core revision and validated preview packages share one V/a identity and source commit',()=>{
+test('the canonical sequence and one unified Release share the same V/a identity',()=>{
   const ui=read('.github/workflows/ui-update.yml');
   const full=read('.github/workflows/dkts-framework-contract.yml');
   const pkg=JSON.parse(read('package.json'));
-  assert.match(ui,/update_channel == 'ui-hot'/);
-  assert.match(ui,/hot_update_available/);
-  assert.match(ui,/actions\/workflows\/dkts-framework-contract\.yml\/runs/);
-  assert.match(ui,/head_sha="\$CORE_SHA"/);
+  assert.match(ui,/DKTS canonical release sequence/);
   assert.match(ui,/DKTS_BUILD_NUMBER/);
-  assert.match(ui,/gh release create/);
+  assert.doesNotMatch(ui,/gh release create/);
+  assert.match(ui,/DKTS_BUILD_NUMBER: \$\{\{ github\.run_number \}\}/);
+  assert.doesNotMatch(ui,/actions\/workflows\/dkts-framework-contract\.yml\/runs/);
+  assert.match(ui,/DKTS_BUILD_NUMBER/);
+  assert.doesNotMatch(ui,/gh release create/);
   assert.match(full,/publish-core-preview:/);
-  assert.match(full,/revision="\$GITHUB_RUN_NUMBER"/);
-  assert.doesNotMatch(full,/ui-update\.yml\/runs/);
+  assert.match(full,/actions\/workflows\/ui-update\.yml\/runs/);
+  assert.match(full,/revision="\$CORE_BUILD_NUMBER"/);
+  assert.match(full,/Build identity: \$UI_REV/);
+  assert.match(full,/Android versionCode: \$\(\(100000\+\$\{UI_REV#a\}\)\)/);
   assert.match(full,/github\.event_name == 'push'/);
   assert.match(full,/github\.sha/);
-  assert(full.includes('tag="dkts-core-preview-v'+pkg.version+'-$UI_REV"'));
+  assert(full.includes('tag="dkts-v${app_version}-$UI_REV"'));
+  assert.match(full,/DKTS-Core-UI-a/);
+  assert.match(full,/hot_update_available/);
   assert.match(full,/--prerelease/);
-  assert.match(full,/DKTS-Core-Preview-Windows/);
-  assert.match(full,/DKTS-Core-Preview-Android-TEST-SIGNED/);
+  assert.match(full,/DKTS-Windows-V/);
+  assert.match(full,/DKTS-Android-V/);
+  const publisher=full.slice(full.indexOf('  publish-core-preview:'));
+  assert.doesNotMatch(publisher,/TEST-SIGNED/);
   assert.match(full,/DKTS-4200A-Hardware-Capability-Database-v1\.json/);
   assert.doesNotMatch(full,/DKTS standalone complete package/);
 });
 
-test('the installed application offers only UI hot updates and shows aNNNN only in the hidden update panel',()=>{
+test('the legacy web shell does not expose a separate native updater',()=>{
   const html=read('web/index.html'),app=read('web/app.js');
   const packageVersion=JSON.parse(read('package.json')).version;
   assert(html.includes('>V'+packageVersion+'</button>'));
@@ -65,7 +72,7 @@ test('Windows and Android hot-update verifiers persist the same a-number and pac
   assert.match(android,/meta\.put\("packageVersion",bundle\.getString\("packageVersion"\)\)/);
 });
 
-test('Core Windows mainline is a separately verified Portable preview, never legacy installer',()=>{
+test('Core Windows mainline uses the stable DKTS portable application identity',()=>{
   const pkg=JSON.parse(read('package.json'));
   const coreCI=read('.github/workflows/dkts-framework-contract.yml');
   const release=read('.github/workflows/dkts-framework-contract.yml');
@@ -74,7 +81,8 @@ test('Core Windows mainline is a separately verified Portable preview, never leg
   assert.match(pkg.scripts['dist:win:legacy'],/electron-builder --win portable$/);
   assert.match(coreCI,/Actual DKDS Core Electron boot/);
   assert.match(coreCI,/npx electron-builder --win portable --x64 --publish never/);
-  assert.match(release,/DKTS-Core-Preview-Windows/);
+  assert.match(release,/DKTS-Windows-V/);
+  assert.ok(release.includes('studio.dk.test'));
   assert.match(release,/file -b/);
   assert.match(release,/SHA256SUMS\.txt/);
   assert.doesNotMatch(release,/Setup.*\.exe|--win nsis/);

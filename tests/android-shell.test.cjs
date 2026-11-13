@@ -134,7 +134,7 @@ test('Android standalone recovers unregistered USB Ethernet and can use source b
   assert.doesNotMatch(repair,/ip route (?:add|replace) default/);
 });
 
-test('legacy Android shell retains status bar rules while Core Android is built from true DKDS WebView',()=>{
+test('legacy Android shell retains status bar rules while DKTS Core uses the stable DKTS package ID',()=>{
   const activity=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
   const source=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
   const coreCI=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
@@ -146,8 +146,11 @@ test('legacy Android shell retains status bar rules while Core Android is built 
   assert.match(fs.readFileSync(path.join(root,'web/ui/responsive.css'),'utf8'),/body\.dkts-android-shell\{--dkts-titlebar-height:39px;/);
   assert.match(source,/body\.dkts-android-shell \.app-titlebar\{\s*height:calc\(var\(--dkts-title-height\) \+ var\(--dkts-safe-top\)\);[\s\S]*?padding-top:var\(--dkts-safe-top\);/);
   assert.match(coreCI,/Regenerate offline DKDS Core WebView source/);
-  assert.match(coreCI,/Launch real DKDS-derived Android Core Preview on API 36 emulator/);
-  assert.match(coreCI,/studio\.dk\.test\.corepreview/);
+  assert.match(coreCI,/Launch real DKDS-derived Android Core Build on API 36 emulator/);
+  assert.match(coreCI,/studio\.dk\.test/);
+  const smoke=fs.readFileSync(path.join(root,'tools/run-core-android-smoke.sh'),'utf8');
+  assert.match(smoke,/PACKAGE="studio\.dk\.test"/);
+  assert.doesNotMatch(smoke,/studio\.dk\.test\.corepreview/);
 });
 test('native Android shell version comes from its actual installed package',()=>{
  const src=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
@@ -197,7 +200,7 @@ test('Android 16 immersive mode is coalesced and cannot repeatedly re-enter from
   assert.doesNotMatch(modern,/setFlags\(/);
 });
 
-test('legacy signing identity is pinned, while Core Android debug-signed builds are isolated as previews',()=>{
+test('legacy signing identity is pinned and Core Android Release requires the same fixed signer',()=>{
   const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
   const coreCI=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
   const release=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
@@ -207,10 +210,11 @@ test('legacy signing identity is pinned, while Core Android debug-signed builds 
   assert.match(gradle,/stablePreview/);
   assert.match(gradle,/System.getenv\('DKTS_ANDROID_KEYSTORE_PATH'\)/);
   assert.match(gradle,/System.getenv\('DKTS_ANDROID_SIGNING_PASSWORD'\)/);
-  assert.match(coreCI,/studio\.dk\.test\.corepreview/);
+  assert.match(coreCI,/studio\.dk\.test/);
   assert.match(coreCI,/CN=Android Debug/);
-  assert.match(release,/TEST-SIGNED/);
-  assert.match(release,/NOT a production in-place upgrade/);
+  const publisher=release.slice(release.indexOf('  publish-core-preview:'));
+  assert.doesNotMatch(publisher,/TEST-SIGNED/);
+  assert.match(release,/fixed DKTS Android signing identity is required/);
   assert(!release.slice(release.indexOf('  publish-core-preview:')).includes('DKTS_ANDROID_KEYSTORE_B64'));
   assert.match(release,/android\/signing-certificate\.sha256/);
 });
@@ -250,7 +254,7 @@ test('Core Android builds real DKDS scientific plotting and records emulator evi
   assert.match(plugin,/units\.plotGroup\.create/);
   assert.match(plugin,/frameGroup\.adoptPlot/);
   assert.match(plugin,/units\.scientificPlot\.create/);
-  assert.match(coreCI,/Launch real DKDS-derived Android Core Preview on API 36 emulator/);
+  assert.match(coreCI,/Launch real DKDS-derived Android Core Build on API 36 emulator/);
   assert.match(coreCI,/Retain Android emulator screenshot and crash diagnostics/);
 });
 test('Android updater accepts current GitHub Release tags and never hot-swaps native versions',()=>{

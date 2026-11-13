@@ -308,3 +308,16 @@
 - 2026-11-12 严格 SDK 校验修正：第一版 CSS/遮罩由 `ui-shell.js` 直接创建 DOM，在 [Core-native SDK 1.19 检查](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43160278647) 被明确拒绝：`raw document DOM is not part of the Plugin API 1.19.0 development contract`。**不绕过该校验。**现改为 `plugin.json.styles=["ui-shell.css"]` 注册 DKTS 插件作用域 CSS，使用 DKDS SDK `units.layout.create(...,{variant:"identity"})` 创建遮罩与 Unit-owned 属性，移除原生 `document.createElement`、独立样式注入及窗口尺寸强行覆盖。所有 CSS 规则仅匹配 `#dktsKeithley4200Page [data-dkts-*]`，不设置宿主状态栏/窗口视口高度，不重绘 DKDS 按钮、表单、PlotView 边框或主题。四图窗高度改由 SDK `PlotView detailGeometry` (`contentAspectRatio:2.05`，最小164px，上限300px)与 PlotGroup 自身的高度策略管理。真实 SDK 重新验证与截图仍待 CI 结果确认。
 
 - 2026-11-12 SDK 视觉归属二次修正：SDK 明确拒绝非主题插件 CSS 的 `background/color/box-shadow`，并非仅拒绝裸 DOM。删去插件覆盖配色/阴影，改由 DKDS 正式 `units.panel.create(main,{variant:"control-card",header:false})` 提供工程导航表面及主题；插件 CSS 只声明插件域的网格、滚动和抽屉位置。任何可运行 UI 都必须通过 SDK 检查，否则不作为验收通过。
+
+
+## 2026-11-12 / Core 原生更新器 staging 修复与 V/a 计数统一（待 GitHub CI）
+- 以 GitHub `main` SHA `75456dfc72462623e4425098d3108c237e686802` 为新基线，不再沿用早先 `22e9bac` 快照。该主线的 Core Framework Contract run `43190682770` 在 `stage-dkds-host.cjs` 失败，日志指向 `desktop/ui-hot-update.js` 的 `buildIdPattern` 精确替换锚点：JavaScript 正则源码被多转义一层，无法匹配固定 DKDS SHA 的真实文件。已修正 `buildIdPattern`、`releasePattern` 和 UI bundle build ID 的转义，并让轻量 fixture 显式跳过完整 updater patch；生产 staging 默认仍 fail-closed，完整 patch 由固定上游源码和 staged contract 验证。
+- 复核历史发布后发现 `dkts-framework-contract.yml` 的 run number `179` 小于已有 `ui-update.yml` a 编号 `184`。若继续用 Core workflow 自己的 run number，会使同一 V 下 aNNN 倒退，且 Android `versionCode` 与 Release 标签错配。现将 `ui-update.yml` 的主线 run number 设为唯一单调 aNNN；Core workflow 在相同 `head_sha` 上查询 UI workflow run number，并将其传入 Windows `package.json.dktsBuildId`、Android `versionCode=100000+N`、Release tag 和 UI bundle。PR/手动构建仅用于 CI，不发布正式 Core Preview。
+- Core Release notes 新增 `Build identity: aNNN` 与 `Android versionCode: 100000+N` 两项身份声明。Windows/Android 更新器仅接受同时满足这两项声明、V/a 标签与资产名、SHA-256 的 Core 资产；Android 另校验 package/version/versionCode/当前签名。历史旧 Release 缺少身份声明时会被跳过，避免旧标签导致重复安装。版本面板显示 V+a，主标题仍只显示 V。
+- 在 Framework Contract 中新增 `tests/test-staged-core-updater.cjs`，直接加载真正 DKDS staged Windows updater，测试同 V 新 a、数值排序、历史 Release 拒绝、资产名与 SHA-256；同时静态检查 Android signer/versionCode 和更新面板身份。
+- 本地使用 DKDS 固定 SHA `20f056851a61d2144e9524c3ed568628d4b8557c` 执行 `stage-dkds-host.cjs` 成功，生成测试身份 `V0.3.13 a185` / Android `versionCode 100185`；staged updater contract **PASS**；相关 45 项 Node 回归 **45/45 PASS**；两份修改后的 GitHub Actions YAML 通过 Ruby YAML 解析。完整 `npm test` 当前在本地容器为 192/200 PASS，8 项失败均因此容器未安装 `npm install` 依赖、缺少仓库要求的 D3 7.9.0 vendor 源，并非上述 45 项回归；需由 GitHub CI 在正常依赖安装后验证。
+- 本轮尚未完成 Windows/Android 原生编译、固定签名安装、应用内更新与失败回退实机验收；当前修改仍待新 SHA 的 GitHub Actions 结果确认。所有改动仅在 DKTS；DKDS 仓库和固定上游 SHA 均未写入。
+
+
+## 2026-11-12 / Windows staging line-ending compatibility
+- PR #22 的 Ubuntu Framework staging 和 staged updater contract 已通过；Windows Core Preview 随后发现另一项跨平台问题：GitHub Windows runner 将固定 DKDS 文本文件检出为 CRLF，导致多行 `replaceExact` 锚点无法命中。已在 DKTS staging 副本的 `replaceExact` 读取阶段统一归一化 CRLF/CR 为 LF，并在轻量 fixture 中加入 CRLF 输入回归测试。只转换 DKTS 暂存副本，不修改 DKDS 上游工作区。等待 Windows/Android Core Preview 重跑验证。

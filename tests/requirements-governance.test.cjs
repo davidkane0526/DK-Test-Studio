@@ -12,13 +12,15 @@ test('the latest user instructions override prior DKDS-side 4200A development pl
   '所有的要求除了 继续'])assert(req.includes(phrase),phrase);
  assert.match(read('docs/DEVELOPMENT_LOG.md'),/DKDS.*PR.*16/);
 });
-test('DKTS active README records merged Core mainline but not unverified production or hardware acceptance',()=>{
+test('DKTS README records the single stable Core identity and leaves physical acceptance explicit',()=>{
  const readme=read('README.md');
  const req=read('docs/USER_REQUIREMENTS.md');
  assert.match(readme,/完全基于 DKDS 框架/);
  assert.match(readme,/PR #18/);
  assert.match(readme,/真实 4200A 验收/);
- assert.match(readme,/(?:不会|不)覆盖已安装.*稳定版/);
+ assert.match(readme,/单一 DKTS 原生应用身份/);
+ assert.ok(readme.includes('Android 包名为 `studio.dk.test`'));
+ assert.match(readme,/真实设备安装.*仍待/);
  assert.match(req,/R-20261111-007/);
  assert.match(req,/直接合并 PR #18到main/);
  assert.match(read('docs/ROADMAP.md'),/DKDS 只读框架来源/);

@@ -1,5 +1,5 @@
-name: DKTS DKDS-Framework Contract (read-only upstream)
-run-name: DK Test Studio V0.3.13 · DKDS Core Preview #${{ github.run_number }}
+name: DKTS Unified Core Release (read-only DKDS upstream)
+run-name: DK Test Studio · Unified Core Build #${{ github.run_number }}
 on:
   pull_request:
     branches: [main]
@@ -7,9 +7,8 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
+  actions: read
   contents: read
-env:
-  DKTS_PREVIEW_BUILD_NUMBER: ${{ github.run_number }}
 jobs:
   change-scope:
     name: Classify native-package versus CSS-only hot-update changes
@@ -31,9 +30,47 @@ jobs:
           DKTS_FORCE_FULL_APP: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
         run: node tools/classify-core-update.cjs
 
-  framework-readonly-check:
+  resolve-build-identity:
+    name: Resolve canonical UI revision number for this source commit
     needs: change-scope
-    if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' }}
+    if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot' }}
+    runs-on: ubuntu-24.04
+    outputs:
+      build_number: ${{ steps.identity.outputs.build_number }}
+    steps:
+      - name: Resolve the same-SHA UI workflow run number
+        id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CORE_SHA: ${{ github.sha }}
+          CORE_RUN_NUMBER: ${{ github.run_number }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$CORE_RUN_NUMBER"
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            revision=""
+            for attempt in $(seq 1 30); do
+              revision="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ui-update.yml/runs" \
+                -f head_sha="$CORE_SHA" -f event=push -f per_page=30 \
+                --jq '.workflow_runs | sort_by(.created_at) | last | .run_number // empty' || true)"
+              if [[ "$revision" =~ ^[1-9][0-9]*$ ]]; then break; fi
+              sleep 2
+            done
+          fi
+          [[ "$revision" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::Could not resolve a monotonic UI revision number for this SHA."
+            exit 1
+          }
+          echo "build_number=$revision" >> "$GITHUB_OUTPUT"
+          echo "Canonical DKTS build identity: a$revision" >> "$GITHUB_STEP_SUMMARY"
+
+  framework-readonly-check:
+    needs: [change-scope, resolve-build-identity]
+    env:
+      DKTS_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
+    if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout DKTS only for development
@@ -52,11 +89,13 @@ jobs:
         run: node tools/dkds-host-profile.cjs upstream/dkds dist/dkds-profile.json
       - name: Make disposable DKTS-derived full framework source staging
         run: node tools/stage-dkds-host.cjs upstream/dkds dist/dkts-framework-staging
+      - name: Verify staged Windows/Android V+a update contracts
+        run: node tests/test-staged-core-updater.cjs dist/dkts-framework-staging
       - name: Build the Core UI hot-update bundle as a validation artifact
         working-directory: dist/dkts-framework-staging
         run: |
           export DKDS_UI_APP_VERSION="$(node -p "require('./package.json').version")"
-          export DKDS_UI_BUILD_ID="a${GITHUB_RUN_NUMBER}"
+          export DKDS_UI_BUILD_ID="a${DKTS_BUILD_NUMBER}"
           node tools/updates/build-ui-hot-bundle.js dist/DKDS-UI-bundle.json
       - name: Verify the exact Core hot-update schema and four-file allowlist
         run: |
@@ -66,7 +105,7 @@ jobs:
           assert.equal(b.schema,'dkds-ui-v2');
           assert.equal(b.repository,'davidkane0526/DK-Test-Studio');
           assert.equal(b.appVersion,require('./package.json').version);
-          assert.equal(b.buildId,'a'+process.env.GITHUB_RUN_NUMBER);
+          assert.equal(b.buildId,'a'+process.env.DKTS_BUILD_NUMBER);
           assert.equal(Object.keys(b.files).length,4);
           assert(b.files['src/plugins/dkts-4200a/ui-shell.css']);
           NODE
@@ -84,8 +123,8 @@ jobs:
           assert(fs.existsSync(root+'/desktop/ui-hot-update.js'));
           assert(fs.existsSync(root+'/src/plugins/dkts-4200a/plugin.json'));
           assert(!fs.existsSync('upstream/dkds/src/plugins/dkts-4200a'));
-          assert.equal(s.previewAppId,'studio.dk.test.corepreview');
-          assert.equal(JSON.parse(fs.readFileSync(root+'/mobile/app.json')).expo.android.package,'studio.dk.test.corepreview');
+          assert.equal(s.appId,'studio.dk.test');
+          assert.equal(JSON.parse(fs.readFileSync(root+'/mobile/app.json')).expo.android.package,'studio.dk.test');
           assert(!fs.existsSync(root+'/src/generated/plugin-index.js'),
             'filtered built-in plugin index must be regenerated by DKTS');
           assert.equal(s.outputReady,false,'source staging is not a released app');
@@ -129,10 +168,20 @@ jobs:
             dist/dkts-framework-staging/DKTS_FRAMEWORK_STAGING.json
             dist/dkts-framework-staging/dist/DKDS-UI-bundle.json
           if-no-files-found: error
+      - name: Retain CSS hot bundle for the unified release
+        if: needs.change-scope.outputs.hot_update_available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-Core-UI-a${{ needs.resolve-build-identity.outputs.build_number }}
+          path: dist/dkts-framework-staging/dist/DKDS-UI-bundle.json
+          if-no-files-found: error
+          retention-days: 30
 
   windows-core-preview:
-    needs: change-scope
-    if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' }}
+    needs: [change-scope, resolve-build-identity]
+    env:
+      DKTS_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
+    if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot' }}
     name: Actual DKDS Core Electron boot and Windows portable preview
     runs-on: windows-latest
     timeout-minutes: 35
@@ -149,7 +198,7 @@ jobs:
           ref: 20f056851a61d2144e9524c3ed568628d4b8557c
           path: upstream/dkds
           persist-credentials: false
-      - name: Stage DKTS Core Preview from real DKDS source
+      - name: Stage DKTS Core Build from real DKDS source
         shell: pwsh
         run: |
           node tools/stage-dkds-host.cjs upstream/dkds dist/dkts-framework-staging
@@ -187,16 +236,16 @@ jobs:
         run: |
           $status=git -C upstream/dkds status --porcelain
           if ($status) { throw "Upstream DKDS checkout was modified: $status" }
-      - name: Build isolated Windows Core Preview portable executable
+      - name: Build isolated Windows Core Build portable executable
         shell: pwsh
         working-directory: dist/dkts-framework-staging
         run: |
           npx electron-builder --win portable --x64 --publish never
-      - name: Upload Core Preview screenshot, evidence and portable app (NOT stable Release)
+      - name: Upload DKTS Windows smoke evidence (PR validation only)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Preview-Windows-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Core-Windows-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
           path: |
             dist/core-smoke-evidence/report.json
             dist/core-smoke-evidence/core-host.png
@@ -208,13 +257,14 @@ jobs:
           retention-days: 15
 
   android-core-preview:
-    needs: change-scope
-    if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' }}
-    name: Build DKDS-derived DKTS Android Core Preview (isolated package)
+    needs: [change-scope, resolve-build-identity]
+    if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot' }}
+    name: Build DKDS-derived DKTS Android Core Build (stable DKTS package)
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
       CI: '1'
+      DKTS_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
     steps:
       - name: Checkout DKTS
         uses: actions/checkout@v4
@@ -245,10 +295,10 @@ jobs:
       - name: Regenerate offline DKDS Core WebView source
         working-directory: dist/dkts-framework-staging/mobile
         run: npm run sync:web
-      - name: Generate isolated Core Preview Android project
+      - name: Generate isolated Core Build Android project
         working-directory: dist/dkts-framework-staging/mobile
         run: npx expo prebuild --platform android --clean
-      - name: Compile offline bundled Android Core Release Preview (test-signing only)
+      - name: Compile offline DKTS Android APK for package/signing checks
         working-directory: dist/dkts-framework-staging/mobile/android
         run: |
           chmod +x gradlew
@@ -258,8 +308,8 @@ jobs:
           apk=dist/dkts-framework-staging/mobile/android/app/build/outputs/apk/release/app-release.apk
           test -s "$apk"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -m1 "^package:" | tee dist/dkts-core-android-badging.txt
-          grep -q "name='studio.dk.test.corepreview'" dist/dkts-core-android-badging.txt
-          grep -q "versionCode='$((100000+GITHUB_RUN_NUMBER))'" dist/dkts-core-android-badging.txt
+          grep -q "name='studio.dk.test'" dist/dkts-core-android-badging.txt
+          grep -q "versionCode='$((100000+DKTS_BUILD_NUMBER))'" dist/dkts-core-android-badging.txt
           unzip -Z1 "$apk" | grep -q 'lib/arm64-v8a/'
           unzip -Z1 "$apk" | grep -q 'lib/x86_64/'
           unzip -Z1 "$apk" | grep -Fxq 'assets/index.android.bundle'
@@ -280,7 +330,7 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Launch real DKDS-derived Android Core Preview on API 36 emulator
+      - name: Launch real DKDS-derived Android Core Build on API 36 emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 36
@@ -300,10 +350,10 @@ jobs:
       - name: Confirm DKDS upstream source untouched
         working-directory: upstream/dkds
         run: test -z "$(git status --porcelain)"
-      - name: Upload isolated Android Core Release Preview (TEST-SIGNED, NOT PRODUCTION)
+      - name: Upload test-signed APK and emulator evidence (PR validation only)
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Preview-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Core-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
           path: |
             dist/dkts-framework-staging/mobile/android/app/build/outputs/apk/release/app-release.apk
             dist/dkts-core-android-badging.txt
@@ -312,16 +362,16 @@ jobs:
           retention-days: 15
 
   android-core-fixed-sign-preview:
-    name: Sign Core Preview APK with pinned DKTS identity (isolated, optional)
+    name: Sign DKTS APK with pinned application identity
     # Deliberately outside the DKDS Core build job: third-party framework
     # build scripts must never see the user's signing key or password.
-    needs: [change-scope, android-core-preview]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-scope.outputs.update_channel == 'full-app' && needs.android-core-preview.result == 'success' }}
+    needs: [change-scope, resolve-build-identity, android-core-preview]
+    env:
+      DKTS_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot') && needs.android-core-preview.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
-    # Signing is additive. A missing signing Secret must not turn a validated
-    # test-only APK into an unreported Core build failure.
-    continue-on-error: true
+    # The stable package ID is only releasable with the existing pinned signer.
     permissions:
       contents: read
     steps:
@@ -332,7 +382,7 @@ jobs:
       - name: Download compiled Core APK without checking out DKDS
         uses: actions/download-artifact@v4
         with:
-          name: DKTS-Core-Preview-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Core-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
           path: core-unsigned-source
       - name: Set up isolated Android signer
         uses: android-actions/setup-android@v4
@@ -346,14 +396,12 @@ jobs:
           DKTS_ANDROID_SIGNING_PASSWORD: ${{ secrets.DKTS_ANDROID_SIGNING_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -n "${DKTS_ANDROID_KEYSTORE_B64:-}" ] && [ -n "${DKTS_ANDROID_SIGNING_PASSWORD:-}" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Pinned signing secrets unavailable. Test-signed Core Preview remains isolated and must not be presented as an in-place upgrade."
+          if [ -z "${DKTS_ANDROID_KEYSTORE_B64:-}" ] || [ -z "${DKTS_ANDROID_SIGNING_PASSWORD:-}" ]; then
+            echo "::error::The fixed DKTS Android signing identity is required for the single installable application."
+            exit 1
           fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
       - name: Sign existing test APK with the fixed certificate and verify package/version
-        if: steps.signer.outputs.available == 'true'
         shell: bash
         env:
           DKTS_ANDROID_KEYSTORE_B64: ${{ secrets.DKTS_ANDROID_KEYSTORE_B64 }}
@@ -368,8 +416,8 @@ jobs:
           test -x "$signer" && test -x "$aapt"
           "$signer" verify --print-certs "$apk" | grep -q 'CN=Android Debug'
           "$aapt" dump badging "$apk" | grep -m1 '^package:' > original-package.txt
-          grep -q "name='studio.dk.test.corepreview'" original-package.txt
-          grep -q "versionCode='$((100000+GITHUB_RUN_NUMBER))'" original-package.txt
+          grep -q "name='studio.dk.test'" original-package.txt
+          grep -q "versionCode='$((100000+DKTS_BUILD_NUMBER))'" original-package.txt
           mkdir -p fixed-signed
           keypath="$RUNNER_TEMP/dkts-pinned-preview.p12"
           trap 'shred -u "$keypath" 2>/dev/null || rm -f "$keypath"' EXIT
@@ -390,19 +438,18 @@ jobs:
           cmp -s original-package.txt fixed-signed/package-badging.txt || { echo "::error::Re-signing changed package or version identity"; exit 1; }
           printf '%s\n' "$actual" > fixed-signed/certificate.sha256
           sha256sum fixed-signed/app-core-fixed-signed.apk > fixed-signed/APK.sha256
-          echo "Pinned DKTS signer verified on isolated Core Preview package." >> "$GITHUB_STEP_SUMMARY"
-      - name: Retain fixed-signed Core Preview for trusted release selection
-        if: steps.signer.outputs.available == 'true'
+          echo "Pinned DKTS signer verified on stable DKTS package." >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain fixed-signed Core Build for trusted release selection
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Fixed-Signed-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Fixed-Signed-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
           path: fixed-signed/
           if-no-files-found: error
           retention-days: 30
 
   publish-core-preview:
-    needs: [change-scope, framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview]
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-scope.result == 'success' && needs.change-scope.outputs.update_channel == 'full-app' && needs.framework-readonly-check.result == 'success' && needs.windows-core-preview.result == 'success' && needs.android-core-preview.result == 'success' }}
+    needs: [change-scope, resolve-build-identity, framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview]
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-scope.result == 'success' && (needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot') && needs.framework-readonly-check.result == 'success' && needs.windows-core-preview.result == 'success' && needs.android-core-preview.result == 'success' && needs.android-core-fixed-sign-preview.result == 'success' }}
     permissions:
       actions: read
       contents: write
@@ -422,16 +469,20 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts signed-artifacts out
-          gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "DKTS-Core-Preview-*" --dir artifacts
+          gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "DKTS-Core-Windows-*" --dir artifacts
+          gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "DKTS-Core-Android-*" --dir artifacts
           # Trusted signing job only runs on DKTS main after the untrusted Core
           # compilation has finished. Its absence cannot masquerade as fixed.
-          if gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-               --pattern "DKTS-Core-Fixed-Signed-Android-*" --dir signed-artifacts; then
-            echo "Fixed-signed Android artifact available."
-          else
-            echo "::warning::No fixed-signed Android asset. Preview will remain TEST-SIGNED."
-          fi
+          gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --pattern "DKTS-Fixed-Signed-Android-*" --dir signed-artifacts
           find artifacts signed-artifacts -maxdepth 12 -type f -print
+          find artifacts signed-artifacts -maxdepth 12 -type f -print
+      - name: Download same-build CSS hot bundle for CSS-only changes
+        if: needs.change-scope.outputs.hot_update_available == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: DKTS-Core-UI-a${{ needs.resolve-build-identity.outputs.build_number }}
+          path: out/
       - name: Export current hardware capability and parameter-safety database
         shell: bash
         run: |
@@ -445,17 +496,18 @@ jobs:
           assert(fs.statSync(file).size>10000,'capability database unexpectedly short');
           console.log('Native release capability database:',doc.schema);
           NODE
-      - name: Verify source identity and both Core Preview packages
+      - name: Verify source identity and both Core Build packages
         id: identity
         env:
           GH_TOKEN: ${{ github.token }}
           CORE_SHA: ${{ github.sha }}
+          CORE_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
         shell: bash
         run: |
           set -euo pipefail
-          # This workflow run number is the canonical aNNN. The same value
-          # is stamped into the Windows package and Android versionCode.
-          revision="$GITHUB_RUN_NUMBER"
+          # The UI revision workflow owns the monotonic aNNN counter. This
+          # same-SHA value is stamped into Windows and Android package metadata.
+          revision="$CORE_BUILD_NUMBER"
           [[ "$revision" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid Core build identity"; exit 1; }
           echo "ui_revision=a$revision" >> "$GITHUB_OUTPUT"
           echo "core_sha=$CORE_SHA" >> "$GITHUB_OUTPUT"
@@ -467,25 +519,21 @@ jobs:
           test "$(stat -c%s "${apks[0]}")" -gt 100000
           file -b "${exes[0]}" | grep -q 'PE32'
           unzip -Z1 "${apks[0]}" | grep -Fxq 'assets/index.android.bundle'
-          cp "${exes[0]}" "out/DKTS-Core-Preview-Windows-V0.3.13-a$revision.exe"
+          app_version="$(node -p "require('./package.json').version")"
+          cp "${exes[0]}" "out/DKTS-Windows-V${app_version}-a$revision.exe"
           mapfile -d '' fixed < <(find signed-artifacts -type f -name 'app-core-fixed-signed.apk' -print0)
-          test "${#fixed[@]}" -le 1
-          if [ "${#fixed[@]}" -eq 1 ]; then
-            cert_file="$(dirname "${fixed[0]}")/certificate.sha256"
-            test -s "$cert_file"
-            expected=$(tr -d ':[:space:]' < android/signing-certificate.sha256 | tr 'A-F' 'a-f')
-            actual=$(tr -d ':[:space:]' < "$cert_file" | tr 'A-F' 'a-f')
-            [ "$actual" = "$expected" ] || { echo "::error::Pinned Android signing fingerprint mismatch"; exit 1; }
-            test "$(stat -c%s "${fixed[0]}")" -gt 100000
-            cp "${fixed[0]}" "out/DKTS-Core-Preview-Android-FIXED-SIGNED-V0.3.13-a$revision.apk"
-            signing="PINNED $actual"
-          else
-            cp "${apks[0]}" "out/DKTS-Core-Preview-Android-TEST-SIGNED-V0.3.13-a$revision.apk"
-            signing="TEST-SIGNED (not safe for in-place upgrades)"
-          fi
+          test "${#fixed[@]}" -eq 1
+          cert_file="$(dirname "${fixed[0]}")/certificate.sha256"
+          test -s "$cert_file"
+          expected=$(tr -d ':[:space:]' < android/signing-certificate.sha256 | tr 'A-F' 'a-f')
+          actual=$(tr -d ':[:space:]' < "$cert_file" | tr 'A-F' 'a-f')
+          [ "$actual" = "$expected" ] || { echo "::error::Pinned Android signing fingerprint mismatch"; exit 1; }
+          test "$(stat -c%s "${fixed[0]}")" -gt 100000
+          cp "${fixed[0]}" "out/DKTS-Android-V${app_version}-a$revision.apk"
+          signing="PINNED $actual"
           echo "android_signing=$signing" >> "$GITHUB_OUTPUT"
           (cd out && sha256sum *.exe *.apk *.json > SHA256SUMS.txt)
-          printf 'Build source: %s\nCore workflow: %s\nRevision: a%s\nPreview package ID: studio.dk.test.corepreview\nAndroid signer: %s\n' \
+          printf 'Build source: %s\nCore workflow: %s\nRevision: a%s\nPackage ID: studio.dk.test\nAndroid signer: %s\n' \
             "$CORE_SHA" "${{ github.run_id }}" "$revision" "$signing" > out/PROVENANCE.txt
       - name: Retain verified EXE, APK, SHA256 and provenance even if Release permission is denied
         uses: actions/upload-artifact@v4
@@ -494,7 +542,7 @@ jobs:
           path: out/
           if-no-files-found: error
           retention-days: 30
-      - name: Publish only the verified Core Preview, never a stable update
+      - name: Publish one DKTS V/a Release
         env:
           # Optional fine-grained token scoped to DK-Test-Studio Releases.
           # GitHub's inherited workflow_run GITHUB_TOKEN may be denied 403
@@ -506,16 +554,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="dkts-core-preview-v0.3.13-$UI_REV"
-          title="DK Test Studio V0.3.13 $UI_REV · DKDS Core Preview"
+          app_version="$(node -p "require('./package.json').version")"
+          tag="dkts-v${app_version}-$UI_REV"
+          title="DK Test Studio V${app_version} $UI_REV"
           cat > release-notes.txt <<EOF
           Source commit: $CORE_SHA
-          Version: V0.3.13 $UI_REV
-          Architecture: Genuine DKDS Core staged read-only inside DKTS.
-          Windows: Portable Core Preview, screenshot and Core smoke validated.
-          Android: Separate studio.dk.test.corepreview preview; signer: $SIGNING_STATUS.
+          Version: V${app_version} $UI_REV
+          Build identity: $UI_REV
+          Android versionCode: $((100000+${UI_REV#a}))
+          Revision counter source: ui-update.yml run_number for this exact source commit.
+          Architecture: Genuine DKDS Core, staged read-only and branded by DKTS.
+          Windows: DKTS portable package with the stable application identity.
+          Android: studio.dk.test, signed with the pinned DKTS certificate ($SIGNING_STATUS).
           Capability database: DKTS-4200A-Hardware-Capability-Database-v1.json (SHA-256 verified).
-          This is NOT a production in-place upgrade for the old studio.dk.test app.
+          A CSS-only change includes this complete package and a verified CSS bundle in this same Release when available.
           Real 4200A output and physical-device measurement remain unaccepted.
           UI and native updater code paths are SHA/signature/version guarded; end-to-end physical-device rollback acceptance remains pending.
           EOF
@@ -526,4 +578,4 @@ jobs:
             gh release create "$tag" out/* --repo "$GITHUB_REPOSITORY" --target "$CORE_SHA" \
               --title "$title" --notes-file release-notes.txt --prerelease --latest=false
           fi
-          echo "Verified DKDS Core Preview: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published DKTS Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"

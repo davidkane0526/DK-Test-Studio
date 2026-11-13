@@ -43,7 +43,7 @@ function fixture(){
  write('desktop/main.js',[
   "const APP_NAME = 'DK Data Studio';",
   "const APP_ID = 'com.dk.datastudio';"
- ].join('\n'));
+ ].join('\r\n'));
  write('src/app/modules/floating-docks.js',"if(el)el.textContent=(label[state]||state)+(result.version?' · V'+result.version:'')+");
  write('desktop/native-update.js',String.raw`const expected='https://github.com/davidkane0526/DK-Data-Studio/releases/download/'+release.tag_name+'/';
 const RELEASES='https://api.github.com/repos/davidkane0526/DK-Data-Studio/releases?per_page=100';
@@ -142,14 +142,17 @@ test('DKTS profiles ALL non-analysis plugin types but excludes analysis workbenc
 });
 test('stage DKDS Core into DKTS directory without touching upstream or shipping analysis plugins',()=>{
  const f=fixture();
-  const previousBuildNumber=process.env.DKTS_PREVIEW_BUILD_NUMBER;
-  process.env.DKTS_PREVIEW_BUILD_NUMBER='162';
+  const previousBuildNumber=process.env.DKTS_BUILD_NUMBER;
+  process.env.DKTS_BUILD_NUMBER='162';
  try{
   const out=path.join(f.top,'DKTS-BUILD'),before=fs.readFileSync(
    path.join(f.root,'src/plugins/pulse-analysis/plugin.json'),'utf8');
   assert.throws(()=>stage(f.root,out,{dktsRoot:repo}),/lacks required updater safety contracts/,
    'production staging must reject the deliberately incomplete SDK fixture');
-  const p=stage(f.root,out,{dktsRoot:repo,validateUpdater:()=>({verifiedCount:10,testOnly:true})});
+  const p=stage(f.root,out,{dktsRoot:repo,validateUpdater:()=>({verifiedCount:10,testOnly:true}),patchUpdaters:false});
+  const stagedMain=fs.readFileSync(path.join(out,'desktop/main.js'),'utf8');
+  assert(!stagedMain.includes('\r\n'),'staging normalizes CRLF before exact source replacements');
+  assert.match(stagedMain,/DK Test Studio/);
   assert.equal(p.derivedDistribution,true);
   assert.equal(p.buildId,'a162');
   assert.equal(p.androidVersionCode,100162);
@@ -166,62 +169,36 @@ test('stage DKDS Core into DKTS directory without touching upstream or shipping 
   assert(!fs.readFileSync(path.join(out,'src/index.html'),'utf8')
    .includes('DK Data Studio'),'upstream brand must not remain on DKTS host screen');
   assert.match(fs.readFileSync(path.join(out,'desktop/main.js'),'utf8'),
-   /const APP_NAME = 'DK Test Studio Core Preview'/);
-  assert(!fs.readFileSync(path.join(out,'desktop/native-update.js'),'utf8')
-   .includes('repos/davidkane0526/DK-Data-Studio/releases'),
-   'preview native updater must not download DKDS releases');
-  const windowsUpdate=fs.readFileSync(path.join(out,'desktop/native-update.js'),'utf8');
-  assert(windowsUpdate.includes('dkts-core-preview-v'));
-  assert(windowsUpdate.includes('DKTS-Core-Preview-Windows-V'));
-  assert(windowsUpdate.includes('compareBuildIds(releaseBuildId,currentBuildId)>0'));
-  assert(windowsUpdate.includes('currentBuildId'));
-  const windowsUi=fs.readFileSync(path.join(out,'desktop/ui-hot-update.js'),'utf8');
-  assert(windowsUi.includes('dkts-ui-v'));
-  assert(windowsUi.includes('src/plugins/dkts-4200a/ui-shell.css'));
-  assert(windowsUi.includes('Cached UI is older than the installed app'));
-  const uiBuilder=fs.readFileSync(path.join(out,'tools/updates/build-ui-hot-bundle.js'),'utf8');
-  assert(uiBuilder.includes('davidkane0526/DK-Test-Studio'));
-  assert(uiBuilder.includes('src/plugins/dkts-4200a/ui-shell.css'));
-  const ipc=fs.readFileSync(path.join(out,'desktop/main-modules/online-update-ipc.js'),'utf8');
-  assert(ipc.includes('currentBuildId'));
-  const appUpdate=fs.readFileSync(path.join(out,'mobile/plugins/DkdsAppUpdate.template'),'utf8');
-  assert(appUpdate.includes('davidkane0526/DK-Test-Studio'));
-  assert(appUpdate.includes('DKTS-Core-Preview-Android-FIXED-SIGNED-V'));
-  assert(appUpdate.includes('installedBuildId()'));
-  const uiUpdate=fs.readFileSync(path.join(out,'mobile/plugins/DkdsUiHotUpdate.template'),'utf8');
-  assert(uiUpdate.includes('dkds-ui-v2'));
-  assert(uiUpdate.includes('src/plugins/dkts-4200a/ui-shell.css'));
-  assert(uiUpdate.includes('latestBuildId'));
-  assert(uiUpdate.includes('doc.optString("appVersion")'));
-  assert(uiUpdate.includes('bundle.optString("appVersion")'));
-   assert(uiUpdate.includes('.put("appVersion",version)'));
-   assert(fs.readFileSync(path.join(out,'src/app/modules/floating-docks.js'),'utf8').includes('result.buildId'));
+   /const APP_NAME = 'DK Test Studio'/);
+  // The minimal fixture deliberately skips updater adaptation. The full
+  // pinned-upstream patch and runtime selection are exercised by the CI staged
+  // updater contract test against the real DKDS source tree.
   assert(fs.existsSync(path.join(out,'tools/dkts-icon-generator.cjs')));
   assert(fs.existsSync(path.join(out,'tools/dkts-core-brand.cjs')));
   assert(fs.existsSync(path.join(out,'desktop/dkts-core-boot-smoke.cjs')));
   const summary=JSON.parse(fs.readFileSync(path.join(out,'DKTS_FRAMEWORK_STAGING.json')));
   assert.equal(summary.instrumentPlugin,'src/plugins/dkts-4200a (DKTS build only; absent upstream)');
-  assert.equal(summary.previewAppId,'studio.dk.test.corepreview');
+  assert.equal(summary.appId,'studio.dk.test');
   const pkg=JSON.parse(fs.readFileSync(path.join(out,'package.json'),'utf8'));
   assert.equal(pkg.name,'dk-test-studio-host');
   assert.equal(pkg.version,require('../package.json').version);
   assert.equal(pkg.dktsBuildId,'a162');
   const mobile=JSON.parse(fs.readFileSync(path.join(out,'mobile/app.json'),'utf8'));
-  assert.equal(mobile.expo.android.package,'studio.dk.test.corepreview');
-  assert.equal(mobile.expo.android.versionCode,1);
+  assert.equal(mobile.expo.android.package,'studio.dk.test');
+  assert.equal(mobile.expo.android.versionCode,100162);
   assert.equal(fs.readFileSync(path.join(f.root,'src/plugins/pulse-analysis/plugin.json'),'utf8'),before);
   assert(fs.existsSync(path.join(f.root,'src/generated/plugin-index.js')));
   assert(!fs.existsSync(path.join(f.root,'desktop/dkts-core-boot-smoke.cjs')));
   assert.equal(JSON.parse(fs.readFileSync(path.join(f.root,'mobile/app.json'),'utf8')).expo.android.package,
    'com.dk.datastudio');
  }finally{
-  if(previousBuildNumber===undefined)delete process.env.DKTS_PREVIEW_BUILD_NUMBER;
-  else process.env.DKTS_PREVIEW_BUILD_NUMBER=previousBuildNumber;
+  if(previousBuildNumber===undefined)delete process.env.DKTS_BUILD_NUMBER;
+  else process.env.DKTS_BUILD_NUMBER=previousBuildNumber;
   fs.rmSync(f.top,{recursive:true,force:true});
  }
 });
 
-test('Core Preview Android versionCode is monotonic while visible package version remains fixed',()=>{
+test('DKTS Android versionCode is monotonic while visible package version remains fixed',()=>{
  assert.equal(buildIdentity('').versionCode,1);
  assert.equal(buildIdentity('162').versionCode,100162);
  assert.equal(buildIdentity('163').versionCode,100163);
@@ -230,7 +207,8 @@ test('Core Preview Android versionCode is monotonic while visible package versio
  assert.throws(()=>buildIdentity('3.14'),/positive aNNN/);
  assert.throws(()=>buildIdentity('10000000'),/positive aNNN/);
  const workflow=fs.readFileSync(path.join(repo,'.github/workflows/dkts-framework-contract.yml'),'utf8');
- assert(workflow.includes('DKTS_PREVIEW_BUILD_NUMBER: ${{ github.run_number }}'));
- assert(workflow.includes('100000+GITHUB_RUN_NUMBER'));
+ assert(workflow.includes('DKTS_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}'));
+ assert(workflow.includes('actions/workflows/ui-update.yml/runs'));
+ assert(workflow.includes('100000+DKTS_BUILD_NUMBER'));
  assert.equal(require('../package.json').version,'0.3.13');
 });

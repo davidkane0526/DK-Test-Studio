@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # This script runs as ONE process. reactivecircus/android-emulator-runner executes
 # each inline "script:" line in a fresh shell; shell variables cannot survive it.
-# This is a preview-only OFFLINE Android runtime test. No 4200A output is allowed.
+# This is an OFFLINE DKTS Android runtime test. No 4200A output is allowed.
 set -euo pipefail
 
-APK="${DKTS_CORE_PREVIEW_APK:-dist/dkts-framework-staging/mobile/android/app/build/outputs/apk/release/app-release.apk}"
-PACKAGE="studio.dk.test.corepreview"
+APK="${DKTS_CORE_APK:-dist/dkts-framework-staging/mobile/android/app/build/outputs/apk/release/app-release.apk}"
+PACKAGE="studio.dk.test"
 OUT="dist/core-android-smoke"
 AAPT="${ANDROID_HOME:?Android SDK must be configured}/build-tools/36.0.0/aapt"
 
