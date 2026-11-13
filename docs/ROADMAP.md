@@ -9,7 +9,7 @@
 - [x] DKTS 正式 Release 不再双发相同插件 ID 的 legacy/native .dkplugin；实验插件独立。
 - [x] 增加从唯一 main 导出 DKTS 源码 ZIP 和固定 SHA DKDS 只读依赖 ZIP 的 Actions 工作流。
 - [x] 为当前 DKDS Core V/a 更新路径增加缓存完整性回归断言：Windows 缓存 EXE 每次使用前复核 SHA-256，Android 缓存 APK 每次安装前复核大小/SHA-256、包名、版本码和签名。固定 DKDS 源码已包含这些保护，无需移植旧独立更新器实现。
-- [ ] 审核并清理所有非 main 分支，最终仅保留 `main`。
+- [x] 审核并清理所有非 main 分支；main-only workflow 已执行并通过，GitHub API 确认仅保留 `main`。
 - [ ] 检查用户已安装 DKDS 的旧 4200 插件是内置、历史缓存还是手动安装，并根据实际来源清理。
 
 ## P1 — DKDS 框架成为 DKTS 真正的单一宿主

@@ -331,3 +331,14 @@
 - main push 的 Core workflow run [43377803530](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43377803530) 成功，但本次仅文档/workflow 变更，Core 原生构建、签名、发布任务按路径分类跳过；没有产生新的 EXE/APK Release。
 - 分支审计发现旧分支 `fix/native-update-cache-integrity` 虽落后 main 330 个提交，但包含当前 main 尚未覆盖的 Windows 缓存 EXE 每次执行前 SHA-256 复核、Android 缓存 APK 每次安装前 SHA-256 复核及对应回归测试。**不得整支合并**，应将这两项安全修复移植到当前 V/a 更新器并验证后再清理该分支。其余 `feat/unified-update-release` 已落后 main、三个 `ops/source-archive*` 仅包含临时归档 workflow；PR #22 对应分支在合并后也应删除。
 - 下一步：触发并下载 source ZIP artifact；在云端 ZIP 工作区移植 Windows/Android 更新缓存完整性校验并补齐测试；随后执行完整回归、更新日志、清理所有非 main 分支，交付最新完整 ZIP。真实 Windows/OPPO 设备更新回退及 4200A 实测仍未完成。
+
+
+## 2026-11-13 / ZIP 云端工作流、更新缓存回归与单一 main 清理
+- 开发基线来自 main 提交 `e495eb16bbdcca90dd863d7e4b506b087a72c31f` 的源码归档。通过 GitHub Actions 下载完整 DKTS 源码 ZIP 与固定 SHA 的 DKDS 只读依赖 ZIP，在云端工作目录解压开发；最终归档只包含受版本控制的源文件，不含 `.git`、node_modules 或临时构建缓存。
+- 旧分支 `fix/native-update-cache-integrity` 的初步检查曾将旧 standalone updater 的缓存校验与当前 Core 混淆，现已纠正：DKTS 实际 Core 路径使用固定 DKDS SHA `20f056851a61d2144e9524c3ed568628d4b8557c`。`tools/verify-dkds-updater-parity.cjs` 和本地生成的 `DKTS_FRAMEWORK_STAGING.json` 已验证 10 项安全能力：Windows 下载/缓存 SHA-256、缓存大小、安装回退、UI SHA/上一版本恢复；Android 缓存 SHA-256、签名、UI SHA/上一版本恢复。旧分支实现不应整支合并。
+- 扩展 `tests/test-staged-core-updater.cjs`，明确断言 Windows 缓存 EXE 在调用替换程序前重新校验 SHA-256；Android 缓存 APK 在打开系统安装器前重新校验文件大小和 SHA-256，并校验 buildId/versionCode。也增加单一 main 与 ZIP 归档工作流的治理测试。
+- 本地以 `DKTS_BUILD_NUMBER=190` 对固定 DKDS SHA 执行 profile/staging：保留 11 个非分析插件、排除 6 个分析插件；得到 `V0.3.13 a190`、Android `versionCode=100190`；staged updater contract **PASS**。针对更新器、版本身份、发布契约、热更新、需求治理等 9 组目标测试 **44/44 PASS**；需求治理单测 **3/3 PASS**；两个 Actions YAML 语法检查通过。
+- 完整本地 Node 测试因源码 ZIP 不包含依赖缓存，未执行 `npm install`，出现 **189/197 PASS**。8 项失败均由缺失的 D3 7.9.0 vendor 和依赖该文件的构建产物引起；未将其误报为代码通过。GitHub CI run [43379001775](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43379001775) 的 Ubuntu 与 Windows Node 测试、DKDS Plugin API 1.19、能力数据库导出均通过。
+- 已加入 `.github/workflows/source-zip.yml` 和 `.github/workflows/main-only-branch-policy.yml`。源码归档 run [43379001880](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43379001880) 成功；分支清理 run [43379001843](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43379001843) 成功。GitHub API 再次确认只剩 `main`，当前主线提交为 `bb429d429fdc9ab813170f801a790e0b26f2a913`。
+- 归档 artifact `DKTS-Source-ZIP-bb429d429fdc9ab813170f801a790e0b26f2a913`（artifact ID `14015975729`）成功下载并验证：DKTS ZIP 242 个文件、无 `.git`；DKTS ZIP SHA-256 `c23d8cdc810d263e1640101ae250efa1213070deb2fd88226522aaac8a4e3478`；固定 DKDS 只读 ZIP SHA-256 `ebf283772098f0de6189c7c7a6f0e0b`（以随包 `SHA256SUMS.txt` 为准）。
+- Core workflow [43379001760](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43379001760) 已通过框架只读检查；截至本日志写入时，Windows Portable 和 Android API 36 构建仍在运行，因此不宣称已有新的 a190 正式 Release。真实 Windows/OPPO 真机更新回退及 4200A 实测仍未完成。
