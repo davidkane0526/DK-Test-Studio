@@ -5,6 +5,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const root=path.resolve(process.argv[2]||'dist/dkts-framework-staging');
 const windows=require(path.join(root,'desktop/native-update.js'));
+const windowsSource=fs.readFileSync(path.join(root,'desktop/native-update.js'),'utf8');
 const android=fs.readFileSync(path.join(root,'mobile/plugins/DkdsAppUpdate.template'),'utf8');
 const androidHot=fs.readFileSync(path.join(root,'mobile/plugins/DkdsUiHotUpdate.template'),'utf8');
 const packageJson=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
@@ -45,6 +46,27 @@ assert.match(android,/Android versionCode: /);
 assert.match(android,/compareBuildIds\(found\.buildId,installedBuildId\(\)\)/);
 assert.match(android,/archive\.versionCode!=100000\+Integer\.parseInt\(expectedBuildId\.substring\(1\)\)/);
 assert.match(android,/MessageDigest\.isEqual/);
+// A cached native package must be re-verified against the selected release
+// every time it is used, not merely trusted because a previous download passed.
+assert.match(windowsSource,/file\?\.buildId!==candidate\.buildId/);
+assert.match(windowsSource,/A cached EXE is not trusted merely because it passed verification earlier/);
+assert.match(windowsSource,/verifiedSize!==candidate\.size/);
+assert.match(windowsSource,/verifiedHash\.digest\('hex'\)!==candidate\.digest/);
+assert.match(windowsSource,/Windows 便携更新缓存校验失败/);
+const windowsCacheCheck=windowsSource.indexOf('A cached EXE is not trusted');
+const windowsInstaller=windowsSource.indexOf("spawn('powershell.exe'");
+assert.ok(windowsCacheCheck>0&&windowsCacheCheck<windowsInstaller,
+ 'Windows cached EXE integrity must be checked before launching the updater');
+assert.match(android,/!candidate\.buildId\.equals\(found\.buildId\)/);
+assert.match(android,/verifyDownloaded\(apk,selected\)/);
+assert.match(android,/APK 缓存大小不匹配/);
+assert.match(android,/APK 缓存校验值不匹配/);
+assert.match(android,/archive\.versionCode!=100000\+Integer\.parseInt\(expectedBuildId\.substring\(1\)\)/);
+const androidInstall=android.indexOf('void downloadAndInstall()');
+const androidCacheCheck=android.indexOf('verifyDownloaded(apk,selected)',androidInstall);
+const androidInstaller=android.indexOf('requestInstaller(apk)',androidInstall);
+assert.ok(androidCacheCheck>androidInstall&&androidCacheCheck<androidInstaller,
+ 'Android cached APK digest/size must be checked before opening the system installer');
 assert.match(androidHot,/dkts-v/);
 assert.match(androidHot,/DK-Test-Studio/);
 assert.match(updaterUi,/result\.buildId/);

@@ -1,0 +1,31 @@
+name: Enforce single main branch
+run-name: Enforce single main branch
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  prune:
+    name: Delete all non-main branches
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Keep main as the only branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t branches < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq '.[].name')
+          for branch in "${branches[@]}"; do
+            [[ "$branch" == "main" ]] && continue
+            gh api --silent --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+            printf '%s\n' "- Deleted \`${branch}\`" >> "$GITHUB_STEP_SUMMARY"
+          done
+          mapfile -t remaining < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq '.[].name')
+          if [[ "${#remaining[@]}" -ne 1 || "${remaining[0]}" != "main" ]]; then
+            printf '%s\n' "Expected only main; found: ${remaining[*]}" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Verified: main is the only remaining branch." >> "$GITHUB_STEP_SUMMARY"

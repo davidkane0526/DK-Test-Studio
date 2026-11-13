@@ -56,3 +56,5 @@ node tools/stage-dkds-host.cjs ../DK-Data-Studio dist/dkts-framework-staging
 - GitHub 仓库只保留 `main`。未经用户明确许可，不创建任何其他分支，不使用 feature/develop/临时分支或 PR 开发流程。
 - `.github/workflows/source-zip.yml` 在 main 更新时导出完整、干净的 DKTS 源码 ZIP，以及固定 SHA `20f056851a61d2144e9524c3ed568628d4b8557c` 的 DKDS 只读依赖 ZIP，并附带 manifest 和 SHA-256 校验文件。Actions artifact 名称为 `DKTS-Source-ZIP-<commit SHA>`，保留 30 天。
 - 后续以 DKTS ZIP 作为云端工作区基线，DKDS ZIP 仅供只读构建。每轮交付完整 DKTS ZIP；通过测试后直接提交到 main。
+
+- `.github/workflows/main-only-branch-policy.yml` 在 main 更新后清理所有非 main 分支，并检查仓库最终只剩 `main`。

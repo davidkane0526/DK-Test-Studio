@@ -26,3 +26,16 @@ test('DKTS README records the single stable Core identity and leaves physical ac
  assert.match(read('docs/ROADMAP.md'),/DKDS 只读框架来源/);
  assert.match(read('docs/UPSTREAM_BRANCH_AUDIT.md'),/远程分支删除尚未执行/);
 });
+
+test('DKTS development is restricted to one main branch and clean ZIP snapshots',()=>{
+ const agents=read('AGENTS.md'),req=read('docs/USER_REQUIREMENTS.md');
+ const sourceZip=read('.github/workflows/source-zip.yml');
+ const branchPolicy=read('.github/workflows/main-only-branch-policy.yml');
+ assert.match(agents,/Use only the GitHub `main` branch/);
+ assert.match(req,/R-20261113-001/);
+ assert.match(sourceZip,/git archive/);
+ assert.match(sourceZip,/retention-days: 30/);
+ assert.match(branchPolicy,/branches: \[main\]/);
+ assert.match(branchPolicy,/--method DELETE/);
+ assert.match(branchPolicy,/remaining/);
+});
