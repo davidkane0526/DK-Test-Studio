@@ -327,7 +327,7 @@ const sourceHash=crypto.createHash('sha256')
   dktsVersion:dktsPackage.version,buildId:identity.buildId,androidVersionCode:identity.versionCode,derivedDistribution:true,
   instrumentPlugin:'src/plugins/dkts-4200a (DKTS build only; absent upstream)',
   appId,hostRenderer:'src/index.html',
-  previewOnly:false,outputReady:false,
+  singleApplicationIdentity:true,outputReady:false,
   updaterOrigin:'davidkane0526/DK-Test-Studio (single V/a release; DKDS upstream read-only)',
   blockingGates:['End-to-end Core UI/native updater, cache verification and rollback tests on both platforms',
    'FS-Pro Edit Page exact hierarchy and production 4200A controller',

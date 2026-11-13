@@ -142,8 +142,8 @@ test('DKTS profiles ALL non-analysis plugin types but excludes analysis workbenc
 });
 test('stage DKDS Core into DKTS directory without touching upstream or shipping analysis plugins',()=>{
  const f=fixture();
-  const previousBuildNumber=process.env.DKTS_PREVIEW_BUILD_NUMBER;
-  process.env.DKTS_PREVIEW_BUILD_NUMBER='162';
+  const previousBuildNumber=process.env.DKTS_BUILD_NUMBER;
+  process.env.DKTS_BUILD_NUMBER='162';
  try{
   const out=path.join(f.top,'DKTS-BUILD'),before=fs.readFileSync(
    path.join(f.root,'src/plugins/pulse-analysis/plugin.json'),'utf8');
@@ -152,7 +152,7 @@ test('stage DKDS Core into DKTS directory without touching upstream or shipping 
   const p=stage(f.root,out,{dktsRoot:repo,validateUpdater:()=>({verifiedCount:10,testOnly:true}),patchUpdaters:false});
   const stagedMain=fs.readFileSync(path.join(out,'desktop/main.js'),'utf8');
   assert(!stagedMain.includes('\r\n'),'staging normalizes CRLF before exact source replacements');
-  assert.match(stagedMain,/DK Test Studio Core Preview/);
+  assert.match(stagedMain,/DK Test Studio/);
   assert.equal(p.derivedDistribution,true);
   assert.equal(p.buildId,'a162');
   assert.equal(p.androidVersionCode,100162);
@@ -169,7 +169,7 @@ test('stage DKDS Core into DKTS directory without touching upstream or shipping 
   assert(!fs.readFileSync(path.join(out,'src/index.html'),'utf8')
    .includes('DK Data Studio'),'upstream brand must not remain on DKTS host screen');
   assert.match(fs.readFileSync(path.join(out,'desktop/main.js'),'utf8'),
-   /const APP_NAME = 'DK Test Studio Core Preview'/);
+   /const APP_NAME = 'DK Test Studio'/);
   // The minimal fixture deliberately skips updater adaptation. The full
   // pinned-upstream patch and runtime selection are exercised by the CI staged
   // updater contract test against the real DKDS source tree.
@@ -178,13 +178,13 @@ test('stage DKDS Core into DKTS directory without touching upstream or shipping 
   assert(fs.existsSync(path.join(out,'desktop/dkts-core-boot-smoke.cjs')));
   const summary=JSON.parse(fs.readFileSync(path.join(out,'DKTS_FRAMEWORK_STAGING.json')));
   assert.equal(summary.instrumentPlugin,'src/plugins/dkts-4200a (DKTS build only; absent upstream)');
-  assert.equal(summary.previewAppId,'studio.dk.test.corepreview');
+  assert.equal(summary.appId,'studio.dk.test');
   const pkg=JSON.parse(fs.readFileSync(path.join(out,'package.json'),'utf8'));
   assert.equal(pkg.name,'dk-test-studio-host');
   assert.equal(pkg.version,require('../package.json').version);
   assert.equal(pkg.dktsBuildId,'a162');
   const mobile=JSON.parse(fs.readFileSync(path.join(out,'mobile/app.json'),'utf8'));
-  assert.equal(mobile.expo.android.package,'studio.dk.test.corepreview');
+  assert.equal(mobile.expo.android.package,'studio.dk.test');
   assert.equal(mobile.expo.android.versionCode,100162);
   assert.equal(fs.readFileSync(path.join(f.root,'src/plugins/pulse-analysis/plugin.json'),'utf8'),before);
   assert(fs.existsSync(path.join(f.root,'src/generated/plugin-index.js')));
@@ -192,13 +192,13 @@ test('stage DKDS Core into DKTS directory without touching upstream or shipping 
   assert.equal(JSON.parse(fs.readFileSync(path.join(f.root,'mobile/app.json'),'utf8')).expo.android.package,
    'com.dk.datastudio');
  }finally{
-  if(previousBuildNumber===undefined)delete process.env.DKTS_PREVIEW_BUILD_NUMBER;
-  else process.env.DKTS_PREVIEW_BUILD_NUMBER=previousBuildNumber;
+  if(previousBuildNumber===undefined)delete process.env.DKTS_BUILD_NUMBER;
+  else process.env.DKTS_BUILD_NUMBER=previousBuildNumber;
   fs.rmSync(f.top,{recursive:true,force:true});
  }
 });
 
-test('Core Preview Android versionCode is monotonic while visible package version remains fixed',()=>{
+test('DKTS Android versionCode is monotonic while visible package version remains fixed',()=>{
  assert.equal(buildIdentity('').versionCode,1);
  assert.equal(buildIdentity('162').versionCode,100162);
  assert.equal(buildIdentity('163').versionCode,100163);
@@ -207,8 +207,8 @@ test('Core Preview Android versionCode is monotonic while visible package versio
  assert.throws(()=>buildIdentity('3.14'),/positive aNNN/);
  assert.throws(()=>buildIdentity('10000000'),/positive aNNN/);
  const workflow=fs.readFileSync(path.join(repo,'.github/workflows/dkts-framework-contract.yml'),'utf8');
- assert(workflow.includes('DKTS_PREVIEW_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}'));
+ assert(workflow.includes('DKTS_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}'));
  assert(workflow.includes('actions/workflows/ui-update.yml/runs'));
- assert(workflow.includes('100000+DKTS_PREVIEW_BUILD_NUMBER'));
+ assert(workflow.includes('100000+DKTS_BUILD_NUMBER'));
  assert.equal(require('../package.json').version,'0.3.13');
 });

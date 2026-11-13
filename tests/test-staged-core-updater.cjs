@@ -14,8 +14,8 @@ const updaterUi=fs.readFileSync(path.join(root,'src/app/modules/floating-docks.j
 const ipc=fs.readFileSync(path.join(root,'desktop/main-modules/online-update-ipc.js'),'utf8');
 const digest='sha256:'+'a'.repeat(64);
 function release(version,buildId,options={}){
- const tag=`dkts-core-preview-v${version}-${buildId}`;
- const asset=`DKTS-Core-Preview-Windows-V${version}-${buildId}.exe`;
+ const tag=`dkts-v${version}-${buildId}`;
+ const asset=`DKTS-Windows-V${version}-${buildId}.exe`;
  const body=options.body===undefined
   ? `Build identity: ${buildId}\nAndroid versionCode: ${100000+Number(buildId.slice(1))}`
   : options.body;
@@ -36,14 +36,16 @@ assert.equal(packageJson.dktsBuildId,profile.buildId);
 assert.equal(appJson.expo.version,packageJson.version);
 assert.equal(appJson.expo.android.versionCode,profile.androidVersionCode);
 assert.equal(appJson.expo.android.versionCode,100000+Number(packageJson.dktsBuildId.slice(1)));
-assert.match(android,/dkts-core-preview-v/);
-assert.match(android,/DKTS-Core-Preview-Android-FIXED-SIGNED/);
+assert.equal(appJson.expo.android.package,'studio.dk.test');
+assert.equal(profile.appId,'studio.dk.test');
+assert.match(android,/dkts-v/);
+assert.match(android,/DKTS-Android/);
 assert.match(android,/Build identity: /);
 assert.match(android,/Android versionCode: /);
 assert.match(android,/compareBuildIds\(found\.buildId,installedBuildId\(\)\)/);
 assert.match(android,/archive\.versionCode!=100000\+Integer\.parseInt\(expectedBuildId\.substring\(1\)\)/);
 assert.match(android,/MessageDigest\.isEqual/);
-assert.match(androidHot,/dkts-ui-v/);
+assert.match(androidHot,/dkts-v/);
 assert.match(androidHot,/DK-Test-Studio/);
 assert.match(updaterUi,/result\.buildId/);
 assert.match(ipc,/currentBuildId=require\('\.\.\/\.\.\/package\.json'\)\.dktsBuildId/);
