@@ -53,6 +53,6 @@ test('DKTS Core staging stamps the same identity into Windows and Android',()=>{
   assert.doesNotMatch(uiWorkflow,/gh release create/);
   assert.match(uiWorkflow,/DKTS_BUILD_NUMBER: \$\{\{ github\.run_number \}\}/);
   assert.doesNotMatch(uiWorkflow,/dkts-framework-contract\.yml\/runs/);
-  assert.match(uiWorkflow,/build-ui-hot-bundle.js/);
+  assert.doesNotMatch(uiWorkflow,/build-ui-hot-bundle.js/);
   
 });

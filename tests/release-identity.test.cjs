@@ -49,7 +49,7 @@ test('the canonical sequence and one unified Release share the same V/a identity
   assert.doesNotMatch(full,/DKTS standalone complete package/);
 });
 
-test('the installed application offers only UI hot updates and shows aNNNN only in the hidden update panel',()=>{
+test('the legacy web shell does not expose a separate native updater',()=>{
   const html=read('web/index.html'),app=read('web/app.js');
   const packageVersion=JSON.parse(read('package.json')).version;
   assert(html.includes('>V'+packageVersion+'</button>'));
@@ -81,7 +81,7 @@ test('Core Windows mainline uses the stable DKTS portable application identity',
   assert.match(coreCI,/Actual DKDS Core Electron boot/);
   assert.match(coreCI,/npx electron-builder --win portable --x64 --publish never/);
   assert.match(release,/DKTS-Windows-V/);
-  assert.match(release,/studio\\.dk\\.test/);
+  assert.ok(release.includes('studio.dk.test'));
   assert.match(release,/file -b/);
   assert.match(release,/SHA256SUMS\.txt/);
   assert.doesNotMatch(release,/Setup.*\.exe|--win nsis/);
