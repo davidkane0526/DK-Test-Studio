@@ -7,13 +7,13 @@
 - [x] 关闭 DKDS 的 4200A FS-Pro 开发 PR，不合并到 DKDS。
 - [x] 在 DKTS GitHub 创建需求台账、开发日志、AGENTS.md，未来每次非“继续”用户要求必须记录。
 - [x] DKTS 正式 Release 不再双发相同插件 ID 的 legacy/native .dkplugin；实验插件独立。
-- [ ] 清理确认属于此项目的多余 DKDS 历史分支；已关闭 PR，但删除 GitHub 分支的操作当前不可用，不能假装已完成。
+- [ ] 清理已确认属于本次工作的临时源码归档分支；先验证 ZIP 和 Actions 记录，再删除临时 ops 分支。
 - [ ] 检查用户已安装 DKDS 的旧 4200 插件是内置、历史缓存还是手动安装，并根据实际来源清理。
 
 ## P1 — DKDS 框架成为 DKTS 真正的单一宿主
 - [x] 只读上游检查、按 manifest 保留全部非分析插件并临时排除分析插件、独立 DKTS 源码暂存流程。
 - [ ] 实际从 DKDS Core 构建 **DKTS 品牌** Windows Portable 和 Android APK，继承官方组件、主题、数据中心、图表、内存、SMB、AI、历史、网页服务。
-- [x] 将 Core 原生更新源绑定 DKTS Release；Windows/Android 按 V+aNNN 选择同版本新构建，校验资产身份、SHA-256，Android 额外校验包名/版本码/签名；CSS-only Core UI bundle 使用独立四文件白名单。
+- [x] 将 Core 原生更新源绑定单一 DKTS Release；Windows/Android 按 V+aNNN 选择同版本新构建，校验资产身份、SHA-256，Android 额外校验稳定包名/版本码/签名；CSS-only bundle 使用四文件白名单并与完整包共用同一 Release。
 - [ ] 完成真实 Windows Portable/Android 固定签名设备上的应用内更新、403/504 恢复、热更新/全量升级与失败回退验收。
 - [ ] 对用户设备进行真正的 Windows/Android 视觉验证，逐项保留 DKDS 控件交互。
 
