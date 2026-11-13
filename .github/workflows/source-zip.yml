@@ -1,0 +1,52 @@
+name: DKTS Source ZIP (main + pinned DKDS)
+run-name: DKTS source snapshot · ${{ github.sha }}
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-zip:
+    name: Export clean DKTS and pinned DKDS source ZIPs
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact DKTS main revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Checkout pinned DKDS as a read-only dependency
+        uses: actions/checkout@v4
+        with:
+          repository: davidkane0526/DK-Data-Studio
+          ref: 20f056851a61d2144e9524c3ed568628d4b8557c
+          path: upstream/dkds
+          persist-credentials: false
+      - name: Create and verify clean source archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dkts-source"
+          git archive --format=zip --prefix=DK-Test-Studio/ HEAD > "$RUNNER_TEMP/dkts-source/DK-Test-Studio-main-$GITHUB_SHA.zip"
+          git -C upstream/dkds archive --format=zip --prefix=DK-Data-Studio/ 20f056851a61d2144e9524c3ed568628d4b8557c > "$RUNNER_TEMP/dkts-source/DK-Data-Studio-pinned-20f0568.zip"
+          unzip -t "$RUNNER_TEMP/dkts-source/DK-Test-Studio-main-$GITHUB_SHA.zip"
+          unzip -t "$RUNNER_TEMP/dkts-source/DK-Data-Studio-pinned-20f0568.zip"
+          {
+            echo "DKTS repository: $GITHUB_REPOSITORY"
+            echo "DKTS commit: $GITHUB_SHA"
+            echo "DKDS repository: davidkane0526/DK-Data-Studio"
+            echo "DKDS pinned commit: 20f056851a61d2144e9524c3ed568628d4b8557c"
+            echo "Archive method: git archive (tracked source only; no .git directory or local build cache)"
+          } > "$RUNNER_TEMP/dkts-source/SOURCE-MANIFEST.txt"
+          cd "$RUNNER_TEMP/dkts-source"
+          sha256sum *.zip > SHA256SUMS.txt
+      - name: Upload clean source ZIPs and manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: DKTS-Source-ZIP-${{ github.sha }}
+          path: ${{ runner.temp }}/dkts-source/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
