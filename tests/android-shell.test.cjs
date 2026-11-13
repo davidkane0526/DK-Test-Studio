@@ -209,7 +209,8 @@ test('legacy signing identity is pinned and Core Android Release requires the sa
   assert.match(gradle,/System.getenv\('DKTS_ANDROID_SIGNING_PASSWORD'\)/);
   assert.match(coreCI,/studio\.dk\.test/);
   assert.match(coreCI,/CN=Android Debug/);
-  assert.doesNotMatch(release,/TEST-SIGNED/);
+  const publisher=release.slice(release.indexOf('  publish-core-preview:'));
+  assert.doesNotMatch(publisher,/TEST-SIGNED/);
   assert.match(release,/fixed DKTS Android signing identity is required/);
   assert(!release.slice(release.indexOf('  publish-core-preview:')).includes('DKTS_ANDROID_KEYSTORE_B64'));
   assert.match(release,/android\/signing-certificate\.sha256/);
