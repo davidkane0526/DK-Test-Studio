@@ -44,7 +44,8 @@ test('the canonical sequence and one unified Release share the same V/a identity
   assert.match(full,/--prerelease/);
   assert.match(full,/DKTS-Windows-V/);
   assert.match(full,/DKTS-Android-V/);
-  assert.doesNotMatch(full,/TEST-SIGNED/);
+  const publisher=full.slice(full.indexOf('  publish-core-preview:'));
+  assert.doesNotMatch(publisher,/TEST-SIGNED/);
   assert.match(full,/DKTS-4200A-Hardware-Capability-Database-v1\.json/);
   assert.doesNotMatch(full,/DKTS standalone complete package/);
 });

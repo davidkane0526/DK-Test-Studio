@@ -134,7 +134,7 @@ test('Android standalone recovers unregistered USB Ethernet and can use source b
   assert.doesNotMatch(repair,/ip route (?:add|replace) default/);
 });
 
-test('legacy Android shell retains status bar rules while Core Android is built from true DKDS WebView',()=>{
+test('legacy Android shell retains status bar rules while DKTS Core uses the stable DKTS package ID',()=>{
   const activity=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/MainActivity.java'),'utf8');
   const source=fs.readFileSync(path.join(root,'web/styles.css'),'utf8');
   const coreCI=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
@@ -197,7 +197,7 @@ test('Android 16 immersive mode is coalesced and cannot repeatedly re-enter from
   assert.doesNotMatch(modern,/setFlags\(/);
 });
 
-test('legacy signing identity is pinned, while Core Android debug-signed builds are isolated as previews',()=>{
+test('legacy signing identity is pinned and Core Android Release requires the same fixed signer',()=>{
   const gradle=fs.readFileSync(path.join(root,'android/app/build.gradle'),'utf8');
   const coreCI=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
   const release=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
@@ -209,8 +209,8 @@ test('legacy signing identity is pinned, while Core Android debug-signed builds 
   assert.match(gradle,/System.getenv\('DKTS_ANDROID_SIGNING_PASSWORD'\)/);
   assert.match(coreCI,/studio\.dk\.test\.corepreview/);
   assert.match(coreCI,/CN=Android Debug/);
-  assert.match(release,/TEST-SIGNED/);
-  assert.match(release,/NOT a production in-place upgrade/);
+  assert.doesNotMatch(release,/TEST-SIGNED/);
+  assert.match(release,/fixed DKTS Android signing identity is required/);
   assert(!release.slice(release.indexOf('  publish-core-preview:')).includes('DKTS_ANDROID_KEYSTORE_B64'));
   assert.match(release,/android\/signing-certificate\.sha256/);
 });
