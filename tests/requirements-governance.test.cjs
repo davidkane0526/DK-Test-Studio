@@ -19,7 +19,7 @@ test('DKTS README records the single stable Core identity and leaves physical ac
  assert.match(readme,/PR #18/);
  assert.match(readme,/真实 4200A 验收/);
  assert.match(readme,/单一 DKTS 原生应用身份/);
- assert.match(readme,/Android 包名为 `studio\\.dk\\.test`/);
+ assert.ok(readme.includes('Android 包名为 `studio.dk.test`'));
  assert.match(readme,/真实设备安装.*仍待/);
  assert.match(req,/R-20261111-007/);
  assert.match(req,/直接合并 PR #18到main/);
