@@ -149,8 +149,8 @@ test('legacy Android shell retains status bar rules while DKTS Core uses the sta
   assert.match(coreCI,/Launch real DKDS-derived Android Core Build on API 36 emulator/);
   assert.match(coreCI,/studio\.dk\.test/);
   const smoke=fs.readFileSync(path.join(root,'tools/run-core-android-smoke.sh'),'utf8');
-  assert.match(smoke,/PACKAGE="studio\\.dk\\.test"/);
-  assert.doesNotMatch(smoke,/studio\\.dk\\.test\\.corepreview/);
+  assert.match(smoke,/PACKAGE="studio\.dk\.test"/);
+  assert.doesNotMatch(smoke,/studio\.dk\.test\.corepreview/);
 });
 test('native Android shell version comes from its actual installed package',()=>{
  const src=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
