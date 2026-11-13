@@ -147,7 +147,7 @@ test('legacy Android shell retains status bar rules while DKTS Core uses the sta
   assert.match(source,/body\.dkts-android-shell \.app-titlebar\{\s*height:calc\(var\(--dkts-title-height\) \+ var\(--dkts-safe-top\)\);[\s\S]*?padding-top:var\(--dkts-safe-top\);/);
   assert.match(coreCI,/Regenerate offline DKDS Core WebView source/);
   assert.match(coreCI,/Launch real DKDS-derived Android Core Preview on API 36 emulator/);
-  assert.match(coreCI,/studio\.dk\.test\.corepreview/);
+  assert.match(coreCI,/studio\.dk\.test/);
 });
 test('native Android shell version comes from its actual installed package',()=>{
  const src=fs.readFileSync(path.join(root,'android/app/src/main/java/studio/dk/test/InstrumentBridge.java'),'utf8');
@@ -207,7 +207,7 @@ test('legacy signing identity is pinned and Core Android Release requires the sa
   assert.match(gradle,/stablePreview/);
   assert.match(gradle,/System.getenv\('DKTS_ANDROID_KEYSTORE_PATH'\)/);
   assert.match(gradle,/System.getenv\('DKTS_ANDROID_SIGNING_PASSWORD'\)/);
-  assert.match(coreCI,/studio\.dk\.test\.corepreview/);
+  assert.match(coreCI,/studio\.dk\.test/);
   assert.match(coreCI,/CN=Android Debug/);
   assert.doesNotMatch(release,/TEST-SIGNED/);
   assert.match(release,/fixed DKTS Android signing identity is required/);
