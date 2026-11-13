@@ -146,7 +146,7 @@ test('legacy Android shell retains status bar rules while DKTS Core uses the sta
   assert.match(fs.readFileSync(path.join(root,'web/ui/responsive.css'),'utf8'),/body\.dkts-android-shell\{--dkts-titlebar-height:39px;/);
   assert.match(source,/body\.dkts-android-shell \.app-titlebar\{\s*height:calc\(var\(--dkts-title-height\) \+ var\(--dkts-safe-top\)\);[\s\S]*?padding-top:var\(--dkts-safe-top\);/);
   assert.match(coreCI,/Regenerate offline DKDS Core WebView source/);
-  assert.match(coreCI,/Launch real DKDS-derived Android Core Preview on API 36 emulator/);
+  assert.match(coreCI,/Launch real DKDS-derived DKTS package on API 36 emulator/);
   assert.match(coreCI,/studio\.dk\.test/);
 });
 test('native Android shell version comes from its actual installed package',()=>{
@@ -251,7 +251,7 @@ test('Core Android builds real DKDS scientific plotting and records emulator evi
   assert.match(plugin,/units\.plotGroup\.create/);
   assert.match(plugin,/frameGroup\.adoptPlot/);
   assert.match(plugin,/units\.scientificPlot\.create/);
-  assert.match(coreCI,/Launch real DKDS-derived Android Core Preview on API 36 emulator/);
+  assert.match(coreCI,/Launch real DKDS-derived DKTS package on API 36 emulator/);
   assert.match(coreCI,/Retain Android emulator screenshot and crash diagnostics/);
 });
 test('Android updater accepts current GitHub Release tags and never hot-swaps native versions',()=>{

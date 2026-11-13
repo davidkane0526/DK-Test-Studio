@@ -1,5 +1,5 @@
-name: DKTS DKDS-Framework Contract (read-only upstream)
-run-name: DK Test Studio V0.3.13 · DKDS Core Preview #${{ github.run_number }}
+name: DKTS Unified Core Release (read-only DKDS upstream)
+run-name: DK Test Studio · Unified Core Build #${{ github.run_number }}
 on:
   pull_request:
     branches: [main]
@@ -198,7 +198,7 @@ jobs:
           ref: 20f056851a61d2144e9524c3ed568628d4b8557c
           path: upstream/dkds
           persist-credentials: false
-      - name: Stage DKTS Core Preview from real DKDS source
+      - name: Stage DKTS Core Build from real DKDS source
         shell: pwsh
         run: |
           node tools/stage-dkds-host.cjs upstream/dkds dist/dkts-framework-staging
@@ -236,16 +236,16 @@ jobs:
         run: |
           $status=git -C upstream/dkds status --porcelain
           if ($status) { throw "Upstream DKDS checkout was modified: $status" }
-      - name: Build isolated Windows Core Preview portable executable
+      - name: Build isolated Windows Core Build portable executable
         shell: pwsh
         working-directory: dist/dkts-framework-staging
         run: |
           npx electron-builder --win portable --x64 --publish never
-      - name: Upload Core Preview screenshot, evidence and portable app (NOT stable Release)
+      - name: Upload DKTS Windows smoke evidence (PR validation only)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Preview-Windows-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Core-Windows-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
           path: |
             dist/core-smoke-evidence/report.json
             dist/core-smoke-evidence/core-host.png
@@ -259,7 +259,7 @@ jobs:
   android-core-preview:
     needs: [change-scope, resolve-build-identity]
     if: ${{ github.event_name == 'pull_request' || needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot' }}
-    name: Build DKDS-derived DKTS Android Core Preview (isolated package)
+    name: Build DKDS-derived DKTS Android Core Build (stable DKTS package)
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
@@ -295,10 +295,10 @@ jobs:
       - name: Regenerate offline DKDS Core WebView source
         working-directory: dist/dkts-framework-staging/mobile
         run: npm run sync:web
-      - name: Generate isolated Core Preview Android project
+      - name: Generate isolated Core Build Android project
         working-directory: dist/dkts-framework-staging/mobile
         run: npx expo prebuild --platform android --clean
-      - name: Compile offline bundled Android Core Release Preview (test-signing only)
+      - name: Compile offline DKTS Android APK for package/signing checks
         working-directory: dist/dkts-framework-staging/mobile/android
         run: |
           chmod +x gradlew
@@ -330,7 +330,7 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Launch real DKDS-derived Android Core Preview on API 36 emulator
+      - name: Launch real DKDS-derived Android Core Build on API 36 emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 36
@@ -350,10 +350,10 @@ jobs:
       - name: Confirm DKDS upstream source untouched
         working-directory: upstream/dkds
         run: test -z "$(git status --porcelain)"
-      - name: Upload isolated Android Core Release Preview (TEST-SIGNED, NOT PRODUCTION)
+      - name: Upload test-signed APK and emulator evidence (PR validation only)
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Preview-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Core-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
           path: |
             dist/dkts-framework-staging/mobile/android/app/build/outputs/apk/release/app-release.apk
             dist/dkts-core-android-badging.txt
@@ -362,7 +362,7 @@ jobs:
           retention-days: 15
 
   android-core-fixed-sign-preview:
-    name: Sign Core Preview APK with pinned DKTS identity (isolated, optional)
+    name: Sign DKTS APK with pinned application identity
     # Deliberately outside the DKDS Core build job: third-party framework
     # build scripts must never see the user's signing key or password.
     needs: [change-scope, resolve-build-identity, android-core-preview]
@@ -382,7 +382,7 @@ jobs:
       - name: Download compiled Core APK without checking out DKDS
         uses: actions/download-artifact@v4
         with:
-          name: DKTS-Core-Preview-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Core-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
           path: core-unsigned-source
       - name: Set up isolated Android signer
         uses: android-actions/setup-android@v4
@@ -438,11 +438,11 @@ jobs:
           cmp -s original-package.txt fixed-signed/package-badging.txt || { echo "::error::Re-signing changed package or version identity"; exit 1; }
           printf '%s\n' "$actual" > fixed-signed/certificate.sha256
           sha256sum fixed-signed/app-core-fixed-signed.apk > fixed-signed/APK.sha256
-          echo "Pinned DKTS signer verified on isolated Core Preview package." >> "$GITHUB_STEP_SUMMARY"
-      - name: Retain fixed-signed Core Preview for trusted release selection
+          echo "Pinned DKTS signer verified on stable DKTS package." >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain fixed-signed Core Build for trusted release selection
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Fixed-Signed-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Fixed-Signed-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
           path: fixed-signed/
           if-no-files-found: error
           retention-days: 30
@@ -469,11 +469,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts signed-artifacts out
-          gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "DKTS-Core-Preview-*" --dir artifacts
+          gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "DKTS-Core-Windows-*" --dir artifacts
+          gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "DKTS-Core-Android-*" --dir artifacts
           # Trusted signing job only runs on DKTS main after the untrusted Core
           # compilation has finished. Its absence cannot masquerade as fixed.
           gh run download "$CORE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --pattern "DKTS-Core-Fixed-Signed-Android-*" --dir signed-artifacts
+            --pattern "DKTS-Fixed-Signed-Android-*" --dir signed-artifacts
           find artifacts signed-artifacts -maxdepth 12 -type f -print
           find artifacts signed-artifacts -maxdepth 12 -type f -print
       - name: Download same-build CSS hot bundle for CSS-only changes
@@ -495,7 +496,7 @@ jobs:
           assert(fs.statSync(file).size>10000,'capability database unexpectedly short');
           console.log('Native release capability database:',doc.schema);
           NODE
-      - name: Verify source identity and both Core Preview packages
+      - name: Verify source identity and both Core Build packages
         id: identity
         env:
           GH_TOKEN: ${{ github.token }}
@@ -541,7 +542,7 @@ jobs:
           path: out/
           if-no-files-found: error
           retention-days: 30
-      - name: Publish only the verified Core Preview, never a stable update
+      - name: Publish one DKTS V/a Release
         env:
           # Optional fine-grained token scoped to DK-Test-Studio Releases.
           # GitHub's inherited workflow_run GITHUB_TOKEN may be denied 403
@@ -577,4 +578,4 @@ jobs:
             gh release create "$tag" out/* --repo "$GITHUB_REPOSITORY" --target "$CORE_SHA" \
               --title "$title" --notes-file release-notes.txt --prerelease --latest=false
           fi
-          echo "Verified DKDS Core Preview: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published DKTS Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
