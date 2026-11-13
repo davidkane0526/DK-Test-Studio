@@ -321,3 +321,13 @@
 
 ## 2026-11-12 / Windows staging line-ending compatibility
 - PR #22 的 Ubuntu Framework staging 和 staged updater contract 已通过；Windows Core Preview 随后发现另一项跨平台问题：GitHub Windows runner 将固定 DKDS 文本文件检出为 CRLF，导致多行 `replaceExact` 锚点无法命中。已在 DKTS staging 副本的 `replaceExact` 读取阶段统一归一化 CRLF/CR 为 LF，并在轻量 fixture 中加入 CRLF 输入回归测试。只转换 DKTS 暂存副本，不修改 DKDS 上游工作区。等待 Windows/Android Core Preview 重跑验证。
+
+
+## 2026-11-13 / 单一 main 与 ZIP 云端开发流程（进行中）
+- 用户明确要求 GitHub 仓库只保留一个 `main`，未经明确许可不得创建其他分支；后续开发以完整项目 ZIP 为云端工作基线，每轮交付完整、干净的项目 ZIP。已将该要求写入 [R-20261113-001] 与 `AGENTS.md`，覆盖此前“保留 archive/backup 分支”的旧规则。
+- 审核 PR #22：修复 DKTS Core 的 Windows/Android/热更新统一 `V0.3.13 aNNN` 身份、稳定包名 `studio.dk.test`、固定签名门槛和同一 Release 资产契约。PR run [43364536174](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43364536174) 的 Ubuntu/Windows 198 项测试、DKDS SDK 1.19、只读上游检查、Windows Electron/Portable、Android API 36 模拟器及 staged updater contract 均通过。签名发布任务因 PR 事件而跳过；不代表正式 Release、OPPO 真机或 4200A 实测。
+- 已将 PR #22 squash 合并至 `main`，提交 `f9548c09ec592b5c1d20214754c0ffa0c3a35744`。此操作只涉及 DKTS，DKDS 上游未修改。
+- 新增 `.github/workflows/source-zip.yml`，提交 `0c09fc952d221ee50c0bbc99faaed8e18946a33c`，用于从指定 main SHA 导出 DKTS 源码 ZIP、固定 SHA 的 DKDS 只读依赖 ZIP、manifest 与 SHA256 校验文件。首次加入 workflow 的 push 未触发该新 workflow，需由后续 main push 验证其产物。
+- main push 的 Core workflow run [43377803530](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43377803530) 成功，但本次仅文档/workflow 变更，Core 原生构建、签名、发布任务按路径分类跳过；没有产生新的 EXE/APK Release。
+- 分支审计发现旧分支 `fix/native-update-cache-integrity` 虽落后 main 330 个提交，但包含当前 main 尚未覆盖的 Windows 缓存 EXE 每次执行前 SHA-256 复核、Android 缓存 APK 每次安装前 SHA-256 复核及对应回归测试。**不得整支合并**，应将这两项安全修复移植到当前 V/a 更新器并验证后再清理该分支。其余 `feat/unified-update-release` 已落后 main、三个 `ops/source-archive*` 仅包含临时归档 workflow；PR #22 对应分支在合并后也应删除。
+- 下一步：触发并下载 source ZIP artifact；在云端 ZIP 工作区移植 Windows/Android 更新缓存完整性校验并补齐测试；随后执行完整回归、更新日志、清理所有非 main 分支，交付最新完整 ZIP。真实 Windows/OPPO 设备更新回退及 4200A 实测仍未完成。

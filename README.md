@@ -50,3 +50,9 @@ node tools/stage-dkds-host.cjs ../DK-Data-Studio dist/dkts-framework-staging
 - 每次 main 提交还会在 Actions → **DKTS Web UI Demo** 的构建任务中生成可下载的 `DKTS-Web-UI-Demo-Offline` 静态网站包。
 - 本 Demo 现在由 **`web/fspro-workbench/` 的 FS-Pro 分层测试编辑工作区**构建（此前从旧版卡片页面构建的错误已纠正），使用 X/P 规划模型与 DKDS 绘图内核，只提供离线编辑；不可连接 Keithley 4200A、不可输出电压、不可把示例规划数据当作仪器原始测量。现有 Web UI 与目标 DKDS Core Host 仍不是同一阶段的架构，请勿把网页预览视为新宿主已完成。
 - 本地构建：`npm install && node tools/build-ui-system.cjs && node tools/prepare-dkds-plot-vendor.cjs && node tools/build-web-demo.cjs`，再通过静态 HTTP 服务打开 `dist/web-ui-demo/`。
+
+
+## 云端 ZIP 开发与单一分支策略
+- GitHub 仓库只保留 `main`。未经用户明确许可，不创建任何其他分支，不使用 feature/develop/临时分支或 PR 开发流程。
+- `.github/workflows/source-zip.yml` 在 main 更新时导出完整、干净的 DKTS 源码 ZIP，以及固定 SHA `20f056851a61d2144e9524c3ed568628d4b8557c` 的 DKDS 只读依赖 ZIP，并附带 manifest 和 SHA-256 校验文件。Actions artifact 名称为 `DKTS-Source-ZIP-<commit SHA>`，保留 30 天。
+- 后续以 DKTS ZIP 作为云端工作区基线，DKDS ZIP 仅供只读构建。每轮交付完整 DKTS ZIP；通过测试后直接提交到 main。

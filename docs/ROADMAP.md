@@ -7,7 +7,9 @@
 - [x] 关闭 DKDS 的 4200A FS-Pro 开发 PR，不合并到 DKDS。
 - [x] 在 DKTS GitHub 创建需求台账、开发日志、AGENTS.md，未来每次非“继续”用户要求必须记录。
 - [x] DKTS 正式 Release 不再双发相同插件 ID 的 legacy/native .dkplugin；实验插件独立。
-- [ ] 清理已确认属于本次工作的临时源码归档分支；先验证 ZIP 和 Actions 记录，再删除临时 ops 分支。
+- [x] 增加从唯一 main 导出 DKTS 源码 ZIP 和固定 SHA DKDS 只读依赖 ZIP 的 Actions 工作流。
+- [ ] 将历史 `fix/native-update-cache-integrity` 中仍有效的 Windows/Android 缓存完整性修复移植至当前 V/a 更新器并测试。
+- [ ] 审核并清理所有非 main 分支，最终仅保留 `main`。
 - [ ] 检查用户已安装 DKDS 的旧 4200 插件是内置、历史缓存还是手动安装，并根据实际来源清理。
 
 ## P1 — DKDS 框架成为 DKTS 真正的单一宿主
