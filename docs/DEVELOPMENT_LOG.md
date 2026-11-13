@@ -345,3 +345,12 @@
 
 
 - 2026-11-13 文档核对补记：当前 main 文档/路线图跟进提交为 `c2697bdb7cb71ff2dbfa91a95deb4ff3f9694676`；其源码归档 run [43379435241](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43379435241) 成功，artifact ID `14015687629`，bundle SHA-256 `cf49d96e248eb181622c0405e944dd6534e21f61757176a7b274823204fa8688`。DKDS pinned ZIP SHA-256 已核对为 `ebf283772098f0de6182c7472c9360dec88ec40de13248bd930cc2b54af73225`。此跟进提交不修改应用运行时代码；Core 应用构建仍以代码提交 `bb429d42` 对应的 `a190` run 为准。
+
+
+## 2026-11-13 / V0.3.13 a190 发布与 Android 系统状态栏修正
+- Core build run [43379001760](https://github.com/davidkane0526/DK-Test-Studio/actions/runs/43379001760) 最终全部成功：Windows Electron 实际启动与 Portable 构建、Android APK 编译、Android API 36 模拟器安装/启动、固定 DKTS 签名、DKDS 上游未修改检查、统一 Release 发布均通过。
+- 已发布 [DK Test Studio V0.3.13 a190](https://github.com/davidkane0526/DK-Test-Studio/releases/tag/dkts-v0.3.13-a190)：Windows EXE SHA-256 `48a88345a2f32d2992770b25ef0b171080dd44441fefb7abc30f31e6a272c9c3`；Android APK SHA-256 `3fe009329d6954567b25e5bffb74481ca069f304c86a1daf9437223a6e4bd9ea`；同一 Release 附带 4200A 能力数据库、SHA256SUMS 和 PROVENANCE。应用包版本仍为 `V0.3.13`。
+- Windows 真 Electron 截图与 report.json 证明 DKTS 4200A Core 工作区加载、4 个 DKDS PlotView 子窗口和 Page 编辑器可见；Android 手机竖屏与平板横屏 API 36 模拟器均启动成功，`crash.log` 和 `runtime-errors.txt` 为空。**这仅是模拟器/CI 验证，不是用户真机或 4200A 实测。**
+- 检查 Android 模拟器截图发现系统顶部状态栏仍显示时间、Wi-Fi/网络、电量图标，与用户此前要求隐藏系统状态栏、增加垂直空间不符。追补记录为 [R-20261103-002]。
+- 在 DKTS ZIP 工作区中仅修改 `tools/stage-dkds-host.cjs`：给派生 `mobile/app.json` 写入 `expo.androidStatusBar.hidden=true`；DKDS 固定上游只读。新增 staged contract 断言，要求生成的 DKTS Android 配置隐藏系统状态栏。固定 DKDS 的 `mobile/app.json`、Windows updater、Android updater 文件 SHA-256 前后相同。
+- 本地使用 `DKTS_BUILD_NUMBER=193` 暂存：`V0.3.13 a193`、Android `versionCode=100193`；保留 11 个非分析插件、排除 6 个分析插件；staged updater contract **PASS**；目标回归测试 **45/45 PASS**。Android API 36 新截图仍待下一次 main CI 构建确认，未提前宣称状态栏已隐藏成功。

@@ -14,9 +14,10 @@
 
 ## P1 — DKDS 框架成为 DKTS 真正的单一宿主
 - [x] 只读上游检查、按 manifest 保留全部非分析插件并临时排除分析插件、独立 DKTS 源码暂存流程。
-- [ ] 实际从 DKDS Core 构建 **DKTS 品牌** Windows Portable 和 Android APK，继承官方组件、主题、数据中心、图表、内存、SMB、AI、历史、网页服务。
+- [x] 实际从 DKDS Core 构建 **DKTS 品牌** Windows Portable 和 Android APK；V0.3.13 a190 Windows/Android Core build、API 36 模拟器与固定签名均通过，真实设备验收仍待完成。
 - [x] 将 Core 原生更新源绑定单一 DKTS Release；Windows/Android 按 V+aNNN 选择同版本新构建，校验资产身份、SHA-256，Android 额外校验稳定包名/版本码/签名；CSS-only bundle 使用四文件白名单并与完整包共用同一 Release。
 - [ ] 完成真实 Windows Portable/Android 固定签名设备上的应用内更新、403/504 恢复、热更新/全量升级与失败回退验收。
+- [ ] Android 派生宿主隐藏系统顶部状态栏（时间/Wi-Fi/蓝牙/电量），保留应用自身底部状态栏，并通过 API 36 手机/平板截图验证。
 - [ ] 对用户设备进行真正的 Windows/Android 视觉验证，逐项保留 DKDS 控件交互。
 
 ## P2 — FS-Pro 界面与同一套业务状态

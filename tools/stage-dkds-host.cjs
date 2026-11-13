@@ -56,6 +56,10 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
    mobile.expo.android.package=appId;
    mobile.expo.android.versionCode=identity.versionCode;
   }
+  // DKTS uses the full vertical canvas: hide Android's system status bar
+  // (clock, Wi-Fi, Bluetooth and battery icons) while retaining DKDS's own
+  // in-app bottom status bar and the existing hidden navigation bar.
+  mobile.expo.androidStatusBar={...(mobile.expo.androidStatusBar||{}),hidden:true};
   fs.writeFileSync(mobileFile,JSON.stringify(mobile,null,2)+'\n');
  }
  const mobilePkg=path.join(tmp,'mobile/package.json');

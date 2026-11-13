@@ -33,6 +33,7 @@ test('DKTS development is restricted to one main branch and clean ZIP snapshots'
  const branchPolicy=read('.github/workflows/main-only-branch-policy.yml');
  assert.match(agents,/Use only the GitHub `main` branch/);
  assert.match(req,/R-20261113-001/);
+ assert.match(req,/R-20261103-002/);
  assert.match(sourceZip,/git archive/);
  assert.match(sourceZip,/retention-days: 30/);
  assert.match(branchPolicy,/branches: \[main\]/);

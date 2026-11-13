@@ -38,6 +38,7 @@ assert.equal(appJson.expo.version,packageJson.version);
 assert.equal(appJson.expo.android.versionCode,profile.androidVersionCode);
 assert.equal(appJson.expo.android.versionCode,100000+Number(packageJson.dktsBuildId.slice(1)));
 assert.equal(appJson.expo.android.package,'studio.dk.test');
+assert.equal(appJson.expo.androidStatusBar?.hidden,true,'Android system status bar must be hidden in DKTS');
 assert.equal(profile.appId,'studio.dk.test');
 assert.match(android,/dkts-v/);
 assert.match(android,/DKTS-Android/);
