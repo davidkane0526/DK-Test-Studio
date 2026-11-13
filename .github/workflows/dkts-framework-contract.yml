@@ -368,7 +368,7 @@ jobs:
     needs: [change-scope, resolve-build-identity, android-core-preview]
     env:
       DKTS_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-scope.outputs.update_channel == 'full-app' && needs.android-core-preview.result == 'success' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot') && needs.android-core-preview.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     # The stable package ID is only releasable with the existing pinned signer.
