@@ -1,8 +1,7 @@
 name: DKTS Web UI Demo
 run-name: DKTS Web UI Demo
 on:
-  push:
-    branches: [main]
+  # Manually requested diagnostics only; never auto-compile during development.
   workflow_dispatch:
 permissions:
   contents: read

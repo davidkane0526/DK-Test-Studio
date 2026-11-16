@@ -198,7 +198,7 @@ test('stage DKDS Core into DKTS directory without touching upstream or shipping 
  }
 });
 
-test('DKTS Android versionCode is monotonic while visible package version remains fixed',()=>{
+test('DKTS Android versionCode is monotonic within a V while full-package V can advance',()=>{
  assert.equal(buildIdentity('').versionCode,1);
  assert.equal(buildIdentity('162').versionCode,100162);
  assert.equal(buildIdentity('163').versionCode,100163);
@@ -210,5 +210,5 @@ test('DKTS Android versionCode is monotonic while visible package version remain
  assert(workflow.includes('DKTS_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}'));
  assert(workflow.includes('actions/workflows/ui-update.yml/runs'));
  assert(workflow.includes('100000+DKTS_BUILD_NUMBER'));
- assert.equal(require('../package.json').version,'0.3.13');
+ assert.equal(require('../package.json').version,'0.3.21');
 });

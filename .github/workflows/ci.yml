@@ -1,9 +1,6 @@
 name: Validate DK Test Studio
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  # Manually requested diagnostics only; never auto-compile during development.
   workflow_dispatch:
 permissions:
   contents: read

@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
-test('the full package version stays fixed while each UI build has an a-number identity',()=>{
+test('package version and a-number are separate synchronized identities',()=>{
   const pkg=JSON.parse(read('package.json'));
   const gradle=read('android/app/build.gradle');
   const builder=read('tools/build-ui-bundle.cjs');
@@ -25,6 +25,8 @@ test('the canonical sequence and one unified Release share the same V/a identity
   const full=read('.github/workflows/dkts-framework-contract.yml');
   const pkg=JSON.parse(read('package.json'));
   assert.match(ui,/DKTS canonical release sequence/);
+  assert(ui.includes('run-name: DKTS V'+pkg.version+' a${{ github.run_number }}'));
+  assert.match(read('tools/resolve-core-build-identity.cjs'),/GITHUB_STEP_SUMMARY/);
   assert.match(ui,/DKTS_BUILD_NUMBER/);
   assert.doesNotMatch(ui,/gh release create/);
   assert.match(ui,/DKTS_BUILD_NUMBER: \$\{\{ github\.run_number \}\}/);

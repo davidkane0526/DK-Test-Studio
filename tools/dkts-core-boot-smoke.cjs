@@ -5,7 +5,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
  if(process.env.DKTS_CORE_BOOT_SMOKE!=='1')return;
  const dir=process.env.DKTS_CORE_SMOKE_DIR||path.join(APP_ROOT,'dist/core-boot-smoke');
  fs.mkdirSync(dir,{recursive:true});
- let busy=false,complete=false,attempts=0,lastProbe=null,lastProbeError='';
+ let busy=false,complete=false,attempts=0,lastProbe=null,lastProbeError='',phoneEvidence=null;
  const started=Date.now();
  const fail=error=>{
   if(complete)return;
@@ -40,7 +40,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      has4200Workspace:ids.includes('com.dkts.keithley-4200'),
      hasNativePageTabs:[...document.querySelectorAll('[data-dkds-unit-template="tabs-v2"]')]
       .some(node=>node.textContent.includes('扫描')&&
-       node.textContent.includes('目标')&&node.textContent.includes('页面变量')),
+       node.textContent.includes('目标')&&node.textContent.includes('策略')&&
+       !node.textContent.includes('页面变量')),
      hasTerminalEditor:[...document.querySelectorAll('[data-dkds-unit-template="panel-v2"]')]
       .some(node=>node.textContent.includes('端口设置'))||
       document.body.innerText.includes('端口设置'),
@@ -51,15 +52,15 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        document.body.innerText.includes('MOSFET')&&document.body.innerText.includes('项目'),
       scopedGeometryLoaded:(()=>{
        const root=document.querySelector('#dktsKeithley4200Page [data-dkts-shell]');
-       return !!root&&getComputedStyle(root).gridTemplateColumns.startsWith('252px');
+       const first=Number.parseFloat(getComputedStyle(root||document.body).gridTemplateColumns);
+       return !!root&&Number.isFinite(first)&&first>=220&&first<=245;
       })(),
       projectSidebarWidth:(()=>{
        const node=document.querySelector('#dktsKeithley4200Page [data-dkts-nav]');
        return node?Math.round(node.getBoundingClientRect().width):0;
       })(),
      terminalGrid:(()=>{
-      const grid=[...document.querySelectorAll('[data-dkds-unit-layout-recipe="form-grid-4"]')]
-       .find(node=>node.querySelectorAll('select').length===4);
+      const grid=document.querySelector('#dktsKeithley4200Page [data-dkts-port-desktop]');
       if(!grid)return {found:false,rows:0,columns:0};
       const style=getComputedStyle(grid);
       const coords=[...grid.querySelectorAll('select')]
@@ -105,7 +106,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        !state.hasDeviceNavigation||state.hasRedundant4200Header||
        state.nativePlotGroupCount!==1||state.nativePlotViewCount!==4||
        state.nativePlotHeaderCount!==4||!state.scopedGeometryLoaded||
-        state.projectSidebarWidth<238||state.projectSidebarWidth>300)return;
+        state.projectSidebarWidth<210||state.projectSidebarWidth>255)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();
@@ -158,24 +159,88 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
    })()`,true);
    if(!pageClicked)throw Error('FS-Pro Page navigation item unavailable in real Electron DOM');
    await new Promise(resolve=>setTimeout(resolve,350));
+   // Allocate D to SMU1 and assign Xsweep to verify the real terminal matrix
+   // and scan editor, rather than accepting a Page with every port set to None.
+   const configured=await win.webContents.executeJavaScript(`(()=>{
+    const toolbar=document.querySelector('#dktsKeithley4200Page [data-dkts-port-desktop]');
+    const ports=toolbar?[...toolbar.querySelectorAll('select')]:[];
+    if(ports.length!==4)return false;
+    ports[1].value='SMU1';ports[1].dispatchEvent(new Event('change',{bubbles:true}));
+    return true;
+   })()`,true);
+   if(!configured)throw Error('Page titlebar does not expose four ordered S/D/G/B selectors');
+   await new Promise(resolve=>setTimeout(resolve,220));
+   const roleConfigured=await win.webContents.executeJavaScript(`(()=>{
+    const row=document.querySelector('#dktsKeithley4200Page [data-dkts-terminal-setting="D"]');
+    const role=row?.querySelector('select');if(!role)return false;
+    role.value='X';role.dispatchEvent(new Event('change',{bubbles:true}));return true;
+   })()`,true);
+   if(!roleConfigured)throw Error('Assigned terminal row does not expose Condition/Xsweep/Psweep role selection');
+   await new Promise(resolve=>setTimeout(resolve,220));
    const pageEditor=await win.webContents.executeJavaScript(`(()=>{
     const tabs=[...document.querySelectorAll('[data-dkds-unit-template="tabs-v2"]')];
     const visible=tabs.some(el=>el.getBoundingClientRect().width>60&&
-     el.getBoundingClientRect().height>0&&el.textContent.includes('扫描'));
-    // A visible back-to-graphs action also contains 绘图区; it is NOT the graph
-    // panel heading. Inspect the unique graph surface instead of matching text.
+     el.getBoundingClientRect().height>0&&el.textContent.includes('扫描')&&
+     el.textContent.includes('目标')&&el.textContent.includes('策略'));
     const graph=document.querySelector('#dktsKeithley4200Page [data-dkts-view="graph"]');
-    const back=[...document.querySelectorAll('button')].some(el=>el.textContent.includes('← 绘图区'));
+    const back=[...document.querySelectorAll('button')].some(el=>el.textContent.includes('返回绘图区'));
+    const row=document.querySelector('#dktsKeithley4200Page [data-dkts-terminal-setting="D"]');
     return {visible,tabCount:tabs.length,backButton:back,
-     graphHeadingHidden:!graph||graph.getBoundingClientRect().height===0,plotHeaders:
-     document.querySelectorAll('#dktsKeithley4200Page [data-dkts-plot-header]').length};
+     graphHeadingHidden:!graph||graph.getBoundingClientRect().height===0,
+     terminalRows:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-terminal-setting]').length,
+     roleSelector:!!row?.querySelector('select'),
+     xSweepVisible:[...document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-template="panel-v2"]')]
+      .some(el=>el.textContent.includes('Xsweep')),
+     desktopPortToolbarVisible:(()=>{const el=document.querySelector('#dktsKeithley4200Page [data-dkts-port-desktop]');return !!el&&el.getBoundingClientRect().width>0;})(),
+     plotHeaders:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-plot-header]').length};
    })()`,true);
-   if(!pageEditor.visible||!pageEditor.backButton||!pageEditor.graphHeadingHidden)throw Error('FS-Pro Page editor hierarchy invalid: '+JSON.stringify(pageEditor));
+   if(!pageEditor.visible||!pageEditor.backButton||!pageEditor.graphHeadingHidden||
+      pageEditor.terminalRows!==1||!pageEditor.roleSelector||!pageEditor.xSweepVisible||
+      !pageEditor.desktopPortToolbarVisible)
+    throw Error('FS-Pro Page editor hierarchy invalid: '+JSON.stringify(pageEditor));
    const pageImage=await win.webContents.capturePage();
    if(pageImage.isEmpty())throw Error('Core Page editor screenshot empty');
    fs.writeFileSync(path.join(dir,'core-host-page.png'),pageImage.toPNG());
+   // Phone-width Page editor: the four desktop selectors must collapse into a
+   // single Core popover action instead of clipping the titlebar.
+   const phoneOldSize=win.getSize();
+   try{
+    win.setMinimumSize(320,400);
+    win.setSize(390,844);
+    await new Promise(resolve=>setTimeout(resolve,500));
+    const phone=await win.webContents.executeJavaScript(`(()=>{
+     const desktop=document.querySelector('#dktsKeithley4200Page [data-dkts-port-desktop]');
+     const mobile=document.querySelector('#dktsKeithley4200Page [data-dkts-port-mobile]');
+     const visible=node=>!!node&&node.getBoundingClientRect().width>0&&getComputedStyle(node).display!=='none';
+     return {desktopVisible:visible(desktop),mobileVisible:visible(mobile),
+      width:window.innerWidth,height:window.innerHeight};
+    })()`,true);
+    if(phone.width>430||phone.width<320||phone.desktopVisible||!phone.mobileVisible)
+     throw Error('Phone titlebar must use the compact port action: '+JSON.stringify(phone));
+    const phoneImage=await win.webContents.capturePage();
+    if(phoneImage.isEmpty())throw Error('Phone Page editor screenshot empty');
+    fs.writeFileSync(path.join(dir,'core-host-phone-page.png'),phoneImage.toPNG());
+    const opened=await win.webContents.executeJavaScript(`(()=>{
+     const wrapper=document.querySelector('#dktsKeithley4200Page [data-dkts-port-mobile]');
+     const button=wrapper?.querySelector('button')||wrapper;
+     if(!button)return false;button.click();return true;
+    })()`,true);
+    if(!opened)throw Error('Phone port mapping action missing');
+    await new Promise(resolve=>setTimeout(resolve,180));
+    const popover=await win.webContents.executeJavaScript(`(()=>{
+     const text=document.body.innerText;
+     return ['端口映射','源极 (S)','漏极 (D)','栅极 (G)','衬底 (B)','应用']
+      .every(value=>text.includes(value));
+    })()`,true);
+    if(!popover)throw Error('Phone port mapping popover does not expose all four logical terminals');
+    phoneEvidence={...phone,popover:true,allFourPorts:true};
+    const popImage=await win.webContents.capturePage();
+    if(popImage.isEmpty())throw Error('Phone port mapping Popover screenshot empty');
+    fs.writeFileSync(path.join(dir,'core-host-phone-port-popover.png'),popImage.toPNG());
+   }finally{win.setSize(...phoneOldSize);}
    const report={ok:true,kind:'DKTS-derived-real-DKDS-Electron-host',
     pageEditor,
+    phoneEvidence,
     narrowScreenshot:narrowSize,
     ...state,screenSize:size,uniqueSampleColors:unique.size,
     previewOnly:true,hasOutputVerification:false,attempts,elapsedMs:Date.now()-started};

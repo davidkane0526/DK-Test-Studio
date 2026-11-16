@@ -1,41 +1,106 @@
-/* DKTS-only domain geometry. No DKDS chrome, controls, plot headers or
-   application theme is restyled here. Plugin API 1.19 manifest styles asset. */
+/* DKTS-only workspace geometry. DKDS Unit Templates remain the sole owner of
+   component paint, controls, tabs, plot headers, gestures and theme tokens. */
 #dktsKeithley4200Page [data-dkts-shell]{
- display:grid!important;grid-template-columns:252px minmax(0,1fr)!important;
- position:relative;min-width:0;min-height:0;max-width:100%;
+ position:relative;min-width:0;min-height:0;max-width:100%;height:100%;
  align-items:stretch;overflow:visible
 }
 #dktsKeithley4200Page [data-dkts-nav]{
  min-width:0;min-height:0;box-sizing:border-box;
- padding:9px 10px 12px;overflow-y:auto;overflow-x:hidden
+ padding:10px 10px 12px;overflow-y:auto;overflow-x:hidden
 }
 #dktsKeithley4200Page [data-dkts-work]{
- min-width:0;min-height:0;overflow:auto
+ min-width:0;min-height:0;width:100%;height:100%;overflow:hidden
 }
 #dktsKeithley4200Page [data-dkts-editor]{
- min-width:0;min-height:0;box-sizing:border-box;
- padding:10px 12px 16px;overflow:auto
+ min-width:0;min-height:0;height:100%;overflow:hidden;
+ padding:10px 12px 12px
 }
+#dktsKeithley4200Page .dkts-page-heading,
+#dktsKeithley4200Page .dkts-editor-tabs{
+ flex:0 0 auto;min-width:0
+}
+#dktsKeithley4200Page .dkts-editor-tabs{
+ position:sticky;top:0;z-index:4;padding-block:2px;
+ overflow-x:auto;overscroll-behavior-x:contain;
+ scrollbar-width:none;white-space:nowrap
+}
+#dktsKeithley4200Page .dkts-editor-tabs::-webkit-scrollbar{display:none}
+#dktsKeithley4200Page .dkts-parameter-content{
+ flex:1 1 auto;min-width:0;min-height:0;overflow:auto;
+ padding:2px 4px 12px 0;scrollbar-width:thin
+}
+#dktsKeithley4200Page .dkts-page-info-region{flex:0 0 auto;min-width:0}
+#dktsKeithley4200Page .dkts-terminal-control-group{min-width:0;align-items:center;gap:6px}
+#dktsKeithley4200Page .dkts-terminal-toolbar{
+ flex:0 1 auto;min-width:0;max-width:100%;align-items:center;
+ overflow-x:auto;overflow-y:hidden;scrollbar-width:none
+}
+#dktsKeithley4200Page .dkts-terminal-toolbar::-webkit-scrollbar{display:none}
+#dktsKeithley4200Page .dkts-terminal-field{
+ flex:0 0 96px;width:96px;min-width:92px;max-width:96px
+}
+#dktsKeithley4200Page [data-dkts-port-mobile]{display:none}
+#dktsKeithley4200Page .dkts-mobile-port-grid{min-width:0}
+#dktsKeithley4200Page .dkts-frame-actions{
+ min-width:0;max-width:100%;align-items:center;gap:3px;
+ flex:0 0 auto;white-space:nowrap
+}
+#dktsKeithley4200Page [data-dkts-plot-header]{
+ min-width:0;max-width:100%;box-sizing:border-box
+}
+
+#dktsKeithley4200Page .dkts-sweep-related,
+#dktsKeithley4200Page .dkts-limits-column,
+#dktsKeithley4200Page .dkts-sweep-metadata-column,
+#dktsKeithley4200Page .dkts-limit-terminal,
+#dktsKeithley4200Page .dkts-limit-row,
+#dktsKeithley4200Page .dkts-page-var-row,
+#dktsKeithley4200Page .dkts-terminal-setting{min-width:0;max-width:100%}
+#dktsKeithley4200Page .dkts-terminal-setting{padding-block:3px;align-items:end;gap:6px}
+#dktsKeithley4200Page .dkts-limit-row,
+#dktsKeithley4200Page .dkts-page-var-row{gap:6px}
+#dktsKeithley4200Page .dkts-project-tree,
+#dktsKeithley4200Page .dkts-sweep-structure,
+#dktsKeithley4200Page .dkts-sweep-axis{
+ min-width:0;max-width:100%
+}
+#dktsKeithley4200Page .dkts-sweep-segments{
+ gap:0;min-width:0;container-type:inline-size
+}
+#dktsKeithley4200Page .dkts-sweep-segment{
+ min-width:0;padding:6px 0;align-items:end
+}
+#dktsKeithley4200Page .dkts-sweep-segment-head{
+ display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(118px,1.15fr) minmax(0,1fr) 34px;
+ gap:6px;align-items:center;min-width:0;padding:0 0 4px
+}
+#dktsKeithley4200Page .dkts-sweep-segment-head>*{
+ min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-inline:8px
+}
+#dktsKeithley4200Page .dkts-sweep-field{min-width:0}
 #dktsKeithley4200Page [data-dkts-view="graph"]{
- min-width:0;min-height:0;box-sizing:border-box;
- padding:8px 10px;display:flex!important;flex-direction:column;gap:7px
+ min-width:0;min-height:0;box-sizing:border-box;padding:8px 10px
 }
 #dktsKeithley4200Page [data-dkts-plot-group]{
- flex:1;min-width:0;min-height:0;overflow:auto;scrollbar-width:thin
+ flex:1 1 auto;min-width:0;min-height:0;overflow:auto;scrollbar-width:thin
 }
-#dktsKeithley4200Page [data-dkts-new-page]{margin-top:7px}
+#dktsKeithley4200Page [data-dkts-plot-frame]{min-width:0;min-height:176px}
+#dktsKeithley4200Page [data-dkts-plot-header]{min-width:0}
 #dktsKeithley4200Page [data-dkts-nav-scrim],
 #dktsKeithley4200Page [data-dkts-nav-toggle]{display:none}
-@media(max-width:900px){
- #dktsKeithley4200Page [data-dkts-shell]{
-  grid-template-columns:minmax(0,1fr)!important
- }
- #dktsKeithley4200Page [data-dkts-nav]{
-  position:absolute;left:0;top:0;bottom:0;width:min(280px,84vw);
-  z-index:21;transform:translateX(-105%);transition:transform 150ms ease;
 
+@container (min-width:621px){
+ #dktsKeithley4200Page .dkts-sweep-segment .dkds-field-label-row{display:none}
+}
+@container (max-width:620px){
+ #dktsKeithley4200Page .dkts-sweep-segment-head{display:none}
+}
+@media(max-width:900px){
+ #dktsKeithley4200Page [data-dkts-nav]{
+  position:absolute;left:0;top:0;bottom:0;width:min(300px,84vw);
+  z-index:21;transform:translateX(-105%);transition:transform 150ms ease;
+  padding:12px 10px;max-width:84vw
  }
- #dktsKeithley4200Page [data-dkts-work]{grid-column:1/-1}
  #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav]{
   transform:translateX(0)
  }
@@ -44,8 +109,25 @@
  }
  #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav-scrim]{display:block}
  #dktsKeithley4200Page [data-dkts-nav-toggle]{display:inline-flex}
+ #dktsKeithley4200Page [data-dkts-editor]{padding:9px 10px 10px}
+ #dktsKeithley4200Page [data-dkts-view="graph"]{padding:7px;gap:6px}
 }
-@media(max-width:540px){
- #dktsKeithley4200Page [data-dkts-editor]{padding:8px 8px 14px}
- #dktsKeithley4200Page [data-dkts-view="graph"]{padding:6px;gap:5px}
+/* Page titlebars lose room before the viewport itself reaches phone width:
+   switch to one native Port action on tablets and narrow desktop windows. */
+@media(max-width:980px){
+ #dktsKeithley4200Page .dkts-terminal-toolbar{
+  position:absolute;inline-size:0;block-size:0;overflow:hidden;
+  visibility:hidden;pointer-events:none
+ }
+ #dktsKeithley4200Page [data-dkts-terminal-divider]{display:none}
+ #dktsKeithley4200Page [data-dkts-port-mobile]{display:inline-flex}
+}
+@media(max-width:620px){
+ #dktsKeithley4200Page [data-dkts-editor]{padding:7px 8px 9px}
+ #dktsKeithley4200Page .dkts-parameter-content{padding-right:1px}
+ #dktsKeithley4200Page [data-dkts-view="graph"]{padding:5px;gap:5px}
+ #dktsKeithley4200Page [data-dkts-plot-frame]{min-height:160px}
+}
+@media(prefers-reduced-motion:reduce){
+ #dktsKeithley4200Page [data-dkts-nav]{transition:none}
 }

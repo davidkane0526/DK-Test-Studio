@@ -41,9 +41,27 @@ test('DKTS Core mobile drawer uses SDK Units, scoped stylesheet, and close inter
  assert.deepEqual(manifest.styles,['ui-shell.css']);
  const css=fs.readFileSync(path.join(root,'ui-shell.css'),'utf8');
  assert(css.includes('#dktsKeithley4200Page [data-dkts-shell]'));
- assert(css.includes('grid-template-columns:252px minmax(0,1fr)'));
+ const plugin=fs.readFileSync(path.join(root,'plugin.js'),'utf8');
+ assert(plugin.includes("variant:'sidebar-main-compact'"),
+  'desktop sidebar width belongs to the canonical DKDS compact Unit Layout recipe');
+ assert(plugin.includes('maxWidth:900'),
+  'tablet/phone breakpoint belongs to the DKDS Unit Layout geometry');
+ assert(!css.includes('!important'),'DKTS does not override Core grid geometry with !important');
  assert(css.includes('max-width:900px'));
  assert(css.includes('data-dkts-nav-toggle'));
  assert(css.includes('data-dkts-plot-group'));
+ assert(css.includes('data-dkts-port-mobile'));
+ assert(css.includes('min-height:176px'));
+ const smoke=fs.readFileSync(path.join(__dirname,'../tools/dkts-core-boot-smoke.cjs'),'utf8');
+ assert(smoke.includes('core-host-phone-page.png'));
+ assert(smoke.includes('core-host-phone-port-popover.png'));
+ assert(smoke.includes('allFourPorts:true'));
+ const runner=fs.readFileSync(path.join(__dirname,'../tools/run-core-host-smoke.cjs'),'utf8');
+ assert(runner.includes('result.phoneEvidence?.popover!==true'));
+ assert(runner.includes('core-host-phone-port-popover.png'));
+ assert(css.includes('.dkts-sweep-segment'));
+ assert(css.includes('.dkts-parameter-content'));
+ assert(css.includes('prefers-reduced-motion'));
+ assert.doesNotMatch(css,/\bbackground\s*:/,'plugin-owned scrim must not bypass DKDS theme paint');
  assert(!css.includes('height:calc(100dvh'),'viewport/status bar remains DKDS-owned');
 });

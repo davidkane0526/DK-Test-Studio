@@ -4,7 +4,7 @@ const root=require('node:path').resolve(__dirname,'../integrations/dkds-native')
 const manifest=JSON.parse(fs.readFileSync(root+'/plugin.json','utf8'));
 const js=fs.readFileSync(root+'/plugin.js','utf8'),model=fs.readFileSync(root+'/model.js','utf8'),shell=fs.readFileSync(root+'/ui-shell.js','utf8'),css=fs.readFileSync(root+'/ui-shell.css','utf8');
 assert.equal(manifest.id,'com.dkts.keithley-4200');
-assert.equal(manifest.version,'0.8.1');
+assert.equal(manifest.version,'0.8.8');
 assert.equal(manifest.apiVersion,'1.19.0');
 assert.equal(manifest.pluginType,'workbench');
 assert.equal(manifest.workspace.role,'top');
@@ -22,24 +22,53 @@ assert.deepEqual(manifest.scripts,['model.js','measurement-data.js','ui-shell.js
 assert.match(shell,/data-dkts-nav-open/);
 assert.match(css,/max-width:900px/);
 assert.match(css,/data-dkts-plot-group/);
+assert.match(css,/data-dkts-port-mobile/);
+assert.match(css,/max-width:980px[\s\S]*data-dkts-port-mobile/,'tablet and phone titlebars replace four selectors with one port action');
+assert.match(css,/min-height:176px/,'four independent plot cards use compact content height on desktop');
 assert.ok(!/\bfetch\s*\(/.test(shell),'UI geometry remains entirely offline');
 assert.ok(/ctx\.ui\.topWorkspace\.register/.test(js));
-assert.ok(/units\.prime\.build/.test(js));
-const portPrimeSource=js.slice(js.indexOf('const portPrime=units.prime.build('),js.indexOf('wb.compose('));
-assert.ok(portPrimeSource.includes("placementControl:'surface'"),
- 'inspector PRIME must expose DKDS surface-owned canonical controls');
-assert.ok(portPrimeSource.includes("chrome:'auto'")&&portPrimeSource.includes("portPrime.chrome='auto'"),
- 'generated Core inspector chrome must remain compatible with movable existingNode runtime');
-assert.ok(!portPrimeSource.includes("header:{mode:'generate'"),
- 'let unitTemplates generate the canonical movable PRIME header');
-assert.ok(/if\(term\.role==='CONDITION'\)numericField\(grid,term\.logical,'bias'/.test(js),
+assert.doesNotMatch(js,/units\.prime\.build|portPrime|portFields/,
+ 'the Page Terminal strip is the single port-assignment surface; do not duplicate it in PRIME');
+assert.match(js,/primes:\[\]/,'the native workbench must not compose a duplicate port inspector');
+assert.match(js,/selected:routine\.id===s\.activeRoutineId/,'Project Explorer highlights the active Routine');
+assert.match(js,/selected:page\.id===s\.activeId/,'Project Explorer highlights the active Page');
+assert.ok(js.includes("repeat(6,minmax(80px,1fr))"),'scan segments use the SDK-approved six-column geometry');
+assert.match(js,/responsiveGeometry:\[\{maxWidth:900,geometry:\{gridTemplateColumns:'minmax\(0,1fr\)',gap:'0px'\}\}\]/,
+ 'DKDS Unit Layout only accepts explicit 0px, never bare 0, in responsive gap geometry');
+assert.match(js,/dkts-sweep-segment-head/,'scan segments expose a dedicated column-header row');
+assert.match(js,/units\.summary\.create/,'scan summary uses DKDS summary and metric Units');
+assert.match(js,/id:'add-test-page'[\s\S]*items:\(\)=>model\.KINDS\.map/,'Project Explorer exposes one compact test-type menu');
+assert.match(js,/id:'add-test-'\+kind\.id/,'each test type creates a Page directly from the Test Library menu');
+assert.match(js,/const PAGE_TABS=\[\['sweep','扫描 Sweep'\],\['target','目标 Target'\],\['strategy','策略 Strategy'\]\]/,'Edit Page uses only the three localized FS-Pro primary tabs');
+assert.match(js,/renderSweepTriptych\(parameters,p,s\)/,'Limits, Page Variables and Associate Spec remain under Sweep');
+assert.match(js,/variant:'two-card-grid'[\s\S]*className:'dkts-sweep-related'/,'Sweep related tools use the pinned DKDS two-card responsive layout');
+assert.match(js,/renderPageInfo\(pageInfoRegion,p\)/,'Page Info remains outside the three primary tabs');
+assert.match(js,/className:'dkts-terminal-toolbar'/,'terminal assignment controls are integrated into the Page titlebar');
+assert.match(js,/controlOnly:true,controlClassName:'dkts-terminal-field'/,'compact S/D/G/B selectors retain their explicit field width even without labels');
+assert.doesNotMatch(js,/inlineTerminals|dkts-terminal-strip/,'do not keep a duplicate Terminal card below the Page header');
+assert.match(js,/units\.divider\.create\(terminalGroup,\{variant:'vertical'\}\)/,'terminal selectors are separated from Page actions with a Core Divider Unit');
+assert.ok(js.indexOf("pageInfoRegion=units.layout.create(editor")<js.indexOf("editorTabs=units.layout.create(editor"),'Page Info is positioned before the primary tabs');
+assert.doesNotMatch(js,/id:'run-disabled'/,'do not display a nonfunctional disabled test button');
+assert.doesNotMatch(js,/editorSection==='limits'|editorSection==='variables'|editorSection==='spec'/,'Limits, variables and spec must not become primary tabs');
+assert.match(js,/dkts-sweep-segment/,'scan segment rows expose DKTS-scoped layout hooks');
+assert.ok(/if\(term\.role==='CONDITION'\)\s*\{\s*numericField\(row,term\.logical,'bias'/.test(js),
  'fixed-bias editing must remain CONDITIONAL and not duplicate X/P scan segment fields');
+assert.match(js,/label:'端口用途',value:term\.role/,'Xsweep/Psweep roles are assigned in the terminal matrix rather than a second port picker');
+assert.match(js,/id:'mobile-port-map'/,'mobile Page titlebar exposes a compact port mapping action');
+assert.match(js,/id:'apply-port-map'/,'mobile port changes are applied as one validated project-state transaction');
+assert.doesNotMatch(js,/label:'Xsweep 端口'|label:'Psweep 端口'/,'do not duplicate physical port mapping in Sweep Setup');
+assert.match(js,/title:'端口设置'/,'terminal rows use a localized, unified port setting panel');
+assert.match(js,/title:'页面信息'/,'Page Info is localized');
+assert.match(js,/const assigned=model\.visible\(p\)/,'Target controls must filter out unassigned None ports');
+assert.match(js,/disabled:assigned\.length===0/,'Target selector is disabled when no physical port is assigned');
+assert.match(js,/title:'关联规格'/,'Project Explorer Spec section is localized');
+assert.match(js,/TEST_TYPE_LABELS=Object\.freeze\(\{DC:'直流',Pulse:'脉冲'/,'DC/Pulse/Cycle/Time/CV test type metadata is localized');
 assert.ok(/units\.scientificPlot\.create/.test(js));
 assert.match(js,/units\.plotGroup\.create\(/,'native DKDS PlotGroup owns grouping/resize');
 assert.match(js,/frameGroup\.adoptPlot\(/,'canonical PlotView grouping');
 assert.match(js,/workRegion\.replaceChildren\(next\)/,'FS-Pro top-level graph or full Page editor is the only mounted Core workspace destination');
 assert.ok(!js.includes("plotRegion.style.display=editorOpen"),'never rely on DKDS geometry style overrides for navigation');
-assert.match(js,/controlOnly:true/,'plot header selectors must not render a second label row');
+assert.match(js,/id:'dkts-frame-kind-'/,'plot display type uses a compact canonical DKDS menu action');
 assert.ok(js.split('units.panel.create(').slice(1).every(x=>!x.slice(0,130).includes("variant:'standard'")),
  'DKDS panel Unit supports headed/plot-card, never the nonexistent standard variant');
 assert.ok(/ctx\.data\.sources\.list/.test(js));
@@ -284,4 +313,16 @@ assert.ok(sampleCalls.every(c=>c.limit<=65536));
 assert.equal(sampleCalls.filter(c=>c.key==='xx').reduce((n,c)=>n+c.limit,0),4096+48,
  'separate 4096-row preview and 48-row TypedArray smoke each honor their budget');
 assert.match(preview.label,/preview 4\/8/);
-console.log('DKTS Core-native plugin: manifest, 5 types, project state, None/SMU mapping, range guards PASS');
+console.log('DKTS Core-native plugin: manifest, 10 test types, project state, None/SMU mapping, range guards PASS');
+
+assert.match(css,/dkts-parameter-content/,'Page parameters must own a bounded scroll region');
+assert.match(css,/dkts-sweep-segment/,'sweep rows use compact Unit layout rows rather than nested cards');
+assert.doesNotMatch(css,/\b(?:background|border|box-shadow|color)\s*:/,
+ 'plugin stylesheet may own geometry only; all visual paint remains Core/Theme-owned');
+assert.match(js,/units\.divider\.create\(list/,
+ 'scan segment separators use the DKDS Divider Unit');
+assert.match(css,/container-type:inline-size/,'scan rows adapt to their actual content width');
+assert.doesNotMatch(css,/!important/,'DKTS geometry must not override DKDS Unit layout with !important');
+assert.doesNotMatch(css,/grid-template-columns:240px/,'sidebar geometry is owned by the Unit Layout recipe');
+assert.match(js,/variant:'sidebar-main-compact'/,'desktop sidebar uses the canonical 235px DKDS compact layout recipe');
+assert.match(js,/maxWidth:900/,'tablet and phone use the native DKTS project drawer');

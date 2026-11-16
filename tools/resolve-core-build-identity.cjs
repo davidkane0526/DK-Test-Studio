@@ -10,4 +10,6 @@ const output=[
   'app_version='+pkg.version
 ].join('\n')+'\n';
 if(process.env.GITHUB_OUTPUT)fs.appendFileSync(process.env.GITHUB_OUTPUT,output);
-process.stdout.write(output);
+const summary=`## DK Test Studio build identity\n\n- Package version: **V${pkg.version}**\n- Development/update identity: **${identity.buildId}**\n- Combined identity: **V${pkg.version} ${identity.buildId}**\n- Android versionCode: **${identity.versionCode}**\n`;
+if(process.env.GITHUB_STEP_SUMMARY)fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,summary);
+process.stdout.write(output+summary);

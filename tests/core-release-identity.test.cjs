@@ -7,7 +7,7 @@ const {buildIdentity,fromRunNumber}=require('../tools/core-build-identity.cjs');
 const {classify}=require('../tools/classify-core-update.cjs');
 const root=path.resolve(__dirname,'..');
 
-test('one canonical aNNN maps to the same Android versionCode without changing V',()=>{
+test('one canonical aNNN maps to Android versionCode while V remains independently versioned',()=>{
   assert.deepEqual(buildIdentity('a184'),{buildId:'a184',buildNumber:184,versionCode:100184});
   assert.deepEqual(fromRunNumber('185'),{buildId:'a185',buildNumber:185,versionCode:100185});
   assert.throws(()=>buildIdentity('a0'),/positive aNNN/);
@@ -41,7 +41,11 @@ test('DKTS Core staging stamps the same identity into Windows and Android',()=>{
   assert.match(stage,/DKTS-Android-V/);
   assert.match(stage,/dkts-v/);
   assert.doesNotMatch(stage,/previewVersionCode/);
-  assert.equal(require('../package.json').version,'0.3.13');
+  assert.equal(require('../package.json').version,'0.3.21');
+  assert.equal(classify(['tools/stage-dkds-host.cjs']).updateChannel,'full-app');
+  const versioning=fs.readFileSync(path.join(root,'docs/RELEASE_VERSIONING.md'),'utf8');
+  assert.match(versioning,/必须完整安装的变更.*递增程序包版本/);
+  assert.match(versioning,/仅 CSS\/UI 热更新的变更.*保持当前/);
   const coreWorkflow=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
   assert.match(coreWorkflow,/update_channel == 'full-app'/);
   assert.match(coreWorkflow,/revision=\"\$CORE_BUILD_NUMBER\"/);

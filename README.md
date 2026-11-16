@@ -11,7 +11,9 @@
 - FS-Pro Project → Device → Routine → Page/Spec、Project 层的四个独立 DKDS PlotView、Page 全宽参数编辑，以及 DKDS Data Center / 原始 CSV 接口已有实现。实际 KXCI 输出仍禁用，尚未经过真实 4200A 验收。
 - Windows 原生 Electron Core 工作区与多图窗的启动/截图回归在 `8533798df` 通过；Windows Portable 打包、Android API 36 模拟器和 APK 完整 CI 仍应以各次 Actions 最终结果为准。OPPO 平板及真实仪器未验收。
 - `npm start` 现在运行 `tools/launch-core-mainline.cjs`：若未设置 `DKTS_DKDS_SOURCE`，会在 DKTS 自己的 `.dkts-cache/` 内获取固定 SHA 的只读 DKDS 上游，暂存真实 Core、执行原生构建并启动 Electron；不会修改用户的 DKDS checkout。`npm run start:legacy` 和 `npm run dist:win:legacy` 保留旧壳作历史对照，**不作为新架构正式发布入口**。新 Core 构建由 [只读 Core 工作流](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 构建。
-- 当前改为**单一 DKTS 原生应用身份**：Windows/Android 共用 `V0.3.13 aNNN`，Android 包名为 `studio.dk.test`，使用原 DKTS 固定签名；不再发布 `studio.dk.test.corepreview` 第二套应用。一个 Release 同时包含 Windows Portable、固定签名 APK、硬件能力数据库和校验清单。CSS-only 修改额外把 `DKDS-UI-bundle.json` 放进同一个 Release，且仍会构建完整 EXE/APK。旧 `a159` 等 Core Preview Release 仅保留为历史记录，不再是当前更新源。真实设备安装、热更/全量升级与回退仍待 OPPO/Windows 实机验收。
+- 当前改为**单一 DKTS 原生应用身份**：Windows/Android 共用 `V0.3.21 aNNN`，Android 包名为 `studio.dk.test`，使用原 DKTS 固定签名；不再发布 `studio.dk.test.corepreview` 第二套应用。一个 Release 同时包含 Windows Portable、固定签名 APK、硬件能力数据库和校验清单。CSS-only 修改额外把 `DKDS-UI-bundle.json` 放进同一个 Release，且仍会构建完整 EXE/APK。旧 `a159` 等 Core Preview Release 仅保留为历史记录，不再是当前更新源。真实设备安装、热更/全量升级与回退仍待 OPPO/Windows 实机验收。
+- 当前 UI 优化云端工作区身份为 `V0.3.21 a201`。a200 是本地暂存编号，正式 `aNNN` 仍以该源码提交在 `main` 上对应的 `ui-update.yml` 运行号为准；本轮尚未发布正式 APK/EXE。
+- V0.3.20 a200 本轮优化 PlotView 标题栏，图形类型改为带选中标记的 DKDS 原生“显示”菜单；数据源和原始 CSV 仍在“数据”菜单。980px 及以下标题栏收敛 S/D/G/B 为单一端口 Popover；数值、页面名称/备注、变量单位的无变化编辑不再触发工作区刷新；Sweep 删除重复说明。已完成 DKDS SDK 插件验证与离线 CSS 几何检查；真实 Windows/Android 视觉验收仍待执行。
 
 ## 项目入口
 
@@ -25,7 +27,7 @@
 
 ## 版本与安装包（单一发行路线）
 
-- 统一身份为 `V0.3.13 aNNN`。`aNNN` 沿用 `ui-update.yml` 的历史运行编号，但该文件现在只分配序号，不再发布第二个 UI Release；Core 工作流按同一 Git SHA 读取该编号。
+- 当前云端快照身份为 `V0.3.21 a201`（正式编号待 main Actions 确认）。仅 CSS 白名单热更新保持 V、递增 a；任何需要完整安装的原生/运行时变更都必须递增 V 和 a。`ui-update.yml` 负责提供单调 aNNN，Core 工作流按同一 Git SHA 读取该编号。
 - 每个应用代码变更都构建完整 Windows Portable 和固定签名 Android APK。CSS-only 修改还会生成四文件白名单 `dkds-ui-v2` 热更新包，并与 EXE/APK 放在同一个 `dkts-vX.Y.Z-aNNN` Release。
 - 当前资产命名为 `DKTS-Windows-VX.Y.Z-aNNN.exe`、`DKTS-Android-VX.Y.Z-aNNN.apk`，可选 `DKDS-UI-bundle.json`，以及硬件能力数据库、SHA256 和来源清单。
 - 原生更新器和 UI 热更新器共用同一个 Release 标签与 V/a 身份；Android 使用原有 `studio.dk.test` 包名及固定签名，不再生成第二个 `corepreview` 应用。历史 Core Preview Releases 保留但不参与新版本更新。
@@ -58,3 +60,15 @@ node tools/stage-dkds-host.cjs ../DK-Data-Studio dist/dkts-framework-staging
 - 后续以 DKTS ZIP 作为云端工作区基线，DKDS ZIP 仅供只读构建。每轮交付完整 DKTS ZIP；通过测试后直接提交到 main。
 
 - `.github/workflows/main-only-branch-policy.yml` 在 main 更新后清理所有非 main 分支，并检查仓库最终只剩 `main`。
+
+
+## 云端 ZIP 开发与最终构建（2026-11-16）
+
+- 日常开发只在最新交付的 DKTS 源码 ZIP 工作区进行；SDK/Node/布局测试不等于 EXE/APK 编译。
+- GitHub 保留唯一 `main`。不建立开发分支，不在开发阶段为每次修改触发 GitHub Actions 构建。
+- 仅最终源码验收完成后，直接提交到 `main`，提交信息带 `[DKTS-FINAL-BUILD]`，由唯一 Core Release Actions 工作流编译 Windows Portable 和 Android APK、做签名与校验并发布。
+- 普通 `main` 提交不会触发原生安装包编译；其他大型 CI/预览工作流仅能手动诊断。开发包的 `aNNN` 编号为暂存值，正式版本从 `ui-update.yml` 对应 SHA 确认。
+
+### 同源网页预览（V0.3.21 a201）
+
+通过 `DKTS-Core-Desktop-Same-Source-Preview-V0.3.21.zip` 运行，直接使用派生的 DKDS Core 与 `integrations/dkds-native` 原生插件 HTML/CSS/JavaScript，不采用独立的 FS-Pro Demo 实现。仅模拟 UI，仪器执行、原生文件对话框、安装更新均不可用。首次预览需要联网下载固定的 D3 v7.9.0。

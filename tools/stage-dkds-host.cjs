@@ -90,6 +90,16 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   if(value.split(search).length!==2)throw Error('Pinned DKDS compatibility mismatch: '+file+' / '+search.slice(0,60));
   fs.writeFileSync(target,value.replace(search,replace),'utf8');
  };
+ // The upstream App mounts expo-status-bar without `hidden`, which can
+ // override androidStatusBar.hidden from app.json and leave system icons
+ // visible. Hide it at the mounted component as well in the DKTS-derived app.
+ // Small contract fixtures may omit App.tsx; the full pinned host is checked
+ // separately by test-staged-core-updater.cjs and must contain this component.
+ if(fs.existsSync(path.join(tmp,'mobile/App.tsx'))){
+  replaceExact('mobile/App.tsx',
+   "<StatusBar style={shell.theme === 'dark' ? 'light' : 'dark'} />",
+   "<StatusBar hidden style={shell.theme === 'dark' ? 'light' : 'dark'} />");
+ }
  replaceExact('desktop/main.js',"const APP_NAME = 'DK Data Studio';",
   "const APP_NAME = 'DK Test Studio';");
  replaceExact('desktop/main.js',"const APP_ID = 'com.dk.datastudio';",
@@ -334,7 +344,7 @@ const sourceHash=crypto.createHash('sha256')
   singleApplicationIdentity:true,outputReady:false,
   updaterOrigin:'davidkane0526/DK-Test-Studio (single V/a release; DKDS upstream read-only)',
   blockingGates:['End-to-end Core UI/native updater, cache verification and rollback tests on both platforms',
-   'FS-Pro Edit Page exact hierarchy and production 4200A controller',
+   'FS-Pro Edit Page visual acceptance on real Windows/Android hosts and production 4200A controller',
    'real Windows/Android host rendering and measurement verification']};
  fs.writeFileSync(path.join(tmp,'DKTS_FRAMEWORK_STAGING.json'),
   JSON.stringify(staging,null,2)+'\n');

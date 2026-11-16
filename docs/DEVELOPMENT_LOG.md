@@ -354,3 +354,157 @@
 - 检查 Android 模拟器截图发现系统顶部状态栏仍显示时间、Wi-Fi/网络、电量图标，与用户此前要求隐藏系统状态栏、增加垂直空间不符。追补记录为 [R-20261103-002]。
 - 在 DKTS ZIP 工作区中仅修改 `tools/stage-dkds-host.cjs`：给派生 `mobile/app.json` 写入 `expo.androidStatusBar.hidden=true`；DKDS 固定上游只读。新增 staged contract 断言，要求生成的 DKTS Android 配置隐藏系统状态栏。固定 DKDS 的 `mobile/app.json`、Windows updater、Android updater 文件 SHA-256 前后相同。
 - 本地使用 `DKTS_BUILD_NUMBER=193` 暂存：`V0.3.13 a193`、Android `versionCode=100193`；保留 11 个非分析插件、排除 6 个分析插件；staged updater contract **PASS**；目标回归测试 **45/45 PASS**。Android API 36 新截图仍待下一次 main CI 构建确认，未提前宣称状态栏已隐藏成功。
+
+
+## 2026-11-13 / ZIP 云端继续开发：Android 状态栏宿主修正与 V0.3.14 a194
+- 本轮基线为 `DK-Test-Studio-V0.3.13-source-bfcace90.zip`，SHA-256 `d10cb8ef94ca034569561357b4b53dbc58f7f9edaacfa67f44f193f1b037cf51`；解压至独立云端工作目录。DKDS 依赖固定为 `20f056851a61d2144e9524c3ed568628d4b8557c`，只读。未创建或使用 Git 分支。
+- 复核发现此前只给 DKTS 派生 `mobile/app.json` 设置 `expo.androidStatusBar.hidden=true`，但 DKDS `mobile/App.tsx` 仍挂载 `<StatusBar style=... />`，没有 `hidden` 属性，可能在运行时重新显示系统状态栏。仅在 DKTS staging 脚本中将挂载组件改为 `<StatusBar hidden style=... />`，同时保留 `androidStatusBar.hidden=true`；DKDS 上游文件未修改。
+- 新增 staged updater contract 断言，检查最终派生 `mobile/App.tsx` 确实使用 hidden 属性；修复轻量 staging fixture 对缺失 `mobile/App.tsx` 的兼容，不影响真实固定上游必需的完整 staged contract。
+- 该修改位于 React Native 宿主/Android 配置，不能通过 CSS 热更新交付。按用户原始版本规则将 `package.json` 从 `0.3.13` 升级到 `0.3.14`，同步 legacy Android `versionName=0.3.14` / `versionCode=25`，版本身份为 `V0.3.14 a194`。`a194` 是本地云端暂存编号；正式编号仍需 main 上对应 SHA 的 `ui-update.yml` 运行号确认。
+- 同步修正 README、Release 更新契约、版本台账、CI artifact 名称和版本测试；新增 `R-20261113-002`。
+- 验证：DKTS 派生 staging 成功，保留 11 个非分析插件、排除 6 个分析插件；staged updater contract **PASS**；版本身份、DKDS framework staging、staged updater、原生更新器、发布契约和需求治理等目标 Node 测试 **34/34 PASS**。全量 Node 测试 **190/198 PASS**，8 项失败均由缺失的 D3 7.9.0 vendor 引起；本云端运行环境无 `node_modules`、npm registry 安装超时，不能据此宣称完整测试通过。五个 GitHub Actions YAML 文件通过 PyYAML 解析，关键 JS 文件通过 `node --check`。
+- 尚未完成：当前云端环境没有 Android SDK、Gradle 或 Emulator，故未构建 APK，也未取得 API 36 手机/平板截图；系统状态栏隐藏仅完成源代码/配置层修正，必须等 Android CI 或真实设备验证后才能验收。未生成正式签名 APK/EXE，未创建 GitHub Release。
+
+
+## 2026-11-13 / V0.3.15 a195：DKTS 原生 UI 第一轮结构重构（ZIP 云端工作区）
+- 工作基线：用户交付的 `DK-Test-Studio-V0.3.14-a194-source.zip`，SHA-256 `3a59313fa862bc81061354be195ae9a106e818383b66c6809ec0da2ba866281d`；DKDS 固定只读 SHA `20f056851a61d2144e9524c3ed568628d4b8557c`（依赖 ZIP SHA-256 `ebf283772098f0de6182c7472c9360dec88ec40de13248bd930cc2b54af73225`）。本轮在独立云端工作目录解压 ZIP 后开发，未从 GitHub 创建或切换分支。
+- UI 根因之一是原生插件同时创建 Page 顶部 Terminal 端口映射和可停靠端口 PRIME，导致四个逻辑端口出现重复入口。现删除端口 PRIME，`wb.compose` 与 TOP workspace 的 `prime` 均为空，保留 FS-Pro Page 顶部唯一 Terminal strip。
+- Xsweep/Psweep 扫描段由“每段一个嵌套 Panel”改为六列连续 DKDS Unit Layout 行：起始、结束、步长、档位、点间延迟、删除；使用 SDK 接受的响应式 Geometry，宽屏单行、<=620px 两列、<=310px 单列。段间分隔由 Core Divider Unit 提供，插件 CSS 不声明颜色、背景、边框或阴影。
+- 消除参数重复：Strategy 是整体循环、Xsweep/Psweep 重复次数及 Psweep 启用状态的唯一入口；Limits 是每个已分配端口量程模式、测量档位、限流/限压的唯一入口；Sweep 仅编辑 X/P 端口角色、扫描段和必要的源输出模式/固定偏置；Info 不再重复显示循环参数。
+- Project Explorer 当前 Routine 与 Page 选中态均绑定项目状态。Target/变量字段进一步中文化。保留 DKDS Unit、PlotGroup、PlotView、ScientificPlot、Data Center、原始 CSV 导出和 Core Theme，不修改 DKDS 上游。
+- 完整安装版本从 `0.3.14` 升为 `0.3.15`，云端暂存编号 `a195`；外部 DKDS 插件内部版本从 `0.8.1` 升为 `0.8.2`。a195 尚未由 main 上同 SHA 的 `ui-update.yml` 运行号确认，不是正式 Release。
+- 验证：`node --check` 通过；`tests/test-dkds-native-plugin.cjs` 通过；`tests/test-dkds-native-host.cjs` 通过；固定 DKDS SDK 1.19 `dkds-plugin.js validate` 通过；DKTS 生成插件包、官方 SDK repack、DKDS 官方安装包 normalizer 检查通过；DKDS staging 成功（17 项插件中保留 11、排除 6），并确认 V0.3.15 / a195 / Android versionCode 100195 / plugin 0.8.2。DKDS 只读目录与固定 ZIP 逐文件比对 1,328 项，missing=0、changed=0；未修改上游内容。
+- 回归：Core UI shell、DKDS framework contract、Core release identity 共 14/14 通过；Android shell 中与版本/状态栏相关的选定 3/3 通过。完整 `node --test tests/*.test.cjs` 为 190/198 通过，剩余 8 项均因源码 ZIP 未包含 npm `node_modules/d3@7.9.0`，导致 Android 资产同步、DKDS 共享壳生成和网页 Demo 构建类测试无法启动；修正 V0.3.15 后的 Release identity 测试已通过。没有用伪造 D3 文件绕过。
+- 未完成：当前环境无完整 npm 依赖、Electron 运行环境、Android SDK/Gradle/模拟器，未能构建正式 Windows EXE/Android APK，未能生成新版本真实 Electron/Android 截图。因此这轮只算源码结构重构和 SDK/mock 验证通过，**不算视觉验收通过**。下一步必须在具备依赖的 CI 中构建并截取 1200×768 桌面、744×600 平板、320×640 手机页面，逐项检查导航、Page 编辑、端口条、扫描段、Limits、四图窗与触控滚动。
+- 本轮未提交 GitHub、未推送 main、未创建任何分支；DKDS 仓库未修改。
+
+
+## 2026-11-13 / V0.3.16 a196：DKTS 原生 UI 第二轮重构（ZIP 云端工作区）
+
+- 基线：`DK-Test-Studio-V0.3.15-a195-source.zip`，实际 ZIP SHA-256 `955d226618f6a436fcfecaca8bdd61a068a5d940427ee4dbc59314f138cccc49`。DKDS 固定只读依赖 `20f056851a61d2144e9524c3ed568628d4b8557c`，本轮未修改。
+- Project Explorer 增加可见 Test Library，10 种测试类型均可直接创建 Page，取消原先“选择类型下拉框 + 加号”的两步入口。Routine 显示页面数，Page 显示测试类型。
+- Page Header 增加 Device/Routine 上下文，工程绘图区增加项目级摘要。Terminal 映射保留唯一入口并改用更紧凑的 section header。
+- 扫描参数加入 DKDS Summary/Metric 点数摘要；Xsweep/Psweep 的新增段入口移动到各自面板标题栏；扫描行使用对齐的列标题、固定删除操作列和更宽的档位列。窄屏保留字段标签，宽屏使用列标题避免重复标签。
+- DKTS 主工作区侧栏宽度及 900px 响应式断点改由 DKDS Unit Layout 声明，移除 CSS 对主网格的 `!important` 强制覆盖；插件 CSS 只管理 DKTS 领域布局，不接管 Core 组件绘制。
+- 版本：原生插件 `0.8.3`，应用 `V0.3.16`，暂存编号 `a196`，Android 暂存 versionCode `100196`。原生插件运行时变更需要完整安装，故 V 递增；a196 尚待 main 对应 Actions 确认。
+- 验证：`node --check integrations/dkds-native/plugin.js` 通过；`tests/test-dkds-native-plugin.cjs` 通过；`tests/test-dkds-native-host.cjs` 通过；固定 DKDS 源码中的 Plugin API 1.19 validator 通过。真实 Electron/Android 截图、完整构建和签名尚未完成，不能宣称视觉验收通过。
+- 治理：未创建分支、未推送 GitHub、未修改 DKDS。
+
+
+## 2026-11-13 / V0.3.17 a197：第三轮原生 UI 信息架构纠正（ZIP 云端工作区）
+
+### 基线与边界
+- 基线：`DK-Test-Studio-V0.3.16-a196-source.zip`，SHA-256 `7f12606d72ffaabe51d6ab82a7be5048cdea9c44946512bf9dfc9d2a90e1b9b9`。
+- DKDS 只读依赖：固定提交 `20f056851a61d2144e9524c3ed568628d4b8557c`，未修改上游文件。
+- 未创建 GitHub 分支，未推送 GitHub；当前工作仅在 ZIP 解压后的云端工作目录。
+
+### 本轮修改
+- Edit Page 主标签收敛为 Sweep、Target、Strategy 三项。
+- 页面名称与备注移到主标签上方的 Page Info 区域；页面标题工具栏保留项目导航、返回绘图区和离线规划校验，移除无功能的禁用“测试”按钮。
+- Limits、Page Var、Associate Spec 作为 Sweep 下方三栏；桌面三列、平板两列、窄屏单列，使用 DKDS Unit Layout 合法几何值和断点。
+- S/D/G/B 端口选择器移入 Page 标题工具栏，按 Source/Drain/Gate/Body 排列，使用 DKDS Divider 与规划动作分隔，不再保留单独 Terminal 卡片。端口参数源模式/固定偏置归入 Input Setting；量程模式、测量档位和限流/限压归入 Limits。仍只为已分配 SMU 显示参数，None 不进入参数区。
+- Project Explorer 测试类型改为单一“＋ Page”菜单，仍保留十种测试类型，减少十个常驻按钮的侧栏占用。
+- 数值字段改为桌面失焦提交、触控设备使用 DKDS 科学键盘，避免每次输入字符都触发整页重渲染导致焦点丢失。
+- 更新 DKTS 应用版本至 `V0.3.17`、本地暂存编号 `a197`、Android 暂存 `versionCode=100197`、原生插件版本 `0.8.4`。正式 aNNN 仍需 main 上同 SHA 的 Actions 运行号确认。
+
+### 验证
+- `node --check`：通过。
+- DKDS SDK Plugin API 1.19 validate：通过。
+- DKTS 原生 `.dkplugin` 生成及 DKDS 官方安装器规范化：通过。
+- `tests/test-dkds-native-plugin.cjs`：通过。
+- `tests/test-dkds-native-host.cjs`：通过，覆盖三项主标签、Sweep 三栏、十种测试类型菜单、Page Var 新增/编辑、Associate Spec 创建/关联、None 过滤、X/P 扫描、绘图和数据中心。
+- DKDS Unit Layout 几何：7/7 值及 2/2 断点均存在于固定 SDK 白名单。
+- DKTS Core staging：通过，确认 `V0.3.17`、`a197`、`versionCode=100197`；staged updater contract 通过。
+- 完整 Node 测试：190/198 通过；8 项因环境缺少固定依赖 `d3@7.9.0` 而阻塞。尝试 npm 安装时 registry DNS 返回 `EAI_AGAIN`，未用假依赖绕过。
+- 本环境没有可用 Electron、Android SDK/Gradle/模拟器；Chromium headless 无法完成启动。因此没有完成实际 Windows/Android 渲染截图、APK/EXE 构建或签名。**本轮只确认结构与宿主契约，不宣称视觉验收完成。**
+
+
+## 2026-11-13 / V0.3.18 a198：原生 UI 第四轮重构（ZIP 云端工作区）
+
+### 基线与边界
+- 基线为 `DK-Test-Studio-V0.3.17-a197-source.zip`，SHA-256：`4798554800ac59326f034ce5ad8e6044635078eb94c94440c6088a6d8a4f9336`。
+- DKDS 固定依赖 SHA：`20f056851a61d2144e9524c3ed568628d4b8557c`，只作为只读 SDK 和安装器校验来源。本轮没有修改 DKDS。
+- 本轮在云端独立工作目录中修改 DKTS；没有创建 GitHub 分支、没有推送提交。
+
+### UI 修改
+- 取消 Sweep Setup 中的 Xsweep/Psweep 端口选择器，避免与 Page 标题栏的 S/D/G/B 物理端口映射形成双重入口。
+- 在每个已分配 SMU 的端口行增加“端口用途”选择，支持固定偏置、Xsweep、Psweep；角色变更经模型验证，保持 X/P 唯一。固定偏置只在 Condition 行显示，X/P 行提示扫描段编辑位置。
+- 桌面和平板继续使用 Page 标题栏 S/D/G/B 下拉；手机宽度隐藏四个下拉，改用单一“端口”动作打开 DKDS Core Popover，四个逻辑端口在同一编辑草稿中修改，点击“应用”后一次性校验和保存。
+- Project Explorer 改用 DKDS `sidebar-main-compact` 标准布局（235px），保留 900px 以下导航抽屉断点。
+- Page Info 与各面板标题、字段进一步中文化；测试类型只读显示，不虚构设备类型/极性等尚未进入项目模型的数据。
+- 四个 PlotView 内容比例改为 2.25:1，内容高度约束 132–220px；图窗外层最小高度从 220px 降至 176px，手机进一步降至 160px。
+- Core Electron smoke 脚本新增 390px 手机 Page 编辑器及端口 Popover 截图检查；此脚本需在带 Electron/Android SDK 的 CI 环境执行，本地未伪造截图。
+
+### 版本
+- DKTS 完整应用版本：`V0.3.18`。
+- 本地暂存开发编号：`a198`，正式编号仍由 main 上同 SHA 的 `ui-update.yml` 分配。
+- Android 暂存 `versionCode=100198`，`versionName=0.3.18`。
+- DKTS 原生插件内部版本：`0.8.5`，DKDS Plugin API `1.19.0`。
+
+### 本地验证
+- `tests/test-dkds-native-plugin.cjs`：通过。
+- `tests/test-dkds-native-host.cjs`：通过，覆盖端口角色分配、手机端四端口草稿应用、限流科学计数法键盘、X/P 扫描段、项目持久化及数据/绘图路径。
+- `tests/core-ui-shell.test.cjs`：通过，覆盖 SDK compact sidebar、导航抽屉、手机端端口入口及图窗几何。
+- `tests/core-release-identity.test.cjs` 与 `tests/release-identity.test.cjs`：通过，确认 V0.3.18、ui-update workflow run-name 与 aNNN/versionCode 规则一致。
+- 完整 DKDS installer normalizer 校验使用固定 DKDS 源码执行；updater parity 的 10 项静态契约检查通过。
+- 完整 `npm test`：190/198 通过；剩余 8 项依赖固定 D3 7.9.0，因当前容器访问 npm Registry 时 DNS 返回 `EAI_AGAIN`，无法同步 D3 并构建 Web/Android 资产。未用其他 D3 版本或假文件绕过。
+- 真实 Electron 截图、Android APK/Windows EXE 构建和真机安装仍待 CI。
+
+
+## 2026-11-13 / V0.3.19 a199：Sweep 信息密度与 Target 端口可用性
+
+### 基线与边界
+- 从用户上一轮交付的 `DK-Test-Studio-V0.3.18-a198-source.zip` 解压到独立云端工作目录。基线 ZIP SHA-256：`8d92080df48422aef2f07ef8c50e85ff0c7cd85ca6fca7cdb883daf56327d86b`。DKDS 固定只读提交 `20f056851a61d2144e9524c3ed568628d4b8557c`，未修改上游。
+- 未创建 GitHub 分支，未推送 `main`。本地 `a199` 是暂存编号，不是已发布的正式 Actions 编号。
+
+### 本轮修改
+- 将扫描概览从四个独立 Metric surface 改为单行 DKDS Summary strip，保留 X/P 点数、循环次数、总点数与“离线规划/不发送仪器输出”的状态提示，减少参数区纵向占用。
+- 将 Sweep 下方 Limits、Page Var、Associate Spec 从三等分三列改为 DKDS `two-card-grid` 两列结构：Limits 独占左侧列；Page Var 与 Associate Spec 纵向排列在右侧列；DKDS recipe 在 680px 以下自动切换单列。该调整避免 1200px 桌面扣除 235px 侧栏后，Limits 每个端口的 4 个字段被挤入约 1/3 宽度。
+- Limits 按已分配端口分组：端口标识单独一行，档位模式、测量档位、限流/限压采用双列 DKDS Form Grid；多端口间使用 Core Divider。
+- Page Info 删除重复的只读测试类型字段，测试类型继续由 Page titlebar meta 显示；仅保留可编辑 Page 名称和备注。
+- Target 端口选择改用 `model.visible(p)` 过滤，仅列出已分配 SMU。所有物理端口为 None 时，端口字段禁用并显示“无可用端口”；如果当前目标尚未分配但其他端口已分配，则要求从已分配端口中选择，不展示 None。
+- Psweep 未启用时，Strategy 的 Psweep 重复次数输入禁用，避免用户编辑当前不生效的外层扫描参数。
+- 更新 DKTS 应用版本 `V0.3.19`、本地暂存身份 `a199`、Android 暂存 versionCode `100199`、原生插件版本 `0.8.6`，同步构建脚本、插件 normalizer 检查、Release identity tests、README、Roadmap、Build Info 和版本日志。
+
+### 验证与未完成项
+- `node --check integrations/dkds-native/plugin.js`：通过。
+- `tests/test-dkds-native-plugin.cjs`：通过。
+- `tests/test-dkds-native-host.cjs`：通过，覆盖两列布局、Summary strip、None 端口过滤、已分配 Target 选择、Psweep 禁用状态、端口事务、X/P 扫描段、PlotGroup 和 Data Center。
+- 尚未执行完整 `npm test`、DKDS 官方包 normalizer、Electron 真实截图、Windows Portable 构建和 Android APK 构建；当前容器无 npm node_modules / D3 7.9.0、Electron、Android SDK、Gradle 与 ADB。不得宣称真实 UI 截图验收通过。
+- DKDS 只读依赖没有写入；GitHub 仍未同步本地 ZIP 工作区，本轮未创建分支、未推送。
+
+
+## 2026-11-14 / V0.3.20 a200：第六轮原生 UI 优化
+
+### 基线与范围
+- 直接从上一轮交付 `DK-Test-Studio-V0.3.19-a199-source.zip` 解压。DKDS 只读固定来源为 `20f056851a61d2144e9524c3ed568628d4b8557c`。
+- 仅修改 DKTS 原生插件、作用域 CSS、对应测试/构建身份及开发文档；未创建 GitHub 分支、未推送 `main`、未修改 DKDS。
+
+### 已实现
+- 四图窗标题中的图形类型选择由占据较大宽度的 Select 改为 DKDS 原生菜单，保持单独数据源/原始 CSV 菜单；选中图形类型有明确标识。
+- Page 顶栏在 <=980px 时使用已有端口 Popover，在更宽的桌面使用 S/D/G/B 一行下拉框，避免 744px 平板标题栏拥堵。
+- 数值、页面名称、备注输入的无变化失焦不再触发项目持久化与整个编辑区重建；页面变量单位从 onChange 改为 onBlur，避免输入中途失焦。
+- 扫描概览只在配置异常时显示提示，不再重复占据面板高度；测量指令和安全数据库保持不变。
+- 原生插件升级为 0.8.7，应用版本升级到 V0.3.20，临时开发编号 a200，Android versionCode 暂存 100200，Gradle versionName 0.3.20 / versionCode 29。
+
+### 验证状态
+- Node 完整测试 190/198 通过，8 项因本地缺少固定 d3@7.9.0 及生成资产失败，均非已确认代码回归。
+- 固定 DKDS SDK 1.19 插件规范化安装检查通过，原生 VM 插件测试、更新身份测试通过。
+- Chromium set_content 对 DKTS 作用域 CSS 进行了 1200x768、744x600、390x844 三种尺寸的 DOM 几何检查，未出现水平溢出。**这是 CSS 几何夹具，不是 Electron 或 Android 原生运行截图，不能作为视觉验收。**
+- 未编译 Windows Portable 或固定签名 Android APK；真实宿主图像与 OPPO 真机验证仍未完成。
+
+
+## 2026-11-16 / 基线 V0.3.20 a200：最终构建触发策略调整
+
+- 用户最新要求 [R-20261116-001]：继续 ZIP 云端开发；只在源码定稿后通过 GitHub Actions 编译安装包，禁止开发过程中重复编译。
+- 本次只调整 DKTS 仓库工作流触发与验证策略，未修改 DKDS、测量逻辑、UI 运行时或 GitHub 分支。
+- 统一 Core Release 的 push 启动条件加上 `[DKTS-FINAL-BUILD]` 明确标记，普通 main 提交不启动 Windows/Android 构建；正式 Core Release 不开放 workflow_dispatch；其他独立 CI 的 workflow_dispatch 仅用于用户要求的手动诊断。
+- 其他会编译或构建前端的 CI/Preview/Smoke 工作流变为仅手动执行；无源码编译的 ui-update 身份计数、source-zip 归档与单一 main 分支策略保持独立。
+- 本轮没有进行正式 EXE/APK 编译，没有 GitHub push 和 Release；仍以 V0.3.20 a200 为安装包基线，后续定稿按正式 main 同 SHA 流水线分配 aNNN。
+
+## 2026-11-16 / V0.3.21 a201：同源 DKDS Core 浏览器预览与真实宿主 UI 修复
+
+- 使用只读 DKDS `20f0568` 派生源和当前 DKTS 原生插件生成同源浏览器预览。
+- 修复此前静态测试未发现的 TOP 激活失败：SDK Unit Layout 拒绝 `responsive gap:'0'` 与未批准的六列 `gridTemplateColumns`。已使用 SDK 接受值，真实 Core DOM 冒烟测试通过。
+- 面板标题去除多余 meta，标题栏端口下拉显示 S/D/G/B 标识。
+- 不创建分支、不修改 DKDS、不编译 Windows/Android 安装包、不推送 GitHub。

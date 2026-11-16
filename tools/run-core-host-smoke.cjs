@@ -38,6 +38,14 @@ async function main(){
  if(!result.ok||!result.has4200Workspace||!result.keptDataCenter||
     !result.keptConnectivity||!result.keptTheme||!result.removedAnalysis)
   throw Error('Core runtime rendered an incomplete DKTS plugin catalog');
+ if(result.phoneEvidence?.popover!==true||result.phoneEvidence?.allFourPorts!==true||
+    result.phoneEvidence?.desktopVisible!==false||result.phoneEvidence?.mobileVisible!==true)
+  throw Error('Real Electron phone port Popover evidence is incomplete: '+JSON.stringify(result.phoneEvidence));
+ for(const name of ['core-host-phone-page.png','core-host-phone-port-popover.png']){
+  const file=path.join(evidence,name);
+  if(!fs.existsSync(file)||fs.statSync(file).size<4000)
+   throw Error('Phone Core screenshot missing or suspiciously small: '+name);
+ }
  const shot=path.join(evidence,'core-host.png');
  if(!fs.existsSync(shot)||fs.statSync(shot).size<4000)
   throw Error('Core host screenshot missing or suspiciously small');

@@ -14,16 +14,20 @@
 
 ## P1 — DKDS 框架成为 DKTS 真正的单一宿主
 - [x] 只读上游检查、按 manifest 保留全部非分析插件并临时排除分析插件、独立 DKTS 源码暂存流程。
-- [x] 实际从 DKDS Core 构建 **DKTS 品牌** Windows Portable 和 Android APK；V0.3.13 a190 Windows/Android Core build、API 36 模拟器与固定签名均通过，真实设备验收仍待完成。
+- [x] 上一已验证安装包为 **V0.3.13 a190**：DKTS 品牌 Windows Portable、Android APK、API 36 模拟器与固定签名 CI 均通过；真实设备验收仍待完成。当前云端 UI 优化源码为 **V0.3.20 a200**（a200 为暂存编号），新版本 Windows/Android 安装包尚未构建/发布。
 - [x] 将 Core 原生更新源绑定单一 DKTS Release；Windows/Android 按 V+aNNN 选择同版本新构建，校验资产身份、SHA-256，Android 额外校验稳定包名/版本码/签名；CSS-only bundle 使用四文件白名单并与完整包共用同一 Release。
 - [ ] 完成真实 Windows Portable/Android 固定签名设备上的应用内更新、403/504 恢复、热更新/全量升级与失败回退验收。
-- [ ] Android 派生宿主隐藏系统顶部状态栏（时间/Wi-Fi/蓝牙/电量），保留应用自身底部状态栏，并通过 API 36 手机/平板截图验证。
+- [ ] Android 派生宿主隐藏系统顶部状态栏（时间/Wi-Fi/蓝牙/电量），保留应用自身底部状态栏，并通过 API 36 手机/平板截图验证。**源码修正已在 V0.3.14 基线完成，并继承至 V0.3.20 a200；仍待 Android 构建和截图验收。**
 - [ ] 对用户设备进行真正的 Windows/Android 视觉验证，逐项保留 DKDS 控件交互。
 
 ## P2 — FS-Pro 界面与同一套业务状态
-- [ ] Project → Device → Routine → Page/Spec；Edit Page: Info/tools、Sweep/Target/Strategy、Limits/Page Var/Associate Spec。
+- [x] 第一轮 DKTS 原生 UI 结构整理（V0.3.15 a195）：删除重复端口 PRIME；Xsweep/Psweep 扫描段改为连续六列 Unit 编辑行；Strategy 独占整体循环/各轴重复次数/Psweep 开关；Limits 独占每个已分配端口的量程模式、测量档位和限流/限压；Info 不再重复显示循环参数。
+- [x] Project Explorer 同时高亮当前 Routine 与 Page；保留 Project → Device → Routine → Page/Spec 结构。
+- [ ] Windows Electron 1200×768、744×600 与 Android 320×640/1024×768 实际截图对照。当前云端没有 Electron/Android SDK/Gradle/模拟器，尚未完成真实视觉验收。
+- [x] Project → Device → Routine → Page/Spec；Edit Page 页面信息位于主标签上方，主标签仅 Sweep/Target/Strategy，Limits 独占一列，Page Var/Associate Spec 在另一列纵向排列。
 - [ ] Xsweep/Psweep 多段表、各轴循环、各端口独立量程/限流/时间设置；不重复编辑同一参数。
-- [ ] 项目导航增选测试；窗口关闭/Tab 恢复与参数面板开闭独立；None 端口不占参数空间；无点击阴影/默认锁定。
+- [x] Project Explorer 提供单一“＋ Page”菜单并保留十种测试类型；None 端口不进入参数编辑区；不显示无功能锁定按钮。
+- [ ] 窗口关闭/Tab 恢复与参数面板开闭独立；桌面/Android 触控与弹出菜单仍需实机验收。
 - [ ] DKDS PlotView/Unit/科学键盘/Theme/数据中心的完整继承与移动端手势验证。
 
 ## P3 — 4200A 原生测量与原始数据
@@ -34,3 +38,12 @@
 
 ## 通过条件
 只有 P1/P2/P3 各自证据充分时才可宣称完成。每轮提交必须附日志、截图/测试、GitHub SHA 和实际发布资产；流程失败记录不能删。
+
+- [x] 第三轮 DKTS 原生 UI 信息架构重构（V0.3.17 a197）：Edit Page 主标签恢复为 Sweep/Target/Strategy；Limits、Page Var、Associate Spec 放入 Sweep 下方响应式三栏；Info 移至页面工具区；测试类型收敛为一个菜单入口，避免十个常驻按钮。真实 Electron/Android 截图验收仍未完成。
+- [x] 第四轮 DKTS 原生 UI 优化（V0.3.18 a198 暂存）：Condition/Xsweep/Psweep 角色移入各 SMU 端口行，删除重复 X/P 物理端口选择；手机端四个端口下拉收敛为单一 Core Popover 并在一次事务中校验；侧栏切换 DKDS 235px compact layout；四个绘图子窗口压缩纵向占用。真实 Electron/Android 截图和安装包验收仍待 CI。
+- [x] 第五轮 DKTS 原生 UI 优化（V0.3.19 a199 暂存）：扫描摘要改为 Core Summary strip；Sweep 下方调整为 Limits 单列 + Page Var/Associate Spec 纵向列；Page Info 删除重复测试类型；Target 只显示已分配 SMU；Psweep 关闭时禁用重复次数。SDK 1.19 运行时和 64 个布局案例通过，真实 Electron/Android 截图仍待 CI。
+
+- [x] 第六轮 DKTS 原生 UI 优化（V0.3.20 a200 暂存）：PlotView 图形类型选择收敛为标题栏菜单；平板/手机端端口配置入口统一；避免未变更输入引起重新渲染；减少 Sweep 多余提示。通过离线 Chromium CSS 几何检查。尚未取得真实 Core Electron 和 Android 界面截图。
+
+- [x] 2026-11-16：**V0.3.21 a201** 同源 DKDS Core 网页预览构建；修复正式宿主因 SDK 非法布局值无法激活 DKTS 原生插件的问题。源代码和 SDK 测试完成，Windows 预览启动脚本及实际 D3 绘图仍待目标机验证。
+- [ ] 最终 UI 审核后执行唯一 `main` 的 `[DKTS-FINAL-BUILD]` GitHub Actions，交付真实 Windows Portable EXE 与 Android APK。

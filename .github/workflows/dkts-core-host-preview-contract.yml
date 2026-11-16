@@ -1,8 +1,7 @@
 name: DKTS Core Host Preview Contract
-run-name: DK Test Studio V0.3.13 · Core Host PR Preview #${{ github.run_number }}
+run-name: DK Test Studio Core Host contract #${{ github.run_number }}
 on:
-  push:
-    branches: [feat/dkts-core-host-boot]
+  # Manually requested diagnostics only; never auto-compile during development.
   workflow_dispatch:
 permissions:
   contents: read
@@ -27,6 +26,6 @@ jobs:
         run: node tools/build-dkds-native-plugin.cjs
       - uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Native-Plugin-V0.3.13-PR${{ github.run_number }}
-          path: dist/DKTS-4200A-native-v0.8.1.dkplugin
+          name: DKTS-Core-Native-Plugin-PR${{ github.run_number }}
+          path: dist/DKTS-4200A-native-v0.8.3.dkplugin
           if-no-files-found: error

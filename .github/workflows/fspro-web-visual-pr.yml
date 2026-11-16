@@ -1,13 +1,6 @@
 name: DKTS FS-Pro Web UI Hierarchy (PR-only visual acceptance)
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'web/fspro-workbench/**'
-      - 'tools/build-web-demo.cjs'
-      - 'tools/web-demo-visual-smoke.cjs'
-      - 'tests/web-ui-demo.test.cjs'
-      - '.github/workflows/fspro-web-visual-pr.yml'
+  # Manually requested diagnostics only; never auto-compile during development.
   workflow_dispatch:
 permissions:
   contents: read

@@ -1,17 +1,17 @@
 name: DKTS Unified Core Release (read-only DKDS upstream)
 run-name: DK Test Studio · Unified Core Build #${{ github.run_number }}
 on:
-  pull_request:
-    branches: [main]
+  # A normal source push must never compile an app. Only a final, reviewed
+  # single-main commit carrying [DKTS-FINAL-BUILD] may invoke the release job.
   push:
     branches: [main]
-  workflow_dispatch:
 permissions:
   actions: read
   contents: read
 jobs:
   change-scope:
     name: Classify native-package versus CSS-only hot-update changes
+    if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[DKTS-FINAL-BUILD]') }}
     runs-on: ubuntu-24.04
     outputs:
       update_channel: ${{ steps.scope.outputs.update_channel }}
@@ -37,7 +37,12 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       build_number: ${{ steps.identity.outputs.build_number }}
+      app_version: ${{ steps.identity.outputs.app_version }}
     steps:
+      - name: Checkout DKTS version metadata
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Resolve the same-SHA UI workflow run number
         id: identity
         env:
@@ -63,8 +68,10 @@ jobs:
             echo "::error::Could not resolve a monotonic UI revision number for this SHA."
             exit 1
           }
+          app_version="$(node -p "require('./package.json').version")"
           echo "build_number=$revision" >> "$GITHUB_OUTPUT"
-          echo "Canonical DKTS build identity: a$revision" >> "$GITHUB_STEP_SUMMARY"
+          echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
+          echo "Canonical DKTS build identity: V$app_version a$revision" >> "$GITHUB_STEP_SUMMARY"
 
   framework-readonly-check:
     needs: [change-scope, resolve-build-identity]
@@ -245,7 +252,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Windows-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Core-Windows-V${{ needs.resolve-build-identity.outputs.app_version }}-PR${{ github.run_number }}-${{ github.sha }}
           path: |
             dist/core-smoke-evidence/report.json
             dist/core-smoke-evidence/core-host.png
@@ -343,7 +350,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Android-Emulator-V0.3.13-PR${{ github.run_number }}
+          name: DKTS-Core-Android-Emulator-V${{ needs.resolve-build-identity.outputs.app_version }}-PR${{ github.run_number }}
           path: dist/core-android-smoke/*
           if-no-files-found: warn
           retention-days: 15
@@ -353,7 +360,7 @@ jobs:
       - name: Upload test-signed APK and emulator evidence (PR validation only)
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Core-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Core-Android-V${{ needs.resolve-build-identity.outputs.app_version }}-PR${{ github.run_number }}-${{ github.sha }}
           path: |
             dist/dkts-framework-staging/mobile/android/app/build/outputs/apk/release/app-release.apk
             dist/dkts-core-android-badging.txt
@@ -382,7 +389,7 @@ jobs:
       - name: Download compiled Core APK without checking out DKDS
         uses: actions/download-artifact@v4
         with:
-          name: DKTS-Core-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Core-Android-V${{ needs.resolve-build-identity.outputs.app_version }}-PR${{ github.run_number }}-${{ github.sha }}
           path: core-unsigned-source
       - name: Set up isolated Android signer
         uses: android-actions/setup-android@v4
@@ -442,7 +449,7 @@ jobs:
       - name: Retain fixed-signed Core Build for trusted release selection
         uses: actions/upload-artifact@v4
         with:
-          name: DKTS-Fixed-Signed-Android-V0.3.13-PR${{ github.run_number }}-${{ github.sha }}
+          name: DKTS-Fixed-Signed-Android-V${{ needs.resolve-build-identity.outputs.app_version }}-PR${{ github.run_number }}-${{ github.sha }}
           path: fixed-signed/
           if-no-files-found: error
           retention-days: 30

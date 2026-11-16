@@ -2,7 +2,7 @@
 
 ## One application identity
 
-- The application version is the DKTS package version, currently `V0.3.13`.
+- The application version is the DKTS package version, currently `V0.3.21`.
 - Each main-branch application build receives one monotonic `aNNN` identity from the existing `.github/workflows/ui-update.yml` workflow run number. The workflow file path is intentionally retained so its historical run-number sequence is not reset; it now allocates the release identity only and does not publish a separate UI Release.
 - The Core build resolves the sequence run for the exact same source SHA. That single `aNNN` is stamped into the Windows package metadata, Android `versionCode=100000+N`, Release tag, Release notes, and optional CSS bundle.
 - The Android application ID and Windows application identity are the existing DKTS identity. Android uses the pinned DKTS signing certificate. There is no second `corepreview` package and no separately numbered Core Preview application.
@@ -15,10 +15,12 @@
 - Optional CSS hot-update asset: `DKDS-UI-bundle.json`.
 - Additional assets: the 4200A hardware capability/safety database, `SHA256SUMS.txt`, and `PROVENANCE.txt`.
 
-Both native updaters and both CSS hot-update managers read the same DKTS Release list and the same `dkts-vX.Y.Z-aNNN` tag. The Windows and Android native updaters compare semantic application version first and numeric `aNNN` second, so `V0.3.13 a185` is newer than `V0.3.13 a184`. Native update selection also checks that the Release notes contain the exact `Build identity: aNNN` and `Android versionCode: 100000+N` declarations. Historical Releases without those declarations are ignored.
+Both native updaters and both CSS hot-update managers read the same DKTS Release list and the same `dkts-vX.Y.Z-aNNN` tag. The Windows and Android native updaters compare semantic application version first and numeric `aNNN` second, so `V0.3.13 a185` is newer than `V0.3.13 a184`, while a required full-install update such as `V0.3.17 a197` supersedes `V0.3.13` regardless of its lower or higher `aNNN`. Native update selection also checks that the Release notes contain the exact `Build identity: aNNN` and `Android versionCode: 100000+N` declarations. Historical Releases without those declarations are ignored.
 
 ## Full package and hot-update relationship
 
+- CSS-only changes keep `Vx.y.z` and increment only `aNNN`; they still build both complete packages, but a user who has applied the hot update is not forced to reinstall.
+- Any application change outside the approved CSS hot-update allowlist (including React Native host code, Android app configuration, desktop host code, native bridges, measurement/safety logic, plugin runtime or updater code) requires a full package installation and therefore increments `Vx.y.z` as well as `aNNN`.
 - Every successful main-branch application change builds both the complete Windows portable package and the complete fixed-signed Android APK.
 - A CSS-only change additionally builds the four-file `dkds-ui-v2` bundle and attaches it to that same Release. It does not create a second UI Release or a second `aNNN`.
 - JavaScript, plugin manifests, native bridges, measurement logic, updater logic, package metadata, and other runtime changes publish the full packages without a CSS-only hot bundle.

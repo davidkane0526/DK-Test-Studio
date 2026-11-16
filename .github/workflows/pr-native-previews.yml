@@ -1,9 +1,8 @@
 name: DKTS native PR preview (never publish)
-run-name: DKTS V0.3.13 a${{ github.run_number }} PR
+run-name: DKTS native PR preview #${{ github.run_number }}
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened]
+  # Manually requested diagnostics only; never auto-compile during development.
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:

@@ -1,7 +1,6 @@
 name: Validate DKDS scientific chart on Android
 on:
-  pull_request:
-    branches: [main]
+  # Manually requested diagnostics only; never auto-compile during development.
   workflow_dispatch:
 permissions:
   contents: read
