@@ -34,3 +34,11 @@ The 2026-11-11 legacy FS-Pro code snapshot remains under `docs/reference/legacy-
 These documents are design/reference materials. Their presence does not authorize real SMU/PMU output, prove hardware safety, or establish physical measurement acceptance. Follow the current KXCI revision, installed module identification, instrument firmware, and hardware acceptance gates before enabling source output.
 
 This documentation-only update does not change the DKTS application version and does not trigger the final Windows/Android build.
+
+
+## Private bundle checksum
+
+- File: `DKTS-4200A-Reference-Bundle-2026-11-17.zip`
+- Size: 13,782,750 bytes
+- SHA-256: `f8b37d42220e68a186827a3cc02fa687bf88551549094f6357c1206cb6ed9349`
+- This archive is a private handoff and is not committed to the public repository.

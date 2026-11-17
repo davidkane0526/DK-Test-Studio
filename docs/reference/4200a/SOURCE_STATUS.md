@@ -37,3 +37,11 @@ Checked: 2026-11-17
 - A public manual listing is not proof that its downloadable PDF was retrieved.
 - The private companion ZIP preserves user-provided and recovered original files for the user's internal project use. Do not redistribute the LabExpress manual.
 - No real SMU/PMU source output or measurement was performed as part of this reference recovery.
+
+
+## Private handoff archive
+
+- File: `DKTS-4200A-Reference-Bundle-2026-11-17.zip`
+- Size: 13,782,750 bytes
+- SHA-256: `f8b37d42220e68a186827a3cc02fa687bf88551549094f6357c1206cb6ed9349`
+- ZIP integrity check: PASS; 27 files; 16,041,043 uncompressed bytes.

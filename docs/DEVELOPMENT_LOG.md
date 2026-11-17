@@ -515,3 +515,11 @@
 - 在 `docs/reference/4200a/` 新增来源目录、资料状态和 DKTS 自有文档的可检索文本摘录。LabExpress 原厂手册具有版权限制，仅进入私有交付 ZIP，不公开上传 PDF 或全文。官方 Tektronix 页面已核实 KXCI Rev F（4200A-KXCI-907-01F，2026-10-09）与 PMU Rev D（4200A-PMU-900-01D，2026-10-22）；两份 PDF 本身未下载，不作为已纳入文件。
 - 未找回：`FSPro_4200A_Agent_Dev_Pack_V5.zip`、`DKTS_FSPro_V6_full_retry.zip`、`keithley-main.zip`。不以重建内容冒充原件。官方 KXCI 示例仓库链接已记录。
 - 本轮不修改应用代码/版本，不运行 Windows/Android 最终构建，不执行真实 4200A 输出或测量。GitHub 参考资料 commit SHA 与私有 ZIP 的最终文件清单、SHA-256 将在后续交付记录中补齐。
+
+
+## 2026-11-17 / 4200A 参考资料归档交付核验
+- GitHub 资料恢复提交：[`0887ffb5124a72cff7ebca33f0bc63ed516ed124`](https://github.com/davidkane0526/DK-Test-Studio/commit/0887ffb5124a72cff7ebca33f0bc63ed516ed124)，直接提交到唯一 `main`；分支检查结果仅有 `main`。新增 9 个参考资料文件并更新用户需求/开发日志；未修改 DKDS，未改应用代码/版本，未触发应用构建。
+- 私有交付包：`DKTS-4200A-Reference-Bundle-2026-11-17.zip`；27 个文件；13,782,750 bytes；ZIP 完整性检查 PASS；SHA-256 `f8b37d42220e68a186827a3cc02fa687bf88551549094f6357c1206cb6ed9349`。
+- 私有 ZIP 含用户上传的 106 页 LabExpress 手册及找回的 V2/V3/V5/V6 PDF/DOCX、连接交接 Markdown、4200 控制笔记和检索文本。原厂 LabExpress 手册未公开上传到 GitHub；GitHub 仅保存书目/版权说明和 DKTS 自有规范的文本摘录。
+- 尚缺原始 V5 Agent Dev Pack ZIP、V6 完整 ZIP、`keithley-main.zip`、官方 KXCI Rev F PDF、官方 PMU Rev D PDF；没有伪造或重建这些原件。
+- 本 ZIP 是 4200A 参考资料包，不是完整 DKTS 应用源代码包，也不是 Windows/Android 安装包。
