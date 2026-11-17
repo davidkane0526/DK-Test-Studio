@@ -45,6 +45,7 @@
   for(const logical of ['S','D','G']){
    const terminal=terminals[logical];
    if(!terminal)throw Error('缺少 '+logical+' 端口配置');
+   if(/^PMU/.test(terminal.resource))throw Error(logical+' 已映射到 PMU；当前 DC 扫描需要 SMU');
    if(terminal.resource!=='None'&&terminal.sourceMode!=='voltage')
     throw Error(logical+' 端口当前为电流源模式；此 KXCI 用户模式只支持电压源输出');
   }
@@ -122,7 +123,7 @@
    onProgress:()=>notify('measurement-progress')});
   const onChange=typeof options.onChange==='function'?options.onChange:()=>{};
   let monitorTask=null,disposed=false,runSequence=0;
-  const notify=event=>{try{onChange(Object.freeze({event,...status()}));}catch{}};
+  const notify=(event,details)=>{try{onChange(Object.freeze({event,...status(),...details}));}catch{}};
   function status(){
    const connection=controller.status(),run=runner.status(0);
    return Object.freeze({connection,run,execution:execution.status(),
@@ -137,6 +138,7 @@
    if(lastRun.shutdown==='unconfirmed')return {ready:false,canExecute:false,
     reason:'上一次测量的 SMU 输出关闭未获确认；必须先在仪器现场确认输出状态，禁止继续启动测量'};
    if(connection.phase!=='connected')return {ready:false,canExecute:false,reason:'尚未连接并验证 Keithley 4200A'};
+   if(connection.inventoryPending)return {ready:false,canExecute:false,reason:'正在重新读取模块，请等待端口扫描完成'};
    if(!connection.inventory||connection.inventoryError)
     return {ready:false,canExecute:false,reason:connection.inventoryError||'尚未完成实际模块识别'};
    try{
@@ -170,7 +172,7 @@
    }
    return rows;
   }
-  async function monitor(runId,serial,route){
+  async function monitor(runId,serial,route,scope){
    try{
     const current=await runner.waitForCompletion();
     const rows=collectRows();
@@ -180,13 +182,13 @@
       const connection=controller.status();
       published=measurementData.publishRaw(ctx,{
        runId,rows,serial,startedAt:current.startedAt,
-       finishedAt:current.finishedAt,runState:current.state,
+       finishedAt:current.finishedAt,runState:current.state,scope,
        source:{name:'KI4200A '+serial,model:'KI4200A',serial,
         firmware:connection.identity?.version||'',transport:'KXCI TCP',route}
       });
      }catch(error){publishError=String(error?.message||error);}
     }
-    notify('measurement-finished');
+    notify('measurement-finished',{rows:rows.length,published,publishError});
     return Object.freeze({run:current,rows:rows.length,published,publishError});
    }catch(error){
     const failure=String(error?.message||error);
@@ -201,11 +203,12 @@
    notify('connected');
    return result;
   }
-  async function inspectModules(){
+  async function inspectModules(options){
    if(disposed)throw Error('测量运行时已释放');
    if(runner.status(0).running)throw Error('测量执行期间不能重新枚举模块');
-   const result=await controller.inspectModules();
+   const result=await controller.inspectModules(options);
    notify('modules-inspected');
+   if(result.phase!=='connected')throw Error(result.diagnostic||'端口扫描过程中连接已断开');
    return result;
   }
   async function connectAndInspect(settings){
@@ -223,7 +226,7 @@
    const initial=runner.start(prepared.input,{
     inventory:connection.inventory,capabilities:hardwareCapabilities
    },'CONFIRM_WIRING_AND_OUTPUT');
-   monitorTask=monitor(runId,serial,connection.route);
+   monitorTask=monitor(runId,serial,connection.route,{pageId:page.id,routineId:page.routineId,pageName:page.name});
    notify('measurement-started');
    return Object.freeze({...initial,runId,prepared:{pointCount:prepared.pointCount,
     channels:prepared.channels,active:prepared.active}});

@@ -38,21 +38,17 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      hasCoreShell:!!document.getElementById('primaryActivityBar'),
      hasStatusBar:!!document.querySelector('[id*="statusBar"],footer,.statusbar'),
      has4200Workspace:ids.includes('com.dkts.keithley-4200'),
-     hasNativePageTabs:[...document.querySelectorAll('[data-dkds-unit-template="tabs-v2"]')]
-      .some(node=>['Info','Sweep','Target','Strategy','Limits','Page Var','Associate Spec']
-       .every(label=>[...node.querySelectorAll('[role=tab]')].some(tab=>tab.textContent.trim()===label))),
-     hasTerminalEditor:[...document.querySelectorAll('[data-dkds-unit-template="panel-v2"]')]
-      .some(node=>node.textContent.includes('Terminal Settings')&&node.textContent.includes('Fixed Bias')),
+     hasInitialGraph:!!document.querySelector('#dktsKeithley4200Page [data-dkts-view="graph"]:not([hidden]) .dkts-history-panel'),
+     hasInitialEditorHidden:!!document.querySelector('#dktsKeithley4200Page [data-dkts-editor][hidden]'),
      hasRedundant4200Header:[...document.querySelectorAll('.analysis-page-header')]
       .some(node=>node.textContent.trim()==='4200A'&&
        node.getBoundingClientRect().height>0),
-     hasDeviceNavigation:!!document.querySelector('#dktsKeithley4200Page [data-dkts-nav]')&&
-       document.body.innerText.includes('MOSFET')&&document.body.innerText.includes('项目'),
+     hasDeviceNavigation:!!document.querySelector('#dktsKeithley4200Page [data-dkts-nav] [data-dkts-device]'),
       scopedGeometryLoaded:(()=>{
        const root=document.querySelector('#dktsKeithley4200Page .dkts-main-grid');
        const columns=root?getComputedStyle(root).gridTemplateColumns:'';
        const first=Number.parseFloat(columns.split(' ')[0]);
-       return !!root&&Number.isFinite(first)&&first>=220&&first<=245;
+       return !!root&&Number.isFinite(first)&&first>=265&&first<=275;
       })(),
       projectSidebarWidth:(()=>{
        const node=document.querySelector('#dktsKeithley4200Page [data-dkts-nav]');
@@ -101,11 +97,12 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        state.brand!=='DK Test Studio'||
        state.selectedSuper!=='com.dkts.keithley-4200'||!state.superAvailable||
        state.activeActivity!=='dkts-keithley-4200'||state.neutralMainVisible||
-       !state.hasNativePageTabs||!state.hasTerminalEditor||
+       !state.hasInitialGraph||!state.hasInitialEditorHidden||
        !state.hasDeviceNavigation||state.hasRedundant4200Header||
        state.nativePlotGroupCount!==1||state.nativePlotViewCount!==4||
        state.nativePlotHeaderCount!==4||!state.scopedGeometryLoaded||
-        state.projectSidebarWidth<210||state.projectSidebarWidth>255)return;
+       state.projectSidebarWidth<265||state.projectSidebarWidth>275||
+       state.terminalGrid.rows!==1||state.terminalGrid.columns!==3)return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();
@@ -152,9 +149,13 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
    }
    // Real Core Page activation (not a static web DOM picture).
    const pageClicked=await win.webContents.executeJavaScript(`(()=>{
-    const button=[...document.querySelectorAll('button[data-dkds-unit-template="list-item-v2"]')]
-     .find(node=>['I–V 扫描','I–V Sweep','I-V Sweep'].some(name=>node.textContent.includes(name)));
-    if(!button)return false;button.click();return true;
+    const button=document.querySelector('#dktsKeithley4200Page button[data-dkts-page-item]');
+    if(!button)return false;
+    button.click();
+    const graph=document.querySelector('#dktsKeithley4200Page [data-dkts-view="graph"]:not([hidden])');
+    if(!graph?.querySelector('.dkts-history-panel'))return false;
+    button.dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));
+    return true;
    })()`,true);
    if(!pageClicked)throw Error('FS-Pro Page navigation item unavailable in real Electron DOM');
    await new Promise(resolve=>setTimeout(resolve,350));
@@ -169,13 +170,13 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
    if(!configured)throw Error('FS-Pro Terminal strip must expose Source/Drain/Gate as GNDU/SMU1/SMU2');
    await new Promise(resolve=>setTimeout(resolve,220));
    const pageEditor=await win.webContents.executeJavaScript(`(()=>{
-    const tabs=[...document.querySelectorAll('[data-dkds-unit-template="tabs-v2"]')];
+    const tabs=[...document.querySelectorAll('#dktsKeithley4200Page .dkts-tab-bar')];
     const tabButtons=tabs[0]?[...tabs[0].querySelectorAll('[role=tab]')]:[];
-    const required=['Info','Sweep','Target','Strategy','Limits','Page Var','Associate Spec'];
+    const required=[['扫描','Sweep'],['目标','Target'],['策略','Strategy']];
     const visible=tabs.some(el=>el.getBoundingClientRect().width>60&&el.getBoundingClientRect().height>0)&&
-     required.every(name=>tabButtons.some(button=>button.textContent.trim()===name));
+     required.every(names=>tabButtons.some(button=>names.includes(button.textContent.trim())));
     const graph=document.querySelector('#dktsKeithley4200Page [data-dkts-view="graph"]');
-    const back=[...document.querySelectorAll('button')].some(el=>el.textContent.includes('绘图区'));
+    const back=[...document.querySelectorAll('button')].some(el=>['返回数据图','Back to data plots'].includes(el.textContent.trim()));
     const row=document.querySelector('#dktsKeithley4200Page [data-dkts-terminal-setting="D"]');
     const xPanel=[...document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-template="panel-v2"]')]
      .find(el=>el.textContent.includes('Xsweep'));
@@ -187,7 +188,7 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      desktopPortToolbarVisible:(()=>{const el=document.querySelector('#dktsKeithley4200Page [data-dkts-port-desktop]');return !!el&&el.getBoundingClientRect().width>0;})(),
      plotHeaders:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-plot-header]').length};
    })()`,true);
-   if(!pageEditor.visible||pageEditor.tabCount!==7||!pageEditor.backButton||!pageEditor.graphVisible||
+   if(!pageEditor.visible||pageEditor.tabCount!==3||!pageEditor.backButton||pageEditor.graphVisible||
       pageEditor.terminalRows!==2||pageEditor.rangeFields<3||!pageEditor.xSweepVisible||
       !pageEditor.desktopPortToolbarVisible||pageEditor.plotHeaders!==4)
     throw Error('FS-Pro Page editor hierarchy invalid: '+JSON.stringify(pageEditor));
@@ -221,9 +222,11 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
     if(!opened)throw Error('Phone port mapping action missing');
     await new Promise(resolve=>setTimeout(resolve,180));
     const popover=await win.webContents.executeJavaScript(`(()=>{
-     const text=document.body.innerText;
-     return ['Terminal 端口映射','Source (S)','Drain (D)','Gate (G)','应用']
-      .every(value=>text.includes(value));
+     const popover=[...document.querySelectorAll('[role="dialog"]')]
+      .find(node=>node.querySelector('select[aria-label*="(S)"]'));
+     if(!popover)return false;
+     return ['S','D','G'].every(key=>popover.querySelector('select[aria-label*="('+key+')"]'))&&
+      [...popover.querySelectorAll('button')].some(button=>['应用','Apply'].includes(button.textContent.trim()));
     })()`,true);
     if(!popover)throw Error('Phone port mapping popover does not expose Source/Drain/Gate');
     phoneEvidence={...phone,popover:true,threeTerminalRoles:true};

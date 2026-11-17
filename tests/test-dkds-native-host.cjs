@@ -111,6 +111,7 @@ const table={kind:'data.table',rowCount:3,name:'Raw IV',columns:[
 const reads=[];
 let revision=1;
 const artifactStore={
+ listMetadata:({id}={})=>id==='a1'?[{id,rowCount:3,metadata:{dktsScope:{pageId:'page-1',routineId:'routine-1',pageName:'Raw IV'}}}]:[],
  get:id=>{record.fullReads++;return id==='a1'?table:null;},
  artifactRevision:()=>revision,
  columnMetadata:id=>id==='a1'?table.columns.map(x=>({
@@ -135,6 +136,7 @@ const ctx={
   model:{rows:table=>table.columns[0].values.map((_,i)=>Object.fromEntries(
    table.columns.map(col=>[col.key,col.values[i]])))}},
  ui:{unitTemplates:units,
+  toolbar:{add:spec=>{record.toolbar??=[];const button=el();record.toolbar.push({spec,button});return button;}},
   settings:{define:(id,spec)=>({get:()=>({...spec.defaults}),open:()=>{record.settingsOpened=id;}})},
   dialogs:{confirm:async spec=>{record.confirmations??=[];record.confirmations.push(spec);return false;},
    alert:async spec=>{record.alerts??=[];record.alerts.push(spec);}},
@@ -158,7 +160,11 @@ const ctx={
  assert.ok(record.fields.some(row=>row.spec.label==='漏极 · D'&&row.control.value==='SMU1'));
  assert.ok(record.fields.some(row=>row.spec.label==='栅极 · G'&&row.control.value==='SMU2'));
  assert.equal(record.fields.some(row=>row.spec.label==='体端 · B'),false);
- assert.ok(record.actions.some(row=>row.id==='dkts-4200a-connect'));
+ assert.deepEqual(record.toolbar.map(row=>row.spec.id),['dkts-workspace-language','dkts-workspace-connect','dkts-workspace-scan']);
+ assert.equal(record.toolbar.find(row=>row.spec.id==='dkts-workspace-scan').button.disabled,true);
+ assert.ok(record.actions.some(row=>row.id==='dkts-return-data-plots'));
+ assert.deepEqual(Array.from(record.fields.find(row=>row.spec.label==='漏极 · D').spec.options,row=>row.value),
+  ['None','GNDU','SMU1','SMU2','SMU3','SMU4']);
  assert.ok(record.actions.some(row=>row.id.startsWith('dkts-run-')));
  assert.equal(record.tabs.at(-1).items.length,3);
  assert.deepEqual(Array.from(record.tabs.at(-1).items,row=>row.id),
@@ -243,6 +249,13 @@ const ctx={
  await exportOriginal.onInvoke();
  assert.equal(record.exports.length,1);
  assert.equal(record.fullReads,1);
+ record.listItems.find(row=>row.title==='I–V 扫描').onInvoke();
+ assert.equal(record.plots[0].getCurves().length,1,'test scope exposes its own run');
+ record.listItems.findLast(row=>row.title==='Raw IV').onInvoke();
+ record.actions.findLast(row=>row.id==='dkts-history-plot').items()[1].onInvoke();
+ assert.equal(state.ui.scopedGraphs['page-1'].sources[1],'a1');
+ record.actions.findLast(row=>row.id==='add-routine').onInvoke();
+ assert.equal(record.plots[0].getCurves().length,0,'a separate routine does not inherit another test history');
  instance.deactivate();
  assert.ok(record.disposals>=1);
  console.log('Core-host native plugin: LabExpress main tabs, Unit extensions, X/P rows, Terminal, Fixed Bias, Target/Strategy/Limits/Page Var/Spec, Data Center and four PlotViews PASS');

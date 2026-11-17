@@ -50,7 +50,7 @@ test('Terminal, Terminal Settings and Fixed Bias are separate FS-Pro regions',()
  assert.match(plugin,/Compliance Mode/);
  assert.match(plugin,/Compliance \(A\)/);
  assert.match(plugin,/title:t\('Fixed Bias'\)/);
- assert.match(plugin,/data-dkts-terminal-collapsed/);
+ assert.match(plugin,/units\.layout\.create\(projectToolbar,\{variant:'identity',className:'dkts-terminal-strip'/);
 });
 
 test('DKTS adapts public Unit entry points without a derived Core patch',()=>{

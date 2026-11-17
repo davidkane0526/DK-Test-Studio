@@ -1,6 +1,6 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.19","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.20","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),measurementData=ctx.modules.require('measurementData'),
    measurementRuntimeModule=ctx.modules.require('measurementRuntime'),units=ctx.ui.unitTemplates,
@@ -19,7 +19,10 @@
 
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
   let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSelections=['','','',''],frameKinds=['iv','transfer','it','raw'],frameGroup=null,frameTableHosts=[],framePlotHosts=[],frameTables=[],frameLayout='4',nav=null,parameters=null,dataNote=null,pad=null,portPopover=null,editorTabs=null,editorHeading=null,terminalRegion=null;
-  let editorSection='sweep',editorOpen=false,terminalVisible=true,workRegion=null,editorRegion=null,plotRegion=null,projectSurface=null;
+  let editorSection='sweep',editorOpen=false,plotScope='project',workRegion=null,editorRegion=null,plotRegion=null,projectSurface=null;
+  let instrumentBusy=false,connectionMenu=null;
+  let layoutField=null,historyHost=null,plotsHeading=null;
+  const historyChoices=new Map();
   const defineConnectionSettings=()=>ctx.ui.settings.define('instrument-connection',{
    title:t('4200A 连接设置'),
    description:'使用 DKDS 通用 TCP/IP 通信能力连接 4200A。连接后先核验仪器身份和实际模块型号，再开放受安全策略约束的测量操作。',
@@ -46,11 +49,14 @@
     if(update.event==='connected')ctx.status.set('4200A 身份已验证：'+(update.connection.identity?.serial||''));
     else if(update.event==='modules-inspected'){
      const inventory=update.connection.inventory;
-     ctx.status.set(inventory?.hardwareLimitsVerified&&inventory?.physicalModelsVerified
-      ?(!update.protocolVerified?'4200A 模块已核验，但最新 KXCI Rev F 正文尚未核对，禁止真实仪器输出'
-       :(!update.executionAdapterAvailable?'DKDS 宿主未提供受生命周期管理的定时服务，无法执行带延迟的逐点测量'
-        :'4200A 实际模块与 KXCI 协议已核验，可检查测量方案'))
-      :'4200A 已连接，但实际模块身份/额定值未完整核验，禁止仪器输出');
+     const modules=inventory?.slots||[];
+     const count=family=>modules.filter(slot=>slot.family===family).length;
+     const counts=inventory?'4200A · '+count('SMU')+' SMU / '+count('PMU')+' PMU':'4200A';
+     const issue=update.connection.inventoryError||(!inventory?.hardwareLimitsVerified||!inventory?.physicalModelsVerified
+      ?tr('模块型号或额定值待核验','Module models or ratings need verification'):
+      !update.protocolVerified?tr('KXCI Rev F 待核验','KXCI Rev F needs verification'):
+      !update.executionAdapterAvailable?tr('宿主定时服务不可用','Host timing unavailable'):tr('模块扫描完成','Port scan complete'));
+     ctx.status.set(counts+' · '+issue);
     }else if(update.event==='measurement-started')ctx.status.set('4200A 正在执行真实 KXCI 测量，停止时将依次关闭所有活动 SMU');
     else if(update.event==='measurement-finished'){
      runPageId=null;
@@ -59,6 +65,7 @@
      else if(update.publishError)ctx.status.set('测量结束，但原始数据发布失败：'+update.publishError);
      else if(update.published)ctx.status.set('测量 '+run.state+'；'+update.rows+' 行 KXCI 原始数据已写入 DKDS Data Center');
      else ctx.status.set('测量 '+run.state+'；没有可发布的实际 TI 采样行');
+     refreshData();
     }else if(update.event==='measurement-stopping')ctx.status.set('正在停止测量并关闭活动 SMU 输出…');
     else if(update.event==='disconnected')ctx.status.set('4200A 已断开');
     render();
@@ -77,12 +84,20 @@
   const state=()=>model.validate(store.get());
   const active=()=>{const s=state();return s.pages.find(x=>x.id===s.activeId);};
   const persist=value=>{store.patch(model.validate(value));ctx.project.capture?.();render();};
-  const sources=()=>{const rows=ctx.data.sources.list();return Array.isArray(rows)?rows:[];};
+  const artifactMetadata=id=>ctx.data.artifacts.listMetadata?.({id})?.[0]||null;
+  const acquisition=meta=>({...meta?.acquisition,...meta?.metadata?.acquisition,...meta?.metadata?.dktsScope});
+  const scopeId=s=>plotScope==='page'?s.activeId:plotScope==='routine'?s.activeRoutineId:null;
+  function sources(s=state()){
+   const rows=ctx.data.sources.list();
+   if(!Array.isArray(rows))return [];
+   const scope=scopeId(s);
+   return rows.filter(row=>row.excluded!==true&&(!scope||
+    acquisition(artifactMetadata(row.artifactId))?.[plotScope==='page'?'pageId':'routineId']===scope));
+  }
   // Core's plugin-scoped sources facade enforces Data Center assignments.
   // Revision-aware caching prevents full column clones on plot repaints.
   const plotCache=new Map();
-  function curves(axis='iv'){
-   const rows=sources();
+  function curves(axis='iv',rows=sources()){
    const key=JSON.stringify([axis,...rows.map(row=>[row.artifactId,row.name,
     ctx.data.artifacts.artifactRevision?.(row.artifactId)||0])]);
    if(plotCache.has(key))return plotCache.get(key);
@@ -90,24 +105,31 @@
    plotCache.set(key,next);
    return next;
   }
-    function syncGraphSettings(){
-   const settings=state().ui.graphs;
+  function graphSettings(s){
+   const scope=scopeId(s);
+   return scope?s.ui.scopedGraphs[scope]||model.initial().ui.graphs:s.ui.graphs;
+  }
+  function syncGraphSettings(s=state()){
+   const settings=graphSettings(s);
    frameLayout=String(settings.count);
    frameKinds=[...settings.kinds];
    frameSelections=[...settings.sources];
+   if(layoutField?.control)layoutField.control.value=frameLayout;
   }
   function saveGraphSetting(index,field,value){
-   const settings=state();
-   if(index<0)settings.ui.graphs.count=Number(value);
-   else if(field==='kind')settings.ui.graphs.kinds[index]=String(value);
-   else settings.ui.graphs.sources[index]=String(value);
-   const next=model.validate(settings);
+   const s=state(),settings=graphSettings(s),scope=scopeId(s);
+   if(index<0)settings.count=Number(value);
+   else if(field==='kind')settings.kinds[index]=String(value);
+   else settings.sources[index]=String(value);
+   if(scope)s.ui.scopedGraphs[scope]=settings;
+   const next=model.validate(s);
    store.patch(next);
    ctx.project.capture?.();
    syncGraphSettings();
    applyFrameLayout();
    if(index>=0&&field==='kind')createFramePlot(index);
    refreshRawTables();
+   renderHistory(next);
    for(const item of plots)item?.requestRender?.('frame-setting');
   }
   function refreshRawTables(){
@@ -136,6 +158,7 @@
   function refreshData(){
    plotCache.clear();
    refreshRawTables();
+   if(historyHost)renderHistory(state());
    for(const item of plots)item?.requestRender?.('data-artifacts');
   }
   function commitTransaction(fn){
@@ -192,24 +215,23 @@
     return next;
    });
   }
-  async function toggleInstrumentConnection(){
-   const current=measurementRuntime.status().connection;
+  async function updateInstrument({connect=false,automatic=false}={}){
+   if(instrumentBusy||measurementRuntime.status().run.running)return;
+   const settings=connectionSettings.get();
+   if(connect&&(!settings.host?.trim()||!settings.expectedSerial?.trim())){
+    if(automatic)showOfflineStatus();
+    else connectionSettings.open();
+    return;
+   }
+   instrumentBusy=true;syncInstrumentButtons();
    try{
-    if(current.phase==='connected'){
-     const run=measurementRuntime.status().run;
-     if(run.running){
-      const confirmed=await ctx.ui.dialogs.confirm({title:'停止并断开 4200A',
-       tone:'warning',message:'当前测量仍在执行。将先请求停止，并等待所有活动 SMU 的 DVn 输出关闭命令完成。',
-       confirmLabel:'停止并断开',destructive:true});
-      if(!confirmed)return;
-     }
-     await measurementRuntime.disconnect();
-    }else{
-     ctx.status.set('正在连接 4200A 并验证仪器身份…');
-     await measurementRuntime.connectAndInspect(connectionSettings.get());
-    }
-   }catch(error){ctx.status.set('4200A 连接/断开失败：'+String(error.message||error));}
-   render();
+    ctx.status.set(connect?tr('正在连接 4200A 并读取实装端口…','Connecting to 4200A and scanning ports…'):
+     tr('正在读取 4200A 实装端口…','Scanning installed 4200A ports…'));
+    if(connect)await measurementRuntime.connectAndInspect(settings);
+    else await measurementRuntime.inspectModules({refresh:true});
+   }catch(error){ctx.status.set((connect?tr('4200A 连接失败','4200A connection failed'):
+    tr('端口扫描失败','Port scan failed'))+' · '+String(error.message||error));}
+   finally{instrumentBusy=false;render();}
   }
   async function handleMeasurementAction(page,prepared){
    const current=measurementRuntime.status();
@@ -410,14 +432,15 @@
    return field;
   }
   const speedOptions=()=>['Fast','Normal','Quiet'].map(value=>({value,label:t(value)}));
+  const isSmu=term=>/^SMU[1-9]$/.test(term?.resource||'');
   const scanPortOptions=(p,axis)=>{
    const other=axis==='X'?'P':'X';
-   return p.terminals.filter(term=>!['None','GNDU'].includes(term.resource)&&
+   return p.terminals.filter(term=>isSmu(term)&&
     term.role!==other).map(term=>({value:term.logical,label:t(logicalNames[term.logical])}));
   };
   function assignSweepPort(axis,logical){
    const term=active().terminals.find(row=>row.logical===logical);
-   if(!term||['None','GNDU'].includes(term.resource)){
+   if(!isSmu(term)){
     ctx.status.set('Xsweep/Psweep 必须选择已分配的 SMU 端口');return;
    }
    commitTransaction(()=>{const next=model.edit(state(),logical,{role:axis});if(sweepIssue?.key==='port'&&sweepIssue.axis===axis)sweepIssue=null;return next;});
@@ -425,10 +448,10 @@
   function setPsweepEnabled(enabled){
    commitTransaction(()=>{
     let next=state(),page=next.pages.find(row=>row.id===next.activeId);
-    if(enabled&&!page.terminals.some(term=>term.role==='P'&&!['None','GNDU'].includes(term.resource))){
+    if(enabled&&!page.terminals.some(term=>term.role==='P'&&isSmu(term))){
      const candidate=page.terminals.find(term=>term.logical==='G'&&
-      !['None','GNDU'].includes(term.resource)&&term.role!=='X')||
-      page.terminals.find(term=>!['None','GNDU'].includes(term.resource)&&term.role!=='X');
+      isSmu(term)&&term.role!=='X')||
+      page.terminals.find(term=>isSmu(term)&&term.role!=='X');
      if(!candidate)throw Error('Psweep 已启用，请先为其分配独立 SMU');
      next=model.edit(next,candidate.logical,{role:'P'});
     }
@@ -437,8 +460,8 @@
   }
   function renderSweepAxis(host,p,axis){
    const sw=p.sweep,isP=axis==='P',enabled=!isP||sw.pEnabled;
-   const current=p.terminals.find(term=>term.role===axis&&!['None','GNDU'].includes(term.resource));
-   const fallback=p.terminals.find(term=>term.logical===(isP?'G':'D')&&!['None','GNDU'].includes(term.resource));
+   const current=p.terminals.find(term=>term.role===axis&&isSmu(term));
+   const fallback=p.terminals.find(term=>term.logical===(isP?'G':'D')&&isSmu(term));
    const selected=current||(!enabled?fallback:null);
    const available=scanPortOptions(p,axis);
    const panel=units.panel.create(host,{variant:'headed',title:isP?'Psweep':'Xsweep',
@@ -452,12 +475,17 @@
    if(isP)units.check.create(controls,{kind:'checkbox',label:t('启用'),checked:sw.pEnabled,
     className:'dkts-psweep-enable',onChange:event=>setPsweepEnabled(event.target.checked)});
    const portGroup=units.layout.create(controls,{variant:'identity',className:'dkts-sweep-header-field'});
-   terminalChoice(portGroup,{kind:'select',label:false,controlOnly:true,
+   const portField=terminalChoice(portGroup,{kind:'select',label:false,controlOnly:true,
     value:selected?.logical||'',options:selected?available:[{value:'',label:tr('选择端子','Select terminal')},...available],
     className:'dkts-sweep-head-port',controlClassName:'dkts-sweep-head-control',
     controlDataset:{dktsFsproHeadControl:'port'},
     attributes:{'aria-label':(isP?'Psweep':'Xsweep')+' '+tr('扫描端子','Sweep terminal'),'data-dkts-sweep-key':'port',...(missingPort?{'aria-invalid':'true'}:{})},
     disabled:!available.length,onChange:event=>assignSweepPort(axis,event.target.value)});
+   // Core's header select minimum applies to general-purpose fields. Sweep
+   // selectors only show a terminal badge and arrow.
+   if(portField.control?.style)Object.assign(portField.control.style,{
+    width:'var(--dkts-sweep-terminal-width,62px)',minWidth:'0'
+   });
    const repeatGroup=units.layout.create(controls,{variant:'identity',className:'dkts-sweep-header-field'});
    const repeatLabel=units.note.create(repeatGroup,{variant:'meta',text:t('重复')});
    repeatLabel?.setAttribute?.('data-dkts-sweep-control-label','true');
@@ -559,7 +587,7 @@
    renderTerminalSettings(host,p);
   }
   function renderTerminalSettings(host,p){
-   const visible=model.visible(p);
+   const visible=model.visible(p).filter(isSmu);
    const panel=units.panel.create(host,{variant:'headed',title:t('Terminal Settings'),
     meta:'',sizing:'content',className:'dkts-terminal-settings'});
    if(!visible.length){units.emptyState.create(panel.body,{message:'尚未分配测量 SMU。'});return;}
@@ -568,9 +596,9 @@
    for(const term of visible){
     const row=units.layout.create(panel.body,{variant:'identity',className:'dkts-terminal-setting'});
     row?.setAttribute?.('data-dkts-terminal-setting',term.logical);
+    units.note.create(row,{variant:'meta',text:term.resource.replace(/^SMU(\d)$/,'SMU $1'),className:'dkts-terminal-slot'});
     const heading=units.layout.create(row,{variant:'identity',className:'dkts-terminal-setting-heading'});
     renderTerminalBadge(heading,term.logical);
-    units.note.create(row,{variant:'meta',text:term.resource,className:'dkts-terminal-slot'});
     const mode=term.rangeMode==='minimum'?'limited-auto':term.rangeMode;
     const available=currentRanges(term,terminalPeaks(p,term));
     const options=[{value:'auto',label:t('Auto')}];
@@ -600,7 +628,7 @@
    }
   }
   function renderFixedBias(host,p){
-   const fixed=p.terminals.filter(term=>!['None','GNDU'].includes(term.resource)&&
+   const fixed=p.terminals.filter(term=>isSmu(term)&&
     (term.role==='CONDITION'||(!p.sweep.pEnabled&&term.role==='P')));
    const panel=units.panel.create(host,{variant:'headed',title:t('Fixed Bias'),
     meta:'',sizing:'content',className:'dkts-fixed-bias-panel'});
@@ -748,16 +776,51 @@
   function frameCurves(index){
    const kind=frameKinds[index]||'iv',selected=frameSelections[index],available=sources();
    if(kind==='raw'||selected&&!available.some(row=>row.artifactId===selected))return [];
-   const list=curves(kind);
+   const list=curves(kind,available);
    return selected?list.filter(curve=>curve.artifactId===selected):list;
   }
-    function frameDataMenu(index){
+  function renderHistory(s){
+   historyHost.replaceChildren();
+   const scope=scopeId(s)||'project';
+   const data=sources(s).map(ref=>({ref,meta:artifactMetadata(ref.artifactId)}))
+    .sort((left,right)=>String(acquisition(right.meta)?.timestamp||right.meta?.createdAt||'')
+     .localeCompare(String(acquisition(left.meta)?.timestamp||left.meta?.createdAt||'')));
+   const panel=units.panel.create(historyHost,{variant:'headed',title:tr('历史数据','History'),
+    meta:String(data.length),sizing:'content',actionHost:true,className:'dkts-history-panel'});
+   if(!data.length){
+    units.note.create(panel.body,{variant:'meta',text:tr('当前范围暂无历史数据。','No history for this selection.')});
+    return;
+   }
+   const selected=data.find(({ref})=>ref.artifactId===historyChoices.get(scope))?.ref.artifactId||'';
+   const actions=units.layout.create(panel.header.actionHost||panel.header.actions,
+    {variant:'row',className:'dkts-history-actions'});
+   units.action.create(actions,{id:'dkts-history-plot',label:tr('显示到图窗','Show in plot'),
+    variant:'secondary',menu:true,enabled:Boolean(selected),items:()=>frameKinds.slice(0,Number(frameLayout))
+     .map((kind,index)=>({id:'history-frame-'+index,label:tr('图窗 ','Plot ')+(index+1),
+      onInvoke:()=>{
+       saveGraphSetting(index,'source',selected);
+       ctx.status.set(tr('已将历史数据放入图窗 ','History shown in plot ')+(index+1));
+      }}))});
+   const rows=units.layout.create(panel.body,{variant:'stack-compact',className:'dkts-history-records'});
+   const list=units.list.create(rows,{variant:'compact'});
+   for(const {ref,meta} of data){
+    const run=acquisition(meta),stamp=run?.timestamp||meta?.createdAt;
+    const time=stamp&&!Number.isNaN(Date.parse(stamp))?new Date(stamp).toLocaleString(language):'';
+    const name=run?.pageName||ref.name||ref.artifactId;
+    const detail=[time,run?.runState,typeof meta?.rowCount==='number'?meta.rowCount+tr(' 行',' rows'):''].filter(Boolean).join(' · ');
+    list.item({title:name,meta:detail,selected:ref.artifactId===selected,onInvoke:()=>{
+     historyChoices.set(scope,ref.artifactId);
+     renderHistory(state());
+    }});
+   }
+  }
+  function frameDataMenu(index){
    const available=sources();
    const selected=frameSelections[index]||'';
    // The DKDS Action Menu owns source choices and export instead of
    // squeezing two full-width fields into the mobile PlotView titlebar.
    return [
-    {id:'source-all',label:(selected===''?'✓ ':'')+'全部已分配数据',
+    {id:'source-all',label:(selected===''?'✓ ':'')+tr('当前范围全部数据','All data in this view'),
      onInvoke:()=>saveGraphSetting(index,'source','')},
     ...available.map((ref,i)=>({
      id:'source-'+i,
@@ -814,18 +877,29 @@
   }
   function openTestType(kind){
    projectSurface?.close();
-   editorOpen=true;
+   editorOpen=true;plotScope='page';
    editorSection='sweep';
    persist(model.add(state(),kind));
   }
   function showEditor(id,section){
-   projectSurface?.close();editorOpen=true;editorSection=section;
+   projectSurface?.close();editorOpen=true;plotScope='page';editorSection=section;
    persist(model.select(state(),id));
    parameters.scrollTop=0;
   }
   function showRoutine(id){
-   projectSurface?.close();editorOpen=false;
+   projectSurface?.close();editorOpen=false;plotScope='routine';
    persist(model.selectRoutine(state(),id));
+  }
+  function showPageGraphs(id,keepNavigation=false){
+   projectSurface?.close();editorOpen=false;plotScope='page';
+   if(!keepNavigation){persist(model.select(state(),id));return;}
+   store.patch(model.select(state(),id));
+   ctx.project.capture?.();
+   render(true);
+  }
+  function updateTreeSelection(item,selected){
+   item?.classList?.toggle('selected',selected);
+   item?.setAttribute?.('aria-selected',String(selected));
   }
   function addTreeMenu(host,items){
    function open(event,anchor){
@@ -857,30 +931,51 @@
     message=tr('循环次数须为 1–10000 的整数。','Enter a whole number from 1 to 10000.');
    }
   }
-  function render(){
+  function render(keepNavigation=false){
    if(!nav||!parameters)return;
    updateEditorLayout();
    editorRegion?.setAttribute?.('lang',language);
    nav?.setAttribute?.('lang',language);
-   const s=state(),p=active();
-   syncGraphSettings();applyFrameLayout();
+   const s=state(),p=s.pages.find(page=>page.id===s.activeId);
+   const previousKinds=frameKinds;
+   syncGraphSettings(s);applyFrameLayout();
+   for(const [index,kind] of frameKinds.entries())
+    if(previousKinds[index]!==kind)createFramePlot(index);
+   syncInstrumentButtons();
+   updateGraphLanguage();
+   refreshRawTables();
+   renderHistory(s);
+   for(const plot of plots)plot?.requestRender?.('view-scope');
+   if(keepNavigation){
+    for(const row of nav.querySelectorAll?.('[data-dkts-page-select]')||[]){
+     const item=row.querySelector?.('[data-dkts-page-item]');
+     updateTreeSelection(item,row.getAttribute('data-dkts-page-select')===s.activeId);
+     const button=row.querySelector?.('.dkts-tree-page-view');
+     const label=tr('设置','Settings');
+     if(button){
+      button.textContent=label;
+      button.title=label;
+      button.setAttribute('aria-label',label+' · '+s.pages.find(page=>page.id===row.getAttribute('data-dkts-page-select'))?.name);
+     }
+    }
+    for(const item of nav.querySelectorAll?.('[data-dkts-routine-item]')||[])updateTreeSelection(item,false);
+    renderEditor(p,s);
+    return;
+   }
    treeMenu?.dispose?.();treeMenu=null;
    nav.replaceChildren();
    // Real DKDS Core Units own the Device/Routine/Page/Spec project tree.
-   const device=s.devices.find(d=>d.id===s.activeDeviceId);
    const visibleSpecs=s.specs.filter(spec=>spec.deviceId===s.activeDeviceId);
    projectToolbar.replaceChildren();
    const projectActions=units.layout.create(projectToolbar,{variant:'identity',className:'dkts-project-actions'});
    for(const [id,label,onInvoke] of [
-    ['add-device',t('+ Device'),()=>{projectSurface?.close();editorOpen=false;persist(model.addDevice(state()));}],
-    ['add-routine',t('+ Routine'),()=>{projectSurface?.close();editorOpen=false;persist(model.addRoutine(state()));}],
-    ['add-spec',t('+ Spec'),()=>{projectSurface?.close();editorOpen=true;editorSection='sweep';persist(model.addSpec(state()));}]
+    ['add-device',t('+ Device'),()=>{projectSurface?.close();editorOpen=false;plotScope='project';persist(model.addDevice(state()));}],
+    ['add-routine',t('+ Routine'),()=>{projectSurface?.close();editorOpen=false;plotScope='routine';persist(model.addRoutine(state()));}],
+    ['add-spec',t('+ Spec'),()=>{projectSurface?.close();editorOpen=true;plotScope='page';editorSection='sweep';persist(model.addSpec(state()));}]
    ])units.action.create(projectActions,{id,label,variant:'quiet',direct:true,onInvoke});
    units.action.create(projectActions,{id:'add-test-page',label:t('+ Page'),menu:true,variant:'quiet',
     items:()=>model.KINDS.map(kind=>({id:'add-test-'+kind.id,label:t(kind.label),onInvoke:()=>openTestType(kind.id)}))});
-   const routine=s.routines.find(item=>item.id===s.activeRoutineId);
-   units.note.create(projectToolbar,{variant:'meta',className:'dkts-breadcrumb',
-    text:[t('测试工程'),device?.name,routine?.name,p.name].filter(Boolean).join(' / ')});
+   renderSharedPorts(p);
    const projectHeader=units.header.create(nav,{kind:'panel',variant:'content',
     title:t('Project Explorer'),meta:'',actionHost:true});
    projectHeader.element?.setAttribute?.('data-dkts-workspace-heading','true');
@@ -893,7 +988,7 @@
     branch?.setAttribute?.('data-dkts-device',item.id);
     const deviceRow=units.layout.create(branch,{variant:'identity',className:'dkts-tree-row dkts-tree-device'});
     units.list.create(deviceRow,{variant:'compact'}).item({leading:'▤',title:item.name,
-     onInvoke:()=>{projectSurface?.close();editorOpen=false;persist(model.selectDevice(state(),item.id));}});
+     onInvoke:()=>{projectSurface?.close();editorOpen=false;plotScope='project';persist(model.selectDevice(state(),item.id));}});
     const routines=units.layout.create(branch,{variant:'stack-compact',className:'dkts-device-routines'});
     for(const routine of s.routines.filter(r=>r.deviceId===item.id))
      renderRoutine(routines,routine,s);
@@ -908,7 +1003,8 @@
       onInvoke:()=>{projectSurface?.close();editorOpen=true;editorSection='sweep';persist(model.associateSpec(state(),spec.id));}});
    }
    const librarySection=units.layout.create(nav,{variant:'stack-compact',className:'dkts-library-section'});
-   units.header.create(librarySection,{kind:'section',variant:'section',title:t('TEST LIBRARY')});
+   const libraryHeader=units.header.create(librarySection,{kind:'panel',variant:'content',title:t('TEST LIBRARY')});
+   libraryHeader.element?.setAttribute?.('data-dkts-workspace-heading','true');
    const library=units.layout.create(librarySection,{variant:'identity',className:'dkts-test-library'});
    for(const kind of model.KINDS)units.action.create(library,{id:'library-'+kind.id,
     label:t(kind.label),variant:'quiet',direct:true,onInvoke:()=>openTestType(kind.id)});
@@ -919,14 +1015,15 @@
    const routineHost=units.layout.create(treeHost,{variant:'identity',className:'dkts-tree-routine'});
    routineHost?.setAttribute?.('data-dkts-routine',routine.id);
    const routineRow=units.layout.create(routineHost,{variant:'identity',className:'dkts-tree-row'});
-   units.list.create(routineRow,{variant:'compact'}).item({leading:'▦',title:routine.name,
-    selected:!editorOpen&&routine.id===s.activeRoutineId,
+   const routineItem=units.list.create(routineRow,{variant:'compact'}).item({leading:'▦',title:routine.name,
+    selected:plotScope==='routine'&&routine.id===s.activeRoutineId,
     onInvoke:()=>showRoutine(routine.id)});
+   routineItem?.setAttribute?.('data-dkts-routine-item','true');
    const openMenu=addTreeMenu(routineRow,()=>[
     {id:'routine-loops',label:tr('循环次数','Loop count')+' · '+routine.loops,onInvoke:()=>editRoutineLoops(routine)},
     {id:'show-plots',label:t('绘图区'),onInvoke:()=>showRoutine(routine.id)},
     ...model.KINDS.map(kind=>({id:'add-'+kind.id,label:tr('新增 ','Add ')+t(kind.label),
-     onInvoke:()=>{projectSurface?.close();editorOpen=true;editorSection='sweep';
+     onInvoke:()=>{projectSurface?.close();editorOpen=true;plotScope='page';editorSection='sweep';
       persist(model.add(model.selectRoutine(state(),routine.id),kind.id));}}))
    ]);
    const menuLabel=tr('流程菜单','Routine menu')+' · '+routine.name;
@@ -938,15 +1035,24 @@
    for(const page of routinePages){
     const pageHost=units.layout.create(pagesHost,{variant:'identity',className:'dkts-project-page dkts-tree-row'});
     pageHost?.setAttribute?.('data-dkts-page-select',page.id);
-    units.list.create(pageHost,{variant:'compact'}).item({leading:'▧',title:page.name,
-     selected:editorOpen&&page.id===s.activeId,
-     onInvoke:()=>showEditor(page.id,'sweep')});
+    const pageItem=units.list.create(pageHost,{variant:'compact'}).item({leading:'▧',title:page.name,
+     selected:plotScope==='page'&&page.id===s.activeId,
+     onInvoke:()=>showPageGraphs(page.id,true)});
+    pageItem?.setAttribute?.('data-dkts-page-item','true');
+    pageItem?.addEventListener?.('dblclick',()=>showEditor(page.id,'sweep'));
+    const settingsOpen=editorOpen&&page.id===s.activeId;
+    const viewLabel=settingsOpen?tr('数据图','Data plots'):tr('设置','Settings');
+    const view=units.action.create(pageHost,{id:'dkts-page-view-'+page.id,label:viewLabel,title:viewLabel,
+     variant:'quiet',direct:true,className:'dkts-tree-page-view',
+     onInvoke:()=>editorOpen&&active().id===page.id?showPageGraphs(page.id):showEditor(page.id,'sweep')});
+    view?.element?.setAttribute?.('aria-label',viewLabel+' · '+page.name);
     const stopping=measurementRuntime.status().run.running&&runPageId===page.id;
     const executionLabel=stopping?tr('停止测试','Stop test'):tr('执行测试','Run test');
     const run=units.action.create(pageHost,{id:'dkts-run-'+page.id,label:stopping?'■':'▶',
      title:executionLabel,variant:'quiet',direct:true,className:'dkts-tree-run',
      onInvoke:()=>openExecution(page)});
     run?.element?.setAttribute?.('aria-label',executionLabel+' · '+page.name);
+    if(stopping)run?.element?.setAttribute?.('data-dkts-running','true');
     addTreeMenu(pageHost,()=>[
      {id:'edit',label:tr('编辑页面','Edit page'),onInvoke:()=>showEditor(page.id,'sweep')},
      {id:'rename',label:tr('页面名称与信息','Name and page info'),onInvoke:()=>showEditor(page.id,'info')},
@@ -959,24 +1065,25 @@
     ]);
    }
   }
-  function renderEditor(p,s){
-   // The mapped terminals belong to the Page heading; the scan content stays below the primary tabs.
-   editorHeading.replaceChildren();
-   const title=units.header.create(editorHeading,{kind:'panel',variant:'content',
-    title:p.name,actionHost:true,titleEmphasis:'prominent'});
-   const headerActions=units.layout.create(title.actions,{variant:'identity',className:'dkts-page-actions'});
-   const navEditor=units.action.create(headerActions,{id:'dkts-project-toggle-editor',
-    label:t('导航'),title:t('打开或收起工程导航'),variant:'quiet',
-    onInvoke:()=>projectSurface?.toggle()});
-   navEditor?.element?.setAttribute?.('data-dkts-nav-toggle','true');
-   terminalRegion=units.layout.create(headerActions,{variant:'identity',className:'dkts-terminal-strip'});
+  function renderSharedPorts(p){
+   const inventory=measurementRuntime.status().connection.inventory;
+   const modules=inventory?.slots||[];
+   const hardware=inventory?modules.flatMap(slot=>{
+    if(!Number.isInteger(slot.channel)||!['SMU','PMU'].includes(slot.family))return [];
+    return [slot.family+slot.channel];
+   }):['SMU1','SMU2','SMU3','SMU4'];
+   const resources=[...new Set(['None','GNDU',...hardware])];
+   const portOptions=value=>[
+    ...resources.map(resource=>({value:resource,label:resource==='None'?t(resource):resource.replace(/^SMU(\d)$/,'SMU $1')})),
+    ...(resources.includes(value)?[]:[{value,label:value+' · '+(inventory?
+     tr('未检测到','Not detected'):tr('未核验','Unverified'))}])
+   ];
+   terminalRegion=units.layout.create(projectToolbar,{variant:'identity',className:'dkts-terminal-strip'});
    terminalRegion?.setAttribute?.('data-dkts-terminal-strip','true');
+   terminalRegion?.setAttribute?.('aria-label',tr('工程共享端口映射','Project-wide port mapping'));
    const terminalGroup=units.layout.create(terminalRegion,{variant:'row',className:'dkts-terminal-control-group'});
    const terminalToolbar=units.layout.create(terminalGroup,{variant:'row',className:'dkts-terminal-toolbar'});
    terminalToolbar?.setAttribute?.('data-dkts-port-desktop','true');
-   terminalToolbar.hidden=!terminalVisible;
-   const portOptions=['None','GNDU','SMU1','SMU2','SMU3','SMU4','SMU5','SMU6','SMU7','SMU8','SMU9']
-    .map(value=>({value,label:t(value)}));
    for(const logical of ['S','D','G']){
     const term=p.terminals.find(item=>item.logical===logical);
     const terminal=units.layout.create(terminalToolbar,{variant:'identity',className:'dkts-terminal-item'});
@@ -984,11 +1091,11 @@
     fsproField(terminal,{kind:'select',label:t(logicalNames[logical])+' · '+logical,
      controlOnly:true,controlClassName:'dkts-terminal-field',value:term?.resource||'None',
      attributes:{'aria-label':t(logicalNames[logical])+' ('+logical+') '+t('端口'),title:t(logicalNames[logical])+' ('+logical+')'},
-     options:portOptions,onChange:event=>change(logical,'resource',event.target.value)});
+     options:portOptions(term.resource),onChange:event=>change(logical,'resource',event.target.value)});
    }
    let mobilePortAction=null;
    function openPortPopover(anchor){
-    portPopover?.close?.();let draft=model.validate(state());
+    portPopover?.close?.();let draft=state();
     const pop=units.popover.create(null,{variant:'picker',title:t('Terminal 端口映射'),
      role:'dialog',ariaLabel:t('Source、Drain、Gate 端口映射'),anchor,placement:'bottom-start',
      dismissOnOutside:true,offset:4,onClose:()=>{if(portPopover===pop)portPopover=null;}});
@@ -1000,7 +1107,7 @@
      const pair=units.layout.create(form,{variant:'stack-compact',className:'dkts-bias-entry'});
      renderTerminalBadge(pair,logical);
      fsproField(pair,{kind:'select',label:false,
-      value:term.resource,options:portOptions,attributes:{'aria-label':t(logicalNames[logical])+' ('+logical+') '+t('端口')},
+      value:term.resource,options:portOptions(term.resource),attributes:{'aria-label':t(logicalNames[logical])+' ('+logical+') '+t('端口')},
       onChange:event=>{try{draft=model.edit(draft,logical,{resource:event.target.value});}
        catch(error){event.target.value=term.resource;ctx.status.set('端口映射无效：'+String(error.message||error));}}});
     }
@@ -1017,23 +1124,18 @@
     title:t('配置 Source、Drain、Gate 端口'),variant:'secondary',
     onInvoke:()=>openPortPopover(mobilePortAction?.element)});
    mobilePortAction?.element?.setAttribute?.('data-dkts-port-mobile','true');
-   if(mobilePortAction?.element)mobilePortAction.element.hidden=!terminalVisible;
-   units.action.create(terminalGroup,{id:'toggle-terminal-strip',label:terminalVisible?t('隐藏'):tr('展开','Expand'),
-    title:t('折叠或展开 Terminal 端口映射'),variant:'quiet',onInvoke:()=>{
-     terminalVisible=!terminalVisible;
-     terminalRegion?.setAttribute?.('data-dkts-terminal-collapsed',terminalVisible?'false':'true');
-     render();
-    }});
-   units.action.create(terminalGroup,{id:'dkts-4200a-connect',className:'dkts-connect-menu',integrated:false,
-    label:()=>t(measurementRuntime.status().connection.phase==='connected'?'已连接':
-     measurementRuntime.status().connection.phase==='connecting'?'连接中':'连接'),
-    title:t('4200A 连接状态、连接/断开与网络设置'),variant:'secondary',menu:true,
-    enabled:()=>measurementRuntime.status().connection.phase!=='connecting',
-    items:()=>[{id:'toggle-4200a-connection',
-      label:t(measurementRuntime.status().connection.phase==='connected'?'断开仪器':'连接仪器'),
-      onInvoke:toggleInstrumentConnection},
-     {id:'open-4200a-settings',label:t('连接设置'),onInvoke:()=>connectionSettings.open()}]});
-   terminalRegion?.setAttribute?.('data-dkts-terminal-collapsed',terminalVisible?'false':'true');
+  }
+  function renderEditor(p,s){
+   editorHeading.replaceChildren();
+   const title=units.header.create(editorHeading,{kind:'panel',variant:'content',
+    title:p.name,actionHost:true,titleEmphasis:'prominent'});
+   const headerActions=units.layout.create(title.actions,{variant:'identity',className:'dkts-page-actions'});
+   const navEditor=units.action.create(headerActions,{id:'dkts-project-toggle-editor',
+    label:t('导航'),title:t('打开或收起工程导航'),variant:'quiet',
+    onInvoke:()=>projectSurface?.toggle()});
+   navEditor?.element?.setAttribute?.('data-dkts-nav-toggle','true');
+   units.action.create(headerActions,{id:'dkts-return-data-plots',label:tr('返回数据图','Back to data plots'),
+    variant:'secondary',direct:true,onInvoke:()=>showPageGraphs(p.id)});
 
    if(editorSection!=='info'&&!PAGE_TABS.some(([id])=>id===editorSection))editorSection='sweep';
    editorTabs.replaceChildren();
@@ -1051,6 +1153,10 @@
      id,label:t(label),selected:id===editorSection,onClick:()=>selectTab(id)
     })),onChange:selectTab});
    parameters.replaceChildren();
+   if(p.previousPortMapping&&Object.keys(s.portMapping).some(key=>p.previousPortMapping[key]!==s.portMapping[key]))
+    units.note.create(parameters,{variant:'warning',text:tr(
+     '此测试已改用工程共享端口。运行前请核对原映射与当前接线。','This test now uses the shared mapping. Check the original mapping against the wiring before running.')+
+     ' '+Object.entries(p.previousPortMapping).map(([key,value])=>key+' '+value).join(' · ')});
    if(editorSection==='info')renderPageInfo(parameters,p,s);
    else if(editorSection==='sweep')renderSweep(parameters,p,s);
    else if(editorSection==='target')renderTargetPanel(parameters,p);
@@ -1075,6 +1181,38 @@
   const languageButton=ctx.ui.toolbar?.add({id:'dkts-workspace-language',
    activity:ACTIVITY,group:'analysis',section:'language',variant:'secondary',order:10,priority:100,
    label:tr('EN','中文'),onClick:toggleLanguage});
+  const connectionButton=ctx.ui.toolbar?.add({id:'dkts-workspace-connect',
+   activity:ACTIVITY,group:'analysis',section:'language',variant:'secondary',order:8,priority:100,
+   label:t('连接'),onClick:()=>{
+    if(instrumentBusy||measurementRuntime.status().connection.phase==='connected')return;
+    const settings=connectionSettings.get();
+    if(!settings.host?.trim()||!settings.expectedSerial?.trim()){connectionSettings.open();return;}
+    const box=connectionButton?.getBoundingClientRect?.();
+    if(!box||!ctx.ui.contextMenus?.open){void updateInstrument({connect:true});return;}
+    connectionMenu?.dispose?.();
+    connectionMenu=ctx.ui.contextMenus.open({anchor:connectionButton,x:box.left,y:box.bottom+3,items:[
+     {id:'dkts-connect-retry',label:tr('重试连接','Retry connection'),onInvoke:()=>updateInstrument({connect:true})},
+     {id:'dkts-connect-settings',label:t('连接设置'),onInvoke:()=>connectionSettings.open()}
+    ]});
+   }});
+  const scanButton=ctx.ui.toolbar?.add({id:'dkts-workspace-scan',activity:ACTIVITY,group:'analysis',
+   section:'language',variant:'secondary',order:9,priority:100,label:tr('端口扫描','Scan ports'),
+   onClick:()=>{if(measurementRuntime.status().connection.phase==='connected')void updateInstrument();}});
+  function syncInstrumentButtons(){
+   const {connection,run}=measurementRuntime.status();
+   const connected=connection.phase==='connected';
+   if(connectionButton){
+    const label=t(instrumentBusy&&!connected?'连接中':connected?'已连接':'连接');
+    connectionButton.textContent=label;
+    connectionButton.title=label;
+    connectionButton.disabled=connected||instrumentBusy||run.running;
+   }
+   if(scanButton){
+    scanButton.textContent=tr('端口扫描','Scan ports');
+    scanButton.title=tr('重新识别 4200A 实装 SMU 和 PMU','Refresh installed 4200A SMU and PMU modules');
+    scanButton.disabled=!connected||instrumentBusy||run.running;
+   }
+  }
   function syncLanguageButton(){
    if(!languageButton)return;
    const label=tr('Switch to English','切换为简体中文');
@@ -1123,7 +1261,7 @@
   workRegion=work;editorRegion=editor;plotRegion=plotArea;
   // Four independent DKDS PlotView subwindows, each with its own host controls.
   // Never synthesize measurement samples in an offline UI.
-  const plotsHeading=units.header.create(plotArea,{kind:'panel',
+  plotsHeading=units.header.create(plotArea,{kind:'panel',
    variant:'content',title:t('绘图区'),meta:'',actionHost:true});
   plotsHeading.element?.setAttribute?.('data-dkts-workspace-heading','true');
   const frameTools=units.layout.create(plotsHeading.actions,{variant:'row-wrap',
@@ -1133,7 +1271,7 @@
    onInvoke:()=>projectSurface?.toggle()});
   navGraph?.element?.setAttribute?.('data-dkts-nav-toggle','true');
   syncGraphSettings();
-  const layoutField=fsproField(frameTools,{kind:'select',label:t('图窗布局'),controlOnly:true,
+  layoutField=fsproField(frameTools,{kind:'select',label:t('图窗布局'),controlOnly:true,
     attributes:{'aria-label':'图窗布局','title':'图窗布局'},value:frameLayout,
    options:[{value:'1',label:t('单窗口')},{value:'2',label:t('双窗口')},
     {value:'4',label:t('四宫格')}],
@@ -1144,6 +1282,7 @@
   frameGroup=units.plotGroup.create(groupHost,{columns:2,preferredColumns:2,
    maxColumns:4,minItemWidth:342,responsive:true,density:'compact',
    orientationPolicy:{mode:'portrait-offset',offset:-1,minColumns:1}});
+  historyHost=units.layout.create(plotArea,{variant:'identity',className:'dkts-history'});
   const frameTitles=[1,2,3,4].map(index=>tr('图窗 ','Plot ')+index);
   const graphUpdates=[];
     for(let index=0;index<4;index++){
@@ -1198,7 +1337,9 @@
   }
   updateGraphLanguage=()=>{
    plotRegion?.setAttribute?.('lang',language);
-   if(plotsHeading.title)plotsHeading.title.textContent=t('绘图区');
+   const s=state(),scope=scopeId(s);
+   const owner=s.pages.find(page=>page.id===scope)||s.routines.find(routine=>routine.id===scope);
+   if(plotsHeading.title)plotsHeading.title.textContent=owner?owner.name+' · '+t('绘图区'):t('绘图区');
    if(layoutField?.control){
     layoutField.control.setAttribute('aria-label',t('图窗布局'));
     layoutField.control.title=t('图窗布局');
@@ -1211,8 +1352,6 @@
   updateGraphLanguage();
   applyFrameLayout();
   refreshRawTables();
-  // FS-Pro Page editing keeps terminal assignment in one visible strip.
-  // A duplicate dockable PRIME caused the same four ports to appear twice.
   wb.compose({primary:{id:'main',label:t('测试工程'),
    presentationRole:'scientific-primary',scroll:'safe',
    titlePolicy:'host-only',mainNode:workspace},primes:[],subs:[]});
@@ -1225,17 +1364,11 @@
   const off=ctx.events?.on?.('data:artifacts-changed',refreshData);
   window.addEventListener?.('resize',updateEditorLayout);
   render();refreshData();
-  function showOfflineStatus(){ctx.status.set(tr('4200A 离线 · 可编辑和校验测试规划','4200A offline · edit and validate the sweep plan'));}
-  const connection=connectionSettings.get();
-  if(connection.host&&connection.expectedSerial){
-   ctx.status.set('4200A 工作区已加载；正在按保存的地址自动连接');
-   Promise.resolve().then(()=>measurementRuntime.connectAndInspect(connection))
-    .catch(error=>{ctx.status.set('4200A 自动连接失败：'+String(error.message||error));render();});
-  }else{
-   showOfflineStatus();
-  }
+  function showOfflineStatus(){ctx.status.set(tr('DK Test Studio · 4200A 离线 · 请配置仪器连接',
+   'DK Test Studio · 4200A offline · configure the instrument connection'));}
+  void updateInstrument({connect:true,automatic:true});
   return {deactivate(){treeMenu?.dispose?.();projectSurface?.dispose();window.removeEventListener?.('resize',updateEditorLayout);
-   pad?.close?.();portPopover?.close?.();off?.();for(const item of plots)item?.dispose?.();
+   connectionMenu?.dispose?.();pad?.close?.();portPopover?.close?.();off?.();for(const item of plots)item?.dispose?.();
    for(const item of plotViews)item?.dispose?.();
    for(const item of frameTables)item?.dispose?.();frameGroup?.dispose?.();wb?.dispose?.();}};
  });

@@ -26,7 +26,7 @@
     if(!tcp||typeof tcp.open!=='function'||typeof tcp.exchange!=='function'||typeof tcp.close!=='function')throw Error('必须提供宿主 TCP open/exchange/close 适配器');
     if(!protocol||typeof protocol.parseIdentity!=='function'||protocol.IDN_REQUEST!=='*IDN?\0')throw Error('缺少已验证的 KXCI 身份协议');
     let connection=null,phase='disconnected',identity=null,diagnostic='',settings=null,pending=null,inventory=null,inventoryError='',inventoryPending=null;
-    function status(){return {phase,identity,inventory,inventoryError,route:connection?{localAddress:connection.localAddress,remoteAddress:connection.remoteAddress,remotePort:connection.remotePort,interfaceName:connection.interfaceName,routeStrategy:connection.routeStrategy}:null,summary:phase==='connected'?'4200A 已识别':phase==='connecting'?'正在连接':phase==='error'?summarizeError(diagnostic):'未连接',diagnostic};}
+    function status(){return {phase,identity,inventory,inventoryError,inventoryPending:Boolean(inventoryPending),route:connection?{localAddress:connection.localAddress,remoteAddress:connection.remoteAddress,remotePort:connection.remotePort,interfaceName:connection.interfaceName,routeStrategy:connection.routeStrategy}:null,summary:phase==='connected'?'4200A 已识别':phase==='connecting'?'正在连接':phase==='error'?summarizeError(diagnostic):'未连接',diagnostic};}
     async function closeCurrent(){const id=connection?.sessionId;connection=null;identity=null;inventory=null;inventoryError='';if(id)await tcp.close({sessionId:id}).catch(()=>{});}
     async function connect(payload={}){
       if(pending)return pending;
@@ -42,11 +42,11 @@
         }catch(e){if(opened)await tcp.close({sessionId:opened.sessionId}).catch(()=>{});connection=null;identity=null;phase='error';diagnostic=String(e?.message||e);throw e;}
       })();pending=task;try{return await task;}finally{if(pending===task)pending=null;}
     }
-    async function inspectModules(){
+    async function inspectModules({refresh=false}={}){
       if(pending)await pending;
       if(!connection||!identity||phase!=='connected')throw Error('必须先验证 4200A 仪器身份');
-      if(inventory&&!inventoryError)return status();
       if(inventoryPending)return inventoryPending;
+      if(!refresh&&inventory&&!inventoryError)return status();
       const required=['OPTIONS_REQUEST','UL_REQUEST','INSTRUMENT_INFO_REQUEST','REMOTE_MODULE_INFO_REQUEST','GN_RESULT_REQUEST','DE_REQUEST'];
       if(required.some(name=>!protocol[name])||typeof protocol.parseOptions!=='function'||typeof protocol.parseHardwareInventory!=='function')throw Error('当前 KXCI 协议不支持物理模块信息查询');
       const targetId=connection.sessionId;

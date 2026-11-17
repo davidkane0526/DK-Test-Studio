@@ -20,10 +20,6 @@
 #dktsKeithley4200Page .dkts-page-heading .dkds-surface-header{
  min-height:45px;
 }
-#dktsKeithley4200Page .dkts-terminal-strip{
- background:var(--dkts-soft);
- border-bottom:1px solid var(--dkts-divider);
-}
 #dktsKeithley4200Page .dkts-editor-tabs{
  background:var(--dkts-surface);
  border-bottom:1px solid var(--dkts-divider);
@@ -52,6 +48,17 @@
  background:var(--dkts-soft);
  border-bottom:1px solid var(--dkts-divider);
 }
+#dktsKeithley4200Page .dkts-input-settings>.dkds-surface-header{
+ border-inline-start:3px solid var(--dkts-accent);
+ background:color-mix(in srgb,var(--dkts-accent) 9%,var(--dkts-surface));
+}
+#dktsKeithley4200Page .dkts-input-settings :is(.dkts-sweep-segment,.dkts-fixed-bias-entry) .dkds-field-control{
+ background:var(--dkts-surface);border-color:color-mix(in srgb,var(--dkts-accent) 37%,var(--dkts-divider));
+}
+#dktsKeithley4200Page .dkts-input-settings .dkds-field-control:is(:disabled,[readonly]){
+ background:var(--dkts-soft);border-color:var(--dkts-divider);
+}
+#dktsKeithley4200Page [data-dkts-psweep-off] .dkds-surface-header{border-bottom:0}
 #dktsKeithley4200Page .dkts-sweep-axis .dkds-surface-title::before{
  border:1px solid var(--dkts-divider);
  border-radius:4px;
@@ -95,7 +102,6 @@
 #dktsKeithley4200Page .dkts-page-heading .dkds-surface-header{align-items:center;min-height:36px}
 #dktsKeithley4200Page .dkts-page-heading .dkds-surface-heading-stack{align-self:center}
 #dktsKeithley4200Page .dkts-page-heading .dkds-surface-title{line-height:1.25}
-#dktsKeithley4200Page .dkts-page-heading .dkts-terminal-strip{border:0;background:transparent}
 #dktsKeithley4200Page .dkts-terminal-toolbar select,
 #dktsKeithley4200Page .dkts-sweep-header-field select{box-shadow:none}
 #dktsKeithley4200Page .dkts-terminal-badge{
@@ -112,7 +118,8 @@
 #dktsKeithley4200Page .dkts-tree-row .dkds-list-item.selected{
  background:color-mix(in srgb,var(--dkts-accent) 13%,var(--dkts-surface));border-color:transparent
 }
-#dktsKeithley4200Page .dkts-tree-run{padding:0;line-height:1}
+#dktsKeithley4200Page .dkts-tree-run{padding:0;line-height:1;color:var(--dkts-accent)}
+#dktsKeithley4200Page .dkts-tree-run[data-dkts-running="true"]{color:var(--dkds-danger,#b42335)}
 #dktsKeithley4200Page .dkts-device-routines{border-inline-start:1px solid var(--dkts-divider)}
 #dktsKeithley4200Page .dkts-tree-routine>.dkts-tree-row::before{
  content:"";position:absolute;inset-inline-start:0;top:50%;width:9px;
@@ -166,9 +173,6 @@
 #dktsKeithley4200Page .dkts-project-panel{padding-inline:0;align-items:stretch}
 #dktsKeithley4200Page .dkts-project-panel>[data-dkts-project-body]{
  width:100%;min-width:0;max-width:none;padding-inline:0;margin-inline:0;align-self:stretch
-}
-#dktsKeithley4200Page .dkts-terminal-control-group .dkts-connect-menu{
- box-shadow:none
 }
 #dktsKeithley4200Page .dkts-fspro-target-head{
  background:var(--dkts-soft);color:var(--dkds-text-secondary,#47556b)

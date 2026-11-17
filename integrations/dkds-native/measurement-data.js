@@ -22,7 +22,7 @@
   ['measurementOrder','采样端口顺序 JSON']
  ];
  const safeId=value=>String(value||'').trim();
- function publishRaw(ctx,{runId,rows,serial,startedAt,finishedAt,runState,source}={}){
+ function publishRaw(ctx,{runId,rows,serial,startedAt,finishedAt,runState,source,scope}={}){
   if(!ctx?.data?.model?.createTable||!ctx?.data?.artifacts?.publish)
    throw Error('DKDS Data Center model/Artifact publication is unavailable');
   if(!['completed','stopped','failed'].includes(runState))
@@ -60,7 +60,8 @@
    transient:false,
    source:source||{name:'KI4200A '+instrument},
    metadata:{instrument:'KI4200A',instrumentSerial:instrument,
-    rawInstrumentResponse:true,acquisition:{runId:id,timestamp:String(startedAt||''),
+    rawInstrumentResponse:true,...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
+    acquisition:{runId:id,timestamp:String(startedAt||''),
      finishedAt:String(finishedAt||''),runState,sequenceIndex:0,
      provenance:'kxci-native-acquisition'},
     dataAssignments:[OWNER]},

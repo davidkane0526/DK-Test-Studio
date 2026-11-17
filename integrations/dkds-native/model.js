@@ -176,6 +176,9 @@
   {logical:'S',resource:'GNDU',sourceMode:'voltage',role:'CONDITION'},
   {logical:'B',resource:'None',sourceMode:'voltage',role:'CONDITION'}
  ].map(row=>({...row,bias:'0',start:'0',stop:'2',step:'0.1',compliance:'0.01',complianceMode:'follow-range',rangeMode:'auto',rangeValue:'1e-6'}));
+ const logicalsList=['S','D','G','B'];
+ const validResource=value=>/^(?:None|GNDU|SMU[1-9]|PMU[1-9](?:-[12])?)$/.test(value);
+ const mappingOf=terminals=>Object.fromEntries(terminals.map(({logical,resource})=>[logical,resource]));
  const page=(kind='iv',id='page-1',routineId='routine-1')=>{
   const type=KINDS.find(x=>x.id===kind);if(!type)throw Error('Unknown test type');
   return {id,routineId,kind,name:type.label,testType:type.testType,note:'',
@@ -235,6 +238,10 @@
    specOwners.set(spec.id,spec.deviceId);
   }
   const ids=new Set();
+  const legacyMapping=state.portMapping===undefined;
+  if(!legacyMapping&&(!state.portMapping||Object.keys(state.portMapping).length!==4||
+     logicalsList.some(logical=>!validResource(state.portMapping[logical]))))
+   throw Error('Invalid project port mapping');
   for(const p of state.pages){
    if(!p.routineId)p.routineId=state.routines[0].id;
    if(!routineIds.has(p.routineId))throw Error('Page references an unknown Routine');
@@ -287,6 +294,7 @@
    for(const t of p.terminals){
     if(logicals.has(t.logical))throw Error('Duplicate logical terminal: '+t.logical);
     logicals.add(t.logical);
+    if(!legacyMapping)t.resource=state.portMapping[t.logical];
     if(t.resource!=='None'){
      if(resources.has(t.resource))throw Error('Duplicate SMU assignment: '+t.resource);
      resources.add(t.resource);
@@ -296,7 +304,7 @@
      }
     }
     if(t.complianceMode===undefined)t.complianceMode='follow-range';
-    if(!['D','G','S','B'].includes(t.logical)||! /^(?:None|GNDU|SMU[1-9])$/.test(t.resource)||
+    if(!logicalsList.includes(t.logical)||!validResource(t.resource)||
        !['voltage','current'].includes(t.sourceMode)||!['CONDITION','X','P'].includes(t.role)||
        !['auto','minimum','limited-auto','fixed'].includes(t.rangeMode)||
        !['follow-range','custom'].includes(t.complianceMode)||
@@ -336,6 +344,20 @@
      graphs.sources.some(id=>typeof id!=='string'||id.length>160))
    throw Error('Invalid plot selection');
   if(!ids.has(state.activeId))throw Error('Active Page missing');
+  if(legacyMapping){
+   state.portMapping=mappingOf(state.pages.find(p=>p.id===state.activeId).terminals);
+   for(const p of state.pages){
+    const original=mappingOf(p.terminals);
+    if(logicalsList.some(logical=>original[logical]!==state.portMapping[logical]))
+     p.previousPortMapping=original;
+   }
+   return validate(state);
+  }
+  const scoped=state.ui.scopedGraphs||{};
+  state.ui.scopedGraphs=Object.fromEntries(Object.entries(scoped).filter(([id,graph])=>
+   (ids.has(id)||routineIds.has(id))&&graph&&[1,2,4].includes(Number(graph.count))&&
+   Array.isArray(graph.kinds)&&graph.kinds.length===4&&graph.kinds.every(kind=>['iv','transfer','it','raw'].includes(kind))&&
+   Array.isArray(graph.sources)&&graph.sources.length===4&&graph.sources.every(id=>typeof id==='string'&&id.length<=160)));
   state.activeRoutineId=state.pages.find(p=>p.id===state.activeId).routineId;
   state.activeDeviceId=routineOwners.get(state.activeRoutineId);
   return state;
@@ -505,6 +527,7 @@
    'resource','sourceMode','role','bias','start','stop','step','compliance','complianceMode','rangeMode','rangeValue'
   ].includes(key)))throw Error('Invalid terminal change');
   Object.assign(t,values);
+  if(Object.hasOwn(values,'resource'))s.portMapping[logical]=values.resource;
   if(values.sourceMode&&t.role!=='CONDITION'){
    // Changing source quantity must reset all associated sweep segment units.
    const key=t.role==='X'?'xSegments':'pSegments';
@@ -522,7 +545,8 @@
     rangeMode:'auto',rangeValue:'1e-6'
    });
   }
-  if(values.resource==='None')t.role='CONDITION';
+  if(values.resource==='None')for(const page of s.pages)
+   page.terminals.find(term=>term.logical===logical).role='CONDITION';
   if(values.role&&values.role!=='CONDITION')for(const other of p.terminals)
    if(other!==t&&other.role===values.role)other.role='CONDITION';
   return validate(s);
