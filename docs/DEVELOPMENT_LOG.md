@@ -509,6 +509,178 @@
 - 面板标题去除多余 meta，标题栏端口下拉显示 S/D/G/B 标识。
 - 不创建分支、不修改 DKDS、不编译 Windows/Android 安装包、不推送 GitHub。
 
+
+## 2026-11-16 / R-20261116-003 · V0.3.22 a202 源码阶段：扫描顺序与原生图窗细化
+
+- **基线与许可**：从 GitHub `main` 提交 `c8ce9172aeeee942a09cf0c75b69356185c7f624` 的成功 `source-zip` 工件取得完整 DKTS 源码；固定 DKDS `20f056851a61d2144e9524c3ed568628d4b8557c` 仅作为只读参照。只写 DKTS 文件，不新建分支，不推送 GitHub，不运行 Windows/Android 编译。用户原文及验收项见 `R-20261116-003`。
+- **原生扫描序列**：`integrations/dkds-native/model.js` 新增只读 `pointAt(page,index)`，按完整循环→Psweep 重复→Psweep 点→Xsweep 重复→Xsweep 点的嵌套次序逆向定位单个计划点，支持多扫描段、精确终点、零步长单点、固定偏置、离线来源标记；大扫描计划不生成总长度数组，不执行 KXCI。`tests/native-sweep-order.test.cjs` 新增三项专项测试，包括 32 点顺序、段边界、安全拒绝。
+- **网页参数安全**：`web/fspro-workbench/plan.js` 严格解析输入并验证扫描模式、速度、点间延迟、量程、限流、固定偏置；`app.js` 不再使用 `Number('')` 将被清空的输入隐式改为 0。关闭 Psweep 时按已设定固定栅压规划。HTML 中尚不支持的双向/回滞扫描选项禁用；网页始终 `executable:false`。
+- **网页排布**：`web/fspro-workbench/styles.css` 收紧绘图区总标题、4 个独立子窗标题和空白内边距，删除图窗内容中重复标题；手机扫描表格以三列两行显示六个操作控件，工具条按钮禁止换行；七标签和数据图四宫格不删减。Chromium 1280×800、744×600、390×844 DOM/交互/截图通过，但该静态 Demo 并非真正 DKDS 原生验收。
+- **原生图窗**：从 **当前提交实际 Android tablet emulator** 截图发现 4 图窗上下分层空白，检查固定 DKDS PlotView 的 `applyContentGeometry()`，确认 DKTS 传入 `contentAspectRatio:2.25` 会按宽度强制设定内容高度。仅在 DKTS `integrations/dkds-native/plugin.js` 撤销该过度约束、标识 rawHost，在 `ui-shell.css` 使 SDK 的单层 Panel body 及曲线/表格内容共用伸展布局。**模拟器旧截图只能支持问题诊断；修改后尚未真实原生截图，不能宣称根治。**
+- **回归**：此前 `tests/test-dkds-native-host.cjs` 静态预期仍为过时六列几何与不应重复显示的 `meta:'D · SMU'`，与 V0.3.21 源码不一致，修复这些旧测试，并断言新的自适应 PlotView 不再带固定详情比例；`test-dkds-native-plugin.cjs` 对应检查通过。
+- **版本**：修改原生插件代码，应以完整包升级发放。当前源码版本 V0.3.22、插件 0.8.9、本地 **临时** a202；正式 aNNN 必须由后续最终 `main` 同 SHA 的 Actions 分配。未创建、未上传 EXE/APK 或 GitHub Release。
+- **测试**：`npm test` 198/206 通过，8 项因为离线环境缺少 `d3@7.9.0`，不能假称通过。`node tests/test-dkds-native-plugin.cjs`、`node tests/test-dkds-native-host.cjs`、`node --test tests/native-sweep-order.test.cjs tests/core-release-identity.test.cjs` 均通过。Chromium 页面渲染几何与原生 CSS-only 三设备夹具通过。
+- **未解决**：FS-Pro 逐像素比对、真正相同 Core 的新截图、真实 4200A KXCI 测量循环、硬件级安全校验、双平台编译与签名。禁止把离线序列数据冒充测量记录。DKDS 上游文件未修改。
+
+
+## 2026-11-16 / R-20261116-004 · V0.3.23 a203：DKTS Core 同源预览交付与 PlotView SDK 校验修正
+
+### 基线与范围
+- 以用户上一轮收到的完整 `V0.3.22 a202` DKTS ZIP 为工作基线；DKDS 固定只读来源为 `20f056851a61d2144e9524c3ed568628d4b8557c`（3.72.3）。只修改 DKTS；不创建分支、不推送 GitHub、不编译 Windows Portable/Android APK。
+- 用户新增明确要求：每轮除源码 ZIP 外，必须交付 `DKTS-Core-Same-Source-Preview`，不能用独立 FS-Pro Web Demo 替代。需求已记录在 `R-20261116-004`。
+
+### 本轮修改
+- **修复 DKDS SDK 1.19 插件校验失败**：实际运行派生 Core `npm run plugin:validate` 时发现上一轮 `integrations/dkds-native/ui-shell.css` 对 semantic Unit panel body 使用 `overflow:hidden`，官方 validator 明确拒绝，因为会裁切 PlotView 语义内容。改为 `overflow:visible`，保留 flex 填充关系；在 `tests/test-dkds-native-plugin.cjs` 增加回归断言。此问题说明仅运行静态/VM 测试不足以替代真实 SDK 校验。
+- **版本升级**：应用 `V0.3.22 → V0.3.23`；原生插件 `0.8.9 → 0.8.10`；Android legacy Gradle `versionCode 31 → 32`。本地暂存身份 `a203`，正式 `aNNN` 仍需由最终 main 同 SHA 的 `ui-update.yml` 分配。
+- **新增同源预览构建工具**：`tools/build-same-source-preview.cjs` 从固定 DKDS 源码与本轮 DKTS 原生插件生成完整派生 Core 前端；保留真实 `src/index.html`、Core CSS、生成 runtime bundles、插件索引、11 个非分析插件，并排除 6 个分析插件。只在预览副本中增加 `dktsDesktopPreview=1` 主机布局选择，不修改生产 DKDS 源码。
+- **新增本地预览服务器**：`tools/preview-server.cjs` 仅绑定 `127.0.0.1`，提供 Core 静态文件、来源健康端点和路径穿越防护。`Start-DKTS-Core-Same-Source-Preview.cmd` 作为 Windows 一键入口；首次运行安装固定 D3 7.9.0 等生产依赖（`npm install --omit=dev`），不安装 Electron dev binary，不编译 EXE/APK。
+- **独立预览包**：输出 `DKTS-Core-Same-Source-Preview-V0.3.23-a203.zip`，含本轮派生 Core、DKTS 插件、Windows 启动脚本、localhost server、README 和 `PREVIEW-MANIFEST.json`。预览 manifest 记录 DKTS 源码树 SHA、DKDS 固定 SHA、插件版本和不支持的原生能力。
+
+### 验证结果
+- `node tools/build-dkds-native-plugin.cjs`：通过，生成 Plugin API 1.19 `.dkplugin` 包。
+- `node tests/test-dkds-native-plugin.cjs`：通过。
+- `node tests/test-dkds-native-host.cjs`：通过。
+- `node tests/core-ui-shell.test.cjs`：通过。
+- `node tests/dkds-framework-contract.test.cjs`：3/3 通过。
+- `node --test tests/native-sweep-order.test.cjs tests/core-release-identity.test.cjs tests/same-source-preview.test.cjs`：10/10 通过，包含 X/P 点序、端点、端口安全、预览绑定与 HTTP 服务器路径防护。
+- 派生 Core `runtime:build`、`styles:build`、`sdk:authoring`、`plugin:index`、`plugin:validate`、`brand:assets` 与 `prepare-build`：全部通过；`plugin:validate` 报告 12 个插件通过。
+- `node --test tests/*.test.cjs`：200/208 通过；8 项因本容器无法访问 npm Registry（DNS `EAI_AGAIN`），缺少固定 D3 7.9.0 及派生网页/Android 资源而受阻。未用 stub 或其他 D3 版本绕过。
+- 本地预览服务器 health、Core index、Core CSS、generated plugin index HTTP 检查通过；浏览器完整启动/真实 D3 绘图因上述依赖缺失未在本容器验收。Windows 一键脚本将在用户 Windows 环境联网安装依赖后启动。
+
+### 明确未完成
+- 同源浏览器预览不提供 Electron IPC、原生文件对话框、原生更新安装、真实 4200A 通信、KXCI 输出或原始测量采集；不能替代真实 Electron/Android 截图与真机验收。
+- FS-Pro 像素级对照、真实仪器安全输出/停止、原始数据采集与异常恢复仍未完成。没有编译 EXE/APK，没有 GitHub push/Release，没有修改 DKDS 上游。
+
+## 2026-11-16 · V0.3.24 a204 · Core 原生 KXCI 接入、ACK 修正与双门禁
+
+### 基线与范围
+- 基于上一轮交付的 DKTS V0.3.23 a203 源码快照继续开发；DKDS 仅使用固定只读 SHA `20f056851a61d2144e9524c3ed568628d4b8557c`。
+- 本轮只修改 DKTS，不修改 DKDS；GitHub 不推送、不创建分支，仓库仍只保留 `main`。不编译 Windows EXE/Android APK。
+
+### 本轮实现
+- 原生插件升至 `0.8.11`，将硬件能力、KXCI 协议、身份控制器、扫描规划、KXCI runner 和 Data Center 发布器纳入 `com.dkts.keithley-4200` 插件脚本顺序。修复旧共享模块仍注册为 `com.dkds.keithley-4200` 的所有权错误。
+- Core Page 标题栏加入一个紧凑的连接/设置菜单、连接状态和开始/停止操作。工作区按保存的连接设置自动尝试连接；默认地址为 `169.254.111.118:1225`、预期序列号 `1498377`，并支持 Ethernet/Wi-Fi/指定网卡。
+- 身份解析接受完整制造商前缀和用户实测的紧凑 `KI4200A,1498377,V1.14` 格式。连接后枚举逻辑选件、物理模块型号与额定值。
+- **KXCI ACK 缓冲修复**：KXCI Ethernet 写入命令返回 NUL 终止 ACK。`UL/DE/US/DV/RI/RG` 现在逐条读取并验证 ACK，不能使用 `noReply=true` 遗留响应字节，否则下一条 `GN result` 或 `TI` 可能误读旧 ACK。
+- 原生 Page→Xsweep/Psweep 映射、点序列和 Data Center 原始数据列已接通到可测试运行时；增加 X/P 电压、点序、扫描段、循环/重复等字段。点序列改为惰性生成，避免预先分配整个嵌套扫描数组。
+- 用户确认是启动测量的必要条件；异常停止后如果 SMU-off ACK 未获确认，运行时拒绝断开连接并阻止下一次测试。模拟回归验证了这一路径。
+
+### 不能开放真实输出的原因
+- 官方手册索引列出最新 KXCI Rev F（2026-10-09），但完整正文尚未取得并完成 Rev E→F 命令、响应、范围和时序逐项核对。数据库新增 `safetyPolicies.kxci`，生产 `allowInstrumentOutput=false`。
+- DKDS Plugin API 1.19 不向插件开放受支持的主机延时调度器，SDK 校验禁止插件 raw timer。当前主机逐点 `DV/TI` runner 不能在生产插件中按要求调度，因此生产 `executionAdapterAvailable=false`。测试注入的 wait adapter 仅用于模拟 TCP 回归，不改变生产门禁。
+- 主机逐点 `DV/TI` 不等于仪器内部扫描，不能据此宣称 20 ns。下一阶段必须先核验 Rev F，再实现仪器原生扫描命令或正式支持的 Core 调度契约。
+
+### 验证与交付
+- `npm test`：**214/214 通过，0 失败**。
+- DKDS SDK 1.19 原生插件校验通过；DKDS 插件目录校验通过。
+- 同源预览已从本轮源码与固定 DKDS Core SHA 重新生成，预览中的 `plugin.js`、`plugin.json`、`measurement-runtime.js`、`identity-core.js`、`kxci-measurement.js` 与源码哈希逐项一致；静态 HTTP 资源检查返回 200。
+- 浏览器截图因当前容器的 Chromium 管理策略拒绝本地/虚拟域名页面，未取得可用于视觉验收的截图；因此本轮不宣称 FS-Pro 像素级复刻完成。
+- 交付 `DK-Test-Studio-V0.3.24-a204-source.zip`、`DKTS-Core-Same-Source-Preview-V0.3.24-a204.zip` 和包含固定 DKDS 只读依赖的完整云端包。a204 为本地暂存编号，正式 aNNN 以最终同 SHA 的发布工作流为准。
+
+
+## 2026-11-16 · V0.3.25 a205 · DKDS 生命周期定时服务接入
+
+- 复核 DKDS Plugin API 1.19 SDK 定义，确认 `ctx.ui.dom.timeout(fn, delay)` 存在，且由 DKDS DOM Runtime 管理 timer 生命周期；上一轮关于“插件无受支持延时调度接口”的判断错误。
+- 原生插件 manifest 新增 `ui.dom` Core 依赖；`measurement-runtime.js` 默认使用 DKDS DOM timer，测试注入 wait 仅用于确定性模拟。
+- KXCI runner 的等待任务暴露 cancel，stop 会取消 pending timer 并立即进入 SMU shutdown；所有输出关闭命令仍逐条读取并确认 ACK。
+- 专项测试 7/7 通过：包含缺少 DOM timer 时拒绝执行、默认 Core timer 正常完成两点 TI 测量、stop 取消待执行 timer、未确认 SMU-off ACK 时拒绝断开、Data Center 原始 TI 发布。完整 `npm test` **216/216 通过**。
+- DKDS SDK 1.19 插件 `validate` 与 `test-runtime` 通过；`test-layout` 64 个 canonical cases 全部通过。
+- 应用版本 `V0.3.25`，原生插件 `0.8.12`，Android legacy `versionCode 34`，临时编号 `a205`。生产 `allowInstrumentOutput=false` 未改变，Rev F 手册正文未核验，真实测量仍未授权。
+- 同源预览按 a205 源码重新生成，静态 HTTP 首页、plugin-index、manifest、原生插件脚本和品牌资源返回 200；D3 7.9.0 直接随包提供，启动不再依赖 npm 安装或首次构建。Chromium 截图在当前容器未能完成，未宣称视觉验收。
+- 未推送 GitHub、未创建分支、未修改 DKDS、未编译 EXE/APK。FS-Pro 像素级复刻、真实 Electron/Android 截图、硬件异常恢复仍未验收。
+
+## 2026-11-16 / V0.3.26 a206（暂定）：恢复并冻结 FS-Pro 视觉基线
+
+- 用户明确要求先恢复并锁定 FS-Pro 视觉基线，暂停新增功能。仅修改 DKTS 原生插件显示编排、Scoped CSS、回归测试和文档，不修改 DKDS 上游或 KXCI 执行器。
+- 根因：DKDS Unit Action 容器拥有 Core 内联 display:flex，DKTS 原来的 CSS display:none 无效；导航、移动端端口按钮与桌面四端口选择同时出现。仅在三个已拥有的语义可见性选择器上使用 !important，不触碰 Core 网格/配色。
+- Page 恢复为单一标题（不含 Device/Routine subtitle 与直流重复标识）、独立 Terminal strip、Page Info 与三主标签。X/P 扫描优先；Psweep 关闭时仍保留可启用卡。修复 Xsweep 列标题创建成空 SDK Identity Layout 的错误，改用 DKDS Note Unit。紧凑的扫描汇总移至后方内容尺寸 Panel。
+- 项目导航取消“工程/项目”重复两行；工程绘图区取消重复眉标和图窗数量 meta。保存旧版已认可的 Web 文件及参考截图 SHA 供后续审查；新回归不以静态组件存在冒充像素一致。
+- 发布：V0.3.26、a206 均为本地暂存，插件 0.8.13。真正 aNNN 只能来自将来 main SHA 的 ui-update.yml；无 EXE/APK、无 GitHub 推送、无 DKDS 修改。
+
+- 本轮追加修复：宽屏扫描表格出现“总列标题 + 每个输入字段标签”重复问题。DKDS Core 样式层级覆盖了普通 display:none；只针对 `.dkts-sweep-segment .dkds-field-label-row` 在宽于 620px 的扫描容器中隐藏字段标签，手机小容器仍保留完整可访问标签。
+- 真实 DKDS Core 生成代码经 Chromium 渲染四档（1591×900、1280×800、744×600、390×844）：端口/导航断点、X→P→Terminal 顺序、宽屏无重复标签、手机字段标签、汇总高度、横向溢出均通过；保留截图和 `VISUAL-REPORT.json`。这只是 Core 浏览器运行证据，不是原厂逐像素差异或 Electron/Android 真机验收。
+- 完整 Node 测试 `npm test`：**220/220 通过**（与既有 216 项加四项基线锁测试一致）。原生功能/协议没有扩展；不得把测试数量当作 FS-Pro 像素级完成度。
+
+
+## 2026-11-17 · UI 阶段重构开始（基线 a206，目标 V0.3.27 / a207）
+- 用户原话 [R-20261117-001] 已写入 `docs/USER_REQUIREMENTS.md`；开发规约已写入 `AGENTS.md`；七标签结构已纠正 `docs/FS_PRO_VISUAL_BASELINE_LOCK.md` 和 `docs/UI_ARCHITECTURE.md`。
+- 当前工作区基线：完整 DKTS `V0.3.26 a206` 源码 ZIP；固定 DKDS 3.72.3 SHA `20f056851a61d2144e9524c3ed568628d4b8557c`，只读。不得回退到 GitHub `main` 的 V0.3.21。
+- 本阶段目标：把 FS-Pro 七标签、Page Info、Sweep 表格、Terminal Settings/Fixed Bias、Target/Strategy/Limits/Page Var/Associate Spec 重构为唯一原生 UI；若 DKDS Unit 不足，扩展 DKTS Unit adapter/派生 Core Unit，而不是删改 FS-Pro 信息架构。
+- 开发节奏：先完成一整个 UI 阶段，再统一运行 Node/SDK 测试、构建一次 `DKTS-Core-Same-Source-Preview`、执行四种视口真实截图检查；本阶段不触发 EXE/APK 编译，不推送 GitHub，不创建分支，不修改 DKDS 上游。
+- 尚未验收：本日志记录的是本阶段计划与文档修订，不代表 UI 已完成；需在代码修改和真实 Core 渲染后更新结果。
+
+
+## 2026-11-17 · V0.3.27 a207 · 七标签 UI 与 DKTS 派生 Unit 阶段验收
+
+### 已完成的代码与文档
+- 以完整 `V0.3.26 a206` ZIP 为可写基线；基线 SHA-256 `642e60a9cb24924ad42ed3c92b1d769be961c588efa5fce71cc5b379d8738601`。DKDS 3.72.3 固定 SHA `20f056851a61d2144e9524c3ed568628d4b8557c` 只读。
+- 将 Page Editor 实现为独立七标签 `Info / Sweep / Target / Strategy / Limits / Page Var / Associate Spec`；Info 内容只在 Info 标签中显示。
+- Xsweep/Psweep 使用 `# / Start (V) / Stop (V) / Step (V) / Range (A) / Speed / 操作` 七列，扫描端口和重复次数放在各自标题栏；Psweep 未启用时保留启用入口和固定偏置说明。
+- Terminal 只显示 Source/Drain/Gate 三个映射；None/GNDU 不进入测量参数行和 Target 通道。Terminal Settings、Fixed Bias 分离。
+- 编辑器和四个独立 PlotView 使用同一 Core 工作区并列布局；返回绘图区时扩展绘图区。
+- **未完成项**：`web/fspro-workbench/` 与 `integrations/dkds-native/plugin.js` 当前仍分别实现 Web DOM renderer 和 Core Unit renderer；虽然七标签、字段顺序与域模型已对齐，但尚未抽取完全共享的 UI renderer/DOM/CSS。不得把本阶段称为 same-renderer 或像素级完成。
+- 新增 `tools/patch-dkts-derived-units.cjs`：只对派生 DKDS Core 副本扩展 FS-Pro Tabs、Field 和 Layout Unit variant/recipe；DKDS 上游字节不修改。
+- 已把用户原话及“Unit 不满足则扩展 Unit、阶段完成后统一验证、不做小改动频繁编译、不在 UI 阶段构建 EXE/APK”写入需求台账、`AGENTS.md`、UI 架构和视觉基线文档。
+- 修正了 SDK 对插件直接设置 textarea 控件 `min-height` 的拒绝：控件几何移至 DKTS 派生 Core 的 FS-Pro Field Unit theme，插件只声明领域结构。
+
+### 统一验证
+- `npm test`：**224/224 通过**。
+- 派生 Core 插件目录 validator：**12 个插件通过**。
+- SDK `dkds-plugin.js validate`：首次发现插件 CSS 直接设置 textarea `min-height`，已移至 DKTS 派生 Field Unit theme；修正后需重新运行并记录最终结果。
+- 同源预览已从当前源码和固定 DKDS SHA 重新生成；health、Core index、Core CSS、D3、generated plugin index 与 DKTS 插件脚本 HTTP 检查：200。`PREVIEW-MANIFEST.json` 中源码树 SHA-256 与当前源码树重新计算值一致。
+- 当前环境的系统 Chromium headless 截图进程挂起，未产出 V0.3.27 四视口截图；因此本轮**不宣称真实视觉截图验收通过或像素级复刻完成**。需要在可用 Chromium/Electron 宿主重新执行 1591×900、1280×800、744×600、390×844 截图叠加。
+
+### 交付边界
+- 本地源码身份 `V0.3.27 a207`，原生插件 `0.8.14`，Android legacy `versionCode 36`；a207 是暂存编号，不是正式 Release 编号。
+- 未编译 EXE/APK，未推送 GitHub，未创建分支，未修改 DKDS 上游。
+- 真实 4200A 输出仍受 KXCI Rev F 手册与硬件验收门禁约束。
+
+
+## 2026-11-17 · V0.3.28 a208 · FS-Pro 工作区与可安装 Unit 插件
+
+- 实施 R-20261117-002。以 a207 源码 ZIP 为工作基线，继续固定只读 DKDS 3.72.3（20f056851a61d2144e9524c3ed568628d4b8557c）。读取核对的 GitHub main 为 c8ce9172aeeee942a09cf0c75b69356185c7f624。
+- 线上 FS-Pro 的工程绘图区与 Page 编辑器互斥。DKTS 恢复该流程，保留四个已挂载的 PlotView，进入 Page 时独占工作区。增加 Project 工具条、面包屑、常驻两列测试库，保留 Device/Routine/Page 数据结构。
+- 七个编辑标签使用标准 DKDS Tabs Unit 的逐项 onClick。扫描表头与输入行使用一致的列定义，端口与重复次数按横排显示。窄屏按容器宽度改用有标签的行内字段。工具和表单继续使用标准 Unit。
+- 删除派生 Core 的 Unit 注册和事件补丁。独立插件通过固定 SDK 校验和运行时合同测试。DKTS 分发的 FS-Pro 外观由 DKTS 派生宿主 Theme 层提供，安装到标准 DKDS 使用宿主主题。现场通过 DKDS 导入插件的操作仍待验收。
+- 公开同源预览用真实 DKTS Core 派生宿主。HTTPS 入口 https://4174-agq6fanpizxnfznur35ehkm4ye.instabox.tech/ 无需账号或令牌；仅开放浏览器资产，60 分钟和 256 MiB 应用响应预算。会话为 Free。原生连接需要配置用户自己的地址和预期序列号；空白配置处于离线状态。测量协议和实际输出未启用。
+- 云端 Node 223/223，通过原生插件和宿主 mock、DKDS SDK validate 和 test-runtime。外部 Chromium 1591×900、1280×800、744×600、390×844 通过七标签、导航、编辑器/图窗互斥与横向溢出检查，资源响应及 JS 错误均为空。相同分辨率附线上范本、真实截图、overlay 和 diff。四个图窗已保留，参考版的默认规划波形、顶部宿主样式和逐像素一致性未验收。Windows Electron、Android 与真实仪器仍待实测。
+- 未推送 main，未创建分支，未编译 Windows EXE 或 Android APK。a208 为源码暂存编号，插件版本 0.8.15。
+
+
+
+## 2026-11-17 · V0.3.29 a209 · 中英切换和页面批注修整
+
+- 依据 R-20261117-003，以 a208 完整源码 ZIP 开发。GitHub main 核对基线 c8ce9172aeeee942a09cf0c75b69356185c7f624；固定只读 DKDS 20f056851a61d2144e9524c3ed568628d4b8557c。
+- 在标准 DKDS 4200A 工作区的次级命令区注册中英按钮。默认简体中文，Core 插件设置保存偏好。切换保留当前页面、标签、编辑内容及图窗状态。390px 使用项目工具条的同一命令作为窄屏入口。宿主系统文案和工程数据归原有来源。
+- 编辑器用单行标题，统一操作组间距，保存集中在 Core 顶栏。端子选择按 S/D/G 显示白字填充，扫描段删除控件居中。Info 等配置保留七标签并调整表单宽度和留白。
+- 工程导航使用节点对齐、缩进与引导线，修正流程增多后列表压缩。流程与页面支持右键和更多按钮。流程菜单可回到绘图区和新增测试，页面菜单可编辑、进入信息或确认删除。
+- 界面注明扫描段指定量程优先，选择沿用端子时按端子量程模式，电流保护单独校验。参考现有网页及概伦公开的 LabExpress 资料；原厂完整编辑器画面与各字段尚待逐项复核。
+- 云端 Node 223/223，原生插件/宿主 mock 和 SDK validate/test-runtime 均通过。独立插件 0.8.16。公开同源预览继续由 Free 工作区承担，服务限制 60 分钟和 256 MiB。验收截图与浏览器报告随本次交付。
+- 真正的 Windows Electron、Android 和仪器验收仍待进行。无 GitHub 推送或安装包编译。
+
+
+
+## 2026-11-17 · V0.3.30 a210 · LabExpress 编辑分层和逐测试执行
+
+- 实施 R-20261117-004，以完整 a209 ZIP 为工作基线。GitHub main 只读核对为 c8ce9172aeeee942a09cf0c75b69356185c7f624，DKDS 固定只读 SHA 为 20f056851a61d2144e9524c3ed568628d4b8557c。
+- 结构证据：历史原厂手册的工程归档 FSPro_Rebuild_Baseline.md 和 Issue #20 保存了主标签、输入设置与下部三栏。用户提供的工程树图作为树形布局依据。当前本地和免费沙盒未找到中文 106 页 PDF 本体，无法验证手册截图像素、未支持字段或完整操作逐项一致。
+- 顶部仅保留 4200A 所属语言命令；移除项目工具栏重复入口、侧栏重复绘图区入口和编辑页校验／执行／返回按钮。标题、导航行垂直居中，端子映射靠标题右侧。扁平下拉显示 SMU 名称，独立端子名标记沿用白字填充。
+- 扫描页复原三主标签、输入设置内的 X/P 行、固定偏置、限值／变量／关联规格和最下方端子量程与保护。分段默认显示 Auto，量程与保护规则仍由既有计划验证。
+- 每个测试右侧的执行按钮使用标准 DKDS 对话框选择次数。运行前校验次数、扫描草稿、计划与仪器可用性。非法扫描段保留输入、标注原因并可从执行入口定位。次数用于该次执行的独立计划；真实输出仍由实际模块、安全门禁和显式确认控制。
+- Node 223/223、SDK validate/test-runtime 与 native mock 通过。公开页面继续使用原 HTTPS 地址，Free 沙盒 60 分钟及 256 MiB 响应上限。交付实际 Chromium 截图、完整源码、同源预览和独立插件 0.8.17。Windows Electron、Android 与真实仪器尚待验收。
+
+
+
+## 2026-11-17 · V0.3.31 a211 · 工程树、端子及扫描联动
+
+- R-20261117-005。以完整 a210 源码 ZIP 开始。依据本地 LabExpress 中文原厂手册印刷第 4、14–15 页（PDF 第 8、18–19 页）核对工程层级、扫描/目标/策略、输入设置与下方参数。手册留在本机。
+- 工程树直接显示全部器件及各自的流程和测试；移除独立「测试工程」行。流程菜单保存独立循环次数；单页执行次数使用已有流程。整套流程编排未接入。
+- 工程导航与绘图区标题在桌面与控件严格同高。主标签组使用平面样式；用 DKDS 原生悬浮提示呈现说明；规格使用单一选择字段。增大模板区上方间距。
+- 端子映射保留在标题右侧，扫描角色选择已映射且可用的逻辑端子。端子名统一强调，SMU 文本沿用平面 Unit。扫描终止值变更后自动接续后续起点，并修正非零步进符号。精确终点、点数、限值和运行门禁保持校验。
+- 文件：原生插件 model、渲染和布局，DKTS 派生主题，插件/发布身份与回归测试。只读 DKDS 固定提交 20f056851a61d2144e9524c3ed568628d4b8557c。开发期间查得 DKTS GitHub main 为 355e515fad7fdfbb03b10d2270b308543fc175ba；本轮未推送。
+- npm 223/223、原生模型和宿主契约通过；DKDS SDK 插件及运行时验证通过。真实 Chromium 公共同源预览覆盖 1621×747、1280×800、744×600、390×844。桌面验证标题同高、悬浮提示、重复保存、分段联动及追加器件/流程后原测试可访问。四尺寸验证页面与离线执行门禁。
+- 交付完整源码 ZIP、同源预览 ZIP、独立插件与校验清单。InstaBox 使用现有免费机器，预览限制 60 分钟与 256 MiB。未编译 EXE/APK；真实 4200A、原生 Windows/Android 宿主展示及整套流程执行尚未实装验收。
+
 ## 2026-11-17 / 4200A 参考资料恢复与私有归档（资料整理，不构建应用）
 - 需求：R-20261117-001。仅 DKTS；保持唯一 `main`，不修改 DKDS，不创建分支；恢复可找回的 V2/V3/V5/V6、连接交接资料及用户上传的 LabExpress 手册。
 - 已从 Library 找回：V2 PDF/DOCX、V3 PDF/DOCX、V5 PDF/DOCX、V6 UI 规范 PDF、V6 UI 实施 DOCX、4200 control.docx、OPPO Pad Mini/DKDS 连接交接 Markdown；本轮另收到 LabExpress 中文用户手册 2022.01（106 页）。
@@ -523,3 +695,13 @@
 - 私有 ZIP 含用户上传的 106 页 LabExpress 手册及找回的 V2/V3/V5/V6 PDF/DOCX、连接交接 Markdown、4200 控制笔记和检索文本。原厂 LabExpress 手册未公开上传到 GitHub；GitHub 仅保存书目/版权说明和 DKTS 自有规范的文本摘录。
 - 尚缺原始 V5 Agent Dev Pack ZIP、V6 完整 ZIP、`keithley-main.zip`、官方 KXCI Rev F PDF、官方 PMU Rev D PDF；没有伪造或重建这些原件。
 - 本 ZIP 是 4200A 参考资料包，不是完整 DKTS 应用源代码包，也不是 Windows/Android 安装包。
+
+## 2026-11-17 · V0.3.32 a212 · 量程、工作区界面和 GitHub 交接
+
+- R-20261117-006。a211 源码 ZIP 作为编辑基线，保留 GitHub 父提交 355e515 的参考资料及资源。
+- 收紧工程导航缩进，参考端移入输入设置标题右侧，端子颜色统一。固定偏置同行，端子量程标题对齐。目标与策略表单减少重复，连接菜单使用单轮廓，执行对话框使用红色确认。
+- 量程来自已核验的实装通道，按型号、前放和电压档逐段筛选。离线仅提供 Auto，显式保留旧值。目标沿用端子或扫描段设置，对遗留独立目标档位给出校验提示。
+- 新增 docs/HANDOFF.md，继续复用现有 Free InstaBox。正式工件和源码归档由同一 GitHub SHA 的 Actions 生成。真实 4200A 输出仍受生产门禁限制，未进行实机测量。
+
+- 224 项 Node 测试通过，独立插件与宿主契约通过，DKDS SDK 验证、运行时及 64 个布局用例通过。Chromium 在 1621×747 和 390×844 实测布局、端子颜色、离线档位及执行对话框。
+- 统一 Release 自动附同 SHA 完整源码和独立 DKDS 插件，资产校验覆盖 EXE、APK、能力数据库和新增文件。Actions 构建结果和正式编号以 GitHub 该 SHA 的运行记录为准。

@@ -8,9 +8,11 @@
   ['drainVoltageV','漏极电压','V','x'],['drainCurrentA','漏极电流','A','y'],
   ['gateVoltageV','栅极电压','V','group'],['gateCurrentA','栅极电流','A','y'],
   ['sourceVoltageV','源极电压','V','group'],['sourceCurrentA','源极电流','A','y'],
-  ['cycle','循环次数','','index'],['xRepeat','Xsweep 重复','','index'],
-  ['xSegment','Xsweep 扫描段','','index'],['pRepeat','Psweep 重复','','index'],
-  ['pSegment','Psweep 扫描段','','index']
+  ['xVoltageV','Xsweep 电压','V','x'],['pVoltageV','Psweep 电压','V','group'],
+  ['cycle','整体循环','','index'],['xRepeat','Xsweep 重复','','index'],
+  ['xSegment','Xsweep 扫描段','','index'],['point','Xsweep 点序','','index'],
+  ['pRepeat','Psweep 重复','','index'],['pSegment','Psweep 扫描段','','index'],
+  ['pPoint','Psweep 点序','','index']
  ];
  const STRINGS=[
   ['measurementStatus','测量状态'],['measurementCompleteness','采样完整性'],

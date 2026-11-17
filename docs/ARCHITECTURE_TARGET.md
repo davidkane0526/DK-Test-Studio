@@ -31,6 +31,12 @@ Work hierarchy: Project → Device → Routine → Page / Spec. Edit Page preser
 ## UI / interactions
 Keep DKDS plot engine, group-chart title/action styling, data center and canonical themes. Preserve original icons, taskbar icons, frameless native chrome, titlebar tabs, status bar, in-built scientific keypad, unified dropdown and controls. Remove click shadows. Default parameter inspector unlocked. Closing the port panel must never re-open parameters. None ports appear in port mapping only, never in parameters. Wide layouts place logically dependent controls on one row; narrow layouts wrap without changing control ownership. Add/select test types from project navigation.
 
+## Native KXCI execution boundary
+- DKTS native plugin consumes the DKDS `network.tcp` capability from `builtin.connectivity-center`; it must not create a second TCP transport implementation.
+- KXCI Ethernet write commands return NUL-terminated ACK responses. Every ACK must be consumed and validated before the next command/query.
+- Plugin API 1.19 does not expose an approved host-delay scheduler to plugins; plugin code must not create raw browser timers. The current host-stepped `DV/TI` runner is therefore not enabled in production. Prefer a fully validated instrument-native sweep sequence for hardware timing.
+- The current official manual index lists KXCI Rev F, but until its complete text is retrieved and compared with the implemented Rev E command path, `safetyPolicies.kxci.allowInstrumentOutput` remains false.
+
 ## Instrument safety / provenance
 A single resource lease controls instrument output. Modules, quadrants, range, compliance, power, time/pulse limit and cable/interlock are revalidated before output. KXCI raw collection is not a locally fabricated curve. Stop, connection loss and abnormal states must attempt safe shutdown and report uncertain output states explicitly.
 

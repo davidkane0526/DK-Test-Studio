@@ -1,18 +1,21 @@
+> **当前 ZIP 源码：V0.3.32 a212（本地暂存编号，非正式 Release）。本轮调整 LabExpress 量程、工程界面与交接。跨电脑继续开发从 GitHub main 拉取，按 [开发交接](docs/HANDOFF.md) 使用现有免费 InstaBox。安装包状态以同一提交的 Actions 与 Release 为准。**
+
 # DK Test Studio (DKTS)
 
 **Keithley 4200A-SCS 专用测量程序。** 目标是 **完全基于 DKDS 框架**，以其成熟 Core/插件/更新体系为唯一宿主，复刻 FS-Pro / LabExpress 的页面层级、端口配置、扫描策略和测试流程。**今后 4200A 的研发只在这个仓库中进行，不修改 DKDS。**
 
 > 2026-11-10 开发边界以 [AGENTS.md](AGENTS.md) 和 [用户需求台账](docs/USER_REQUIREMENTS.md) 为准。较早文档可能描述历史方案，不得覆盖本次新要求。
 
-## 当前状态（2026-11-13 单一发行路线）
+## 当前状态（2026-11-17 单一发行路线）
 
 - [PR #18](https://github.com/davidkane0526/DK-Test-Studio/pull/18) **已经按用户授权合并到 `main`**，合并提交 `cdc159dd`。从此 `main` 的开发目标是由 **只读 DKDS Core 源码构建的 DKTS 宿主**，不是以前独立的 Electron/WebView 壳。禁止未授权修改上游 DKDS。
 - DKTS 构建时在临时目录中暂存完整 DKDS Core，保留全部非分析插件、主题、Data Center、科学绘图、通信、更新模块，移除分析插件，只在 DKTS 副本内加入 4200A 工作区。实际 DKDS checkout 不作写入。
-- FS-Pro Project → Device → Routine → Page/Spec、Project 层的四个独立 DKDS PlotView、Page 全宽参数编辑，以及 DKDS Data Center / 原始 CSV 接口已有实现。实际 KXCI 输出仍禁用，尚未经过真实 4200A 验收。
+- FS-Pro Project → Device → Routine → Page/Spec、Project 层的四个独立 DKDS PlotView、Page 全宽参数编辑，以及 DKDS Data Center / 原始 CSV 接口已有实现。V0.3.25 已将 KXCI 身份/模块识别、扫描方案映射、ACK 逐条读取、DKDS 生命周期定时服务、停止取消及原始 TI 数据发布接入 Core 原生插件。**生产实际输出仍被 Rev F 手册正文核验门禁阻止**，尚未完成真实 4200A 验收，仪器异常恢复也未验收。
 - Windows 原生 Electron Core 工作区与多图窗的启动/截图回归在 `8533798df` 通过；Windows Portable 打包、Android API 36 模拟器和 APK 完整 CI 仍应以各次 Actions 最终结果为准。OPPO 平板及真实仪器未验收。
 - `npm start` 现在运行 `tools/launch-core-mainline.cjs`：若未设置 `DKTS_DKDS_SOURCE`，会在 DKTS 自己的 `.dkts-cache/` 内获取固定 SHA 的只读 DKDS 上游，暂存真实 Core、执行原生构建并启动 Electron；不会修改用户的 DKDS checkout。`npm run start:legacy` 和 `npm run dist:win:legacy` 保留旧壳作历史对照，**不作为新架构正式发布入口**。新 Core 构建由 [只读 Core 工作流](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 构建。
-- 当前改为**单一 DKTS 原生应用身份**：Windows/Android 共用 `V0.3.21 aNNN`，Android 包名为 `studio.dk.test`，使用原 DKTS 固定签名；不再发布 `studio.dk.test.corepreview` 第二套应用。一个 Release 同时包含 Windows Portable、固定签名 APK、硬件能力数据库和校验清单。CSS-only 修改额外把 `DKDS-UI-bundle.json` 放进同一个 Release，且仍会构建完整 EXE/APK。旧 `a159` 等 Core Preview Release 仅保留为历史记录，不再是当前更新源。真实设备安装、热更/全量升级与回退仍待 OPPO/Windows 实机验收。
-- 当前 UI 优化云端工作区身份为 `V0.3.21 a201`。a200 是本地暂存编号，正式 `aNNN` 仍以该源码提交在 `main` 上对应的 `ui-update.yml` 运行号为准；本轮尚未发布正式 APK/EXE。
+- 当前改为**单一 DKTS 原生应用身份**：Windows/Android 共用 `V0.3.32 aNNN`，Android 包名为 `studio.dk.test`，使用原 DKTS 固定签名；不再发布 `studio.dk.test.corepreview` 第二套应用。一个 Release 同时包含 Windows Portable、固定签名 APK、硬件能力数据库和校验清单。CSS-only 修改额外把 `DKDS-UI-bundle.json` 放进同一个 Release，且仍会构建完整 EXE/APK。旧 `a159` 等 Core Preview Release 仅保留为历史记录，不再是当前更新源。真实设备安装、热更/全量升级与回退仍待 OPPO/Windows 实机验收。
+- 当前源码工作区身份为 `V0.3.32 a212`（a212 为本地暂存编号，非正式 Actions 编号）。原生插件版本 0.8.19；EXE/APK 由同一提交的正式 Actions 生成。
+- 本轮 UI 阶段 `npm test` **224/224 通过**；DKTS 派生 Unit 与七标签/七列表格契约已加入。当前 Web FS-Pro 与 Core 原生宿主仍使用不同的渲染器，尚未完成真正共享的 UI renderer/DOM/CSS 抽取，因此不能称为像素级一致或 UI 最终完成。真实 Core 插件目录校验 12/12 通过；DKDS SDK 单插件 validator/runtime 均通过，64 个 canonical layout cases 通过；控件几何由 DKTS 派生 Field Unit 变体负责。Chromium 本地截图进程在当前云端环境挂起，尚未取得四视口真实截图，因此 UI 尚未签收。当前 GitHub 仍只有 `main`，本轮未推送。
 - V0.3.20 a200 本轮优化 PlotView 标题栏，图形类型改为带选中标记的 DKDS 原生“显示”菜单；数据源和原始 CSV 仍在“数据”菜单。980px 及以下标题栏收敛 S/D/G/B 为单一端口 Popover；数值、页面名称/备注、变量单位的无变化编辑不再触发工作区刷新；Sweep 删除重复说明。已完成 DKDS SDK 插件验证与离线 CSS 几何检查；真实 Windows/Android 视觉验收仍待执行。
 
 ## 项目入口
@@ -27,7 +30,7 @@
 
 ## 版本与安装包（单一发行路线）
 
-- 当前云端快照身份为 `V0.3.21 a201`（正式编号待 main Actions 确认）。仅 CSS 白名单热更新保持 V、递增 a；任何需要完整安装的原生/运行时变更都必须递增 V 和 a。`ui-update.yml` 负责提供单调 aNNN，Core 工作流按同一 Git SHA 读取该编号。
+- 当前云端源码快照身份为 `V0.3.32 a212`（本地暂存编号）。仅 CSS 白名单热更新保持 V、递增 a；任何需要完整安装的原生/运行时变更都必须递增 V 和 a。`ui-update.yml` 负责提供单调 aNNN，Core 工作流按同一 Git SHA 读取该编号。
 - 每个应用代码变更都构建完整 Windows Portable 和固定签名 Android APK。CSS-only 修改还会生成四文件白名单 `dkds-ui-v2` 热更新包，并与 EXE/APK 放在同一个 `dkts-vX.Y.Z-aNNN` Release。
 - 当前资产命名为 `DKTS-Windows-VX.Y.Z-aNNN.exe`、`DKTS-Android-VX.Y.Z-aNNN.apk`，可选 `DKDS-UI-bundle.json`，以及硬件能力数据库、SHA256 和来源清单。
 - 原生更新器和 UI 热更新器共用同一个 Release 标签与 V/a 身份；Android 使用原有 `studio.dk.test` 包名及固定签名，不再生成第二个 `corepreview` 应用。历史 Core Preview Releases 保留但不参与新版本更新。
@@ -42,6 +45,12 @@ node tools/stage-dkds-host.cjs ../DK-Data-Studio dist/dkts-framework-staging
 ```
 
 第二条仅生成 **DKTS 源码暂存区**，不是可直接交付的 EXE/APK。正式程序必须完成 FS-Pro 工作区、运行时更新源配置、生产构建和实机验证等验收后才能替换旧壳。
+
+## KXCI 测量执行门禁（V0.3.25）
+- Core 原生工作区现在通过 DKDS `network.tcp` capability 使用通用 TCP 通信，不另建私有 socket 或第二套连接服务；连接后校验 `KI4200A` 身份与序列号，再读取 `*OPT?`、物理模块型号和额定值。
+- KXCI Ethernet 对写入类命令同样返回 `ACK\0`。客户端必须逐条读取并验证 ACK，不能把 ACK 留在 TCP 缓冲区后再读取 `TI` 电流响应。
+- 原生工作区已加入 DC SMU 方案编译、启动确认、停止/关闭、故障状态以及原始 TI 行发布到 DKDS Data Center 的受控代码路径；模拟 TCP 回归通过不代表真实仪器输出已验收。
+- Tektronix 官方索引当前列出 KXCI Rev F（2026-10-09），但正文尚未取得并完成 Rev E→F 逐项核对。当前 `safetyPolicies.kxci.allowInstrumentOutput=false`，因此**真实电压输出被明确禁止**。逐点 `DV/TI` 已通过 DKDS `ui.dom.timeout()` 使用 Core 生命周期管理的延时服务，停止时取消待执行定时器；该方式仍是主机步进模式，不得声称可实现硬件内部 20 ns 扫描。
 
 ## 原始数据和仪器安全
 不同来源的数据明确标记 instrument-raw、derived 或 imported/preview；软件规划曲线不能冒充 4200A 测量曲线。仪器输出必须通过实际模块检测、端口互斥、量程/功率、联锁、异常停止和原始数据采集验证。CI 构建成功不代表仪器现场验收。
@@ -69,6 +78,12 @@ node tools/stage-dkds-host.cjs ../DK-Data-Studio dist/dkts-framework-staging
 - 仅最终源码验收完成后，直接提交到 `main`，提交信息带 `[DKTS-FINAL-BUILD]`，由唯一 Core Release Actions 工作流编译 Windows Portable 和 Android APK、做签名与校验并发布。
 - 普通 `main` 提交不会触发原生安装包编译；其他大型 CI/预览工作流仅能手动诊断。开发包的 `aNNN` 编号为暂存值，正式版本从 `ui-update.yml` 对应 SHA 确认。
 
-### 同源网页预览（V0.3.21 a201）
+### DKTS Core 同源预览（V0.3.32 a212）
 
-通过 `DKTS-Core-Desktop-Same-Source-Preview-V0.3.21.zip` 运行，直接使用派生的 DKDS Core 与 `integrations/dkds-native` 原生插件 HTML/CSS/JavaScript，不采用独立的 FS-Pro Demo 实现。仅模拟 UI，仪器执行、原生文件对话框、安装更新均不可用。首次预览需要联网下载固定的 D3 v7.9.0。
+可使用 `tools/build-same-source-preview.cjs` 生成本地同源预览。它由本轮 DKTS 源码和只读 DKDS `20f056851a61d2144e9524c3ed568628d4b8557c` 派生，直接使用 DKDS Core 的 `src/index.html`、Core CSS、生成的 runtime bundles 和本轮 `com.dkts.keithley-4200` 原生插件。它不是 `web/fspro-workbench/` 独立网页 Demo。
+
+Windows 解压后运行 `Start-DKTS-Core-Same-Source-Preview.cmd`，需要 Node.js 20+；D3 7.9.0 已随预览包提供，无需 npm 安装或首次构建，直接在 `127.0.0.1:4173` 本地提供同源 UI。此过程不安装 Electron、不编译 EXE/APK、不推送 GitHub。浏览器预览使用 DKDS web bridge 的浏览器回退能力，不能提供 Electron IPC、原生窗口/文件对话框、安装更新、真实 4200A 连接、KXCI 输出或仪器原始数据采集；也不能替代 Windows Electron/Android 真机截图验收。具体来源与 SHA 见预览包 `PREVIEW-MANIFEST.json`。
+
+
+## FS-Pro UI baseline (2026-11-17)
+The user-selected online FS-Pro Workbench is the single UI reference. The native DKTS editor must expose seven independent Page tabs in this order: Info, Sweep, Target, Strategy, Limits, Page Var, Associate Spec. If the pinned DKDS Unit set cannot express the required structure or interaction, extend DKTS-owned Units or the DKTS-derived Core Unit implementation; do not alter the upstream DKDS repository and do not simplify the FS-Pro page to fit existing Units. Development is staged: complete a coherent UI block, then run unified tests and build one same-source preview. No per-small-change EXE/APK builds; native packages are built only at final sign-off.

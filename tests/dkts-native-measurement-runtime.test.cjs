@@ -1,0 +1,227 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const dir=path.resolve(__dirname,'../integrations/dkds-native');
+const OWNER='com.dkts.keithley-4200';
+function loadModules(protocolVerified=false){
+ const modules=new Map(),window={DKTSHardwareCapabilities:null};
+ window.DKDSPluginModules={
+  define:(id,name,value)=>{assert.equal(id,OWNER);modules.set(name,value);},
+  require:name=>{if(!modules.has(name))throw Error('missing module '+name);return modules.get(name);}
+ };
+ const sandbox={window,atob,btoa,console,setTimeout,clearTimeout,Date,Math,Promise,Object,Array,Number,String,RegExp,Error,RangeError,Map,Set,Symbol};
+ for(const file of ['hardware-capabilities.js','kxci-protocol.js','identity-core.js',
+  'measurement-plan.js','kxci-measurement.js','model.js','measurement-data.js','measurement-runtime.js'])
+  vm.runInNewContext(fs.readFileSync(path.join(dir,file),'utf8'),sandbox,{filename:file});
+ if(protocolVerified){
+  const original=modules.get('dkts-capabilities'),database=JSON.parse(JSON.stringify(original.DATABASE));
+  database.safetyPolicies.kxci.latestOfficialContentVerified=true;
+  database.safetyPolicies.kxci.allowInstrumentOutput=true;
+  database.safetyPolicies.pulse.latestKxciRevisionContentVerified=true;
+  modules.set('dkts-capabilities',{...original,DATABASE:database});
+ }
+ return {modules,window};
+}
+function configuredPage(model){
+ let state=model.initial();
+ state=model.edit(state,'D',{resource:'SMU1'});
+ const page=state.pages[0];
+ page.sweep.xSegments=[{start:'0',stop:'0.1',step:'0.1',delayMs:'5',range:'auto'}];
+ return page;
+}
+function makeInstrumentContext(modules,options={}){
+ const commands=[],published=[],status=[];let closed=false;
+ let lastQuery='';
+ const instrumentInfo=[
+  'slotno:1,name:SMU1,model:KISMU4200,serialno:SMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
+  'slotno:2,name:SMU2,model:KISMU4200,serialno:SMU002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026'
+ ].join(',');
+ const remoteInfo='';
+ const reply=value=>({base64:Buffer.from(value,'ascii').toString('base64')});
+ const timerState={scheduled:0,cancelled:0,fired:0};
+ const ctx={
+  ui:{dom:{timeout(fn,ms){timerState.scheduled++;const id=setTimeout(()=>{timerState.fired++;fn();},ms);return()=>{timerState.cancelled++;clearTimeout(id);};}}},
+  modules:{require:name=>modules.get(name)},
+  capabilities:{
+   get:id=>id==='network.tcp'?{id,kind:'network.transport',methods:['open','exchange','close']}:null,
+   async invoke(id,method,payload={}){
+    assert.equal(id,'network.tcp');
+    if(method==='open')return {sessionId:'mock-4200-session',localAddress:'169.254.111.115',
+     remoteAddress:'169.254.111.118',remotePort:1225,interfaceName:'USB Ethernet',routeStrategy:'local-address-bound'};
+    if(method==='close'){closed=true;return true;}
+    assert.equal(method,'exchange');
+    const command=Buffer.from(payload.base64||'','base64').toString('ascii');
+    commands.push({command,noReply:payload.noReply===true});
+    if(command==='*IDN?\0')return reply('KI4200A,1498377,V1.14\0');
+    if(command==='*OPT?\0')return reply('SMU1,SMU2\0');
+    if(options.failDvAck&&/^DV[1-8]/.test(command))return reply('');
+    if(command==='UL\0'||command==='DE\0'||command==='US\0'||
+       command===':ERROR:LAST:CLEAR\0'||/^DV[1-8](?:,0,[^,]+,[^,]+)?\0$/.test(command)||
+       /^RI [1-8],[^,]+,[^,]+\0$/.test(command)||/^RG [1-8],[^,]+\0$/.test(command))
+      return reply('ACK\0');
+    if(command==='EX SystemUtil instrumentinfo(,4096,)\0'){lastQuery='instrument';return reply('OK\0');}
+    if(command==='EX SystemUtil remotemoduleinfo(,4096,)\0'){lastQuery='remote';return reply('OK\0');}
+    if(command==='GN result\0')return reply(lastQuery==='instrument'?instrumentInfo+'\0':remoteInfo+'\0');
+    if(command==='TI1\0')return reply('NAI+1.0000E-09\0');
+    if(command==='TI2\0')return reply('NBI+0.0000E+00\0');
+    if(command===':ERROR:LAST:GET\0')return reply('No error (0)\0');
+    if(payload.noReply===true)throw Error('KXCI Ethernet command must drain its ACK');
+    throw Error('Unexpected mock KXCI command: '+JSON.stringify(command));
+   }
+  },
+  status:{set:value=>status.push(String(value))},
+  project:{capture:()=>{}},
+  data:{
+   model:{createTable:spec=>({kind:'data.table',rowCount:spec.columns[0]?.values?.length||0,...spec})},
+   artifacts:{publish:artifact=>{published.push(artifact);return {changed:true};}}
+  }
+ };
+ return {ctx,commands,published,status,timerState,get closed(){return closed;}};
+}
+
+test('native Page maps to the same guarded Xsweep/Psweep KXCI domain contract',()=>{
+ const {modules}=loadModules(),model=modules.get('model');
+ let state=model.initial();
+ state=model.edit(state,'D',{resource:'SMU1'});
+ state=model.edit(state,'G',{resource:'SMU2',role:'P'});
+ state=model.editSweep(state,{pEnabled:true,xRepeats:'2',pRepeats:'3',loops:'4'});
+ const mapped=modules.get('measurementRuntime').pageToSweepProgram(state.pages[0]);
+ assert.equal(mapped.kind,'iv');
+ assert.deepEqual({...mapped.sweepProgram.terminals},{source:'GNDU',drain:'SMU1',gate:'SMU2'});
+ assert.equal(mapped.sweepProgram.xSweep.terminal,'drain');
+ assert.equal(mapped.sweepProgram.pSweep.terminal,'gate');
+ assert.equal(mapped.sweepProgram.xSweep.repeats,2);
+ assert.equal(mapped.sweepProgram.pSweep.repeats,3);
+ assert.equal(mapped.sweepProgram.loops,4);
+ assert.equal(mapped.sweepProgram.portSettings.drain.complianceMode,'follow-range');
+ const bad=JSON.parse(JSON.stringify(state.pages[0]));
+ bad.terminals.find(x=>x.logical==='B').resource='SMU3';
+ assert.throws(()=>modules.get('measurementRuntime').pageToSweepProgram(bad),/衬底 B 端输出/);
+ const current=JSON.parse(JSON.stringify(state.pages[0]));
+ current.terminals.find(x=>x.logical==='D').sourceMode='current';
+ assert.throws(()=>modules.get('measurementRuntime').pageToSweepProgram(current),/只支持电压源输出/);
+ const wrongTarget=JSON.parse(JSON.stringify(state.pages[0]));
+ wrongTarget.target={logical:'G',quantity:'Voltage'};
+ assert.throws(()=>modules.get('measurementRuntime').pageToSweepProgram(wrongTarget),/漏极 SMU 电流/);
+});
+
+test('native runtime blocks real output until the latest KXCI Rev F manual is verified',async()=>{
+ const {modules}=loadModules(false),{ctx,commands}=makeInstrumentContext(modules);
+ const runtime=modules.get('measurementRuntime').createRuntime(ctx);
+ try{
+  const connected=await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  assert.equal(connected.inventory.physicalModelsVerified,true);
+  assert.equal(runtime.status().protocolVerified,false);
+  const prepared=runtime.prepare(configuredPage(modules.get('model')));
+  assert.equal(prepared.canExecute,false);
+  assert.match(prepared.reason,/Rev E.*Rev F.*禁止真实仪器输出/);
+  assert.throws(()=>runtime.start(configuredPage(modules.get('model')),true),/Rev E.*Rev F/);
+  assert.equal(commands.some(row=>/^DV/.test(row.command)),false);
+ }finally{await runtime.dispose();}
+});
+
+test('native runtime blocks timed execution when the DKDS lifecycle timer is unavailable',async()=>{
+ const {modules}=loadModules(true),{ctx,commands}=makeInstrumentContext(modules);
+ delete ctx.ui.dom;
+ const runtime=modules.get('measurementRuntime').createRuntime(ctx);
+ try{
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  const prepared=runtime.prepare(configuredPage(modules.get('model')));
+  assert.equal(prepared.protocolVerified,true);
+  assert.equal(prepared.executionAdapterAvailable,false);
+  assert.equal(prepared.canExecute,false);
+  assert.match(prepared.reason,/生命周期管理的 DOM 定时服务/);
+  assert.throws(()=>runtime.start(configuredPage(modules.get('model')),true),/DOM 定时服务/);
+  assert.equal(commands.some(row=>/^DV/.test(row.command)),false);
+ }finally{await runtime.dispose();}
+});
+
+
+test('native stop cancels the DKDS-owned point timer before shutting down SMUs',async()=>{
+ const {modules}=loadModules(true),fake=makeInstrumentContext(modules);
+ const runtime=modules.get('measurementRuntime').createRuntime(fake.ctx);
+ try{
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  const page=configuredPage(modules.get('model'));
+  runtime.start(page,true);
+  for(let i=0;i<30&&fake.timerState.scheduled===0;i++)
+   await new Promise(resolve=>setTimeout(resolve,1));
+  assert.equal(fake.timerState.scheduled,1,'the first point delay is owned by DKDS DOM runtime');
+  runtime.stop();
+  const final=await runtime.waitForCompletion();
+  assert.equal(final.run.state,'stopped');
+  assert.equal(final.run.shutdown,'commands-sent');
+  assert.equal(fake.timerState.cancelled,1,'stop cancels the outstanding lifecycle timer');
+  assert.equal(fake.timerState.fired,0,'a cancelled settling timer must not fire after stop');
+  assert.equal(fake.commands.some(row=>row.command==='TI1\0'),false,'stop during settling does not trigger a measurement');
+  assert.equal(fake.commands.at(-1).command,'DV1\0','all active SMUs are commanded off before the run ends');
+ }finally{await runtime.dispose();}
+});
+
+test('native runtime refuses disconnect when a final SMU-off ACK is unconfirmed',async()=>{
+ const {modules}=loadModules(true),fake=makeInstrumentContext(modules,{failDvAck:true});
+ const runtime=modules.get('measurementRuntime').createRuntime(fake.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  const page=configuredPage(modules.get('model'));
+  assert.equal(runtime.prepare(page).canExecute,true);
+  runtime.start(page,true);
+  const final=await runtime.waitForCompletion();
+  assert.equal(final.run.state,'failed');
+  assert.equal(final.run.shutdown,'unconfirmed');
+  await assert.rejects(()=>runtime.disconnect(),/SMU 输出关闭未获确认/);
+  assert.equal(runtime.status().connection.phase,'connected');
+  assert.equal(fake.closed,false,'the controller must not close a session after an unconfirmed SMU-off ACK');
+  assert.equal(runtime.prepare(page).canExecute,false);
+ }finally{await runtime.dispose();}
+});
+
+test('native runtime verifies compact KI4200A identity, physical modules, gates output and publishes real TI rows',async()=>{
+ const {modules}=loadModules(true),{ctx,commands,published,timerState}=makeInstrumentContext(modules);
+ const runtime=modules.get('measurementRuntime').createRuntime(ctx);
+ try{
+  const connected=await runtime.connectAndInspect({host:'169.254.111.118',port:1225,
+   expectedSerial:'1498377',networkMode:'ethernet'});
+  assert.equal(connected.phase,'connected');
+  assert.equal(connected.identity.model,'KI4200A');
+  assert.equal(connected.identity.format,'compact');
+  assert.equal(connected.inventory.physicalModelsVerified,true);
+  assert.equal(connected.inventory.hardwareLimitsVerified,true);
+  assert.equal(runtime.status().protocolVerified,true);
+  assert.ok(commands.filter(row=>['UL\0','DE\0'].includes(row.command)).every(row=>row.noReply===false),
+   'module-mode transitions must consume their Ethernet ACK responses');
+  const page=configuredPage(modules.get('model'));
+  const prepared=runtime.prepare(page);
+  assert.equal(prepared.canExecute,true);
+  assert.equal(prepared.pointCount,2);
+  assert.throws(()=>runtime.start(page,false),/必须经过用户确认/);
+  assert.equal(commands.some(row=>/^DV/.test(row.command)),false,
+   'no source-output command is sent before the explicit confirmation argument');
+  const initial=runtime.start(page,true);
+  assert.equal(initial.running,true);
+  const final=await runtime.waitForCompletion();
+  assert.equal(final.run.state,'completed');
+  assert.equal(final.run.shutdown,'commands-sent');
+  assert.equal(final.rows,2);
+  assert.equal(timerState.scheduled,2,'the supported DKDS DOM timer schedules each configured point delay');
+  assert.equal(timerState.fired,2,'completed point timers fire through the DKDS DOM runtime');
+  assert.equal(timerState.cancelled,0,'naturally completed timers are not redundantly cancelled');
+  assert.equal(final.published.canonical,true);
+  assert.equal(published.length,1);
+  const artifact=published[0];
+  assert.equal(artifact.id,'dkts:kxci:'+initial.runId);
+  assert.equal(artifact.metadata.instrumentSerial,'1498377');
+  const column=key=>artifact.columns.find(row=>row.key===key);
+  assert.deepEqual(Array.from(column('drainVoltageV').values),[0,.1]);
+  assert.deepEqual(Array.from(column('drainCurrentA').values),[1e-9,1e-9]);
+  assert.deepEqual(Array.from(column('xVoltageV').values),[0,.1]);
+  assert.deepEqual(Array.from(column('rawKxciResponse').values),['NAI+1.0000E-09','NAI+1.0000E-09']);
+  assert.deepEqual(commands.slice(-1).map(row=>row.command),['DV1\0']);
+  assert.ok(commands.filter(row=>/^DV/.test(row.command)||row.command==='US\0'||
+   row.command===':ERROR:LAST:CLEAR\0').every(row=>row.noReply===false),
+   'every write-only KXCI command must consume and validate ACK before the next query');
+  await runtime.disconnect();
+  assert.equal(runtime.status().connection.phase,'disconnected');
+ }finally{await runtime.dispose();}
+});

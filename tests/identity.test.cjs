@@ -7,6 +7,10 @@ const {IDN_REQUEST,parseIdentity}=require('../src/protocol/kxci-protocol.cjs');
 test('identity parser accepts exact KI4200A and rejects wrong serial',()=>{
   assert.equal(Buffer.from(IDN_REQUEST,'ascii').toString('hex'),'2a49444e3f00');
   assert.equal(parseIdentity('KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0','1498377').serial,'1498377');
+  const compact=parseIdentity('KI4200A,1498377,V1.14\0','1498377');
+  assert.equal(compact.model,'KI4200A');
+  assert.equal(compact.serial,'1498377');
+  assert.equal(compact.format,'compact');
   assert.throws(()=>parseIdentity('OTHER,KI4200A,1,V1'),/身份不匹配/);
   assert.throws(()=>parseIdentity('KEITHLEY INSTRUMENTS,KI4200A,1,V1','2'),/序列号不匹配/);
   assert.throws(()=>normalizeSettings({networkMode:'interface'}),/网卡名称/);

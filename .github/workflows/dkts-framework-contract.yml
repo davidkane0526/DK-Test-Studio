@@ -542,7 +542,22 @@ jobs:
           (cd out && sha256sum *.exe *.apk *.json > SHA256SUMS.txt)
           printf 'Build source: %s\nCore workflow: %s\nRevision: a%s\nPackage ID: studio.dk.test\nAndroid signer: %s\n' \
             "$CORE_SHA" "${{ github.run_id }}" "$revision" "$signing" > out/PROVENANCE.txt
-      - name: Retain verified EXE, APK, SHA256 and provenance even if Release permission is denied
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Include the same-commit source and standalone DKDS plugin
+        env:
+          UI_REV: ${{ steps.identity.outputs.ui_revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_version="$(node -p "require('./package.json').version")"
+          plugin_version="$(node -p "require('./integrations/dkds-native/plugin.json').version")"
+          node tools/build-dkds-native-plugin.cjs
+          cp "dist/DKTS-4200A-native-v$plugin_version.dkplugin" out/
+          git archive --format=zip --prefix=DK-Test-Studio/ HEAD > "out/DK-Test-Studio-V$app_version-$UI_REV-source.zip"
+          (cd out && sha256sum *.dkplugin *.zip >> SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
+      - name: Retain verified packages, source, SHA256 and provenance even if Release permission is denied
         uses: actions/upload-artifact@v4
         with:
           name: DKTS-Core-Verified-Packages-${{ steps.identity.outputs.ui_revision }}-run${{ github.run_id }}
@@ -574,6 +589,7 @@ jobs:
           Windows: DKTS portable package with the stable application identity.
           Android: studio.dk.test, signed with the pinned DKTS certificate ($SIGNING_STATUS).
           Capability database: DKTS-4200A-Hardware-Capability-Database-v1.json (SHA-256 verified).
+          Includes the complete Git source archive and standalone DKDS plugin for this commit.
           A CSS-only change includes this complete package and a verified CSS bundle in this same Release when available.
           Real 4200A output and physical-device measurement remain unaccepted.
           UI and native updater code paths are SHA/signature/version guarded; end-to-end physical-device rollback acceptance remains pending.

@@ -11,9 +11,19 @@
   }
   function parseIdentity(input,expectedSerial=''){
     const raw=String(input||'').replace(/\0+$/g,'').trim(),parts=raw.split(',').map(x=>x.trim());
-    if(parts[0]!=='KEITHLEY INSTRUMENTS'||parts[1]!=='KI4200A')throw Error('仪器身份不匹配：'+(raw||'空响应'));
-    if(expectedSerial&&parts[2]!==String(expectedSerial))throw Error('序列号不匹配：预期 '+expectedSerial+'，实际 '+(parts[2]||'未知'));
-    return Object.freeze({manufacturer:parts[0],model:parts[1],serial:parts[2]||'',version:parts[3]||'',raw});
+    // 4200A firmware/bridge variants expose either the full IEEE-488.2
+    // manufacturer prefix or the compact KI4200A,serial,version form.
+    // Both identify the same exact model token; arbitrary vendor/model
+    // strings remain rejected.
+    let manufacturer='',model='',serial='',version='',format='';
+    if(parts[0]==='KEITHLEY INSTRUMENTS'&&parts[1]==='KI4200A'&&parts.length>=3){
+      manufacturer=parts[0];model=parts[1];serial=parts[2]||'';version=parts[3]||'';format='manufacturer-prefixed';
+    }else if(parts[0]==='KI4200A'&&parts.length>=2){
+      manufacturer='KEITHLEY INSTRUMENTS';model=parts[0];serial=parts[1]||'';version=parts[2]||'';format='compact';
+    }else throw Error('仪器身份不匹配：'+(raw||'空响应'));
+    if(!serial)throw Error('仪器身份响应缺少序列号：'+raw);
+    if(expectedSerial&&serial!==String(expectedSerial))throw Error('序列号不匹配：预期 '+expectedSerial+'，实际 '+(serial||'未知'));
+    return Object.freeze({manufacturer,model,serial,version,format,raw});
   }
   function parseSlot(token,index){
     const raw=String(token||'').trim().toUpperCase();

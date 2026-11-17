@@ -42,11 +42,15 @@ test('DKTS Core mobile drawer uses SDK Units, scoped stylesheet, and close inter
  const css=fs.readFileSync(path.join(root,'ui-shell.css'),'utf8');
  assert(css.includes('#dktsKeithley4200Page [data-dkts-shell]'));
  const plugin=fs.readFileSync(path.join(root,'plugin.js'),'utf8');
- assert(plugin.includes("variant:'sidebar-main-compact'"),
-  'desktop sidebar width belongs to the canonical DKDS compact Unit Layout recipe');
- assert(plugin.includes('maxWidth:900'),
-  'tablet/phone breakpoint belongs to the DKDS Unit Layout geometry');
- assert(!css.includes('!important'),'DKTS does not override Core grid geometry with !important');
+ assert.match(plugin,/variant:'identity',className:'dkts-main-grid'/);
+ assert.match(css,/grid-template-columns:226px minmax\(0,1fr\)/);
+ const priorityRules=[...css.matchAll(/#[^{]+\{[^{}]*!important[^{}]*\}/g)].map(x=>x[0]);
+ assert(priorityRules.length>=3,'explicit overrides are required for Core inline display attributes');
+ assert(priorityRules.every(rule=>/(?:\[data-dkts-(?:nav-toggle|port-desktop|port-mobile)\]|\.dkts-sweep-segment \.dkds-field-label-row|\.dkts-(?:page-editor|project-plot-area)\[hidden\])/.test(rule)),
+  'important is only permitted for DKTS-owned semantic responsive visibility');
+ assert.match(css,/\[data-dkts-port-mobile\]\{display:none!important\}/);
+ assert.match(css,/@media\(max-width:990px\)[\s\S]*\[data-dkts-port-desktop\]\{display:none!important\}/);
+
  assert(css.includes('max-width:900px'));
  assert(css.includes('data-dkts-nav-toggle'));
  assert(css.includes('data-dkts-plot-group'));
@@ -55,13 +59,13 @@ test('DKTS Core mobile drawer uses SDK Units, scoped stylesheet, and close inter
  const smoke=fs.readFileSync(path.join(__dirname,'../tools/dkts-core-boot-smoke.cjs'),'utf8');
  assert(smoke.includes('core-host-phone-page.png'));
  assert(smoke.includes('core-host-phone-port-popover.png'));
- assert(smoke.includes('allFourPorts:true'));
+ assert(smoke.includes('threeTerminalRoles:true'));
  const runner=fs.readFileSync(path.join(__dirname,'../tools/run-core-host-smoke.cjs'),'utf8');
  assert(runner.includes('result.phoneEvidence?.popover!==true'));
  assert(runner.includes('core-host-phone-port-popover.png'));
  assert(css.includes('.dkts-sweep-segment'));
  assert(css.includes('.dkts-parameter-content'));
  assert(css.includes('prefers-reduced-motion'));
- assert.doesNotMatch(css,/\bbackground\s*:/,'plugin-owned scrim must not bypass DKDS theme paint');
+ assert.doesNotMatch(css,/body\s*\{|\.dkds-plugin-workspace/,'plugin paint must stay scoped to the DKTS workbench');
  assert(!css.includes('height:calc(100dvh'),'viewport/status bar remains DKDS-owned');
 });

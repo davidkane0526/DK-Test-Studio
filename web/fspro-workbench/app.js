@@ -279,11 +279,11 @@ async function renderDKDSChart(){
 function readAxis(axis){
  const page=current(),node=page[axis+'Sweep'];
  node.terminal=$(axis+'-terminal').value;
- node.repeats=Number($(axis+'-repeats').value);
+ node.repeats=$(axis+'-repeats').value;
  node.segments=[...document.querySelectorAll('#'+axis+'-segments tr')].map(row=>{
   const values={};
   for(const f of row.querySelectorAll('[data-field]'))
-   values[f.dataset.field]=['startV','stopV','stepV'].includes(f.dataset.field)?Number(f.value):f.value;
+   values[f.dataset.field]=f.value;
   return values;
  });
  if(axis==='p')node.enabled=$('p-enabled').checked;
@@ -418,15 +418,15 @@ document.addEventListener('input',event=>{
  const t=event.target,p=current();
  if(t.id==='page-name'){p.name=t.value.slice(0,60);$('page-heading').textContent=p.name;tree();}
  else if(t.id==='note')p.note=t.value;
- else if(t.id==='loops'||t.id==='strategy-loops'){p.loops=Number(t.value);$('loops').value=p.loops;$('strategy-loops').value=p.loops;}
- else if(t.id==='point-delay')p.pointDelay=Number(t.value);
- else if(t.dataset.fixed)p.fixed[t.dataset.fixed]=Number(t.value);
+ else if(t.id==='loops'||t.id==='strategy-loops'){p.loops=t.value;$('loops').value=p.loops;$('strategy-loops').value=p.loops;}
+ else if(t.id==='point-delay')p.pointDelay=t.value;
+ else if(t.dataset.fixed)p.fixed[t.dataset.fixed]=t.value;
  else if(t.dataset.setting){
   const row=t.closest('.terminal-row');if(row)p.portSettings[row.dataset.role][t.dataset.setting]=t.value;
  }
  else if(t.closest('tr[data-axis]')){
   const row=t.closest('tr[data-axis]'),segment=p[row.dataset.axis+'Sweep'].segments[Number(row.dataset.index)];
-  if(segment){const key=t.dataset.field;segment[key]=['startV','stopV','stepV'].includes(key)?Number(t.value):t.value;}
+  if(segment){const key=t.dataset.field;segment[key]=t.value;}
  }
  else if(t.closest('tr[data-table]')){
   const row=t.closest('tr[data-table]'),arr=row.dataset.table==='target'?p.targets:p.variables,item=arr[Number(row.dataset.index)];

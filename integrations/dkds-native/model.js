@@ -17,14 +17,15 @@
  // No field in this project state authorizes or sends an instrument command.
  const segment=(mode='voltage',axis='X')=>({
   start:'0',stop:axis==='P'?'1':mode==='current'?'0.01':'2',
-  step:mode==='current'?'0.001':'0.1',delayMs:'20',range:'auto'
+  step:mode==='current'?'0.001':'0.1',delayMs:'20',range:'auto',speed:'Normal'
  });
  const defaultSweep=()=>({
   contractVersion:2,loops:'1',xRepeats:'1',pRepeats:'1',pEnabled:false,
+  mode:'linear',speed:'Normal',pointDelay:'20',
   xSegments:[segment()],pSegments:[segment('voltage','P')]
  });
- const sweepKeys=Object.freeze(['loops','xRepeats','pRepeats','pEnabled']);
- const segmentKeys=Object.freeze(['start','stop','step','delayMs','range']);
+ const sweepKeys=Object.freeze(['loops','xRepeats','pRepeats','pEnabled','mode','speed','pointDelay']);
+ const segmentKeys=Object.freeze(['start','stop','step','delayMs','range','speed']);
  const positiveInt=(raw,max,label)=>{
   const text=String(raw??'');
   if(!/^[1-9][0-9]*$/.test(text))throw Error(label+' must be a positive integer');
@@ -71,6 +72,10 @@
   }
   for(const key of ['loops','xRepeats','pRepeats'])positiveInt(sw[key],10000,key);
   if(typeof sw.pEnabled!=='boolean')throw Error('Invalid Psweep enable state');
+  if(!['linear','bidirectional','hysteresis'].includes(sw.mode))throw Error('Invalid scan mode');
+  if(!['Fast','Normal','Quiet'].includes(sw.speed))throw Error('Invalid measurement speed');
+  const pointDelay=numeric(sw.pointDelay,'point delay');
+  if(pointDelay<0||pointDelay>6553)throw Error('Invalid sweep delay (0..6553 ms)');
   for(const axis of ['X','P']){
    const key=axis==='X'?'xSegments':'pSegments',list=sw[key];
    if(!Array.isArray(list)||!list.length||list.length>64)throw Error('Invalid '+axis+' segment count');
@@ -83,6 +88,8 @@
     for(const key of ['start','stop','step','delayMs'])numeric(row[key],axis+'['+i+'].'+key);
     if(Number(row.delayMs)<0||Number(row.delayMs)>6553)
      throw Error('Invalid sweep delay (0..6553 ms)');
+    if(!['Fast','Normal','Quiet'].includes(row.speed||'Normal'))
+     throw Error('Invalid segment speed');
     if(Math.max(Math.abs(Number(row.start)),Math.abs(Number(row.stop)))>sourceMax)
      throw Error('HARDWARE_ENVELOPE: scan source exceeds theoretical SMU envelope');
     if(terminal&&Math.max(Math.abs(Number(row.start)),Math.abs(Number(row.stop)))>
@@ -98,9 +105,9 @@
  }
  function summary(p){
   const scan=p.sweep||defaultSweep();
-  const x=p.terminals.find(t=>t.resource!=='None'&&t.role==='X');
+  const x=p.terminals.find(t=>!['None','GNDU'].includes(t.resource)&&t.role==='X');
   const second=scan.pEnabled;
-  const parallel=p.terminals.find(t=>t.resource!=='None'&&t.role==='P');
+  const parallel=p.terminals.find(t=>!['None','GNDU'].includes(t.resource)&&t.role==='P');
   if(!x)return {ready:false,reason:'请先分配 Xsweep 的 SMU 端口'};
   if(second&&!parallel)return {ready:false,reason:'Psweep 已启用，请分配独立的 SMU 端口'};
   const xPoints=scan.xSegments.reduce((n,row)=>n+segmentPoints(row),0);
@@ -113,15 +120,68 @@
    xPoints,pPoints,total,loops:Number(scan.loops),xRepeats:Number(scan.xRepeats),
    pRepeats:second?Number(scan.pRepeats):0};
  }
- const ports=()=>['D','G','S','B'].map((logical,i)=>({
-  logical,resource:'None',sourceMode:'voltage',role:i===0?'X':'CONDITION',
-  bias:'0',start:'0',stop:'2',step:'0.1',compliance:'0.01',rangeMode:'auto',rangeValue:'1e-6'
- }));
+ // Deterministic, zero-allocation-at-scale *offline* planning cursor.
+ // X steps form the innermost loop, followed by X repeats, P steps,
+ // P repeats, and finally whole-page loops. Not an instrument runner.
+ function segmentAt(segments,index){
+  let cursor=index;
+  for(let i=0;i<segments.length;i++){
+   const seg=segments[i],length=segmentPoints(seg);
+   if(cursor<length){
+    const value=cursor===length-1?Number(seg.stop):
+     Number((Number(seg.start)+cursor*Number(seg.step)).toPrecision(13));
+    return Object.freeze({segment:i+1,step:cursor+1,value,
+     delayMs:Number(seg.delayMs),range:seg.range,speed:seg.speed||'Normal'});
+   }
+   cursor-=length;
+  }
+  throw new RangeError('Sweep cursor outside segment list');
+ }
+ function pointAt(page,index){
+  // Validate a copy: cursor reads must not mutate persisted project state.
+  if(!page||!['iv','transfer','output'].includes(page.kind))
+   throw Error('Only DC sweep pages have an offline X/P scan cursor');
+  const p={...page,sweep:clone(page.sweep||defaultSweep())};
+  validateSweep(p);
+  const info=summary(p);
+  if(!info.ready)throw Error(info.reason);
+  if(!Number.isSafeInteger(index)||index<0||index>=info.total)
+   throw new RangeError('Sweep cursor index out of bounds');
+  const sw=p.sweep;
+  const xBlock=info.xPoints*info.xRepeats;
+  const pBlock=info.pPoints*(sw.pEnabled?info.pRepeats:1);
+  const cyclePoints=xBlock*pBlock;
+  const inner=index%cyclePoints;
+  const pBlockOffset=Math.floor(inner/xBlock);
+  const xOffset=inner%xBlock;
+  const xTerminal=p.terminals.find(t=>t.logical===info.xTerminal);
+  const pTerminal=sw.pEnabled?p.terminals.find(t=>t.logical===info.pTerminal):null;
+  const x=Object.freeze({...segmentAt(sw.xSegments,xOffset%info.xPoints),
+   logical:xTerminal.logical,resource:xTerminal.resource,mode:xTerminal.sourceMode,
+   repeat:Math.floor(xOffset/info.xPoints)+1});
+  const outer=sw.pEnabled?Object.freeze({
+   ...segmentAt(sw.pSegments,pBlockOffset%info.pPoints),
+   logical:pTerminal.logical,resource:pTerminal.resource,mode:pTerminal.sourceMode,
+   repeat:Math.floor(pBlockOffset/info.pPoints)+1}):null;
+  const fixed=Object.freeze(p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)&&
+   (t.role==='CONDITION'||(!sw.pEnabled&&t.role==='P')))
+   .map(t=>Object.freeze({logical:t.logical,resource:t.resource,
+    mode:t.sourceMode,value:Number(t.bias)})));
+  return Object.freeze({index,loop:Math.floor(index/cyclePoints)+1,
+   x,p:outer,fixed,provenance:'planned-only',executable:false,hardwareVerified:false});
+ }
+ const ports=()=>[
+  {logical:'D',resource:'SMU1',sourceMode:'voltage',role:'X'},
+  {logical:'G',resource:'SMU2',sourceMode:'voltage',role:'CONDITION'},
+  {logical:'S',resource:'GNDU',sourceMode:'voltage',role:'CONDITION'},
+  {logical:'B',resource:'None',sourceMode:'voltage',role:'CONDITION'}
+ ].map(row=>({...row,bias:'0',start:'0',stop:'2',step:'0.1',compliance:'0.01',complianceMode:'follow-range',rangeMode:'auto',rangeValue:'1e-6'}));
  const page=(kind='iv',id='page-1',routineId='routine-1')=>{
   const type=KINDS.find(x=>x.id===kind);if(!type)throw Error('Unknown test type');
   return {id,routineId,kind,name:type.label,testType:type.testType,note:'',
    terminals:ports(),sweep:defaultSweep(),
-   target:{logical:'D',quantity:'Current'},variables:[]};
+   target:{name:'Id',logical:'D',quantity:'Current',range:'auto'},
+   targets:[{id:'target-1',name:'Id',logical:'D',quantity:'Current',range:'auto'}],variables:[]};
  };
  const initial=()=>({schema:1,sequence:1,activeId:'page-1',
   activeDeviceId:'device-1',devices:[{id:'device-1',name:'MOSFET'}],
@@ -158,6 +218,7 @@
       routineIds.has(routine.id)||typeof routine.name!=='string'||
       !routine.name.trim()||routine.name.length>64||
       !deviceIds.has(routine.deviceId))throw Error('Invalid Routine or Device ownership');
+   routine.loops=String(positiveInt(routine.loops??'1',10000,'Routine loops'));
    routineIds.add(routine.id);
    routineOwners.set(routine.id,routine.deviceId);
   }
@@ -190,9 +251,27 @@
    if(p.note===undefined)p.note='';
    if(typeof p.note!=='string'||p.note.length>512)throw Error('Invalid Page note');
    // UI planning metadata is never a hardware execution permission.
-   if(!p.target)p.target={logical:'D',quantity:'Current'};
+   if(!p.target)p.target={name:'Id',logical:'D',quantity:'Current',range:'auto'};
+   if(typeof p.target.name!=='string'||!p.target.name.trim()||p.target.name.length>32)
+    p.target.name='Id';
    if(!['D','G','S','B'].includes(p.target.logical)||
       !['Current','Voltage'].includes(p.target.quantity))throw Error('Invalid Target plan');
+   if(!Array.isArray(p.targets)||!p.targets.length){
+    p.targets=[{id:'target-1',name:p.target.name||'Id',logical:p.target.logical,
+     quantity:p.target.quantity,range:p.target.range||'auto'}];
+   }
+   if(p.targets.length>16)throw Error('Too many measurement targets');
+   const targetIds=new Set(),targetNames=new Set();
+   for(const [index,target] of p.targets.entries()){
+    if(!target||!/^target-[1-9][0-9]*$/.test(target.id||'')||targetIds.has(target.id)||
+       typeof target.name!=='string'||! /^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(target.name)||
+       targetNames.has(target.name)||!['D','G','S','B'].includes(target.logical)||
+       !['Current','Voltage'].includes(target.quantity)||
+       !(target.range==='auto'||/^(?:1e-[0-9]+|1e[0-9]+|[0-9]+(?:\.[0-9]+)?)$/.test(String(target.range))))
+     throw Error('Invalid measurement target '+(index+1));
+    targetIds.add(target.id);targetNames.add(target.name);
+   }
+   p.target={...p.targets[0]};
    if(!Array.isArray(p.variables))p.variables=[];
    if(p.variables.length>32)throw Error('Too many Page variables');
    const variableNames=new Set();
@@ -216,10 +295,13 @@
       roles.add(t.role);
      }
     }
-    if(!['D','G','S','B'].includes(t.logical)||!/^None$|^SMU[1-8]$/.test(t.resource)||
+    if(t.complianceMode===undefined)t.complianceMode='follow-range';
+    if(!['D','G','S','B'].includes(t.logical)||! /^(?:None|GNDU|SMU[1-9])$/.test(t.resource)||
        !['voltage','current'].includes(t.sourceMode)||!['CONDITION','X','P'].includes(t.role)||
-       !['auto','minimum','fixed'].includes(t.rangeMode)||
-       (t.rangeMode==='minimum'&&t.sourceMode!=='voltage'))throw Error('Invalid port mapping');
+       !['auto','minimum','limited-auto','fixed'].includes(t.rangeMode)||
+       !['follow-range','custom'].includes(t.complianceMode)||
+       (['minimum','limited-auto'].includes(t.rangeMode)&&t.sourceMode!=='voltage'))
+     throw Error('Invalid port mapping');
     const numeric=/^[+-]?(?:[0-9]+[.]?[0-9]*|[.][0-9]+)(?:[eE][+-]?[0-9]+)?$/;
     for(const key of ['bias','start','stop','step','compliance','rangeValue']){
      const raw=String(t[key]??'').trim();
@@ -299,6 +381,13 @@
   s.activeId=first.id;s.activeRoutineId=routineId;
   return validate(s);
  }
+ function setRoutineLoops(s,routineId,loops){
+  s=validate(s);
+  const routine=s.routines.find(row=>row.id===routineId);
+  if(!routine)throw Error('Unknown Routine');
+  routine.loops=String(positiveInt(loops,10000,'Routine loops'));
+  return s;
+ }
  function addSpec(s){
   s=validate(s);
   if(s.specs.length>=100)throw Error('Maximum 100 Specs');
@@ -332,18 +421,55 @@
  function editPage(s,changes){
   s=validate(s);
   if(!changes||typeof changes!=='object'||
-     Object.keys(changes).some(k=>!['name','note'].includes(k)))
+     Object.keys(changes).some(k=>!['name','note','kind'].includes(k)))
    throw Error('Invalid Page metadata change');
-  Object.assign(s.pages.find(p=>p.id===s.activeId),changes);
+  const page=s.pages.find(p=>p.id===s.activeId),patch={...changes};
+  if(patch.kind!==undefined){
+   const kind=KINDS.find(row=>row.id===patch.kind);if(!kind)throw Error('Unknown test type');
+   page.kind=kind.id;page.testType=kind.testType;
+   if(patch.name===undefined)page.name=kind.label;
+   delete patch.kind;
+  }
+  Object.assign(page,patch);
   return validate(s);
  }
- function editTarget(s,changes){
+ function editDevice(s,changes){
   s=validate(s);
-  if(!changes||typeof changes!=='object'||
-     Object.keys(changes).some(k=>!['logical','quantity'].includes(k)))
+  if(!changes||typeof changes!=='object'||Object.keys(changes).some(k=>k!=='name'))
+   throw Error('Invalid Device metadata change');
+  const device=s.devices.find(row=>row.id===s.activeDeviceId);
+  if(!device)throw Error('Active Device missing');
+  Object.assign(device,changes);return validate(s);
+ }
+ function editTarget(s,indexOrChanges,maybeChanges){
+  s=validate(s);
+  const index=typeof indexOrChanges==='number'?indexOrChanges:0;
+  const changes=typeof indexOrChanges==='number'?maybeChanges:indexOrChanges;
+  if(!Number.isInteger(index)||!changes||typeof changes!=='object'||
+     Object.keys(changes).some(k=>!['name','logical','quantity','range'].includes(k)))
    throw Error('Invalid Target change');
-  Object.assign(s.pages.find(p=>p.id===s.activeId).target,changes);
+  const page=s.pages.find(p=>p.id===s.activeId),target=page.targets[index];
+  if(!target)throw Error('Target missing');
+  Object.assign(target,changes);page.target={...page.targets[0]};
   return validate(s);
+ }
+ function addTarget(s){
+  s=validate(s);const page=s.pages.find(p=>p.id===s.activeId);
+  if(page.targets.length>=16)throw Error('Maximum 16 measurement targets');
+  let index=page.targets.length+1,name='I'+index;
+  while(page.targets.some(row=>row.name===name)){index++;name='I'+index;}
+  const available=page.terminals.find(t=>!['None','GNDU'].includes(t.resource));
+  if(!available)throw Error('No assigned SMU is available for a measurement target');
+  let targetIndex=1;while(page.targets.some(row=>row.id==='target-'+targetIndex))targetIndex++;
+  const id='target-'+targetIndex;
+  page.targets.push({id,name,logical:available.logical,quantity:'Current',range:'auto'});
+  page.target={...page.targets[0]};return validate(s);
+ }
+ function removeTarget(s,index){
+  s=validate(s);const page=s.pages.find(p=>p.id===s.activeId);
+  if(!Number.isInteger(index)||index<0||index>=page.targets.length)throw Error('Target missing');
+  if(page.targets.length<=1)throw Error('At least one measurement target must remain');
+  page.targets.splice(index,1);page.target={...page.targets[0]};return validate(s);
  }
  function addVariable(s){
   s=validate(s);
@@ -376,7 +502,7 @@
   s=validate(s);
   const p=s.pages.find(x=>x.id===s.activeId),t=p.terminals.find(x=>x.logical===logical);
   if(!t||!values||Object.keys(values).some(key=>![
-   'resource','sourceMode','role','bias','start','stop','step','compliance','rangeMode','rangeValue'
+   'resource','sourceMode','role','bias','start','stop','step','compliance','complianceMode','rangeMode','rangeValue'
   ].includes(key)))throw Error('Invalid terminal change');
   Object.assign(t,values);
   if(values.sourceMode&&t.role!=='CONDITION'){
@@ -407,7 +533,25 @@
    throw Error('Invalid sweep setting');
   const p=s.pages.find(x=>x.id===s.activeId);
   Object.assign(p.sweep,changes);
+  if(Object.prototype.hasOwnProperty.call(changes,'pointDelay')){
+   for(const row of [...p.sweep.xSegments,...p.sweep.pSegments])row.delayMs=String(changes.pointDelay);
+  }
   return validate(s);
+ }
+ function orientSegmentStep(row){
+  const direction=Math.sign(numeric(row.stop,'stop')-numeric(row.start,'start'));
+  const step=numeric(row.step,'step');
+  if(direction&&step&&Math.sign(step)!==direction)row.step=String(-step);
+ }
+ function connectFollowingSegments(list,index){
+  for(let i=index+1;i<list.length;i++){
+   const row=list[i];
+   const singlePoint=Number(row.start)===Number(row.stop)&&Number(row.step)===0;
+   row.start=list[i-1].stop;
+   if(singlePoint)row.stop=row.start;
+   if(Number(row.start)===Number(row.stop))row.step='0';
+   orientSegmentStep(row);
+  }
  }
  function editSegment(s,axis,index,changes){
   s=validate(s);
@@ -415,7 +559,14 @@
      Object.keys(changes).some(k=>!segmentKeys.includes(k)))throw Error('Invalid sweep segment change');
   const p=s.pages.find(x=>x.id===s.activeId),list=p.sweep[axis==='X'?'xSegments':'pSegments'];
   if(index<0||index>=list.length)throw Error('Sweep segment missing');
-  Object.assign(list[index],changes);
+  const row=list[index];
+  Object.assign(row,changes);
+  if(['start','stop','step'].some(key=>Object.hasOwn(changes,key))){
+   if(!Object.hasOwn(changes,'step')&&numeric(row.start,'start')===numeric(row.stop,'stop'))
+    row.step='0';
+   orientSegmentStep(row);
+   if(Object.hasOwn(changes,'stop'))connectFollowingSegments(list,index);
+  }
   return validate(s);
  }
  function addSegment(s,axis){
@@ -425,6 +576,7 @@
   if(list.length>=64)throw Error('Maximum 64 segments per axis');
   const terminal=p.terminals.find(t=>t.role===axis&&t.resource!=='None');
   const next=segment(terminal?.sourceMode||'voltage',axis);
+  next.delayMs=String(p.sweep.pointDelay??'20');
   const last=list[list.length-1];
   next.start=last.stop;
   next.stop=next.start;
@@ -439,6 +591,7 @@
   if(index<0||index>=list.length)throw Error('Sweep segment missing');
   if(list.length<=1)throw Error('At least one segment must remain');
   list.splice(index,1);
+  if(index>0)connectFollowingSegments(list,index-1);
   return validate(s);
  }
  // Core owns the canonical DataTable buffer and the drawing engine.
@@ -529,6 +682,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,addSpec,associateSpec,remove,select,editPage,editTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,visible:p=>p.terminals.filter(t=>t.resource!=='None'),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

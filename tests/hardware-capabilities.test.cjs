@@ -117,7 +117,7 @@ test('PMU and PGU load line and Segment Arb limits are module-specific', () => {
   const manualIndex = caps.DATABASE.sources.find(source => source.id === 'tek-4200a-current-manual-index');
   assert.equal(manualIndex.observedManualRevisions.PMU.contentRetrieved, false);
   assert.equal(manualIndex.observedManualRevisions.PMU.partNumber, '4200A-PMU-900-01D');
-  assert.equal(manualIndex.indexObservationCheckedAt, '2026-11-05');
+  assert.equal(manualIndex.indexObservationCheckedAt, '2026-11-16');
   assert.equal(manualIndex.indexConflicts.PMU.openedModelSupportPage.partNumber, '4200A-PMU-900-01C');
   assert.equal(manualIndex.indexConflicts.PMU.manualSpecificListing.partNumber, '4200A-PMU-900-01D');
   assert.equal(caps.DATABASE.safetyPolicies.pulse.pmuRevisionIndexConflictStatus, 'inconsistent-official-listings');
@@ -209,4 +209,28 @@ test('every capability and safety-policy source reference resolves to an exporte
     assert.ok((Array.isArray(policy.sourceRefs) && policy.sourceRefs.length) || typeof policy.policyBasis === 'string',
       name + ' safety policy must cite manufacturer sources or state its software-policy basis');
   }
+});
+
+
+test('native range controls use the verified channel, preamp and voltage peaks', () => {
+  const native = require('../integrations/dkds-native/hardware-capabilities.js');
+  const slot = (channel, physicalType) => ({
+    channel, family: 'SMU', physicalType,
+    physicalIdentityVerified: true, ratingsVerified: true
+  });
+  const slots = [slot(1, 'SMU'), slot(2, 'HPSMUPA'),
+    {...slot(3, 'SMUPA'), physicalIdentityVerified: false}, slot(9, 'SMUPA')];
+  const connection = {phase: 'connected', inventory: {slots}};
+  const ranges = (resource, peaks) => native.verifiedCurrentRanges(connection, resource, peaks);
+  assert.equal(ranges('SMU1', [2])[0], 1e-7);
+  assert.equal(ranges('SMU1', [2]).at(-1), 0.1);
+  assert.equal(ranges('SMU2', [2])[0], 1e-12);
+  assert.equal(ranges('SMU2', [2]).at(-1), 1);
+  assert.equal(ranges('SMU2', [2, 200]).at(-1), 0.1);
+  assert.equal(ranges('SMU9', [2])[0], 1e-12);
+  assert.deepEqual(ranges('SMU1', [211]), []);
+  assert.equal(ranges('SMU3', [2]), null);
+  assert.equal(ranges('SMU4', [2]), null);
+  assert.equal(ranges('GNDU', [0]), null);
+  assert.equal(native.verifiedCurrentRanges({...connection,phase:'disconnected'}, 'SMU2', [2]), null);
 });

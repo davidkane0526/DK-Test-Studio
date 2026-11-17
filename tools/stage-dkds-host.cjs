@@ -119,6 +119,10 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   .replaceAll('V3.72.3','V'+dktsPackage.version)
   .replace('../assets/dkds-mark.svg','../assets/dkds-icon.png');
  fs.writeFileSync(htmlPath,html,'utf8');
+ // DKTS distribution supplies its FS-Pro paint in the Core Theme layer.
+ fs.appendFileSync(path.join(tmp,'src/styles/theme/component-appearance.css'),
+  '\n'+fs.readFileSync(path.join(dktsRoot,'tools/dkts-fspro-unit-theme.css'),'utf8'));
+
  // Use DKTS's pre-existing canonical icon generator, not the upstream icon.
  fs.mkdirSync(path.join(tmp,'tools'),{recursive:true});
  fs.copyFileSync(path.join(dktsRoot,'tools/generate-app-icons.cjs'),

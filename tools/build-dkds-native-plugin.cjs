@@ -6,14 +6,14 @@ const root=path.resolve(__dirname,'..');
 const folder=path.join(root,'integrations','dkds-native');
 const manifest=JSON.parse(fs.readFileSync(path.join(folder,'plugin.json'),'utf8'));
 if(manifest.id!=='com.dkts.keithley-4200'||manifest.apiVersion!=='1.19.0'||
-   manifest.pluginType!=='workbench'||manifest.version!=='0.8.8')
+   manifest.pluginType!=='workbench'||manifest.version!=='0.8.19')
  throw Error('Unexpected DKTS native plugin identity');
 if(!manifest.workspace||manifest.workspace.role!=='top'||
    manifest.window?.activity!==manifest.workspace.activity)
  throw Error('Native DKDS TOP workspace contract required');
 const scripts=manifest.scripts;
 if(!Array.isArray(scripts)||
- scripts.join(',')!=='model.js,measurement-data.js,ui-shell.js,plugin.js')
+ scripts.join(',')!=='hardware-capabilities.js,kxci-protocol.js,identity-core.js,measurement-plan.js,kxci-measurement.js,model.js,measurement-data.js,measurement-runtime.js,ui-shell.js,plugin.js')
  throw Error('Native plugin script order is not validated');
 if(!Array.isArray(manifest.styles)||
  manifest.styles.join(',')!=='ui-shell.css')
@@ -22,7 +22,7 @@ const files={};
 for(const name of [...scripts,...manifest.styles]){
  // Manifest file names are a fixed allowlist. No path traversal, remote URLs
  // or untrusted module names may reach the packaged SDK plugin.
- if(!new Set(['model.js','measurement-data.js','ui-shell.js','plugin.js','ui-shell.css']).has(name))
+ if(!new Set(['hardware-capabilities.js','kxci-protocol.js','identity-core.js','measurement-plan.js','kxci-measurement.js','model.js','measurement-data.js','measurement-runtime.js','ui-shell.js','plugin.js','ui-shell.css']).has(name))
   throw Error('Unapproved plugin source '+name);
  const full=path.join(folder,name);
  if(!fs.statSync(full).isFile())throw Error('Missing plugin source '+name);
@@ -30,7 +30,7 @@ for(const name of [...scripts,...manifest.styles]){
 }
 const pkg={schema:1,manifest,files};
 const dist=path.join(root,'dist');fs.mkdirSync(dist,{recursive:true});
-const output=path.join(dist,'DKTS-4200A-native-v0.8.8.dkplugin');
+const output=path.join(dist,'DKTS-4200A-native-v0.8.19.dkplugin');
 fs.writeFileSync(output,JSON.stringify(pkg,null,2)+'\n','utf8');
 console.log('DKTS-generated DKDS Plugin API 1.19 package: '+output);
 module.exports={artifact:output,manifest};

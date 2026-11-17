@@ -33,21 +33,35 @@
       }
     }
   }
-  function axisPoints(axis){
-    const points=[];
-    eachAxisPoint(axis,point=>points.push(point));
-    return points;
+  function pointOnAxis(axis,index){
+    let offset=index;
+    for(let segmentIndex=0;segmentIndex<axis.segments.length;segmentIndex++){
+      const segment=axis.segments[segmentIndex];
+      if(offset<segment.points)return Object.freeze({
+        voltageV:offset===segment.points-1?segment.stopV:
+          segment.startV+offset*segment.stepV,
+        rangeA:segment.rangeA,delayMs:segment.delayMs??axis.delayMs,
+        segmentIndex:segmentIndex+1,position:index
+      });
+      offset-=segment.points;
+    }
+    throw new RangeError('KXCI sweep point index outside axis');
   }
   function* points(plan){
-    const x=axisPoints(plan.xSweep),p=plan.pSweep?axisPoints(plan.pSweep):[null];
+    // Keep the nested scan lazy. A valid program may contain many segments,
+    // repeats and outer loops; prebuilding complete X/P point arrays needlessly
+    // allocates the whole run before the first instrument command.
+    const x=plan.xSweep,p=plan.pSweep;
+    const pCount=p?p.points:1;
     for(let cycle=1;cycle<=plan.loops;cycle++){
-      for(let pRepeat=1;pRepeat<=(plan.pSweep?.repeats||1);pRepeat++){
-        for(let pi=0;pi<p.length;pi++){
-          for(let xRepeat=1;xRepeat<=plan.xSweep.repeats;xRepeat++){
-            for(let xi=0;xi<x.length;xi++){
-              const xp=x[xi],pp=p[pi],voltages={...plan.fixedVoltages,
-                [plan.xSweep.terminal]:xp.voltageV};
-              if(pp)voltages[plan.pSweep.terminal]=pp.voltageV;
+      for(let pRepeat=1;pRepeat<=(p?.repeats||1);pRepeat++){
+        for(let pi=0;pi<pCount;pi++){
+          const pp=p?pointOnAxis(p,pi):null;
+          for(let xRepeat=1;xRepeat<=x.repeats;xRepeat++){
+            for(let xi=0;xi<x.points;xi++){
+              const xp=pointOnAxis(x,xi),voltages={...plan.fixedVoltages,
+                [x.terminal]:xp.voltageV};
+              if(pp)voltages[p.terminal]=pp.voltageV;
               yield {cycle,pRepeat,pPoint:pi+1,xRepeat,xPoint:xi+1,
                 xSegment:xp.segmentIndex,pSegment:pp?.segmentIndex||null,
                 xVoltageV:xp.voltageV,pVoltageV:pp?.voltageV??null,

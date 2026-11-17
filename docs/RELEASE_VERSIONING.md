@@ -114,3 +114,30 @@
 - DKTS Core 实测发现原生插件因不合法的 Unit Layout gap 和 grid-template-columns 直接无法激活，修正后原生 DKDS Core 浏览器 DOM 能加载工程树、四 PlotView 和 Page 编辑器。
 - a201 仅为云端暂存编号，正式 aNNN 需从最终 main 的 ui-update 同 SHA 构建号确定。此轮尚未编译 EXE/APK，也未产生 Release。
 - 同源预览依赖固定 D3 7.9.0 首次联网下载，浏览器不能代替 Electron/Android 与真实 4200A 的最终验收。
+
+
+## 2026-11-16 / V0.3.23 a203：SDK 图窗契约修正与 Core 同源预览
+
+- 原生插件 `0.8.9 → 0.8.10`：DKDS SDK 1.19 不允许 DKTS 对 semantic Unit panel body 设置 `overflow:hidden`。修正为 `overflow:visible`，避免裁切 PlotView 内容；新增回归断言。
+- 程序版本 `V0.3.22 → V0.3.23`；Android legacy Gradle `versionCode 31 → 32`。本地开发身份 `a203` 暂定；正式 `aNNN` 仍必须由最终 `main` 同 SHA 的 `ui-update.yml` 分配。
+- 新增 `tools/build-same-source-preview.cjs` 与 `tools/preview-server.cjs`，输出独立 `DKTS-Core-Same-Source-Preview` ZIP。该包直接从 DKDS 固定 SHA `20f056851a61d2144e9524c3ed568628d4b8557c` 派生，并装载同一轮 DKTS native plugin、Core HTML/CSS/runtime/plugin index。
+- Preview 首次运行只安装生产依赖（固定 D3 7.9.0），不安装 Electron dev dependency、不编译 Windows Portable/Android APK。浏览器 web bridge 与 native Electron IPC 不等价，真实宿主视觉验收仍独立待办。
+- 本轮不推送 GitHub、不创建分支、不修改 DKDS、不触发 EXE/APK 构建。
+
+
+## 2026-11-16 / V0.3.24 a204：Core 原生 KXCI 运行时与 ACK 安全门禁
+
+- 应用版本 `V0.3.23 → V0.3.24`；原生插件 `0.8.10 → 0.8.11`；Android legacy `versionCode 32 → 33`。a204 仅为本地暂存编号，正式 aNNN 仍由最终 main 同 SHA 的 `ui-update.yml` 分配。
+- Core 插件接入 DKDS 通用 TCP capability、身份/模块核验、DC SMU X/P KXCI 运行时、停止/关闭、Data Center raw TI 行发布。
+- KXCI Ethernet 写入命令必须读取 ACK，避免响应缓冲污染。
+- Rev F 官方手册正文尚未完成核验，生产 `allowInstrumentOutput=false`；DKDS Plugin API 1.19 也没有受支持的主机延时调度接口。`npm test` 214/214、SDK 插件校验通过；此轮没有实机电压输出，也没有编译 EXE/APK。
+
+
+## 2026-11-16 / V0.3.25 a205：DKDS 生命周期定时服务
+
+- 应用版本 `V0.3.24 → V0.3.25`；原生插件 `0.8.11 → 0.8.12`；Android legacy `versionCode 33 → 34`。a205 仅为本地暂存编号，正式 aNNN 仍由最终 main 同 SHA 的 `ui-update.yml` 分配。
+- 原生测量运行时通过 SDK 1.19 `ctx.ui.dom.timeout()` 使用 DKDS 所有的生命周期 timer；停止时取消等待中的 timer。未提供 `ui.dom` 的宿主不能执行带延迟的逐点测量。
+- 生产 KXCI 输出门禁保持关闭，直到最新 Rev F 手册正文核验并完成真实 4200A 验收。
+
+## 2026-11-16 / V0.3.26 a206：视觉基线恢复
+- 本轮原生插件页面源文件和样式调整必须按完整安装包变更分类，V 递增为 `0.3.26`，原生插件递增为 `0.8.13`；`a206` 为暂存标识，不是官方热更号。未触发 Windows/Android 编译和发布；SDK / Node 测试不能代替原生验收。

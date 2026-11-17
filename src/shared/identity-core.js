@@ -51,10 +51,17 @@
       if(required.some(name=>!protocol[name])||typeof protocol.parseOptions!=='function'||typeof protocol.parseHardwareInventory!=='function')throw Error('当前 KXCI 协议不支持物理模块信息查询');
       const targetId=connection.sessionId;
       const request=(async()=>{
-        const send=async(command,maxBytes=8192,noReply=false)=>{
-          const response=await tcp.exchange({sessionId:targetId,base64:btoa(command),readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:120,maxBytes,noReply});
+        const send=async(command,maxBytes=8192,expectData=true)=>{
+          // KXCI Ethernet always replies. Commands which have no textual result
+          // return ACK\0; draining it here prevents stale ACK bytes from being
+          // mistaken for the next GN result or TI measurement.
+          const response=await tcp.exchange({sessionId:targetId,base64:btoa(command),
+            readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:expectData?120:30,maxBytes,noReply:false});
           if(connection?.sessionId!==targetId)throw Error('连接已切换，模块查询已作废');
-          return atob(response?.base64||'');
+          const raw=atob(response?.base64||'').replace(/\0+$/g,'').trim();
+          if(!expectData&&raw.toUpperCase()!=='ACK')
+            throw Error('KXCI 写入命令未收到 ACK：'+command+' / '+(raw||'空响应'));
+          return raw;
         };
         let optionsRaw='',logicalInventory=null,enteredUserLibrary=false;
         try{
@@ -64,16 +71,16 @@
             inventoryError='配置响应中没有可识别的模块类型，已停止后续模块查询';
             return status();
           }
-          enteredUserLibrary=true;await send(protocol.UL_REQUEST,1024,true);
+          enteredUserLibrary=true;await send(protocol.UL_REQUEST,1024,false);
           await send(protocol.INSTRUMENT_INFO_REQUEST,1024);
           const instrumentInfo=await send(protocol.GN_RESULT_REQUEST,8192);
           await send(protocol.REMOTE_MODULE_INFO_REQUEST,1024);
           const remoteModuleInfo=await send(protocol.GN_RESULT_REQUEST,8192);
-          await send(protocol.DE_REQUEST,1024,true);enteredUserLibrary=false;
+          await send(protocol.DE_REQUEST,1024,false);enteredUserLibrary=false;
           inventory=protocol.parseHardwareInventory(optionsRaw,instrumentInfo,remoteModuleInfo);inventoryError='';return status();
         }catch(error){
           let reason=String(error?.message||error).slice(0,300);
-          if(enteredUserLibrary&&connection?.sessionId===targetId){try{await send(protocol.DE_REQUEST,1024,true);enteredUserLibrary=false;}catch(restoreError){reason+='；恢复 KXCI 系统模式失败：'+String(restoreError?.message||restoreError).slice(0,120);}}
+          if(enteredUserLibrary&&connection?.sessionId===targetId){try{await send(protocol.DE_REQUEST,1024,false);enteredUserLibrary=false;}catch(restoreError){reason+='；恢复 KXCI 系统模式失败：'+String(restoreError?.message||restoreError).slice(0,120);}}
           inventory=logicalInventory;inventoryError='物理模块型号/PA/RPM 信息读取失败：'+reason;
           if(/timeout|closed|econnreset|unavailable|not connected/i.test(reason)){await closeCurrent();phase='error';diagnostic='模块查询失败，原连接可能已关闭：'+reason;}
           return status();
@@ -105,11 +112,16 @@
       if(!expectReply&&(/^TI[1-9]$/.test(cmd)||cmd===':ERROR:LAST:GET'))
         throw Error('数据查询不能丢弃响应');
       const id=connection.sessionId;
+      // Ethernet KXCI returns one NUL-terminated response for every command.
+      // Always consume it; otherwise ACK from DV/US/RI/RG can poison the next TI.
       const answer=await tcp.exchange({sessionId:id,base64:btoa(cmd+'\0'),
-        noReply:!expectReply,readTimeoutMs:settings?.timeoutMs||5000,
-        idleTimeoutMs:120,maxBytes:8192});
+        noReply:false,readTimeoutMs:settings?.timeoutMs||5000,
+        idleTimeoutMs:expectReply?120:30,maxBytes:8192});
       if(connection?.sessionId!==id)throw Error('测量期间仪器连接发生变化');
-      return expectReply?atob(answer.base64||''):'';
+      const raw=atob(answer.base64||'').replace(/\0+$/g,'').trim();
+      if(expectReply)return raw;
+      if(raw.toUpperCase()!=='ACK')throw Error('KXCI 写入命令未收到 ACK：'+cmd+' / '+(raw||'空响应'));
+      return '';
     }
     async function disconnect(){if(inventoryPending)await inventoryPending.catch(()=>{});if(pending)await pending.catch(()=>{});await closeCurrent();phase='disconnected';diagnostic='';settings=null;return status();}
     async function dispose(){await disconnect();tcp.closeAll?.();}

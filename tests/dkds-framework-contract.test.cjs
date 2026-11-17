@@ -120,6 +120,14 @@ if(!latestVersion.equals(bundle.optString("version")))throw new SecurityExceptio
 css=nextCss;tag=latestTag;version=latestVersion;status="updated";`);
 
  write('scripts/generate-brand-assets.js','// fixture branding generator');
+ write('src/core/ui/modules/composition/unit-template-spec.js',
+  "const x={tabs:Object.freeze({variants:['standard','compact'],pluginOwns:['items','selection']}),field:Object.freeze({variants:['input','select','textarea','integrated','analysis-control'],metricsRef:'field'})};");
+ write('src/core/ui/modules/composition/unit-template-layout-spec.js',
+  "const LAYOUT_RECIPES=Object.freeze({\n  identity:Object.freeze({}),\n});");
+ write('src/core/ui/modules/composition/unit-template-foundation.js',
+  "function createTabs(host,spec={},variant='standard'){\nconst component=window.DKDSComponents?.tabs?.({items:spec.items||[],value:spec.value,onChange:spec.onChange,className:spec.tabsClassName});if(component)bar.appendChild(component);\n}");
+ write('src/styles/structure/sdk-semantic-surfaces.css','/* fixture Unit geometry */\n');
+ write('src/styles/theme/component-appearance.css','/* fixture Unit appearance */\n');
  write('src/index.html',
   '<title>DK Data Studio</title><span class="brand-full">DK Data Studio</span>'+
   '<span>V3.72.3</span><img src="../assets/dkds-mark.svg">');
@@ -210,5 +218,5 @@ test('DKTS Android versionCode is monotonic within a V while full-package V can 
  assert(workflow.includes('DKTS_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}'));
  assert(workflow.includes('actions/workflows/ui-update.yml/runs'));
  assert(workflow.includes('100000+DKTS_BUILD_NUMBER'));
- assert.equal(require('../package.json').version,'0.3.21');
+ assert.equal(require('../package.json').version,'0.3.32');
 });

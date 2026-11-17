@@ -1,0 +1,25 @@
+{
+  "schema": "dkts.fspro.visual-baseline-lock.v1",
+  "referenceDate": "2026-11-16",
+  "referenceStatus": "approved internal FS-Pro-style web UI, NOT an OEM FS-Pro screenshot",
+  "sourceVersion": "V0.3.21 web preview capture; a205 source web/fspro-workbench files",
+  "immutableBaselineFilesSha256": {
+    "web/fspro-workbench/index.html": "ba6a089e5ef336da9c1442a77cfd10f638eefc7bc16e5549043989236f117bac",
+    "web/fspro-workbench/styles.css": "93ff935cfcc6ece3568903fce26cb84cab2fc99dbabbb939febe35b880fdbc66",
+    "web/fspro-workbench/app.js": "978029bd37806589c9dd2d574e68d3e16b24a829d131ef3a707869cd736f530a",
+    "web/fspro-workbench/plan.js": "25ee27176bc51e546c3282c56600b15500e456531f6cc09212b1114ae534648b",
+    "docs/reference/fspro-accepted-20261116/accepted-web-editor-1280x800.png": "a0d320b0149f8c7ed36e02cb6fd1536e86061867402728bc7283f68736fbc513"
+  },
+  "protectedActions": [
+    "graph project separate from full Page inspector",
+    "Xsweep then optional/visible Psweep then Terminal Settings",
+    "one terminal mapping location and no redundant controls",
+    "desktop 4 selectors, mobile one Port action",
+    "plot windows remain independent DKDS PlotViews",
+    "Node model and KXCI output logic unchanged by UI lock"
+  ],
+  "knownGaps": [
+    "not pixel identical to OEM FS-Pro",
+    "Electron/Android screenshots still need native verification"
+  ]
+}

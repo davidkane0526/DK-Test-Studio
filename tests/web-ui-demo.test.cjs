@@ -138,3 +138,35 @@ test('four graph subwindows are independent project children and no synthetic sa
  assert.match(app,/function updateFrameWindows/);
  assert.match(app,/syntheticRawData:false/);
 });
+
+test('FS-Pro offline web planner rejects cleared numeric fields, unsupported scan modes and out-of-bounds fixed bias',()=>{
+ const {calculate}=planner;
+ const invalid=sample();invalid.xSweep.segments[0].stepV='';
+ assert.throws(()=>calculate(invalid),/不是有效数字/);
+ invalid.xSweep.segments[0].stepV='  ';
+ assert.throws(()=>calculate(invalid),/不是有效数字/);
+ invalid.xSweep.segments[0].stepV=.1;
+ invalid.pointDelay='';
+ assert.throws(()=>calculate(invalid),/点间延迟/);
+ invalid.pointDelay='10';invalid.scanMode='bidirectional';
+ assert.throws(()=>calculate(invalid),/双向和回滞/);
+ invalid.scanMode='linear';invalid.fixed={gate:'1000'};
+ invalid.pSweep.enabled=false;
+ assert.throws(()=>calculate(invalid),/固定偏置/);
+ invalid.fixed.gate='0.25';
+ assert.equal(calculate(invalid).sample[0].pV,0.25,
+  'disabled Psweep preserves its assigned fixed gate voltage in planned samples');
+ invalid.portSettings={drain:{rangeMode:'Fixed',complianceMode:'Custom',rangeA:'Auto',complianceA:''}};
+ assert.throws(()=>calculate(invalid),/电流限制/);
+ invalid.portSettings.drain.complianceA='1e-4';
+ assert.equal(calculate(invalid).executable,false);
+});
+test('FS-Pro web preview keeps cleared scan inputs as invalid text and marks unsupported scan modes',()=>{
+ const html=fs.readFileSync(path.join(root,'web/fspro-workbench/index.html'),'utf8');
+ const app=fs.readFileSync(path.join(root,'web/fspro-workbench/app.js'),'utf8');
+ assert.match(app,/node\.repeats=\$\(axis\+'-repeats'\)\.value/);
+ assert.doesNotMatch(app,/segment\[key\]=\['startV','stopV','stepV'\]\.includes\(key\)\?Number\(t\.value\)/);
+ assert.match(html,/value="bidirectional" disabled/);
+ assert.match(html,/value="hysteresis" disabled/);
+ assert.match(app,/instrumentOutput:false/);
+});

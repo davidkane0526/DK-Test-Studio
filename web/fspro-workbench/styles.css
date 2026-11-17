@@ -137,3 +137,59 @@ dialog{border:1px solid var(--dkui-control-border);background:var(--dkui-surface
 .frame-empty{margin:auto;padding:16px;text-align:center;color:var(--dkui-muted);font-size:11px}
 @media(max-width:990px){.frame-grid,.frame-grid[data-layout="2"]{grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(4,minmax(200px,auto))}.frame-grid[data-layout="2"]{grid-template-rows:repeat(2,minmax(200px,auto))}.frame-grid[data-layout="1"]{grid-template-rows:minmax(200px,1fr)}}
 @media(max-width:850px){.frame-grid{gap:7px;padding:7px}.data-bottom{flex:0 0 65px;padding:5px 9px}.data-bottom .run-stats{padding-top:4px}}
+
+
+/* 2026-11-16: one visible chrome owner per graph frame. The frame-head
+   already owns its title and actions; do not reintroduce chart captions or
+   a second bordered title layer inside the data view. This is web-preview
+   geometry only; native DKDS PlotView paint remains owned by the Core. */
+@media(min-width:851px){
+ .page-header{flex-basis:56px;padding:7px 13px}
+ .terminal-strip{flex-basis:42px;padding:5px 13px;gap:10px}
+ .page-tabs{flex-basis:34px;min-height:34px}
+ .section-head{min-height:35px;padding:6px 10px}
+}
+.data-header{height:34px;flex-basis:34px;padding-inline:9px}
+.frame-grid{gap:7px;padding:7px}
+.frame-head{height:32px;min-height:32px;padding-inline:9px}
+.frame-head select,.frame-layout-picker select{height:26px}
+.data-tabs button{height:26px;min-width:36px;display:inline-flex;align-items:center;justify-content:center;padding:0 8px}
+.data-tabs button.active{border-color:transparent}
+.frame-body>.data-view{padding:6px}
+.frame-body #plan-plot{max-height:220px}
+@media(max-width:850px){
+ .frame-head{height:32px;min-height:32px}
+ .data-header{height:34px;flex-basis:34px}
+}
+/* Keep mobile toolbar actions on one baseline; never overlap breadcrumb text. */
+@media(max-width:620px){
+ .chrome-row{padding-inline:7px;gap:4px}
+ .toolbar-left{gap:4px;flex:1;justify-content:flex-start}
+ .toolbar-right{display:none}
+ .tool-button{white-space:nowrap;padding:0 6px;height:27px;font-size:10px}
+ /* Six sweep editors use 3 columns x 2 rows instead of clipping the right
+    half of a desktop table. The native Core uses its own responsive grid. */
+ .scan-card .table-wrap{overflow-x:visible}
+ .scan-card .compact-table,.scan-card .compact-table tbody{display:block;min-width:0;width:100%}
+ .scan-card .compact-table thead{display:none}
+ .scan-card .compact-table tbody{counter-reset:segment}
+ .scan-card .compact-table tbody tr{
+  counter-increment:segment;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:7px;padding:7px 9px;align-items:end;border-bottom:1px solid var(--dkui-divider)
+ }
+ .scan-card .compact-table tbody tr:last-child{border-bottom:0}
+ .scan-card .compact-table td{height:auto;padding:0;border:0;min-width:0;width:auto}
+ .scan-card .compact-table td:first-child{display:none}
+ .scan-card .compact-table td:not(:first-child)::before{
+  display:block;min-height:12px;margin:0 0 3px;
+  font-size:9.5px;color:var(--dkui-text-soft);line-height:1.2
+ }
+ .scan-card .compact-table td:nth-child(2)::before{content:'Start (V) · #' counter(segment)}
+ .scan-card .compact-table td:nth-child(3)::before{content:'Stop (V)'}
+ .scan-card .compact-table td:nth-child(4)::before{content:'Step (V)'}
+ .scan-card .compact-table td:nth-child(5)::before{content:'Range (A)'}
+ .scan-card .compact-table td:nth-child(6)::before{content:'Speed'}
+ .scan-card .compact-table td:nth-child(7)::before{content:'操作'}
+ .scan-card .compact-table input,.scan-card .compact-table select{min-width:0;width:100%;height:34px}
+ .scan-card .compact-table td:last-child .remove-row{height:34px;width:100%;border:1px solid var(--dkui-divider)}
+}

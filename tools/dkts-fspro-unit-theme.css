@@ -1,0 +1,198 @@
+/* FS-Pro appearance for the DKTS distribution. The plugin uses the installed host theme. */
+#dktsKeithley4200Page .dkts-project-toolbar{
+ background:var(--dkts-soft);
+ border-bottom:1px solid var(--dkts-divider);
+}
+#dktsKeithley4200Page .dkts-project-panel{
+ border:0;
+ border-right:1px solid var(--dkts-divider);
+ border-radius:0;
+ background:var(--dkds-surface-sidebar,var(--dkts-soft));
+ box-shadow:none;
+}
+#dktsKeithley4200Page .dkts-page-editor{
+ background:var(--dkts-soft);
+}
+#dktsKeithley4200Page .dkts-page-heading{
+ background:var(--dkts-surface);
+ border-bottom:1px solid var(--dkts-divider);
+}
+#dktsKeithley4200Page .dkts-page-heading .dkds-surface-header{
+ min-height:45px;
+}
+#dktsKeithley4200Page .dkts-terminal-strip{
+ background:var(--dkts-soft);
+ border-bottom:1px solid var(--dkts-divider);
+}
+#dktsKeithley4200Page .dkts-editor-tabs{
+ background:var(--dkts-surface);
+ border-bottom:1px solid var(--dkts-divider);
+}
+#dktsKeithley4200Page .dkts-fspro-tablist [role=tab]{
+ border:0;
+ border-bottom:2px solid transparent;
+ border-radius:0;
+ background:transparent;
+ box-shadow:none;
+}
+#dktsKeithley4200Page .dkts-fspro-tablist [aria-selected=true]{
+ border-bottom-color:var(--dkts-accent);
+ color:var(--dkts-accent);
+}
+#dktsKeithley4200Page .dkts-sweep-axis,
+#dktsKeithley4200Page .dkts-terminal-settings{
+ background:var(--dkts-surface);
+ border:1px solid var(--dkts-divider);
+ border-radius:5px;
+ box-shadow:none;
+}
+#dktsKeithley4200Page .dkts-sweep-axis .dkds-surface-header{
+ min-height:40px;
+ padding:6px 10px;
+ background:var(--dkts-soft);
+ border-bottom:1px solid var(--dkts-divider);
+}
+#dktsKeithley4200Page .dkts-sweep-axis .dkds-surface-title::before{
+ border:1px solid var(--dkts-divider);
+ border-radius:4px;
+ color:var(--dkts-accent);
+}
+#dktsKeithley4200Page .dkts-sweep-segment-head{
+ background:var(--dkts-soft);
+ border-bottom:1px solid var(--dkts-divider);
+}
+#dktsKeithley4200Page .dkts-sweep-segment+.dkts-sweep-segment{
+ border-top:1px solid var(--dkts-divider);
+}
+#dktsKeithley4200Page .dkts-terminal-setting+.dkts-terminal-setting{
+ border-top:1px solid var(--dkts-divider);
+}
+#dktsKeithley4200Page .dkts-fspro-target-head{
+ border-bottom:1px solid var(--dkts-divider);
+}
+#dktsKeithley4200Page [data-dkts-plot-frame]{
+ border:1px solid var(--dkts-divider);
+ border-radius:5px;
+ background:var(--dkts-surface);
+}
+
+/* DKTS host presentation for standard Units. */
+#dktsKeithley4200Page .dkts-page-heading .dkds-surface-header{min-height:32px}
+#dktsKeithley4200Page .dkts-tree-pages{border-inline-start:1px solid var(--dkts-divider)}
+#dktsKeithley4200Page .dkts-tree-pages .dkts-project-page::before{
+ content:"";position:absolute;inset-inline-start:-10px;top:50%;width:8px;
+ border-top:1px solid var(--dkts-divider);pointer-events:none
+}
+#dktsKeithley4200Page .dkts-tree-row .dkds-list-item.selected{
+ background:color-mix(in srgb,var(--dkts-accent) 13%,var(--dkts-surface));
+}
+#dktsKeithley4200Page .dkts-sweep-remove button{
+ display:grid;place-items:center;min-width:24px;width:24px;min-height:24px;
+ padding:0;font-size:16px;line-height:1;text-align:center;
+}
+#dktsKeithley4200Page .dkts-sweep-segment-head{color:var(--dkds-text-secondary,#47556b)}
+
+#dktsKeithley4200Page .dkts-page-heading .dkds-surface-header{align-items:center;min-height:36px}
+#dktsKeithley4200Page .dkts-page-heading .dkds-surface-heading-stack{align-self:center}
+#dktsKeithley4200Page .dkts-page-heading .dkds-surface-title{line-height:1.25}
+#dktsKeithley4200Page .dkts-page-heading .dkts-terminal-strip{border:0;background:transparent}
+#dktsKeithley4200Page .dkts-terminal-toolbar select,
+#dktsKeithley4200Page .dkts-sweep-header-field select{box-shadow:none}
+#dktsKeithley4200Page .dkts-terminal-badge{
+ padding:2px 6px;border-radius:4px;background:var(--dkts-terminal-accent);color:#fff;
+ font-size:13px;font-weight:600;line-height:1.35;text-shadow:0 1px 2px color-mix(in srgb,var(--dkts-terminal-accent) 45%,#000)
+}
+#dktsKeithley4200Page [data-dkts-terminal-tone="S"]{--dkts-terminal-accent:#465f7a}
+#dktsKeithley4200Page [data-dkts-terminal-tone="D"]{--dkts-terminal-accent:#285f93}
+#dktsKeithley4200Page [data-dkts-terminal-tone="G"]{--dkts-terminal-accent:#236b63}
+#dktsKeithley4200Page [data-dkts-terminal-tone="B"]{--dkts-terminal-accent:#60537e}
+#dktsKeithley4200Page .dkts-tree-row .dkds-list-item{
+ min-height:31px;padding-block:3px;line-height:1.3;border-color:transparent;box-shadow:none
+}
+#dktsKeithley4200Page .dkts-tree-row .dkds-list-item.selected{
+ background:color-mix(in srgb,var(--dkts-accent) 13%,var(--dkts-surface));border-color:transparent
+}
+#dktsKeithley4200Page .dkts-tree-run{padding:0;line-height:1}
+#dktsKeithley4200Page .dkts-device-routines{border-inline-start:1px solid var(--dkts-divider)}
+#dktsKeithley4200Page .dkts-tree-routine>.dkts-tree-row::before{
+ content:"";position:absolute;inset-inline-start:0;top:50%;width:9px;
+ border-top:1px solid var(--dkts-divider);pointer-events:none
+}
+#dktsKeithley4200Page .dkts-tree-routine>.dkts-tree-row::before{inset-inline-start:-10px}
+#dktsKeithley4200Page [aria-invalid="true"]{border:1px solid #bd3f40;outline:1px solid #bd3f40}
+
+#dktsKeithley4200Page .dkts-page-heading>.dkds-content-header{
+ display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:36px
+}
+#dktsKeithley4200Page .dkts-page-heading .dkds-surface-heading-stack{
+ display:flex;align-items:center;align-self:center
+}
+#dktsKeithley4200Page .dkts-page-heading .dkds-surface-title{margin:0;line-height:1.25}
+#dktsKeithley4200Page .dkts-page-heading .dkds-surface-actions{align-self:center;margin-block:0}
+
+#dktsKeithley4200Page [data-dkts-workspace-heading]{
+ display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;margin:0
+}
+#dktsKeithley4200Page [data-dkts-workspace-heading] .dkds-surface-heading-stack{
+ align-self:center;display:flex;align-items:center
+}
+#dktsKeithley4200Page [data-dkts-workspace-heading] .dkds-surface-title{
+ font-family:inherit;font-size:14px;font-weight:600;line-height:1.3;margin:0
+}
+#dktsKeithley4200Page [data-dkts-workspace-heading] .dkds-surface-actions{align-self:center;margin:0}
+#dktsKeithley4200Page .dkts-tab-bar,
+#dktsKeithley4200Page .dkts-tab-bar [role=tablist],
+#dktsKeithley4200Page .dkts-tab-bar [role=tab]{
+ background:transparent;border:0;outline:0;box-shadow:none;border-radius:0
+}
+#dktsKeithley4200Page .dkts-tab-bar [role=tab]{
+ border-block-end:2px solid transparent
+}
+#dktsKeithley4200Page .dkts-tab-bar [role=tab][aria-selected=true]{
+ border-block-end-color:var(--dkts-accent)
+}
+#dktsKeithley4200Page .dkts-tab-bar [role=tab]:focus-visible{
+ text-decoration:underline;text-underline-offset:4px
+}
+#dktsKeithley4200Page .dkts-terminal-toolbar .dkts-terminal-field{font-size:13px}
+#dktsKeithley4200Page .dkts-bias-entry .dkts-terminal-badge{justify-self:start}
+#dktsKeithley4200Page select[data-dkts-terminal-choice]:not([data-dkts-terminal-choice=""]){color:transparent}
+#dktsKeithley4200Page .dkts-terminal-choice option{color:var(--dkds-text-primary,#243248)}
+#dktsKeithley4200Page .dkts-terminal-choice option[data-dkts-terminal-tone]{
+ color:var(--dkts-terminal-accent);font-weight:600;text-shadow:0 1px 2px var(--dkts-terminal-accent)
+}
+#dktsKeithley4200Page .dkts-tree-more{padding:0;line-height:1}
+
+#dktsKeithley4200Page .dkts-project-panel{padding-inline:0;align-items:stretch}
+#dktsKeithley4200Page .dkts-project-panel>[data-dkts-project-body]{
+ width:100%;min-width:0;max-width:none;padding-inline:0;margin-inline:0;align-self:stretch
+}
+#dktsKeithley4200Page .dkts-terminal-control-group .dkts-connect-menu{
+ box-shadow:none
+}
+#dktsKeithley4200Page .dkts-fspro-target-head{
+ background:var(--dkts-soft);color:var(--dkds-text-secondary,#47556b)
+}
+#dktsKeithley4200Page .dkts-fspro-target-row+.dkts-fspro-target-row{
+ border-top:1px solid var(--dkts-divider)
+}
+#dktsKeithley4200Page .dkts-target-panel .dkds-field-control,
+#dktsKeithley4200Page .dkts-strategy-panel .dkds-field-control{min-height:34px}
+#dktsKeithley4200Page .dkts-target-panel .dkts-terminal-selected{bottom:7px}
+@media(min-width:621px){
+ #dktsKeithley4200Page .dkts-fspro-target-row .dkds-field-label-row{display:none}
+}
+
+.dkds-dialog-action.danger[data-dialog-action="dkts-execute"]{
+ background:#b42335;border-color:#b42335;color:#fff
+}
+.dkds-dialog-action.danger[data-dialog-action="dkts-execute"]:hover{
+ background:#99192a;border-color:#99192a
+}
+
+#dktsKeithley4200Page .dkts-terminal-choice:has(select[data-dkts-terminal-choice]:not([data-dkts-terminal-choice=""]))::after{
+ content:"";position:absolute;inset-inline-end:11px;bottom:13px;width:5px;height:5px;
+ border-inline-end:1.5px solid currentColor;border-block-end:1.5px solid currentColor;
+ transform:rotate(45deg);pointer-events:none
+}
+#dktsKeithley4200Page .dkts-fspro-target-row .dkts-terminal-choice::after{bottom:15px}

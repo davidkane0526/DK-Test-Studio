@@ -57,7 +57,8 @@ test('Android host exercises the exact shared identity controller via native TCP
       if(command===commands.remote)lastQuery='remote';
       let response='';
       if(command===commands.ul||command===commands.de){
-        assert.equal(request.payload.noReply,true,'KXCI UL/DE must be sent as write-only commands');
+        assert.equal(request.payload.noReply,false,'KXCI Ethernet UL/DE must consume their ACK responses');
+        response='ACK\0';
       }else{
         assert(Object.hasOwn(responses,command),'Unexpected KXCI request '+command);
         response=responses[command];
@@ -269,7 +270,7 @@ test('Android updater accepts current GitHub Release tags and never hot-swaps na
   assert(updater.includes('RELEASE_TAG.matcher(row.optString("tag_name"))'));
   assert(updater.includes('tag.group(1).equals(releaseVersion)'));
   assert(bridge.includes('inspectNativeAppUpdate()')&&bridge.includes('native-app-update-btn'));
-  assert(gradle.includes('versionCode 30')&&gradle.includes("versionName '"+require('../package.json').version+"'"));
+  assert(gradle.includes('versionCode 36')&&gradle.includes("versionName '"+require('../package.json').version+"'"));
 });
 
 

@@ -1,133 +1,387 @@
-/* DKTS-only workspace geometry. DKDS Unit Templates remain the sole owner of
-   component paint, controls, tabs, plot headers, gestures and theme tokens. */
+/* Layout for DKTS project and Page content. Standard Units own their chrome. */
 #dktsKeithley4200Page [data-dkts-shell]{
- position:relative;min-width:0;min-height:0;max-width:100%;height:100%;
- align-items:stretch;overflow:visible
+ position:relative;min-width:0;min-height:0;max-width:100%;height:100%;align-items:stretch;overflow:visible
 }
 #dktsKeithley4200Page [data-dkts-nav]{
- min-width:0;min-height:0;box-sizing:border-box;
- padding:10px 10px 12px;overflow-y:auto;overflow-x:hidden
+ min-width:0;min-height:0;box-sizing:border-box;padding:9px 0 12px;overflow-y:auto;overflow-x:hidden
 }
-#dktsKeithley4200Page [data-dkts-work]{
+#dktsKeithley4200Page .dkts-main-grid{min-width:0;min-height:0;width:100%;height:100%;overflow:visible}
+#dktsKeithley4200Page .dkts-project-panel{min-width:0;min-height:0;height:100%;overflow:visible}
+#dktsKeithley4200Page .dkts-project-navigation{min-width:0;min-height:0;height:100%;overflow:auto}
+#dktsKeithley4200Page .dkts-work-region{
  min-width:0;min-height:0;width:100%;height:100%;overflow:hidden
 }
-#dktsKeithley4200Page [data-dkts-editor]{
- min-width:0;min-height:0;height:100%;overflow:hidden;
- padding:10px 12px 12px
+#dktsKeithley4200Page .dkts-page-editor{
+ min-width:0;min-height:0;height:100%;overflow:auto;padding:0 10px 10px;scrollbar-width:thin
+}
+#dktsKeithley4200Page .dkts-project-plot-area{
+ min-width:0;min-height:0;height:100%;overflow:hidden;padding:8px;display:flex;flex-direction:column;gap:8px
 }
 #dktsKeithley4200Page .dkts-page-heading,
-#dktsKeithley4200Page .dkts-editor-tabs{
- flex:0 0 auto;min-width:0
-}
-#dktsKeithley4200Page .dkts-editor-tabs{
- position:sticky;top:0;z-index:4;padding-block:2px;
- overflow-x:auto;overscroll-behavior-x:contain;
- scrollbar-width:none;white-space:nowrap
-}
-#dktsKeithley4200Page .dkts-editor-tabs::-webkit-scrollbar{display:none}
+#dktsKeithley4200Page .dkts-terminal-strip,
+#dktsKeithley4200Page .dkts-editor-tabs{flex:0 0 auto;min-width:0}
+#dktsKeithley4200Page .dkts-page-heading{padding:7px 6px 5px}
+#dktsKeithley4200Page .dkts-editor-tabs{position:sticky;top:0;z-index:4;overflow:visible}
 #dktsKeithley4200Page .dkts-parameter-content{
- flex:1 1 auto;min-width:0;min-height:0;overflow:auto;
- padding:2px 4px 12px 0;scrollbar-width:thin
+ flex:1 1 auto;min-width:0;min-height:0;overflow:visible;padding:7px 2px 12px
 }
-#dktsKeithley4200Page .dkts-page-info-region{flex:0 0 auto;min-width:0}
-#dktsKeithley4200Page .dkts-terminal-control-group{min-width:0;align-items:center;gap:6px}
-#dktsKeithley4200Page .dkts-terminal-toolbar{
- flex:0 1 auto;min-width:0;max-width:100%;align-items:center;
- overflow-x:auto;overflow-y:hidden;scrollbar-width:none
-}
-#dktsKeithley4200Page .dkts-terminal-toolbar::-webkit-scrollbar{display:none}
-#dktsKeithley4200Page .dkts-terminal-field{
- flex:0 0 96px;width:96px;min-width:92px;max-width:96px
-}
-#dktsKeithley4200Page [data-dkts-port-mobile]{display:none}
-#dktsKeithley4200Page .dkts-mobile-port-grid{min-width:0}
-#dktsKeithley4200Page .dkts-frame-actions{
- min-width:0;max-width:100%;align-items:center;gap:3px;
- flex:0 0 auto;white-space:nowrap
-}
-#dktsKeithley4200Page [data-dkts-plot-header]{
- min-width:0;max-width:100%;box-sizing:border-box
-}
+#dktsKeithley4200Page .dkts-terminal-strip{
+ display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding:5px 8px;min-height:38px;
 
-#dktsKeithley4200Page .dkts-sweep-related,
-#dktsKeithley4200Page .dkts-limits-column,
-#dktsKeithley4200Page .dkts-sweep-metadata-column,
-#dktsKeithley4200Page .dkts-limit-terminal,
-#dktsKeithley4200Page .dkts-limit-row,
-#dktsKeithley4200Page .dkts-page-var-row,
-#dktsKeithley4200Page .dkts-terminal-setting{min-width:0;max-width:100%}
-#dktsKeithley4200Page .dkts-terminal-setting{padding-block:3px;align-items:end;gap:6px}
-#dktsKeithley4200Page .dkts-limit-row,
-#dktsKeithley4200Page .dkts-page-var-row{gap:6px}
-#dktsKeithley4200Page .dkts-project-tree,
-#dktsKeithley4200Page .dkts-sweep-structure,
-#dktsKeithley4200Page .dkts-sweep-axis{
- min-width:0;max-width:100%
 }
-#dktsKeithley4200Page .dkts-sweep-segments{
- gap:0;min-width:0;container-type:inline-size
-}
-#dktsKeithley4200Page .dkts-sweep-segment{
- min-width:0;padding:6px 0;align-items:end
-}
-#dktsKeithley4200Page .dkts-sweep-segment-head{
- display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(118px,1.15fr) minmax(0,1fr) 34px;
- gap:6px;align-items:center;min-width:0;padding:0 0 4px
-}
-#dktsKeithley4200Page .dkts-sweep-segment-head>*{
- min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-inline:8px
-}
-#dktsKeithley4200Page .dkts-sweep-field{min-width:0}
-#dktsKeithley4200Page [data-dkts-view="graph"]{
- min-width:0;min-height:0;box-sizing:border-box;padding:8px 10px
-}
-#dktsKeithley4200Page [data-dkts-plot-group]{
- flex:1 1 auto;min-width:0;min-height:0;overflow:auto;scrollbar-width:thin
-}
+#dktsKeithley4200Page .dkts-terminal-control-group,
+#dktsKeithley4200Page .dkts-terminal-toolbar{display:flex;align-items:center;min-width:0;gap:7px}
+#dktsKeithley4200Page .dkts-terminal-toolbar{flex:0 1 auto;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+#dktsKeithley4200Page .dkts-terminal-toolbar::-webkit-scrollbar{display:none}
+#dktsKeithley4200Page .dkts-terminal-field{flex:0 0 100px;width:100px;min-width:86px;max-width:110px}
+#dktsKeithley4200Page [data-dkts-port-mobile]{display:none!important}
+#dktsKeithley4200Page [data-dkts-nav-toggle]{display:none!important}
+#dktsKeithley4200Page .dkts-sweep-segments{min-width:0;container-type:inline-size}
+#dktsKeithley4200Page .dkts-sweep-segment-head{min-width:0}
+#dktsKeithley4200Page .dkts-sweep-segment{min-width:0}
+#dktsKeithley4200Page .dkts-sweep-segment .dkds-field-label-row{display:none}
+#dktsKeithley4200Page .dkts-terminal-setting{min-width:0}
+#dktsKeithley4200Page .dkts-fspro-info-grid,
+#dktsKeithley4200Page .dkts-fspro-target-row,
+#dktsKeithley4200Page .dkts-fspro-target-head{min-width:0}
+#dktsKeithley4200Page [data-dkts-view="graph"]{min-width:0;min-height:0;box-sizing:border-box}
+#dktsKeithley4200Page [data-dkts-plot-group]{flex:1 1 auto;min-width:0;min-height:0;overflow:auto;scrollbar-width:thin}
 #dktsKeithley4200Page [data-dkts-plot-frame]{min-width:0;min-height:176px}
-#dktsKeithley4200Page [data-dkts-plot-header]{min-width:0}
-#dktsKeithley4200Page [data-dkts-nav-scrim],
-#dktsKeithley4200Page [data-dkts-nav-toggle]{display:none}
+#dktsKeithley4200Page [data-dkts-plot-header]{min-width:0;max-width:100%;box-sizing:border-box}
+#dktsKeithley4200Page [data-dkts-plot-frame]>[data-dkds-unit-panel-body="true"]{
+ display:flex;flex-direction:column;min-height:0;overflow:visible
+}
+#dktsKeithley4200Page [data-dkts-plot-host],
+#dktsKeithley4200Page [data-dkts-raw-host]{flex:1 1 auto;min-height:0;min-width:0}
+#dktsKeithley4200Page [data-dkts-nav-scrim]{display:none}
 
 @container (min-width:621px){
- #dktsKeithley4200Page .dkts-sweep-segment .dkds-field-label-row{display:none}
+ #dktsKeithley4200Page .dkts-sweep-segment .dkds-field-label-row{display:none!important}
 }
 @container (max-width:620px){
  #dktsKeithley4200Page .dkts-sweep-segment-head{display:none}
+ #dktsKeithley4200Page .dkts-sweep-segment .dkds-field-label-row{display:flex!important}
+}
+@media(max-width:990px){
+ #dktsKeithley4200Page .dkts-work-region{overflow:auto}
+ #dktsKeithley4200Page .dkts-page-editor{height:auto;min-height:0;overflow:visible}
+ #dktsKeithley4200Page .dkts-project-plot-area{height:auto;min-height:360px;overflow:visible}
+ #dktsKeithley4200Page [data-dkts-port-desktop]{display:none!important}
+ #dktsKeithley4200Page [data-dkts-port-mobile]{display:inline-flex!important}
+ #dktsKeithley4200Page .dkts-terminal-strip{flex-wrap:wrap;min-height:54px}
+ #dktsKeithley4200Page .dkts-terminal-control-group{flex-wrap:wrap}
 }
 @media(max-width:900px){
  #dktsKeithley4200Page [data-dkts-nav]{
-  position:absolute;left:0;top:0;bottom:0;width:min(300px,84vw);
-  z-index:21;transform:translateX(-105%);transition:transform 150ms ease;
-  padding:12px 10px;max-width:84vw
+  position:absolute;left:0;top:0;bottom:0;width:min(300px,84vw);z-index:21;
+  transform:translateX(-105%);transition:transform 150ms ease;padding:12px 10px;max-width:84vw
  }
- #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav]{
-  transform:translateX(0)
- }
- #dktsKeithley4200Page [data-dkts-nav-scrim]{
-  position:absolute;inset:0;z-index:20
- }
+ #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav]{transform:translateX(0)}
+ #dktsKeithley4200Page [data-dkts-nav-scrim]{position:absolute;inset:0;z-index:20}
  #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav-scrim]{display:block}
- #dktsKeithley4200Page [data-dkts-nav-toggle]{display:inline-flex}
- #dktsKeithley4200Page [data-dkts-editor]{padding:9px 10px 10px}
- #dktsKeithley4200Page [data-dkts-view="graph"]{padding:7px;gap:6px}
-}
-/* Page titlebars lose room before the viewport itself reaches phone width:
-   switch to one native Port action on tablets and narrow desktop windows. */
-@media(max-width:980px){
- #dktsKeithley4200Page .dkts-terminal-toolbar{
-  position:absolute;inline-size:0;block-size:0;overflow:hidden;
-  visibility:hidden;pointer-events:none
- }
- #dktsKeithley4200Page [data-dkts-terminal-divider]{display:none}
- #dktsKeithley4200Page [data-dkts-port-mobile]{display:inline-flex}
+ #dktsKeithley4200Page [data-dkts-nav-toggle]{display:inline-flex!important}
 }
 @media(max-width:620px){
- #dktsKeithley4200Page [data-dkts-editor]{padding:7px 8px 9px}
- #dktsKeithley4200Page .dkts-parameter-content{padding-right:1px}
+ #dktsKeithley4200Page .dkts-page-editor{padding:0 7px 9px}
+ #dktsKeithley4200Page .dkts-project-plot-area{padding:6px;gap:6px}
+ #dktsKeithley4200Page .dkts-terminal-strip{padding:5px 7px;gap:5px}
+ #dktsKeithley4200Page .dkts-terminal-field{flex-basis:76px;width:76px;min-width:68px}
+ #dktsKeithley4200Page .dkts-editor-tabs{overflow-x:auto;scrollbar-width:none}
+ #dktsKeithley4200Page .dkts-editor-tabs::-webkit-scrollbar{display:none}
+ #dktsKeithley4200Page .dkts-parameter-content{padding:6px 1px 10px}
  #dktsKeithley4200Page [data-dkts-view="graph"]{padding:5px;gap:5px}
  #dktsKeithley4200Page [data-dkts-plot-frame]{min-height:160px}
 }
-@media(prefers-reduced-motion:reduce){
- #dktsKeithley4200Page [data-dkts-nav]{transition:none}
+@media(prefers-reduced-motion:reduce){#dktsKeithley4200Page [data-dkts-nav]{transition:none}}
+
+/* DKTS composes the stock Unit controls inside the project workbench. */
+#dktsKeithley4200Page .dkts-workbench{
+ display:flex;flex-direction:column;width:100%;height:100%;min-width:0;min-height:0;
+ --dkts-divider:var(--dkds-divider,#d5dce7);
+ --dkts-surface:var(--dkds-surface,#fff);
+ --dkts-soft:var(--dkds-surface-muted,#f5f7fa);
+ --dkts-accent:var(--dkds-accent,#3076ba);
+}
+#dktsKeithley4200Page .dkts-project-toolbar{
+ display:flex;
+ align-items:center;
+ justify-content:space-between;
+ gap:12px;
+ padding:5px 11px;
+ flex:none;
+ min-width:0;
+}
+#dktsKeithley4200Page .dkts-project-actions{display:flex;flex:none;align-items:center;gap:6px}
+#dktsKeithley4200Page .dkts-breadcrumb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#dktsKeithley4200Page .dkts-main-grid{
+ display:grid;grid-template-columns:226px minmax(0,1fr);flex:1 1 auto;height:auto;min-height:0
+}
+
+#dktsKeithley4200Page .dkts-project-navigation{padding:9px 10px 9px 12px}
+#dktsKeithley4200Page .dkts-project-page{padding-inline-start:15px}
+#dktsKeithley4200Page .dkts-test-library{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+#dktsKeithley4200Page .dkts-test-library>button{width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere;text-align:start;justify-content:flex-start}
+#dktsKeithley4200Page .dkts-work-region{position:relative;overflow:hidden}
+#dktsKeithley4200Page .dkts-page-editor{
+ display:flex;
+ flex-direction:column;
+ overflow:visible;
+ padding:0;
+ box-sizing:border-box;
+}
+#dktsKeithley4200Page .dkts-page-editor[hidden],
+#dktsKeithley4200Page .dkts-project-plot-area[hidden]{display:none!important}
+#dktsKeithley4200Page .dkts-page-heading{
+ padding:10px 15px;
+}
+
+#dktsKeithley4200Page .dkts-terminal-strip{
+ min-height:42px;
+ padding:5px 15px;
+}
+#dktsKeithley4200Page .dkts-terminal-item{display:flex;align-items:center;gap:5px;min-width:0}
+#dktsKeithley4200Page .dkts-terminal-item .dkds-meta{white-space:nowrap}
+#dktsKeithley4200Page .dkts-editor-tabs{
+ position:static;
+ overflow:auto hidden;
+}
+#dktsKeithley4200Page .dkts-tab-bar{display:block;padding:0 11px;min-height:37px}
+#dktsKeithley4200Page .dkts-fspro-tablist{display:flex;gap:0;width:max-content}
+#dktsKeithley4200Page .dkts-fspro-tablist [role=tab]{
+ flex:none;
+ white-space:nowrap;
+ font-size:12px;
+}
+#dktsKeithley4200Page .dkts-fspro-tablist [aria-selected=true]{
+ font-weight:650;
+}
+#dktsKeithley4200Page .dkts-parameter-content{
+ display:flex;flex-direction:column;gap:10px;overflow:auto;scrollbar-width:thin;padding:11px
+}
+#dktsKeithley4200Page .dkts-parameter-content > *{flex-shrink:0}
+
+#dktsKeithley4200Page .dkts-sweep-axis .dkds-surface-header{
+ display:flex;
+ align-items:center;
+ justify-content:space-between;
+}
+#dktsKeithley4200Page .dkts-sweep-axis .dkds-surface-title{display:flex;align-items:center;gap:7px}
+#dktsKeithley4200Page .dkts-sweep-axis .dkds-surface-title::before{
+ content:attr(data-dkts-axis);
+ display:grid;
+ place-items:center;
+ width:19px;
+ height:19px;
+ font-size:11px;
+}
+#dktsKeithley4200Page .dkts-sweep-axis .dkds-surface-actions{
+ display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px;min-width:0
+}
+#dktsKeithley4200Page .dkts-sweep-axis [data-dkts-fspro-head-control=port]{width:92px}
+#dktsKeithley4200Page .dkts-sweep-axis [data-dkts-fspro-head-control=repeat]{width:50px}
+#dktsKeithley4200Page .dkts-sweep-axis [data-dkds-unit-panel-body=true]{padding:0}
+#dktsKeithley4200Page .dkts-sweep-segments{
+ gap:0;--dkts-sweep-columns:22px repeat(3,minmax(0,1fr)) minmax(98px,.43fr) minmax(98px,.43fr) 27px
+}
+#dktsKeithley4200Page .dkts-sweep-segment-head,
+#dktsKeithley4200Page .dkts-sweep-segment{
+ display:grid;grid-template-columns:var(--dkts-sweep-columns);align-items:center;gap:8px;padding:4px 8px
+}
+#dktsKeithley4200Page .dkts-sweep-segment-head{
+ min-height:29px;
+}
+
+#dktsKeithley4200Page .dkts-native-field{
+ min-width:0;gap:3px;--dkds-field-control-min-height:28px;--dkds-field-control-padding-block:3px;
+ --dkds-field-control-padding-inline:6px
+}
+#dktsKeithley4200Page .dkts-psweep-disabled-note{display:block;padding:11px}
+#dktsKeithley4200Page .dkts-terminal-setting{
+ display:grid;grid-template-columns:minmax(52px,.25fr) repeat(4,minmax(0,1fr));
+ align-items:center;gap:8px 12px;padding:8px 0
+}
+
+#dktsKeithley4200Page .dkts-fspro-fixed-bias,
+#dktsKeithley4200Page .dkts-fspro-info-grid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px
+}
+#dktsKeithley4200Page .dkts-fspro-fixed-bias{grid-template-columns:repeat(2,minmax(0,1fr))}
+#dktsKeithley4200Page .dkts-fspro-target-head,
+#dktsKeithley4200Page .dkts-fspro-target-row{
+ display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.7fr) minmax(0,1fr) minmax(0,.9fr) 30px;
+ align-items:end;gap:7px;padding:6px 0
+}
+
+#dktsKeithley4200Page [data-dkts-plot-frame]{
+ display:flex;
+ flex-direction:column;
+ min-height:210px;
+}
+#dktsKeithley4200Page [data-dkts-plot-frame]>[data-dkds-unit-panel-body=true]{flex:1}
+@container (max-width:620px){
+ #dktsKeithley4200Page .dkts-sweep-segment-head{display:none}
+ #dktsKeithley4200Page .dkts-sweep-segment{grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;padding:8px}
+ #dktsKeithley4200Page .dkts-sweep-index{grid-column:1/-1}
+}
+@container (max-width:340px){
+ #dktsKeithley4200Page .dkts-sweep-segment{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:990px){
+ #dktsKeithley4200Page .dkts-work-region{overflow:hidden}
+ #dktsKeithley4200Page .dkts-page-editor,#dktsKeithley4200Page .dkts-project-plot-area{height:100%;min-height:0}
+ #dktsKeithley4200Page .dkts-project-plot-area{overflow:hidden}
+ #dktsKeithley4200Page [data-dkts-port-desktop]{display:flex!important}
+ #dktsKeithley4200Page [data-dkts-port-desktop][hidden]{display:none!important}
+ #dktsKeithley4200Page [data-dkts-port-mobile]{display:none!important}
+ #dktsKeithley4200Page .dkts-terminal-strip{min-height:0}
+}
+@media(max-width:900px){
+ #dktsKeithley4200Page .dkts-main-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:620px){
+ #dktsKeithley4200Page .dkts-project-toolbar{padding:4px 6px}
+ #dktsKeithley4200Page .dkts-breadcrumb{display:none}
+ #dktsKeithley4200Page .dkts-page-heading{padding:5px 7px}
+ #dktsKeithley4200Page .dkts-page-heading .dkds-surface-header{flex-wrap:wrap}
+ #dktsKeithley4200Page .dkts-terminal-strip{padding:5px 7px;gap:4px}
+ #dktsKeithley4200Page .dkts-terminal-toolbar{flex-wrap:wrap;gap:5px}
+ #dktsKeithley4200Page .dkts-terminal-setting{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #dktsKeithley4200Page .dkts-terminal-setting>.dkts-terminal-setting-heading{grid-column:auto}
+ #dktsKeithley4200Page .dkts-fspro-fixed-bias{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #dktsKeithley4200Page .dkts-fspro-target-head{display:none}
+ #dktsKeithley4200Page .dkts-fspro-target-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #dktsKeithley4200Page .dkts-parameter-content{padding:7px}
+}
+
+@media(max-width:620px){
+ #dktsKeithley4200Page [data-dkts-port-desktop]{display:none!important}
+ #dktsKeithley4200Page [data-dkts-port-mobile]:not([hidden]){display:inline-flex!important}
+}
+
+
+#dktsKeithley4200Page .dkts-sweep-header-controls,
+#dktsKeithley4200Page .dkts-sweep-header-field{
+ display:flex;align-items:center;gap:6px;min-width:0
+}
+#dktsKeithley4200Page .dkts-sweep-header-controls{flex-wrap:wrap;justify-content:flex-end}
+#dktsKeithley4200Page .dkts-sweep-header-field{white-space:nowrap}
+@media(max-width:620px){
+ #dktsKeithley4200Page .dkts-sweep-axis .dkds-surface-header{flex-wrap:wrap;gap:4px}
+ #dktsKeithley4200Page .dkts-sweep-header-controls{justify-content:flex-start}
+ #dktsKeithley4200Page .dkts-page-heading .dkds-surface-header{gap:5px}
+ #dktsKeithley4200Page .dkts-page-heading .dkds-surface-heading{flex:1 1 100%}
+}
+
+/* Keep workspace controls in the Core header. Only their group owns spacing. */
+#dktsKeithley4200Page .dkts-page-heading{padding:5px 12px}
+#dktsKeithley4200Page .dkts-page-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#dktsKeithley4200Page .dkts-page-actions>span{flex:none}
+#dktsKeithley4200Page .dkts-sweep-remove{display:grid;place-items:center;align-self:center}
+#dktsKeithley4200Page .dkts-project-navigation>.dkts-project-tree,
+#dktsKeithley4200Page .dkts-device-branch,
+#dktsKeithley4200Page .dkts-device-routines,
+#dktsKeithley4200Page .dkts-tree-routine,
+#dktsKeithley4200Page .dkts-tree-pages{
+ display:flex;flex-direction:column;flex:0 0 auto;min-height:max-content;gap:4px;
+}
+#dktsKeithley4200Page .dkts-tree-pages{margin-inline-start:9px;padding-inline-start:10px}
+#dktsKeithley4200Page .dkts-tree-row{display:flex;align-items:center;gap:5px;position:relative;min-height:32px;flex:none}
+#dktsKeithley4200Page .dkts-tree-row>.dkds-list{flex:1;min-width:0;min-height:32px;max-height:none;overflow:visible}
+#dktsKeithley4200Page .dkts-tree-row .dkds-list-item{display:flex;width:100%;min-width:0;justify-content:flex-start;gap:7px}
+#dktsKeithley4200Page .dkts-tree-row .dkds-list-item-content{min-width:0;overflow-wrap:anywhere;white-space:normal}
+#dktsKeithley4200Page .dkts-tree-more{flex:none;min-width:26px}
+#dktsKeithley4200Page .dkts-tree-pages .dkts-project-page{padding-inline-start:0}
+#dktsKeithley4200Page .dkts-range-explanation{display:block;padding:3px 0 6px;white-space:normal}
+#dktsKeithley4200Page .dkts-page-info,
+#dktsKeithley4200Page .dkts-strategy-panel,
+#dktsKeithley4200Page .dkts-limits-panel,
+#dktsKeithley4200Page .dkts-variables-panel,
+#dktsKeithley4200Page .dkts-spec-panel{max-width:980px;width:100%;align-self:flex-start}
+#dktsKeithley4200Page .dkts-fspro-info-grid{gap:14px;padding:8px}
+#dktsKeithley4200Page .dkts-page-note{grid-column:1/-1}
+#dktsKeithley4200Page .dkts-page-var-row{align-items:end}
+@media(max-width:620px){
+ #dktsKeithley4200Page .dkts-page-heading{padding:4px 7px}
+ #dktsKeithley4200Page .dkts-page-heading .dkds-surface-heading{flex:0 1 auto}
+ #dktsKeithley4200Page .dkts-fspro-info-grid{grid-template-columns:minmax(0,1fr);gap:8px}
+ #dktsKeithley4200Page .dkts-project-actions{flex:1 1 auto;min-width:0;flex-wrap:wrap}
+}
+
+
+#dktsKeithley4200Page .dkts-page-heading{padding:5px 12px}
+#dktsKeithley4200Page .dkts-page-actions{align-items:center;justify-content:flex-end}
+#dktsKeithley4200Page .dkts-page-heading .dkts-terminal-strip{
+ flex:0 1 auto;align-items:center;min-height:0;padding:0;gap:7px
+}
+#dktsKeithley4200Page .dkts-terminal-badge{display:inline-flex;align-items:center;white-space:nowrap}
+#dktsKeithley4200Page .dkts-terminal-field{width:83px;min-width:70px;flex-basis:83px}
+#dktsKeithley4200Page .dkts-input-settings>[data-dkds-unit-panel-body=true]{
+ display:flex;flex-direction:column;gap:8px;padding:9px 10px
+}
+#dktsKeithley4200Page .dkts-fixed-bias-panel>[data-dkds-unit-panel-body=true],
+#dktsKeithley4200Page .dkts-terminal-settings>[data-dkds-unit-panel-body=true]{padding:9px 11px}
+#dktsKeithley4200Page .dkts-sweep-options{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px
+}
+#dktsKeithley4200Page .dkts-sweep-options>.dkts-limits-panel,
+#dktsKeithley4200Page .dkts-sweep-options>.dkts-variables-panel,
+#dktsKeithley4200Page .dkts-sweep-options>.dkts-spec-panel{align-self:stretch;min-width:0}
+#dktsKeithley4200Page .dkts-inline-issue{display:block;padding:4px 9px 7px}
+#dktsKeithley4200Page .dkts-tree-row{min-height:33px}
+#dktsKeithley4200Page .dkts-tree-run{flex:none;min-width:27px}
+#dktsKeithley4200Page .dkts-tree-row .dkds-list-item{align-items:center}
+#dktsKeithley4200Page .dkts-tree-row .dkds-list-item-content{display:flex;align-items:center;align-self:center}
+@media(max-width:1020px){
+ #dktsKeithley4200Page .dkts-sweep-options{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+ #dktsKeithley4200Page .dkts-sweep-options{grid-template-columns:minmax(0,1fr)}
+ #dktsKeithley4200Page .dkts-page-heading{padding:5px 7px}
+ #dktsKeithley4200Page .dkts-page-heading .dkts-terminal-strip{gap:4px}
+}
+
+#dktsKeithley4200Page .dkts-sweep-options>[data-dkds-unit-template]>[data-dkds-unit-panel-body=true]{
+ padding:8px 10px
+}
+
+@media(min-width:901px){
+ #dktsKeithley4200Page .dkts-project-navigation{padding-block-start:0}
+ #dktsKeithley4200Page .dkts-project-plot-area{padding-block-start:10px}
+}
+#dktsKeithley4200Page .dkts-device-routines{margin-inline-start:8px;padding-inline-start:10px}
+#dktsKeithley4200Page .dkts-library-section{margin-block-start:22px;flex:0 0 auto}
+#dktsKeithley4200Page .dkts-terminal-caption{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
+#dktsKeithley4200Page .dkts-bias-entry{display:grid;justify-items:start;gap:5px;min-width:0}
+#dktsKeithley4200Page .dkts-bias-entry .dkts-native-field{width:100%;min-width:0}
+#dktsKeithley4200Page .dkts-sweep-options>.dkts-spec-panel>[data-dkds-unit-panel-body=true]{padding:12px}
+
+#dktsKeithley4200Page [data-dkts-psweep-off]>[data-dkds-unit-panel-body=true]{display:none}
+
+#dktsKeithley4200Page .dkts-input-reference{padding-inline:8px;flex-wrap:nowrap}
+#dktsKeithley4200Page .dkts-terminal-choice{position:relative;min-width:0}
+#dktsKeithley4200Page .dkts-terminal-choice .dkts-terminal-selected{
+ position:absolute;inset-inline-start:7px;bottom:4px;pointer-events:none
+}
+#dktsKeithley4200Page .dkts-fixed-bias-entry{
+ display:grid;align-items:center;grid-template-columns:auto minmax(0,1fr);gap:10px
+}
+#dktsKeithley4200Page .dkts-fixed-bias-entry .dkts-terminal-caption{flex-wrap:nowrap}
+#dktsKeithley4200Page .dkts-fixed-bias-entry .dkts-native-field{min-width:0}
+#dktsKeithley4200Page .dkts-terminal-setting-heading{grid-column:1/-1}
+#dktsKeithley4200Page .dkts-terminal-slot{white-space:nowrap}
+#dktsKeithley4200Page .dkts-target-panel>[data-dkds-unit-panel-body=true],
+#dktsKeithley4200Page .dkts-strategy-panel>[data-dkds-unit-panel-body=true]{padding:12px 14px 14px}
+#dktsKeithley4200Page .dkts-fspro-target-row{padding:8px 4px;align-items:end}
+#dktsKeithley4200Page .dkts-fspro-target-head{padding:7px 4px}
+#dktsKeithley4200Page .dkts-strategy-grid{gap:12px;max-width:1080px}
+@media(min-width:1120px){
+ #dktsKeithley4200Page .dkts-terminal-setting>.dkts-native-field{
+  display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px
+ }
+}
+@media(max-width:780px){
+ #dktsKeithley4200Page .dkts-fspro-fixed-bias{grid-template-columns:minmax(0,1fr)}
+ #dktsKeithley4200Page .dkts-strategy-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #dktsKeithley4200Page .dkts-terminal-setting>.dkts-terminal-setting-heading,
+ #dktsKeithley4200Page .dkts-terminal-slot{grid-column:1/-1}
 }

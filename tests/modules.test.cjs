@@ -64,7 +64,8 @@ test('KXCI module inspection sends only fixed read-only metadata commands and ca
     if(cmd===protocol.IDN_REQUEST)socket.write('KEITHLEY INSTRUMENTS,KI4200A,1498377,V1.14\0');
     else if(cmd===protocol.OPTIONS_REQUEST)socket.write(options+'\0');
     else if(cmd===protocol.UL_REQUEST||cmd===protocol.DE_REQUEST){
-     // KXCI UL/DE are write-only mode switches; the real instrument sends no reply.
+     // KXCI Ethernet mode switches return ACK and must be drained before the next query.
+     socket.write('ACK\0');
     }else if(cmd===protocol.INSTRUMENT_INFO_REQUEST||cmd===protocol.REMOTE_MODULE_INFO_REQUEST){
      if(cmd===protocol.INSTRUMENT_INFO_REQUEST)lastQuery='instrument';if(cmd===protocol.REMOTE_MODULE_INFO_REQUEST)lastQuery='remote';socket.write('OK\0');
     }else if(cmd===protocol.GN_RESULT_REQUEST)socket.write((lastQuery==='instrument'?instrumentInfo:remoteInfo)+'\0');

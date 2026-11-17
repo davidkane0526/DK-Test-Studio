@@ -38,7 +38,7 @@ async function main(){
  if(!result.ok||!result.has4200Workspace||!result.keptDataCenter||
     !result.keptConnectivity||!result.keptTheme||!result.removedAnalysis)
   throw Error('Core runtime rendered an incomplete DKTS plugin catalog');
- if(result.phoneEvidence?.popover!==true||result.phoneEvidence?.allFourPorts!==true||
+ if(result.phoneEvidence?.popover!==true||result.phoneEvidence?.threeTerminalRoles!==true||
     result.phoneEvidence?.desktopVisible!==false||result.phoneEvidence?.mobileVisible!==true)
   throw Error('Real Electron phone port Popover evidence is incomplete: '+JSON.stringify(result.phoneEvidence));
  for(const name of ['core-host-phone-page.png','core-host-phone-port-popover.png']){

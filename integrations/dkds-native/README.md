@@ -7,12 +7,12 @@
 - 数据源来自 `ctx.data.sources.list()` 和 `ctx.data.artifacts.get()`。数据中心、分组图标题、历史、AI、SMB、网页服务及内存由 DKDS 宿主维护。
 - `ctx.state.create(...,{projectSlice:'settings'})` 用于项目持久化，`ctx.project.capture()` 记入宿主历史。
 - 10 种离线测试页面、参数组织和端子映射；**None 不显示在参数面板**。
-- 不具备原生测量权限。当前仅为插件开发预览，禁止对实物输出，测试类型与档位未完成真正的 KXCI 授权。
-- 此外部插件并不能让当前独立的 FS-Pro 预览 EXE 自动继承所有 DKDS 功能。独立版需要改为使用同一宿主 Core 启动链。
-- 目前尚未恢复独立版热更新；切勿将离线的 manifest 选择规则称为已上线的更新器。
+- Core 原生工作区已接入 DKDS `network.tcp` capability、4200A 身份/模块核验、DC SMU KXCI 运行时、显式启动确认、安全停止和原始 TI 行 Data Center 发布。生产输出仍由 `safetyPolicies.kxci.allowInstrumentOutput` 控制，当前因最新 Rev F 手册正文未完成核对而保持 `false`。此外 DKDS Plugin API 1.19 的 `ctx.ui.dom.timeout()` 是受生命周期管理的定时接口；插件通过它实现逐点 DV/TI 延时，停止时取消待执行 timer，不创建 raw timer。
+- 同源浏览器预览使用同一插件源，但浏览器没有 Electron IPC，不能实际连接仪器或执行测量。
+- 当前运行器为主机逐点 `DV/TI` 模式，不等同于仪器内部扫描；在完成 KXCI Rev F 命令核对前，不得宣称可达到 20 ns 硬件扫描速度。
 
 验证：`node sdk/tools/dkds-plugin.js validate tools/4200a/dkds-native-workspace`。
-打包：`node tools/build-dkds-native-plugin.cjs`，输出 `dist/DKTS-4200A-native-v0.8.8.dkplugin`。
+打包：`node tools/build-dkds-native-plugin.cjs`，输出 `dist/DKTS-4200A-native-v0.8.12.dkplugin`。
 
 ## v0.8.2：FS-Pro 风格离线 X/P 双层扫描草稿
 
@@ -79,3 +79,23 @@
 - 980px 及以下的 Page 标题栏使用已有 `端口` Popover，四端口仅一次事务保存；桌面宽屏保留 S/D/G/B 横排。
 - 数值及页面名称/备注只有发生变化才提交，变量单位输入改为失焦提交；去除扫描概览中多余的常驻提示。
 - `tools/native-ui-geometry-fixture.py` 可进行离线 CSS 断点验证，**不代表真实 Electron/Android 截图**。
+
+
+V0.3.24 起该插件通过 DKDS `network.tcp` capability 建立 4200A 连接，身份和物理模块核验后才可生成测量预览。写入类 KXCI 命令必须读取并验证 Ethernet `ACK\0`。实际输出受 `safetyPolicies.kxci` Rev F 手册核验门禁控制；当前 `allowInstrumentOutput=false`，禁止实机输出。
+
+
+## v0.8.11：Core 原生 KXCI 通信与执行安全门禁
+
+- 接入 DKDS `network.tcp` capability 和 `builtin.connectivity-center` 依赖；连接设置支持 IP/端口/预期序列号/网卡/本地地址。
+- 身份核验接受 `KEITHLEY INSTRUMENTS,KI4200A,...` 与紧凑 `KI4200A,serial,version` 两种 4200A 返回形式。
+- 所有 KXCI Ethernet 写入命令必须读回并验证 NUL 终止 ACK；不允许 `noReply=true` 遗留响应字节污染下一条 TI。
+- Page 标题栏加入连接/设置和开始/停止。运行器将原生 Page 映射到 Xsweep/Psweep KXCI 规划，用户显式确认后才会尝试输出；完成/停止/异常后尝试关闭活动 SMU，并把实际 TI 原始响应及逐点数据发布到 DKDS Data Center。
+- Rev F 手册正文未核验时，生产 `allowInstrumentOutput=false`；真实输出保持禁用。
+
+
+## v0.8.12：DKDS 生命周期定时服务与安全停止
+
+- 依赖 `ui.dom`，使用 DKDS `ctx.ui.dom.timeout()` 执行扫描点延迟；不在插件中创建 raw timer。
+- 停止操作会取消等待中的 DKDS timer，再按逆序关闭活动 SMU 并确认每条 Ethernet ACK。
+- 未提供生命周期定时服务的宿主会拒绝启动需要延时的逐点测量。
+- 生产输出仍受最新 KXCI Rev F 手册核验门禁控制，`allowInstrumentOutput=false`；模拟 TCP 测试不能替代实机验收。
