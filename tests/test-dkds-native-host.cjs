@@ -162,7 +162,8 @@ const ctx={
  assert.equal(record.fields.some(row=>row.spec.label==='体端 · B'),false);
  assert.deepEqual(record.toolbar.map(row=>row.spec.id),['dkts-workspace-language','dkts-workspace-connect','dkts-workspace-scan']);
  assert.equal(record.toolbar.find(row=>row.spec.id==='dkts-workspace-scan').button.disabled,true);
- assert.ok(record.actions.some(row=>row.id==='dkts-return-data-plots'));
+ assert.ok(!record.actions.some(row=>row.id==='dkts-return-data-plots'));
+ assert.ok(record.actions.some(row=>row.id==='dkts-page-view-page-1'&&row.label==='⚙︎'));
  assert.deepEqual(Array.from(record.fields.find(row=>row.spec.label==='漏极 · D').spec.options,row=>row.value),
   ['None','GNDU','SMU1','SMU2','SMU3','SMU4']);
  assert.ok(record.actions.some(row=>row.id.startsWith('dkts-run-')));
@@ -251,11 +252,19 @@ const ctx={
  assert.equal(record.fullReads,1);
  record.listItems.find(row=>row.title==='I–V 扫描').onInvoke();
  assert.equal(record.plots[0].getCurves().length,1,'test scope exposes its own run');
+ assert.deepEqual(Array.from(record.actions.find(row=>row.id==='dkts-frame-kind-1').items(),row=>row.id),
+  ['kind-iv','kind-it','kind-raw']);
  record.listItems.findLast(row=>row.title==='Raw IV').onInvoke();
  record.actions.findLast(row=>row.id==='dkts-history-plot').items()[1].onInvoke();
  assert.equal(state.ui.scopedGraphs['page-1'].sources[1],'a1');
  record.actions.findLast(row=>row.id==='add-routine').onInvoke();
  assert.equal(record.plots[0].getCurves().length,0,'a separate routine does not inherit another test history');
+ record.actions.findLast(row=>row.id==='library-retention').onInvoke();
+ assert.ok(record.fields.some(row=>row.spec.attributes?.['data-dkts-timing-field']==='firstS'));
+ assert.deepEqual(Array.from(record.actions.find(row=>row.id==='dkts-frame-kind-1').items(),row=>row.id),
+  ['kind-it','kind-vt','kind-raw']);
+ record.actions.findLast(row=>row.id==='library-pulse').onInvoke();
+ assert.ok(record.fields.some(row=>row.spec.attributes?.['data-dkts-timing-field']==='widthUs'));
  instance.deactivate();
  assert.ok(record.disposals>=1);
  console.log('Core-host native plugin: LabExpress main tabs, Unit extensions, X/P rows, Terminal, Fixed Bias, Target/Strategy/Limits/Page Var/Spec, Data Center and four PlotViews PASS');

@@ -176,11 +176,11 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
     const visible=tabs.some(el=>el.getBoundingClientRect().width>60&&el.getBoundingClientRect().height>0)&&
      required.every(names=>tabButtons.some(button=>names.includes(button.textContent.trim())));
     const graph=document.querySelector('#dktsKeithley4200Page [data-dkts-view="graph"]');
-    const back=[...document.querySelectorAll('button')].some(el=>['返回数据图','Back to data plots'].includes(el.textContent.trim()));
+    const back=document.querySelector('#dktsKeithley4200Page .dkts-tree-page-view[aria-label^="数据图"], #dktsKeithley4200Page .dkts-tree-page-view[aria-label^="Data plots"]');
     const row=document.querySelector('#dktsKeithley4200Page [data-dkts-terminal-setting="D"]');
     const xPanel=[...document.querySelectorAll('#dktsKeithley4200Page [data-dkds-unit-template="panel-v2"]')]
      .find(el=>el.textContent.includes('Xsweep'));
-    return {visible,tabCount:tabButtons.length,backButton:back,
+    return {visible,tabCount:tabButtons.length,backButton:back?.textContent.trim()==='▥',
      graphVisible:!!graph&&graph.getBoundingClientRect().height>0,
      terminalRows:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-terminal-setting]').length,
      rangeFields:row?.querySelectorAll('select').length||0,

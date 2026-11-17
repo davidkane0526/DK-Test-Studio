@@ -49,7 +49,6 @@
  border-bottom:1px solid var(--dkts-divider);
 }
 #dktsKeithley4200Page .dkts-input-settings>.dkds-surface-header{
- border-inline-start:3px solid var(--dkts-accent);
  background:color-mix(in srgb,var(--dkts-accent) 9%,var(--dkts-surface));
 }
 #dktsKeithley4200Page .dkts-input-settings :is(.dkts-sweep-segment,.dkts-fixed-bias-entry) .dkds-field-control{
@@ -163,7 +162,7 @@
 }
 #dktsKeithley4200Page .dkts-terminal-toolbar .dkts-terminal-field{font-size:13px}
 #dktsKeithley4200Page .dkts-bias-entry .dkts-terminal-badge{justify-self:start}
-#dktsKeithley4200Page select[data-dkts-terminal-choice]:not([data-dkts-terminal-choice=""]){color:transparent}
+#dktsKeithley4200Page select[data-dkts-terminal-choice]:not([data-dkts-terminal-choice=""]){color:transparent;appearance:none}
 #dktsKeithley4200Page .dkts-terminal-choice option{color:var(--dkds-text-primary,#243248)}
 #dktsKeithley4200Page .dkts-terminal-choice option[data-dkts-terminal-tone]{
  color:var(--dkts-terminal-accent);font-weight:600;text-shadow:0 1px 2px var(--dkts-terminal-accent)
@@ -195,8 +194,26 @@
 }
 
 #dktsKeithley4200Page .dkts-terminal-choice:has(select[data-dkts-terminal-choice]:not([data-dkts-terminal-choice=""]))::after{
- content:"";position:absolute;inset-inline-end:11px;bottom:13px;width:5px;height:5px;
+ content:"";position:absolute;inset-inline-end:9px;bottom:13px;width:5px;height:5px;
  border-inline-end:1.5px solid currentColor;border-block-end:1.5px solid currentColor;
  transform:rotate(45deg);pointer-events:none
 }
 #dktsKeithley4200Page .dkts-fspro-target-row .dkts-terminal-choice::after{bottom:15px}
+
+#dktsKeithley4200Page .dkts-sweep-header-field .dkts-terminal-selected{
+ max-width:calc(100% - 25px);box-sizing:border-box;overflow:hidden
+}
+#dktsKeithley4200Page .dkts-terminal-toolbar .dkts-terminal-item+.dkts-terminal-item{
+ border-inline-start:1px solid var(--dkts-divider);padding-inline-start:9px
+}
+#dktsKeithley4200Page .dkts-history-columns{
+ background:var(--dkts-soft);border-block-end:1px solid var(--dkts-divider)
+}
+#dktsKeithley4200Page .dkts-history-records .dkds-list-item{padding:0;border-radius:3px}
+.plugin-context-toolbar:has(>.dkts-topbar-action){
+ gap:5px;--dkds-command-height:30px;--dkds-command-padding-block:4px
+}
+.context-commandbar .dkts-topbar-action{
+ min-height:29px;padding-inline:8px
+}
+.context-commandbar .dkts-topbar-action:disabled{opacity:.65}

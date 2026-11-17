@@ -39,6 +39,53 @@
       !Number.isFinite(Number(text)))throw Error('Invalid numeric input: '+label);
   return Number(text);
  };
+ const TIMED_DEFAULTS=Object.freeze({
+  retention:Object.freeze({terminal:'D',conditionV:'0',conditionS:'0',holdV:'0',readV:'0.1',
+   firstS:'1',lastS:'100',windowS:'0.05',points:'10',spacing:'log',complianceA:'0.001'}),
+  pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',
+   start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
+   delayUs:'0',windowStartUs:'100',windowStopUs:'400',pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:''})
+ });
+ const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw']);
+ function timedSummary(kind,settings){
+  const defaults=TIMED_DEFAULTS[kind];
+  if(!defaults)return null;
+  const v={...defaults,...settings};
+  if(!['S','D','G'].includes(v.terminal))throw Error('Select a Source, Drain or Gate terminal');
+  const n=key=>numeric(v[key],key);
+  if(kind==='retention'){
+   const points=positiveInt(v.points,65536,'Read points');
+   const first=n('firstS'),last=n('lastS'),window=n('windowS'),condition=n('conditionS');
+   if(!['log','linear'].includes(v.spacing)||first<0||condition<0||window<=0||last<first||
+      (points>1&&last===first)||(points===1&&last!==first)||(v.spacing==='log'&&first<=0))
+    throw Error('Enter a valid retention schedule. For one point, use the same first and last time.');
+   const shortest=points===1?Infinity:v.spacing==='linear'?(last-first)/(points-1):
+    first*Math.expm1((Math.log(last)-Math.log(first))/(points-1));
+   if(window>shortest+1e-12)throw Error('Read windows overlap. Increase the spacing or shorten the window.');
+   const peakV=Math.max(...['conditionV','holdV','readV'].map(key=>Math.abs(n(key))));
+   const complianceA=n('complianceA');
+   if(peakV>210||complianceA<=0||complianceA>1.05||(peakV>21&&complianceA>0.105))
+    throw Error('Retention bias or compliance exceeds the SMU planning envelope');
+   return {points,conditionS:condition,firstS:first,lastS:last,windowS:window,peakV,complianceA};
+  }
+  const rangeV=n('rangeV'),fixedV=n('fixedV'),start=n('start'),stop=n('stop'),step=n('step');
+  if(![10,40].includes(rangeV)||!['1','2'].includes(v.channel)||!['amplitude','base'].includes(v.sweep)||!['spot','waveform'].includes(v.mode))
+   throw Error('Invalid PMU range, sweep or acquisition mode');
+  const points=segmentPoints({start,stop,step});
+  const peakV=Math.max(Math.abs(fixedV+start),Math.abs(fixedV+stop),
+   ...(v.sweep==='amplitude'?[Math.abs(fixedV)]:[Math.abs(start),Math.abs(stop)]));
+  if(peakV>rangeV)throw Error('Pulse base or top exceeds the selected voltage range');
+  if(v.loadOhms!==''&&(n('loadOhms')<1||n('loadOhms')>1000000))throw Error('Load must be between 1 Ω and 1 MΩ');
+  const rise=n('riseUs'),fall=n('fallUs'),period=n('periodUs'),width=n('widthUs'),delay=n('delayUs');
+  const startUs=n('windowStartUs'),stopUs=n('windowStopUs');
+  if(rise<=0||fall<=0||width<=0||delay<0||period<rise+width+fall||startUs<0||stopUs<=startUs||stopUs>width)
+   throw Error('Fit the rise, flat top and fall within the period, and the measurement window within the flat top');
+  const pulseCount=positiveInt(v.pulseCount,65536,'Pulse count'),rateHz=positiveInt(v.rateHz,200000000,'Sample rate');
+  if(rateHz<1000)throw Error('Sample rate is below 1 kSa/s');
+  if(v.currentRangeA!==''&&n('currentRangeA')<=0)throw Error('Current range must be positive');
+  return {points,pulseCount,rateHz,rangeV,peakV,windowS:(stopUs-startUs)*1e-6,
+   loadOhms:v.loadOhms===''?null:n('loadOhms')};
+ }
  function segmentPoints(seg){
   const a=Number(seg.start),b=Number(seg.stop),step=Number(seg.step);
   if(a===b){
@@ -332,6 +379,10 @@
      throw Error('HARDWARE_RANGE_ENVELOPE: measurement range exceeds theoretical limit');
    }
    validateSweep(p);
+   if(TIMED_DEFAULTS[p.kind]){
+    p.timing={...TIMED_DEFAULTS[p.kind],...p.timing};
+    timedSummary(p.kind,p.timing);
+   }
   }
   // UI plot layout is canonical project state and survives Core workspace reopening.
   if(!state.ui||typeof state.ui!=='object')state.ui={};
@@ -340,7 +391,7 @@
   if(![1,2,4].includes(Number(graphs.count))||!Array.isArray(graphs.kinds)||
      graphs.kinds.length!==4||!Array.isArray(graphs.sources)||graphs.sources.length!==4)
    throw Error('Invalid persisted plot window state');
-  if(graphs.kinds.some(kind=>!['iv','transfer','it','raw'].includes(kind))||
+  if(graphs.kinds.some(kind=>!PLOT_KINDS.includes(kind))||
      graphs.sources.some(id=>typeof id!=='string'||id.length>160))
    throw Error('Invalid plot selection');
   if(!ids.has(state.activeId))throw Error('Active Page missing');
@@ -356,7 +407,7 @@
   const scoped=state.ui.scopedGraphs||{};
   state.ui.scopedGraphs=Object.fromEntries(Object.entries(scoped).filter(([id,graph])=>
    (ids.has(id)||routineIds.has(id))&&graph&&[1,2,4].includes(Number(graph.count))&&
-   Array.isArray(graph.kinds)&&graph.kinds.length===4&&graph.kinds.every(kind=>['iv','transfer','it','raw'].includes(kind))&&
+   Array.isArray(graph.kinds)&&graph.kinds.length===4&&graph.kinds.every(kind=>PLOT_KINDS.includes(kind))&&
    Array.isArray(graph.sources)&&graph.sources.length===4&&graph.sources.every(id=>typeof id==='string'&&id.length<=160)));
   state.activeRoutineId=state.pages.find(p=>p.id===state.activeId).routineId;
   state.activeDeviceId=routineOwners.get(state.activeRoutineId);
@@ -448,6 +499,7 @@
   const page=s.pages.find(p=>p.id===s.activeId),patch={...changes};
   if(patch.kind!==undefined){
    const kind=KINDS.find(row=>row.id===patch.kind);if(!kind)throw Error('Unknown test type');
+   if(page.kind!==kind.id)delete page.timing;
    page.kind=kind.id;page.testType=kind.testType;
    if(patch.name===undefined)page.name=kind.label;
    delete patch.kind;
@@ -455,11 +507,19 @@
   Object.assign(page,patch);
   return validate(s);
  }
- function editDevice(s,changes){
+ function editTiming(s,changes){
+  s=validate(s);
+  const p=s.pages.find(row=>row.id===s.activeId),defaults=TIMED_DEFAULTS[p.kind];
+  if(!defaults||!changes||Object.keys(changes).some(key=>!Object.hasOwn(defaults,key)))
+   throw Error('Invalid timing parameter');
+  p.timing={...p.timing,...changes};
+  return validate(s);
+ }
+ function editDevice(s,changes,id){
   s=validate(s);
   if(!changes||typeof changes!=='object'||Object.keys(changes).some(k=>k!=='name'))
    throw Error('Invalid Device metadata change');
-  const device=s.devices.find(row=>row.id===s.activeDeviceId);
+  const device=s.devices.find(row=>row.id===(id||s.activeDeviceId));
   if(!device)throw Error('Active Device missing');
   Object.assign(device,changes);return validate(s);
  }
@@ -636,11 +696,13 @@
    const xkeys={
     iv:['drainvoltagev','vdset','vd','voltage','vds','drainvoltage','x'],
     transfer:['gatevoltagev','vg','vgs','gatevoltage'],
-    it:['times','time','elapsedseconds','seconds','t']
+    it:['times','time','elapsedseconds','seconds','t'],
+    vt:['times','time','elapsedseconds','seconds','t']
    };
    if(!Object.prototype.hasOwnProperty.call(xkeys,axis))throw Error('Unknown graph axis');
    const x=choose(xkeys[axis],'x',axis==='iv');
-   const y=choose(['draincurrenta','id','current','ids','i','draincurrent','y'],'y');
+   const y=axis==='vt'?choose(['drainvoltagev','measuredvoltagev','measuredvoltage','voltagev','voltage','vd'],'y',false):
+    choose(['draincurrenta','id','current','ids','i','draincurrent','y'],'y',axis!=='it');
       if(!x||!y||x===y)continue;
    const total=Math.min(Number(x.length)||0,Number(y.length)||0);
    if(!Number.isSafeInteger(total)||total<=0)continue;
@@ -706,6 +768,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();
