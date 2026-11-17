@@ -508,3 +508,10 @@
 - 修复此前静态测试未发现的 TOP 激活失败：SDK Unit Layout 拒绝 `responsive gap:'0'` 与未批准的六列 `gridTemplateColumns`。已使用 SDK 接受值，真实 Core DOM 冒烟测试通过。
 - 面板标题去除多余 meta，标题栏端口下拉显示 S/D/G/B 标识。
 - 不创建分支、不修改 DKDS、不编译 Windows/Android 安装包、不推送 GitHub。
+
+## 2026-11-17 / 4200A 参考资料恢复与私有归档（资料整理，不构建应用）
+- 需求：R-20261117-001。仅 DKTS；保持唯一 `main`，不修改 DKDS，不创建分支；恢复可找回的 V2/V3/V5/V6、连接交接资料及用户上传的 LabExpress 手册。
+- 已从 Library 找回：V2 PDF/DOCX、V3 PDF/DOCX、V5 PDF/DOCX、V6 UI 规范 PDF、V6 UI 实施 DOCX、4200 control.docx、OPPO Pad Mini/DKDS 连接交接 Markdown；本轮另收到 LabExpress 中文用户手册 2022.01（106 页）。
+- 在 `docs/reference/4200a/` 新增来源目录、资料状态和 DKTS 自有文档的可检索文本摘录。LabExpress 原厂手册具有版权限制，仅进入私有交付 ZIP，不公开上传 PDF 或全文。官方 Tektronix 页面已核实 KXCI Rev F（4200A-KXCI-907-01F，2026-10-09）与 PMU Rev D（4200A-PMU-900-01D，2026-10-22）；两份 PDF 本身未下载，不作为已纳入文件。
+- 未找回：`FSPro_4200A_Agent_Dev_Pack_V5.zip`、`DKTS_FSPro_V6_full_retry.zip`、`keithley-main.zip`。不以重建内容冒充原件。官方 KXCI 示例仓库链接已记录。
+- 本轮不修改应用代码/版本，不运行 Windows/Android 最终构建，不执行真实 4200A 输出或测量。GitHub 参考资料 commit SHA 与私有 ZIP 的最终文件清单、SHA-256 将在后续交付记录中补齐。
