@@ -235,6 +235,8 @@
    targets:[{id:'target-1',name:'Id',logical:'D',quantity:'Current',range:'auto'}],variables:[]};
  };
 
+ const DC_PRESETS=Object.freeze(['optimized','point-by-point']);
+ const ROUTINE_DEFAULTS=Object.freeze(['iv','dc']);
  const DC_METHODS=Object.freeze({
   constant:'Constant',step:'Linear Step',points:'Linear Points',log:'Log Points',list:'List',generator:'Generator'
  });
@@ -249,17 +251,17 @@
  function defaultDc(p){
   const visible=dcTerminals(p),smus=visible.filter(t=>t.resource!=='GNDU');
   const ground=visible.find(t=>t.resource==='GNDU')?.logical||'GND';
-  const axis=smus.find(t=>t.logical==='G')?.logical||smus[0]?.logical||'G';
+  const axis=smus.find(t=>t.logical==='D')?.logical||smus[0]?.logical||'D';
   const output=smus.find(t=>t.logical==='D')?.logical||axis;
   const lastPort=p.terminals.find(t=>t.logical==='B').resource;
   const bodyResource=validDcBody(lastPort)?lastPort:'None';
-  return {group:'',polarity:'NMOS',bodyResource,reference:ground,referenceV:'0',outputs:'I'+output.toLowerCase(),
+  return {preset:'optimized',group:'',polarity:'NMOS',bodyResource,reference:ground,referenceV:'0',outputs:'I'+output.toLowerCase(),
    terminals:Object.fromEntries(['D','G','S','B'].map(key=>[key,{
     mode:'voltage',role:key===axis?'X':'CONDITION',ref:key===ground?'GND':ground,
     limitI:'0.01',limitV:'1',segments:[{method:key===axis?'step':'constant',
-     value:key==='D'?'0.05':'0',start:'0',stop:'1',step:'0.1',points:'11',list:'0, 0.1, 0.2',formula:'getx()'}]
+     value:'0',start:'0',stop:'1',step:'0.1',points:'11',list:'0, 0.1, 0.2',formula:'getx()',range:'auto'}]
    }])),target:{formula:'',x:'',y:'',h:'',p:''},
-   strategy:{mode:'global',integration:'',delay:''},specIds:p.associateSpecId?[p.associateSpecId]:[]};
+   strategy:{mode:'global',integration:'',delay:'',hold:'',onLimit:'stop',direction:'forward'},specIds:p.associateSpecId?[p.associateSpecId]:[]};
  }
  function dcOutputs(p,settings=p.dc){
   return dcTerminals(p,settings).filter(t=>t.resource!=='GNDU').flatMap(t=>
@@ -320,14 +322,28 @@
    throw Error('Invalid expression: '+input);
   return result;
  }
+ // Preserve the roles, range values and expression polarity of saved DC pages.
+ function migrateDcPreset(dc){
+  if(dc.preset===undefined)dc.preset='optimized';
+  if(dc.strategy){
+   if(dc.strategy.hold===undefined)dc.strategy.hold='';
+   if(dc.strategy.onLimit===undefined)dc.strategy.onLimit='stop';
+   if(dc.strategy.direction===undefined)dc.strategy.direction='forward';
+  }
+  for(const terminal of Object.values(dc.terminals||{}))
+   if(Array.isArray(terminal?.segments))
+    for(const segment of terminal.segments)
+     if(segment&&segment.range===undefined)segment.range='auto';
+ }
  function validateDcShape(dc){
   const text=(value,max=256)=>typeof value==='string'&&value.length<=max;
-  if(!dc||!validDcBody(dc.bodyResource)||!text(dc.group,64)||!['NMOS','PMOS','Other'].includes(dc.polarity)||
+  if(!dc||!DC_PRESETS.includes(dc.preset)||!validDcBody(dc.bodyResource)||!text(dc.group,64)||!['NMOS','PMOS','Other'].includes(dc.polarity)||
      !['GND','D','G','S','B'].includes(dc.reference)||!text(dc.referenceV)||!text(dc.outputs,128)||
      !Array.isArray(dc.specIds)||dc.specIds.length>100||new Set(dc.specIds).size!==dc.specIds.length||
      !dc.target||!['formula','x','y','h','p'].every(key=>text(dc.target[key],key==='formula'?4096:256))||
      !dc.strategy||!['global','local'].includes(dc.strategy.mode)||
-     !text(dc.strategy.integration)||!text(dc.strategy.delay))
+     !text(dc.strategy.integration)||!text(dc.strategy.delay)||!text(dc.strategy.hold)||
+     !['stop','skip'].includes(dc.strategy.onLimit)||!['forward','forward-reverse'].includes(dc.strategy.direction))
    throw Error('Invalid DC test parameters');
   for(const key of ['D','G','S','B']){
    const row=dc.terminals?.[key];
@@ -335,7 +351,8 @@
       !['GND','D','G','S','B'].includes(row.ref)||!text(row.limitI)||!text(row.limitV)||
       !Array.isArray(row.segments)||!row.segments.length||row.segments.length>16||
       !row.segments.every(seg=>seg&&Object.hasOwn(DC_METHODS,seg.method)&&
-       ['value','start','stop','step','points','list','formula'].every(field=>text(seg[field],field==='list'?2048:256))))
+       ['value','start','stop','step','points','list','formula'].every(field=>text(seg[field],field==='list'?2048:256))&&
+       text(seg.range,32)&&(seg.range==='auto'||/^[0-9]+(?:\.[0-9]+)?(?:e[+-]?\d+)?$/i.test(seg.range))))
     throw Error('Invalid DC terminal: '+key);
   }
  }
@@ -383,6 +400,10 @@
     throw Error(logical+' Condition requires one segment');
    for(const seg of row.segments){
     if(!dcMethods(row.role).includes(seg.method))throw Error(logical+' has an invalid method for its role');
+    if(dc.preset==='point-by-point'&&seg.range!=='auto'){
+     const range=numeric(seg.range,logical+' range');
+     if(range<=0||range>(current?200:1))throw Error(logical+' measurement range is outside the SMU planning envelope');
+    }
     let values;
     if(logical===reference)values=[referenceV];
     else if(seg.method==='constant')values=[value(seg.value)];
@@ -410,6 +431,10 @@
      throw Error(logical+' source or compliance exceeds the SMU planning envelope');
    }
   }
+  if(dc.preset==='point-by-point'&&dc.strategy.hold.trim()){
+   const hold=numeric(dc.strategy.hold,'Hold time');
+   if(hold<0||hold>1000)throw Error('Hold time must be between 0 and 1000 s');
+  }
   if(dc.strategy.mode==='local'){
    for(const key of ['integration','delay']){
     const raw=dc.strategy[key].trim();
@@ -417,14 +442,14 @@
      throw Error('Enter a positive integration time and a nonnegative delay, or leave them blank for Default');
    }
   }
-  return {x:assigned('X')[0].logical,p:assigned('P')[0]?.logical||null,outputs};
+  return {x:assigned('X')[0].logical,p:assigned('P')[0]?.logical||null,outputs,preset:dc.preset};
  }
 
- const initial=()=>({schema:1,sequence:1,activeId:'page-1',
+ const initial=()=>({schema:1,sequence:ROUTINE_DEFAULTS.length,activeId:'page-1',
   activeDeviceId:'device-1',devices:[{id:'device-1',name:'MOSFET'}],
   activeRoutineId:'routine-1',
   routines:[{id:'routine-1',deviceId:'device-1',name:'测试流程 1'}],
-  specs:[],pages:[page()],ui:{graphs:{count:4,
+  specs:[],pages:ROUTINE_DEFAULTS.map((kind,index)=>page(kind,'page-'+(index+1))),ui:{graphs:{count:4,
    kinds:['iv','transfer','it','raw'],sources:['','','','']}}});
  function validate(state){
   if(state?.schema!==1||!Array.isArray(state.pages)||!state.pages.length||
@@ -568,6 +593,7 @@
    validateSweep(p);
    if(p.kind==='dc'){
     if(p.dc===undefined)p.dc=defaultDc(p);
+    else if(p.dc&&typeof p.dc==='object')migrateDcPreset(p.dc);
     validateDcShape(p.dc);
     if(p.dc.specIds.some(id=>specOwners.get(id)!==routineOwners.get(p.routineId)))
      throw Error('DC Spec must belong to the same Device');
@@ -613,16 +639,22 @@
   s.sequence++;s.pages.push(page(kind,id,target));
   s.activeId=id;s.activeRoutineId=target;return validate(s);
  }
+ function addRoutineDefaults(s,routineId){
+  let next=s;
+  const firstId='page-'+(s.sequence+1);
+  for(const kind of ROUTINE_DEFAULTS)next=add(next,kind,routineId);
+  return select(next,firstId);
+ }
  function addRoutine(s,deviceId){
   s=validate(s);
-  if(s.routines.length>=100||s.pages.length>=128)
+  if(s.routines.length>=100||s.pages.length+ROUTINE_DEFAULTS.length>128)
    throw Error('Maximum Routines or Pages reached');
   const owner=deviceId||s.activeDeviceId;
   if(!s.devices.some(d=>d.id===owner))throw Error('Unknown Device');
   const routineId='routine-'+(s.routines.length+1);
   if(s.routines.some(r=>r.id===routineId))throw Error('Duplicate Routine ID');
   s.routines.push({id:routineId,deviceId:owner,name:'测试流程 '+(s.routines.length+1)});
-  return add(s,'iv',routineId);
+  return addRoutineDefaults(s,routineId);
  }
  function addDevice(s){
   s=validate(s);
@@ -643,7 +675,7 @@
   s=validate(s);
   if(!s.routines.some(r=>r.id===routineId))throw Error('Unknown Routine');
   const first=s.pages.find(p=>p.routineId===routineId);
-  if(!first)return add(s,'iv',routineId);
+  if(!first)return addRoutineDefaults(s,routineId);
   s.activeId=first.id;s.activeRoutineId=routineId;
   return validate(s);
  }
@@ -991,6 +1023,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcSummary,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcSummary,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

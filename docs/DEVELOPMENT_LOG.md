@@ -737,3 +737,11 @@
 - `core-pages.yml` 使用固定只读 DKDS Core 和同一 SHA 的 DKTS 插件生成静态网页，部署到现有 GitHub Pages 的 `/core/`。根地址继续提供旧 Demo，其原手动工作流保留离线产物。发布目录只复制浏览器资产，以 `/core/preview.json` 记录部署 SHA。
 - Node 224/224 全部通过。Chromium 按 GitHub 项目子目录验证旧 Demo 根入口、Core 入口、DC 编辑器与 Ref 控件。验证部署目录排除原生宿主、测试和仓库元数据。线上部署以同 SHA 的 Core Web Preview Actions 结果为准。
 - 此轮交付为网页部署流程与文档，应用版本维持 V0.3.35。Windows/Android 构建仍需明确最终构建授权，真实仪器与原生端安装验收留给对应测试轮次。
+
+## 2026-11-18 · V0.3.36 a216 · 九条 DC 网页批注
+
+- R-20261118-006，基线为 GitHub main 8ef823bc08701f0d33c178ebc8acdf8809d36f6e。修改 DKTS 的项目模型、Core 插件及布局。新建项目和流程自带 I–V 扫描和 DC 测试；已有项目保留已有测试与参数。新 DC 默认漏极 D 为 Linear Step / Xsweep，栅极 G 为 Constant / Condition。
+- 顶部将测试类型、Ref Node、Ref (V)、Outputs 放在同一组。器件、极性、组别和名称退出参数页，新测试名称仍可在工程菜单编辑。保留旧数据的表达式极性语义。
+- 核对 LabExpress 2022.01 第 14、33、35–36 页和 4200A SMU 用户手册第 3 节。DC 优化加速与逐点拥有独立选项。逐点显示分段量程、首点保持、超限与扫描方向。离线量程为 Auto，实装 SMU 核验后才列出适用档位。当前交付支持编辑、校验和保存，实机执行与 Target 公式求值待接入。
+- 缩窄 Ref，SMU 与端子同排，隐藏角色文字并使模式及角色下拉对齐。为 DC 底部的变量面板覆盖其旧的内容对齐规则，使并排三栏同高。顶栏使用「端口」和统一字体。
+- Node 224/224、插件及宿主契约、DKDS SDK validate/test-runtime/test-layout（64 项）通过。Chromium 验证 1621×747、1280×800、744×600、390×844 的默认测试、端子行、顶部顺序、预设切换和保存，无横向溢出。发布固定同源预览与同 SHA 源码归档；最终安装包留待发布授权。\

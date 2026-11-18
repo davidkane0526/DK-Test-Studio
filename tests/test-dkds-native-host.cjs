@@ -272,14 +272,19 @@ const ctx={
  const dcFields=record.fields.slice(beforeDc);
  assert.equal(dcFields.filter(row=>row.spec.label==='Ref').length,3);
  assert.ok(dcFields.some(row=>row.spec.attributes?.['aria-label']==='S Ref'&&row.spec.disabled));
- const gateMethod=dcFields.find(row=>row.spec.attributes?.['data-dkts-dc-field']==='method'&&
-  row.spec.attributes?.['aria-label'].startsWith('G '));
- assert.deepEqual(Array.from(gateMethod.spec.options,option=>option.label),
+ const methodFor=terminal=>dcFields.find(row=>row.spec.attributes?.['data-dkts-dc-field']==='method'&&
+  row.spec.attributes?.['aria-label'].startsWith(terminal+' '));
+ assert.equal(methodFor('G').control.value,'constant');
+ assert.deepEqual(Array.from(methodFor('D').spec.options,option=>option.label),
   ['Linear Step','Linear Points','Log Points','List']);
- gateMethod.spec.onChange({target:{value:'points'}});
+ methodFor('D').spec.onChange({target:{value:'points'}});
+ const preset=dcFields.find(row=>row.spec.attributes?.['data-dkts-dc-field']==='preset');
+ assert.deepEqual(Array.from(preset.spec.options,option=>option.value),['optimized','point-by-point']);
+ preset.spec.onChange({target:{value:'point-by-point'}});
+ assert.ok(record.fields.some(row=>row.spec.attributes?.['data-dkts-dc-field']==='range'&&row.control.value==='auto'));
  record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='points').spec.onBlur({target:{value:'9'}});
  record.actions.findLast(row=>row.id==='dkts-save-dc').onInvoke();
- assert.equal(state.pages.find(row=>row.id===state.activeId).dc.terminals.G.segments[0].points,'9');
+ assert.equal(state.pages.find(row=>row.id===state.activeId).dc.terminals.D.segments[0].points,'9');
  assert.equal(JSON.stringify(state.pages[0]),oldIv);
  instance.deactivate();
  assert.ok(record.disposals>=1);
