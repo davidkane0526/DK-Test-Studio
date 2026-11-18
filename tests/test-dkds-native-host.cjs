@@ -161,6 +161,7 @@ const ctx={
  assert.ok(record.fields.some(row=>row.spec.label==='栅极 · G'&&row.control.value==='SMU2'));
  assert.equal(record.fields.some(row=>row.spec.label==='体端 · B'),false);
  assert.deepEqual(record.toolbar.map(row=>row.spec.id),['dkts-workspace-language','dkts-workspace-connect','dkts-workspace-scan']);
+ assert.ok(record.toolbar.every(row=>row.spec.variant==='secondary'));
  assert.equal(record.toolbar.find(row=>row.spec.id==='dkts-workspace-scan').button.disabled,true);
  assert.ok(!record.actions.some(row=>row.id==='dkts-return-data-plots'));
  assert.ok(record.actions.some(row=>row.id==='dkts-page-view-page-1'&&row.label==='⚙︎'));
@@ -270,8 +271,9 @@ const ctx={
  const beforeDc=record.fields.length;
  record.actions.findLast(row=>row.id==='library-dc').onInvoke();
  const dcFields=record.fields.slice(beforeDc);
- assert.equal(dcFields.filter(row=>row.spec.label==='Ref').length,3);
- assert.ok(dcFields.some(row=>row.spec.attributes?.['aria-label']==='S Ref'&&row.spec.disabled));
+ const dcRefs=dcFields.filter(row=>row.spec.attributes?.['data-dkts-dc-field']==='ref');
+ assert.equal(dcRefs.length,3);
+ assert.ok(dcRefs.some(row=>row.spec.attributes?.['aria-label']==='S 参考'&&row.spec.disabled));
  const methodFor=terminal=>dcFields.find(row=>row.spec.attributes?.['data-dkts-dc-field']==='method'&&
   row.spec.attributes?.['aria-label'].startsWith(terminal+' '));
  assert.equal(methodFor('G').control.value,'constant');
@@ -289,6 +291,7 @@ const ctx={
  const beforeTime=record.fields.length;
  record.actions.findLast(row=>row.id==='library-time').onInvoke();
  assert.ok(record.fields.slice(beforeTime).some(row=>row.spec.attributes?.['data-dkts-timing-field']==='switchStepS'));
+ assert.ok(record.layoutSpecs.some(spec=>spec.tagName==='canvas'&&spec.className==='dkts-time-waveform'));
  record.actions.findLast(row=>row.id==='add-time-segment').onInvoke();
  record.actions.findLast(row=>row.id==='dkts-save-time').onInvoke();
  assert.equal(state.pages.find(row=>row.id===state.activeId).timing.segments.length,2);

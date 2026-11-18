@@ -41,7 +41,7 @@ test('DKTS Core staging stamps the same identity into Windows and Android',()=>{
   assert.match(stage,/DKTS-Android-V/);
   assert.match(stage,/dkts-v/);
   assert.doesNotMatch(stage,/previewVersionCode/);
-  assert.equal(require('../package.json').version,'0.3.37');
+  assert.equal(require('../package.json').version,'0.3.38');
   assert.equal(classify(['tools/stage-dkds-host.cjs']).updateChannel,'full-app');
   const versioning=fs.readFileSync(path.join(root,'docs/RELEASE_VERSIONING.md'),'utf8');
   assert.match(versioning,/必须完整安装的变更.*递增程序包版本/);
