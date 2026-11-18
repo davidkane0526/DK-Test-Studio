@@ -1,4 +1,16 @@
 /* FS-Pro appearance for the DKTS distribution. The plugin uses the installed host theme. */
+#dktsKeithley4200Page .dkts-project-toolbar :is(.dkts-project-actions .dkds-action-button,.dkts-terminal-field){
+ min-height:28px;
+ height:28px;
+ font-size:13px;
+ line-height:1.2;
+}
+#dktsKeithley4200Page .dkts-plan-actions>.dkds-action-button{
+ width:100%;
+ min-height:30px;
+ justify-content:center;
+ padding-inline:5px;
+}
 #dktsKeithley4200Page .dkts-project-toolbar{
  background:var(--dkts-soft);
  border-bottom:1px solid var(--dkts-divider);
@@ -223,3 +235,6 @@
  border-radius:var(--dkds-radius-sm,4px);
  background:var(--dkts-surface)
 }
+#dktsKeithley4200Page .dkts-dc-terminal-modes{border-inline:1px solid var(--dkts-divider)}
+#dktsKeithley4200Page .dkts-dc-reference{border-inline-start:1px solid var(--dkts-divider)}
+#dktsKeithley4200Page .dkts-library-section{border-block-start:1px solid var(--dkts-divider)}

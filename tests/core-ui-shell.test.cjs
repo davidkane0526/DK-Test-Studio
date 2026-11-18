@@ -55,7 +55,7 @@ test('DKTS Core mobile drawer uses SDK Units, scoped stylesheet, and close inter
  assert(css.includes('data-dkts-nav-toggle'));
  assert(css.includes('data-dkts-plot-group'));
  assert(css.includes('data-dkts-port-mobile'));
- assert(css.includes('min-height:176px'));
+ assert(css.includes('--dkds-grid-auto-rows:minmax(164px,1fr)'));
  const smoke=fs.readFileSync(path.join(__dirname,'../tools/dkts-core-boot-smoke.cjs'),'utf8');
  assert(smoke.includes('core-host-phone-page.png'));
  assert(smoke.includes('core-host-phone-port-popover.png'));

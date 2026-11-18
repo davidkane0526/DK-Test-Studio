@@ -286,6 +286,12 @@ const ctx={
  record.actions.findLast(row=>row.id==='dkts-save-dc').onInvoke();
  assert.equal(state.pages.find(row=>row.id===state.activeId).dc.terminals.D.segments[0].points,'9');
  assert.equal(JSON.stringify(state.pages[0]),oldIv);
+ const beforeTime=record.fields.length;
+ record.actions.findLast(row=>row.id==='library-time').onInvoke();
+ assert.ok(record.fields.slice(beforeTime).some(row=>row.spec.attributes?.['data-dkts-timing-field']==='switchStepS'));
+ record.actions.findLast(row=>row.id==='add-time-segment').onInvoke();
+ record.actions.findLast(row=>row.id==='dkts-save-time').onInvoke();
+ assert.equal(state.pages.find(row=>row.id===state.activeId).timing.segments.length,2);
  instance.deactivate();
  assert.ok(record.disposals>=1);
  console.log('Core-host native plugin: LabExpress main tabs, Unit extensions, X/P rows, Terminal, Fixed Bias, Target/Strategy/Limits/Page Var/Spec, Data Center and four PlotViews PASS');

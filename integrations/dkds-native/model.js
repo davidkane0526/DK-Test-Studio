@@ -41,6 +41,9 @@
   return Number(text);
  };
  const TIMED_DEFAULTS=Object.freeze({
+  time:Object.freeze({switchStepS:'0.1',sampleStepS:'0.1',cycles:'1',integrationS:'',
+   segments:Object.freeze([{durationS:'1',bias:{D:'0',G:'0',S:'0',B:'0'}}]),
+   events:Object.freeze([{terminal:'D',quantity:'Current',startS:'0.1',intervalS:'0.1',averageS:'0.02',points:'9'}])}),
   retention:Object.freeze({terminal:'D',conditionV:'0',conditionS:'0',holdV:'0',readV:'0.1',
    firstS:'1',lastS:'100',windowS:'0.05',points:'10',spacing:'log',complianceA:'0.001'}),
   pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',
@@ -48,10 +51,45 @@
    delayUs:'0',windowStartUs:'100',windowStopUs:'400',pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:''})
  });
  const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw']);
+ function timeSummary(v){
+  const switchStep=numeric(v.switchStepS,'Switching Step'),sampleStep=numeric(v.sampleStepS,'Sampling Step');
+  const cycles=positiveInt(v.cycles,10000,'Cycles');
+  if(switchStep<=0||sampleStep<=0)throw Error('Switching Step and Sampling Step must be positive');
+  if(v.integrationS!==''&&(numeric(v.integrationS,'Integration time')<=0||Number(v.integrationS)>sampleStep))
+   throw Error('Integration time must fit within a sampling step');
+  if(!Array.isArray(v.segments)||!v.segments.length||v.segments.length>64)throw Error('Use 1–64 time segments');
+  let durationS=0;
+  const starts=v.segments.map(segment=>{
+   const start=durationS,duration=numeric(segment?.durationS,'Segment duration');
+   const ticks=duration/switchStep;
+   if(duration<switchStep||!Number.isSafeInteger(Math.round(ticks))||Math.abs(ticks-Math.round(ticks))>1e-7)
+    throw Error('Segment duration must be a positive multiple of Switching Step');
+   for(const key of ['D','G','S','B'])if(Math.abs(numeric(segment.bias?.[key],key+' bias'))>210)
+    throw Error('Bias exceeds the SMU planning envelope');
+   durationS+=duration;
+   return start;
+  });
+  if(!Array.isArray(v.events)||!v.events.length||v.events.length>16)throw Error('Use 1–16 measurement events');
+  let points=0;
+  for(const event of v.events){
+   if(!['D','G','S','B'].includes(event?.terminal)||!['Current','Voltage'].includes(event.quantity))
+    throw Error('Select a valid measurement terminal and quantity');
+   const start=numeric(event.startS,'Event start'),interval=numeric(event.intervalS,'Event interval');
+   const average=numeric(event.averageS,'Average time'),count=positiveInt(event.points,65536,'Event points');
+   if(start<0||interval<sampleStep||average<=0||average>interval||(v.integrationS!==''&&Number(v.integrationS)>average))
+    throw Error('The averaging window must fit the measurement interval and integration time');
+   if(start+(count-1)*interval+average>durationS+Math.max(1e-12,durationS*1e-9))
+    throw Error('A measurement event exceeds the cycle duration');
+   points+=count;
+  }
+  if(!Number.isFinite(durationS*cycles)||points*cycles>65536)throw Error('Time plan exceeds the offline planning limit');
+  return {starts,durationS,cycles,points:points*cycles};
+ }
  function timedSummary(kind,settings){
   const defaults=TIMED_DEFAULTS[kind];
   if(!defaults)return null;
   const v={...defaults,...settings};
+  if(kind==='time')return timeSummary(v);
   if(!['S','D','G'].includes(v.terminal))throw Error('Select a Source, Drain or Gate terminal');
   const n=key=>numeric(v[key],key);
   if(kind==='retention'){
@@ -398,6 +436,8 @@
    if(!compliance)throw Error(logical+' requires a positive '+(current?'voltage':'current')+' limit');
    if(row.role==='CONDITION'&&row.segments.length!==1)
     throw Error(logical+' Condition requires one segment');
+   if(row.segments.some(seg=>seg.method!==row.segments[0].method))
+    throw Error(logical+' requires a single method shared by all segments');
    for(const seg of row.segments){
     if(!dcMethods(row.role).includes(seg.method))throw Error(logical+' has an invalid method for its role');
     if(dc.preset==='point-by-point'&&seg.range!=='auto'){
@@ -599,7 +639,7 @@
      throw Error('DC Spec must belong to the same Device');
    }
    if(TIMED_DEFAULTS[p.kind]){
-    p.timing={...TIMED_DEFAULTS[p.kind],...p.timing};
+    p.timing={...clone(TIMED_DEFAULTS[p.kind]),...p.timing};
     timedSummary(p.kind,p.timing);
    }
   }

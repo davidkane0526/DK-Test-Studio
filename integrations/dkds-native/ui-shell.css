@@ -3,11 +3,14 @@
  position:relative;min-width:0;min-height:0;max-width:100%;height:100%;align-items:stretch;overflow:visible
 }
 #dktsKeithley4200Page [data-dkts-nav]{
- min-width:0;min-height:0;box-sizing:border-box;padding:9px 0 12px;overflow-y:auto;overflow-x:hidden
+ min-width:0;min-height:0;box-sizing:border-box;padding:9px 0 12px;overflow:hidden
 }
 #dktsKeithley4200Page .dkts-main-grid{min-width:0;min-height:0;width:100%;height:100%;overflow:visible}
 #dktsKeithley4200Page .dkts-project-panel{min-width:0;min-height:0;height:100%;overflow:visible}
-#dktsKeithley4200Page .dkts-project-navigation{min-width:0;min-height:0;height:100%;overflow:auto}
+#dktsKeithley4200Page .dkts-project-navigation{
+ display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;overflow:hidden
+}
+#dktsKeithley4200Page .dkts-navigation-scroll{flex:1 1 0;min-height:0;min-width:0;overflow:auto;scrollbar-width:thin}
 #dktsKeithley4200Page .dkts-work-region{
  min-width:0;min-height:0;width:100%;height:100%;overflow:hidden
 }
@@ -45,8 +48,11 @@
 #dktsKeithley4200Page .dkts-fspro-target-row,
 #dktsKeithley4200Page .dkts-fspro-target-head{min-width:0}
 #dktsKeithley4200Page [data-dkts-view="graph"]{min-width:0;min-height:0;box-sizing:border-box}
-#dktsKeithley4200Page [data-dkts-plot-group]{flex:1 1 auto;min-width:0;min-height:0;overflow:auto;scrollbar-width:thin}
-#dktsKeithley4200Page [data-dkts-plot-frame]{min-width:0;min-height:176px}
+#dktsKeithley4200Page [data-dkts-plot-group]{
+ --dkds-grid-auto-rows:minmax(164px,1fr);
+ flex:1 1 0;min-width:0;min-height:0;overflow:auto;scrollbar-width:thin
+}
+#dktsKeithley4200Page [data-dkts-plot-frame]{min-width:0;min-height:0}
 #dktsKeithley4200Page [data-dkts-plot-header]{min-width:0;max-width:100%;box-sizing:border-box}
 #dktsKeithley4200Page [data-dkts-plot-frame]>[data-dkds-unit-panel-body="true"]{
  display:flex;flex-direction:column;min-height:0;overflow:visible
@@ -90,7 +96,6 @@
  #dktsKeithley4200Page .dkts-editor-tabs::-webkit-scrollbar{display:none}
  #dktsKeithley4200Page .dkts-parameter-content{padding:6px 1px 10px}
  #dktsKeithley4200Page [data-dkts-view="graph"]{padding:5px;gap:5px}
- #dktsKeithley4200Page [data-dkts-plot-frame]{min-height:160px}
 }
 @media(prefers-reduced-motion:reduce){#dktsKeithley4200Page [data-dkts-nav]{transition:none}}
 
@@ -219,7 +224,6 @@
 #dktsKeithley4200Page [data-dkts-plot-frame]{
  display:flex;
  flex-direction:column;
- min-height:210px;
 }
 #dktsKeithley4200Page [data-dkts-plot-frame]>[data-dkds-unit-panel-body=true]{flex:1}
 @container (max-width:620px){
@@ -278,7 +282,7 @@
 #dktsKeithley4200Page .dkts-page-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 #dktsKeithley4200Page .dkts-page-actions>span{flex:none}
 #dktsKeithley4200Page .dkts-sweep-remove{display:grid;place-items:center;align-self:center}
-#dktsKeithley4200Page .dkts-project-navigation>.dkts-project-tree,
+#dktsKeithley4200Page .dkts-navigation-scroll>.dkts-project-tree,
 #dktsKeithley4200Page .dkts-device-branch,
 #dktsKeithley4200Page .dkts-device-routines,
 #dktsKeithley4200Page .dkts-tree-routine,
@@ -354,7 +358,7 @@
  #dktsKeithley4200Page .dkts-project-plot-area{padding-block-start:10px}
 }
 #dktsKeithley4200Page .dkts-device-routines{margin-inline-start:8px;padding-inline-start:10px}
-#dktsKeithley4200Page .dkts-library-section{margin-block-start:22px;flex:0 0 auto}
+#dktsKeithley4200Page .dkts-library-section{flex:0 0 auto;max-height:48%;padding-block-start:6px;overflow:auto}
 #dktsKeithley4200Page .dkts-terminal-caption{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
 #dktsKeithley4200Page .dkts-bias-entry{display:grid;justify-items:start;gap:5px;min-width:0}
 #dktsKeithley4200Page .dkts-bias-entry .dkts-native-field{width:100%;min-width:0}
@@ -414,40 +418,47 @@
 }
 
 /* DC settings use standard DKDS fields and panels with terminal-owned rows. */
-#dktsKeithley4200Page :is(.dkts-dc-reference,.dkts-dc-primary,.dkts-dc-secondary,
+#dktsKeithley4200Page :is(.dkts-dc-reference,.dkts-dc-primary,
  .dkts-dc-segment-fields,.dkts-dc-bottom,.dkts-dc-limit-row,.dkts-dc-strategy-fields){
  display:grid;gap:6px 9px;align-items:end;min-width:0
 }
 #dktsKeithley4200Page .dkts-dc-editor{display:grid;gap:9px;min-width:0;container-type:inline-size}
+#dktsKeithley4200Page .dkts-editor-tabs{display:flex;min-width:0;align-items:center;flex-wrap:wrap;gap:4px 8px}
+#dktsKeithley4200Page .dkts-editor-tabs>.dkts-tab-bar{flex:0 0 auto;width:auto}
 #dktsKeithley4200Page .dkts-dc-reference{
- grid-template-columns:minmax(0,1.25fr) minmax(0,.72fr) minmax(0,.72fr) minmax(0,2.75fr);
- padding:8px 12px
+ grid-template-columns:minmax(150px,1.3fr) minmax(95px,.8fr) minmax(96px,.8fr) minmax(100px,1fr);
+ flex:0 1 770px;align-items:center;padding:3px 8px 3px 12px
 }
+#dktsKeithley4200Page .dkts-dc-reference>.dkts-native-field{
+ display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:5px
+}
+#dktsKeithley4200Page .dkts-dc-reference .dkds-field-label{white-space:nowrap}
+#dktsKeithley4200Page .dkts-plan-actions{display:grid;grid-template-columns:repeat(2,86px);gap:6px}
 #dktsKeithley4200Page .dkts-dc-input-panel>[data-dkds-unit-panel-body=true]{display:grid;gap:7px;padding:8px}
 #dktsKeithley4200Page .dkts-dc-terminal{
- --dkts-dc-terminal-columns:minmax(0,1fr) minmax(0,.81fr) minmax(0,1.16fr) minmax(0,3fr) 76px;
- display:grid;gap:4px;min-width:0;padding:6px 8px
+ display:grid;grid-template-columns:138px 234px minmax(0,1fr);
+ align-items:start;gap:8px;min-width:0;padding:6px 8px
 }
-#dktsKeithley4200Page :is(.dkts-dc-primary,.dkts-dc-secondary){
- grid-template-columns:var(--dkts-dc-terminal-columns)
+#dktsKeithley4200Page .dkts-dc-primary{grid-template-columns:minmax(0,1fr) 56px}
+#dktsKeithley4200Page .dkts-dc-terminal-modes{
+ display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:6px;
+ align-self:stretch;align-items:start;padding-inline:8px;min-width:0
 }
-#dktsKeithley4200Page .dkts-dc-terminal-id{
- display:flex;gap:6px;align-items:center;min-width:0;flex-wrap:wrap
+#dktsKeithley4200Page :is(.dkts-dc-terminal-id,.dkts-dc-mode-fields,.dkts-dc-segments){
+ display:grid;align-content:start;gap:4px;min-width:0
 }
-#dktsKeithley4200Page .dkts-dc-terminal-id>.dkds-meta{white-space:nowrap}
-#dktsKeithley4200Page .dkts-dc-segment-index{grid-column:span 2}
+#dktsKeithley4200Page .dkts-dc-terminal-label{display:flex;gap:5px;align-items:center;white-space:nowrap}
+#dktsKeithley4200Page .dkts-dc-legacy-method{grid-column:1/-1}
 #dktsKeithley4200Page .dkts-dc-segment-fields{
  grid-template-columns:repeat(auto-fit,minmax(min(100%,68px),1fr));grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)
 }
-#dktsKeithley4200Page .dkts-dc-secondary>:first-child{
+#dktsKeithley4200Page .dkts-dc-terminal-id>.dkts-native-field{
  display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:5px;max-width:102px
 }
 #dktsKeithley4200Page .dkts-dc-segment-actions{justify-content:flex-end}
-#dktsKeithley4200Page :is(.dkts-dc-segment-actions,.dkts-dc-spec-row,.dkts-dc-footer){
+#dktsKeithley4200Page :is(.dkts-dc-segment-actions,.dkts-dc-spec-row){
  display:flex;gap:5px;align-items:center;min-width:0
 }
-#dktsKeithley4200Page .dkts-dc-footer{flex-wrap:wrap;justify-content:flex-end;padding-block:2px}
-#dktsKeithley4200Page .dkts-dc-footer>.dkds-meta{margin-inline-end:auto}
 #dktsKeithley4200Page .dkts-dc-spec-row{justify-content:space-between}
 #dktsKeithley4200Page .dkts-dc-bottom{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
 #dktsKeithley4200Page .dkts-dc-bottom>*{min-width:0;align-self:stretch}
@@ -461,10 +472,8 @@
 #dktsKeithley4200Page .dkts-dc-strategy-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
 #dktsKeithley4200Page :is(.dkts-dc-reference,.dkts-dc-editor) .dkts-native-field{min-width:0}
 @container (max-width:760px){
- #dktsKeithley4200Page .dkts-dc-terminal{--dkts-dc-terminal-columns:minmax(0,1.22fr) repeat(2,minmax(0,1fr))}
- #dktsKeithley4200Page .dkts-dc-segment-fields{grid-column:1/-1}
- #dktsKeithley4200Page .dkts-dc-segment-actions:not(:empty){grid-column:3;justify-content:flex-end}
- #dktsKeithley4200Page .dkts-dc-segment-actions:empty{display:none}
+ #dktsKeithley4200Page .dkts-dc-terminal{grid-template-columns:minmax(98px,1fr) minmax(181px,1.4fr)}
+ #dktsKeithley4200Page .dkts-dc-segments{grid-column:1/-1}
 }
 @container (max-width:570px){
  #dktsKeithley4200Page .dkts-dc-bottom{grid-template-columns:minmax(0,1fr)}
@@ -474,6 +483,25 @@
 }
 @media (max-width:620px){
  #dktsKeithley4200Page .dkts-dc-reference{grid-template-columns:repeat(2,minmax(0,1fr));padding:5px 8px}
+ #dktsKeithley4200Page .dkts-dc-reference>.dkts-native-field{grid-template-columns:minmax(0,1fr)}
+}
+#dktsKeithley4200Page .dkts-time-panel>[data-dkds-unit-panel-body=true]{display:grid;gap:8px;padding:8px 10px}
+#dktsKeithley4200Page .dkts-time-panel .dkts-dc-strategy-fields{max-width:660px}
+#dktsKeithley4200Page .dkts-time-panel>[data-dkds-unit-panel-body=true]>:last-child{justify-self:start}
+#dktsKeithley4200Page .dkts-time-table{display:grid;gap:6px}
+#dktsKeithley4200Page :is(.dkts-time-segment,.dkts-time-event){
+ display:grid;gap:5px 8px;align-items:end
+}
+#dktsKeithley4200Page .dkts-time-segment{
+ grid-template-columns:24px repeat(var(--dkts-time-segment-fields,4),minmax(0,1fr)) 32px
+}
+#dktsKeithley4200Page .dkts-time-event{grid-template-columns:repeat(6,minmax(0,1fr)) 32px}
+#dktsKeithley4200Page :is(.dkts-time-segment,.dkts-time-event)>:last-child{justify-self:start}
+@container (max-width:620px){
+ #dktsKeithley4200Page :is(.dkts-time-segment,.dkts-time-event){
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,106px),1fr))
+ }
+ #dktsKeithley4200Page :is(.dkts-time-segment,.dkts-time-event):not(:last-child){padding-bottom:7px}
 }
 
 
