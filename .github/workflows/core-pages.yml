@@ -1,0 +1,52 @@
+name: DKTS Core Web Preview
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dkts-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: davidkane0526/DK-Data-Studio
+          ref: 20f056851a61d2144e9524c3ed568628d4b8557c
+          path: compat/dkds
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install preview dependencies
+        run: npm install --omit=dev --ignore-scripts --no-package-lock --no-audit --no-fund
+      - name: Build the same-source Core and existing demo
+        run: |
+          node tools/build-same-source-preview.cjs compat/dkds dist/core-preview
+          node tools/prepare-dkds-plot-vendor.cjs
+          node tools/build-web-demo.cjs
+          node tools/build-core-pages.cjs dist/core-preview dist/web-ui-demo "$GITHUB_SHA"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/web-ui-demo
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}core/
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

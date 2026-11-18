@@ -1,14 +1,14 @@
 # DK Test Studio 开发交接
 
-在另一台电脑的 Codex 中可以直接说：「按 `docs/HANDOFF.md` 在现有 InstaBox 继续 DKTS 开发。」云端最新源码批次为 `V0.3.35 a215`，基于 GitHub `main` 的 `99015c7`。正式发行编号取同一 SHA 的 `DKTS canonical release sequence`。
+在另一台电脑的 Codex 中可以直接说：「按 `docs/HANDOFF.md` 在现有 InstaBox 继续 DKTS 开发。」以 GitHub `main` 及同一 SHA 的源码归档为最新同步基线。正式发行编号取同一 SHA 的 `DKTS canonical release sequence`。
 
 ## 继续使用现有环境
 
 1. 登录同一 InstaBox 账号，复用现有 Free 实例 `box-fe583e`。开始前用 `instabox usage --json` 确认费用和超额均为 0，使用 `instabox get box-fe583e --json` 核对实例。
-2. 未推送的 a215 工作区为 `/data/home/DKTS/a215/work/DK-Test-Studio`，源码 ZIP 和同源预览在 `/data/home/DKTS/a215/artifacts/`。从已校验的 a215 源码 ZIP 接续。GitHub `main` 的同步基线为 V0.3.34。
+2. 从 GitHub `main` 的最新提交或该提交的源码 ZIP 接续。若另有更新且已校验的未提交源码，先核对其基线和改动。每轮验证后直接提交并推送唯一的 `main`，核对 [固定网页预览](https://davidkane0526.github.io/DK-Test-Studio/core/) 的 [部署 SHA](https://davidkane0526.github.io/DK-Test-Studio/core/preview.json)。
 
 3. 使用 Node.js 22。运行 `npm install --omit=dev --ignore-scripts --no-package-lock` 安装预览所需依赖，然后运行 `npm test`、`node tests/test-dkds-native-plugin.cjs` 和 `node tests/test-dkds-native-host.cjs`。`node tools/build-dkds-native-plugin.cjs` 构建当前独立插件 0.8.22。
-4. 同源预览使用只读 DKDS SHA `20f056851a61d2144e9524c3ed568628d4b8557c`。实例缓存是 `/data/home/DKTS/a207/upstream/DK-Data-Studio`，也可从 GitHub 的同 SHA 复原。把该目录和输出目录传给 `node tools/build-same-source-preview.cjs`。本地使用输出目录内的启动脚本。公开预览使用同一实例的 4174 端口，限制 60 分钟与 256 MiB。
+4. 同源预览使用只读 DKDS SHA `20f056851a61d2144e9524c3ed568628d4b8557c`。实例缓存是 `/data/home/DKTS/a207/upstream/DK-Data-Studio`，也可从 GitHub 的同 SHA 复原。把该目录和输出目录传给 `node tools/build-same-source-preview.cjs`。本地使用输出目录内的启动脚本。GitHub Actions 按同一提交部署固定网页；InstaBox 供本地开发和验收。
 5. 最终发布由 `.github/workflows/dkts-framework-contract.yml` 执行。获得最终构建授权后，正式 `main` 提交附 `[DKTS-FINAL-BUILD]`。用 `gh run list --commit <SHA>` 对照源码归档、正式序号、Windows 原生预览／编译、Android 编译及固定签名。只有同 SHA 的发布任务成功后才交付 `dkts-v<版本>-a<序号>` 的统一 Release。核对 `PROVENANCE.txt` 的源提交，再下载资产并运行 `sha256sum -c SHA256SUMS.txt`。
 
 ## 源码位置与数据归属

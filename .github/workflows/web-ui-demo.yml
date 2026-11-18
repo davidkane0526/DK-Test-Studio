@@ -5,11 +5,6 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  pages: write
-  id-token: write
-concurrency:
-  group: dkts-pages
-  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -76,14 +71,3 @@ jobs:
           name: DKTS-Web-UI-Demo-Single-HTML
           path: dist/DKTS-Web-UI-Demo.html
           if-no-files-found: error
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist/web-ui-demo/
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4

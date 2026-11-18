@@ -55,10 +55,14 @@ node tools/stage-dkds-host.cjs ../DK-Data-Studio dist/dkts-framework-staging
 ## 原始数据和仪器安全
 不同来源的数据明确标记 instrument-raw、derived 或 imported/preview；软件规划曲线不能冒充 4200A 测量曲线。仪器输出必须通过实际模块检测、端口互斥、量程/功率、联锁、异常停止和原始数据采集验证。CI 构建成功不代表仪器现场验收。
 
-## 网页 UI Demo（仅界面预览）
+## 网页预览与批注
+
+- [DKTS Core 同源预览](https://davidkane0526.github.io/DK-Test-Studio/core/) 使用最新部署的 main 源码和固定 DKDS Core。可用 [部署信息](https://davidkane0526.github.io/DK-Test-Studio/core/preview.json) 核对当前源码 SHA。
+
+## 网页 UI Demo（旧版参考）
 - GitHub Pages（启用 **Settings → Pages → Build and deployment: GitHub Actions** 后）：
   https://davidkane0526.github.io/DK-Test-Studio/
-- 每次 main 提交还会在 Actions → **DKTS Web UI Demo** 的构建任务中生成可下载的 `DKTS-Web-UI-Demo-Offline` 静态网站包。
+- 手动运行 Actions → **DKTS Web UI Demo** 可生成可下载的 `DKTS-Web-UI-Demo-Offline` 静态网站包。
 - 本 Demo 现在由 **`web/fspro-workbench/` 的 FS-Pro 分层测试编辑工作区**构建（此前从旧版卡片页面构建的错误已纠正），使用 X/P 规划模型与 DKDS 绘图内核，只提供离线编辑；不可连接 Keithley 4200A、不可输出电压、不可把示例规划数据当作仪器原始测量。现有 Web UI 与目标 DKDS Core Host 仍不是同一阶段的架构，请勿把网页预览视为新宿主已完成。
 - 本地构建：`npm install && node tools/build-ui-system.cjs && node tools/prepare-dkds-plot-vendor.cjs && node tools/build-web-demo.cjs`，再通过静态 HTTP 服务打开 `dist/web-ui-demo/`。
 
@@ -73,10 +77,10 @@ node tools/stage-dkds-host.cjs ../DK-Data-Studio dist/dkts-framework-staging
 
 ## 云端 ZIP 开发与最终构建（2026-11-16）
 
-- 日常开发只在最新交付的 DKTS 源码 ZIP 工作区进行；SDK/Node/布局测试不等于 EXE/APK 编译。
-- GitHub 保留唯一 `main`。不建立开发分支，不在开发阶段为每次修改触发 GitHub Actions 构建。
-- 仅最终源码验收完成后，直接提交到 `main`，提交信息带 `[DKTS-FINAL-BUILD]`，由唯一 Core Release Actions 工作流编译 Windows Portable 和 Android APK、做签名与校验并发布。
-- 普通 `main` 提交不会触发原生安装包编译；其他大型 CI/预览工作流仅能手动诊断。开发包的 `aNNN` 编号为暂存值，正式版本从 `ui-update.yml` 对应 SHA 确认。
+- 日常开发以同步后的 main 或该提交的源码 ZIP 为基线。每轮验证覆盖 SDK、Node 和布局。
+- GitHub 保留唯一 `main`。每轮验证后推送，自动部署同源网页并归档源码。
+- 最终安装包获明确授权时，提交信息带 `[DKTS-FINAL-BUILD]`，由唯一 Core Release Actions 工作流编译 Windows Portable 和 Android APK、做签名与校验并发布。
+- 普通 `main` 提交不会触发原生安装包编译；其他大型诊断工作流可手动运行。开发包的 `aNNN` 编号为暂存值，正式版本从 `ui-update.yml` 对应 SHA 确认。
 
 ### DKTS Core 同源预览（V0.3.35 a215）
 

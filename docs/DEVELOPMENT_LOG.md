@@ -730,3 +730,10 @@
 - 扫描支持 Constant、Linear Step、Linear Points、Log Points、List、Generator；按角色提供选项。偏置表达式支持四则运算、页面变量、scale()，Generator 另识别 getx()/getp()。DC 保存时检查参考关系、角色、源输出规划范围及测量输出。Target 公式和 Plot 绑定保存为配置。真实目标公式求值、仪器执行、KXCI Rev F 正文对照和实机验收待接入或验证。
 - Node 224/224、独立插件模型及 Core 宿主契约通过；DKDS SDK 1.19 validate、test-runtime、64 个 test-layout 用例通过。Chromium 同源 Core 1651×930、1280×800、744×600、390×844 检查分行、Ref、方法切换、跨标签保存、重开和原 I–V 编辑器，桌面和窄屏均检查 B 映射，窄屏经端口弹层设置。首轮 SDK 检查发现插件 CSS 持有边框与背景，已移到 DKTS Core 主题后通过。验收截图与源码和预览 ZIP 同批交付。
 - 发布身份 V0.3.35 a215（开发暂存），原生插件 0.8.22。GitHub 未推送，未编译 EXE/APK。提供完整源码 ZIP、同源预览 ZIP、DKDS 插件和 SHA-256 清单。
+
+## 2026-11-18 · GitHub Pages 批注入口与主线同步
+
+- R-20261118-005，以 a215 的 GitHub 提交 `fa8a8c585610170ec39e043c5c3f11a8a0142ffe` 为基线。每轮修改验证后同步唯一的 main，直接使用该提交的源码归档接续开发。
+- `core-pages.yml` 使用固定只读 DKDS Core 和同一 SHA 的 DKTS 插件生成静态网页，部署到现有 GitHub Pages 的 `/core/`。根地址继续提供旧 Demo，其原手动工作流保留离线产物。发布目录只复制浏览器资产，以 `/core/preview.json` 记录部署 SHA。
+- Node 224/224 全部通过。Chromium 按 GitHub 项目子目录验证旧 Demo 根入口、Core 入口、DC 编辑器与 Ref 控件。验证部署目录排除原生宿主、测试和仓库元数据。线上部署以同 SHA 的 Core Web Preview Actions 结果为准。
+- 此轮交付为网页部署流程与文档，应用版本维持 V0.3.35。Windows/Android 构建仍需明确最终构建授权，真实仪器与原生端安装验收留给对应测试轮次。
