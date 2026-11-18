@@ -1,6 +1,6 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.25","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.26","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),measurementData=ctx.modules.require('measurementData'),
    measurementRuntimeModule=ctx.modules.require('measurementRuntime'),units=ctx.ui.unitTemplates,
@@ -27,7 +27,7 @@
   const timingDrafts=new Map();
   const dcDrafts=new Map();
   const timeDrafts=new Map();
-  let timePreviewObserver=null;
+  let disposeTimePreview=null;
   const hardware=ctx.modules.require('dkts-capabilities');
   const defineConnectionSettings=()=>ctx.ui.settings.define('instrument-connection',{
    title:t('4200A 连接设置'),
@@ -720,7 +720,7 @@
    const preset=dcLayout(row,'dkts-dc-preset');
    const referencesGroup=dcLayout(row,'dkts-dc-reference-fields');
    const presets=[tr('DC（优化加速）','DC Optimized Timing'),tr('DC（逐点）','DC Point By Point')];
-   dcSelect(preset,tr('测试类型','Test type'),dc.preset,model.DC_PRESETS.map((value,index)=>({value,label:presets[index]})),
+   dcSelect(preset,tr('类型','Type'),dc.preset,model.DC_PRESETS.map((value,index)=>({value,label:presets[index]})),
     value=>{dc.preset=value;redrawDc();},{key:'preset'});
    const isGround=key=>key==='GND'||terminals.find(term=>term.logical===key)?.resource==='GNDU';
    const references=terminals.filter(term=>term.resource==='GNDU'||
@@ -772,7 +772,7 @@
      ?.setAttribute?.('data-dkts-terminal-tone',key);
     const name=dcLayout(labelRow,'dkts-dc-terminal-caption');
     units.note.create(name,{variant:'meta',className:'dkts-dc-terminal-name',text:t(logicalNames[key])});
-    units.note.create(name,{variant:'meta',text:term.resource.replace(/^SMU(\d)$/,'SMU $1')});
+    units.note.create(name,{variant:'meta',className:'dkts-dc-terminal-resource',text:term.resource.replace(/^SMU(\d)$/,'SMU $1')});
     const availableRefs=mode==='current'||root||ground?[]:terminals.filter(other=>
      other.logical!==key&&(other.resource==='GNDU'||dc.terminals[other.logical].mode==='voltage'));
     dcSelect(identity,tr('参考','Ref'),ground||root?'GND':row.ref,['GND',...availableRefs.map(term=>term.logical)],
@@ -974,7 +974,7 @@
    g.scale(scale,scale);
    const style=window.getComputedStyle(canvas);
    const ink=style.getPropertyValue('--text-secondary').trim()||style.color;
-   const grid=style.getPropertyValue('--dkts-divider').trim()||'#cbd5e1';
+   const grid=style.getPropertyValue('--border-strong').trim()||ink;
    const left=63,right=width-14,axis=height-28;
    g.font='12px '+style.fontFamily;
    g.fillStyle=ink;
@@ -1005,7 +1005,7 @@
     const values=settings.segments.map(segment=>Number(segment.bias[term.logical]));
     const min=Math.min(...values),max=Math.max(...values);
     const y=value=>min===max?(top+bottom)/2:bottom-(bottom-top)*(value-min)/(max-min);
-    const color=window.getComputedStyle(term.legend).getPropertyValue('--dkts-terminal-accent').trim()||'#285f93';
+    const color=window.getComputedStyle(term.legend,'::before').backgroundColor;
     g.strokeStyle=grid;
     line(left,bottom,right,bottom);
     g.textAlign='right';
@@ -1113,9 +1113,11 @@
     canvas?.setAttribute?.('role','img');
     canvas?.setAttribute?.('aria-label',tr('单循环计划偏置和各端子的测量窗口时间线','One-cycle timeline of planned terminal biases and acquisition windows'));
     units.note.create(preview,{variant:'meta',text:tr('折线为设定偏置，短条为测量窗口。时间轴显示单个循环。','Steps show planned biases. Bars show acquisition windows for one cycle.')});
-    if(typeof window.ResizeObserver==='function'&&canvas?.nodeType===1){
-     timePreviewObserver=new window.ResizeObserver(refreshPlan);
-     timePreviewObserver.observe(canvas);
+    if(canvas?.nodeType===1){
+     const observer=typeof window.ResizeObserver==='function'?new window.ResizeObserver(refreshPlan):null;
+     observer?.observe(canvas);
+     const offTheme=window.DKDSTheme?.subscribeRevision?.(manifest.id+'.time-preview',refreshPlan,{consumer:'raster'});
+     disposeTimePreview=()=>{observer?.disconnect();offTheme?.();};
     }
    }else if(editorSection==='target'){
     const target=dcPanel(surface,tr('测量事件','Measure Event'),'dkts-time-panel');
@@ -1759,8 +1761,8 @@
    mobilePortAction?.element?.setAttribute?.('data-dkts-port-mobile','true');
   }
   function renderEditor(p,s){
-   timePreviewObserver?.disconnect();
-   timePreviewObserver=null;
+   disposeTimePreview?.();
+   disposeTimePreview=null;
    editorHeading.replaceChildren();
    const title=units.header.create(editorHeading,{kind:'panel',variant:'content',
     title:p.name,actionHost:true,titleEmphasis:'prominent'});
@@ -2010,7 +2012,7 @@
   function showOfflineStatus(){ctx.status.set(tr('DK Test Studio · 4200A 离线 · 请配置仪器连接',
    'DK Test Studio · 4200A offline · configure the instrument connection'));}
   void updateInstrument({connect:true,automatic:true});
-  return {deactivate(){treeMenu?.dispose?.();projectSurface?.dispose();timePreviewObserver?.disconnect();window.removeEventListener?.('resize',updateEditorLayout);
+  return {deactivate(){treeMenu?.dispose?.();projectSurface?.dispose();disposeTimePreview?.();window.removeEventListener?.('resize',updateEditorLayout);
    connectionMenu?.dispose?.();pad?.close?.();portPopover?.close?.();off?.();for(const item of plots)item?.dispose?.();
    for(const item of plotViews)item?.dispose?.();
    for(const item of frameTables)item?.dispose?.();frameGroup?.dispose?.();wb?.dispose?.();}};
