@@ -412,3 +412,74 @@
  #dktsKeithley4200Page .dkts-terminal-setting-heading{grid-area:1/2}
  #dktsKeithley4200Page .dkts-terminal-setting>.dkts-native-field{grid-row:auto;grid-template-rows:auto auto}
 }
+
+/* DC settings use standard DKDS fields and panels with terminal-owned rows. */
+#dktsKeithley4200Page :is(.dkts-dc-info,.dkts-dc-reference,.dkts-dc-primary,.dkts-dc-secondary,
+ .dkts-dc-segment-fields,.dkts-dc-bottom,.dkts-dc-limit-row,.dkts-dc-strategy-fields){
+ display:grid;gap:6px 9px;align-items:end;min-width:0
+}
+#dktsKeithley4200Page .dkts-dc-info{
+ grid-template-columns:minmax(0,1fr) minmax(0,.78fr) minmax(0,1fr) minmax(0,.65fr) minmax(0,1.72fr);
+ padding:8px 12px
+}
+#dktsKeithley4200Page .dkts-dc-editor{display:grid;gap:9px;min-width:0;container-type:inline-size}
+#dktsKeithley4200Page .dkts-dc-reference{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,3fr)}
+#dktsKeithley4200Page .dkts-dc-input-panel>[data-dkds-unit-panel-body=true]{display:grid;gap:7px;padding:8px}
+#dktsKeithley4200Page .dkts-dc-terminal{
+ display:grid;gap:4px;min-width:0;padding:6px 8px
+}
+#dktsKeithley4200Page .dkts-dc-primary{
+ grid-template-columns:minmax(0,1fr) minmax(0,.81fr) minmax(0,1.16fr) minmax(0,3fr) 76px
+}
+#dktsKeithley4200Page .dkts-dc-terminal-id{display:grid;gap:3px;min-width:0;justify-items:start}
+#dktsKeithley4200Page .dkts-dc-segment-index{grid-column:span 2}
+#dktsKeithley4200Page .dkts-dc-segment-fields{
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,68px),1fr));grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)
+}
+#dktsKeithley4200Page .dkts-dc-secondary{grid-template-columns:repeat(2,minmax(0,1fr));max-width:350px}
+#dktsKeithley4200Page .dkts-dc-secondary .dkts-native-field{
+ display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px
+}
+#dktsKeithley4200Page .dkts-dc-segment-actions{justify-content:flex-end}
+#dktsKeithley4200Page :is(.dkts-dc-segment-actions,.dkts-dc-spec-row,.dkts-dc-footer){
+ display:flex;gap:5px;align-items:center;min-width:0
+}
+#dktsKeithley4200Page .dkts-dc-footer{flex-wrap:wrap;justify-content:flex-end;padding-block:2px}
+#dktsKeithley4200Page .dkts-dc-footer>.dkds-meta{margin-inline-end:auto}
+#dktsKeithley4200Page .dkts-dc-spec-row{justify-content:space-between}
+#dktsKeithley4200Page .dkts-dc-bottom{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+#dktsKeithley4200Page .dkts-dc-bottom>*{min-width:0}
+#dktsKeithley4200Page :is(.dkts-dc-bottom,.dkts-dc-target,.dkts-dc-strategy) [data-dkds-unit-panel-body=true]{
+ padding:8px 10px
+}
+#dktsKeithley4200Page :is(.dkts-dc-limits,.dkts-dc-plot,.dkts-dc-quote,.dkts-dc-specs) [data-dkds-unit-panel-body=true]{
+ display:grid;align-content:start;gap:5px
+}
+#dktsKeithley4200Page .dkts-dc-limit-row{grid-template-columns:40px minmax(0,1fr) minmax(0,1fr);align-items:center}
+#dktsKeithley4200Page .dkts-dc-strategy-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+#dktsKeithley4200Page :is(.dkts-dc-info,.dkts-dc-editor) .dkts-native-field{min-width:0}
+@container (max-width:760px){
+ #dktsKeithley4200Page .dkts-dc-primary{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #dktsKeithley4200Page .dkts-dc-segment-fields{grid-column:1/-1}
+ #dktsKeithley4200Page .dkts-dc-segment-actions:not(:empty){grid-column:3;justify-content:flex-end}
+ #dktsKeithley4200Page .dkts-dc-segment-actions:empty{display:none}
+}
+@container (max-width:570px){
+ #dktsKeithley4200Page .dkts-dc-bottom{grid-template-columns:minmax(0,1fr)}
+ #dktsKeithley4200Page .dkts-dc-reference{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #dktsKeithley4200Page .dkts-dc-reference>:last-child{grid-column:1/-1}
+}
+@container (max-width:400px){
+ #dktsKeithley4200Page .dkts-dc-strategy-fields{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:620px){
+ #dktsKeithley4200Page .dkts-dc-info{grid-template-columns:repeat(2,minmax(0,1fr));padding:5px 8px}
+ #dktsKeithley4200Page .dkts-dc-info>:last-child{grid-column:1/-1}
+}
+
+
+@media (max-width:900px){
+ #dktsKeithley4200Page [data-dkts-dc-ports] [data-dkts-port-desktop]{display:none!important}
+ #dktsKeithley4200Page [data-dkts-dc-ports] [data-dkts-port-mobile]:not([hidden]){display:inline-flex!important}
+}
+#dktsKeithley4200Page .dkts-dc-port-popover{z-index:22}

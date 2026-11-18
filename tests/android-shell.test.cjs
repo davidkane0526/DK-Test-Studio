@@ -270,7 +270,7 @@ test('Android updater accepts current GitHub Release tags and never hot-swaps na
   assert(updater.includes('RELEASE_TAG.matcher(row.optString("tag_name"))'));
   assert(updater.includes('tag.group(1).equals(releaseVersion)'));
   assert(bridge.includes('inspectNativeAppUpdate()')&&bridge.includes('native-app-update-btn'));
-  assert(gradle.includes('versionCode 36')&&gradle.includes("versionName '"+require('../package.json').version+"'"));
+  assert(gradle.includes('versionCode 37')&&gradle.includes("versionName '"+require('../package.json').version+"'"));
 });
 
 

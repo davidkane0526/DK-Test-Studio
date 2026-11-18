@@ -2,6 +2,7 @@
  'use strict';
  const KINDS=Object.freeze([
   {id:'iv',label:'I–V 扫描',testType:'DC'},
+  {id:'dc',label:'DC 测试',testType:'DC'},
   {id:'transfer',label:'转移特性',testType:'DC'},
   {id:'output',label:'输出特性',testType:'DC'},
   {id:'pund',label:'PUND',testType:'Pulse'},
@@ -233,6 +234,192 @@
    target:{name:'Id',logical:'D',quantity:'Current',range:'auto'},
    targets:[{id:'target-1',name:'Id',logical:'D',quantity:'Current',range:'auto'}],variables:[]};
  };
+
+ const DC_METHODS=Object.freeze({
+  constant:'Constant',step:'Linear Step',points:'Linear Points',log:'Log Points',list:'List',generator:'Generator'
+ });
+ const dcResource=t=>t?.resource==='GNDU'||/^SMU[1-9]$/.test(t?.resource||'');
+ const validDcBody=value=>value==='None'||dcResource({resource:value});
+ function dcTerminals(p,settings=p.dc){
+  return ['D','G','S','B'].map(key=>{
+   const terminal=p.terminals.find(t=>t.logical===key);
+   return key==='B'&&settings?{...terminal,resource:settings.bodyResource}:terminal;
+  }).filter(dcResource);
+ }
+ function defaultDc(p){
+  const visible=dcTerminals(p),smus=visible.filter(t=>t.resource!=='GNDU');
+  const ground=visible.find(t=>t.resource==='GNDU')?.logical||'GND';
+  const axis=smus.find(t=>t.logical==='G')?.logical||smus[0]?.logical||'G';
+  const output=smus.find(t=>t.logical==='D')?.logical||axis;
+  const lastPort=p.terminals.find(t=>t.logical==='B').resource;
+  const bodyResource=validDcBody(lastPort)?lastPort:'None';
+  return {group:'',polarity:'NMOS',bodyResource,reference:ground,referenceV:'0',outputs:'I'+output.toLowerCase(),
+   terminals:Object.fromEntries(['D','G','S','B'].map(key=>[key,{
+    mode:'voltage',role:key===axis?'X':'CONDITION',ref:key===ground?'GND':ground,
+    limitI:'0.01',limitV:'1',segments:[{method:key===axis?'step':'constant',
+     value:key==='D'?'0.05':'0',start:'0',stop:'1',step:'0.1',points:'11',list:'0, 0.1, 0.2',formula:'getx()'}]
+   }])),target:{formula:'',x:'',y:'',h:'',p:''},
+   strategy:{mode:'global',integration:'',delay:''},specIds:p.associateSpecId?[p.associateSpecId]:[]};
+ }
+ function dcOutputs(p,settings=p.dc){
+  return dcTerminals(p,settings).filter(t=>t.resource!=='GNDU').flatMap(t=>
+   ['I','V'].map(prefix=>prefix+t.logical.toLowerCase()));
+ }
+ function dcMethods(role){
+  return role==='CONDITION'?['constant','generator']:['step','points','log','list'];
+ }
+ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
+  const input=String(raw??'').trim();
+  if(!input||input.length>256)throw Error('Enter an expression of 1–256 characters');
+  const tokenPattern=/\s*([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?\d+)?|\.[0-9]+(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*|[()+*/-])/y;
+  const tokens=[];
+  for(let position=0;position<input.length;position=tokenPattern.lastIndex){
+   tokenPattern.lastIndex=position;
+   const match=tokenPattern.exec(input);
+   if(!match)throw Error('Invalid expression: '+input);
+   tokens.push(match[1]);
+  }
+  let index=0;
+  function atom(){
+   const token=tokens[index++];
+   if(token==='-'||token==='+')return (token==='-'?-1:1)*atom();
+   if(token==='('){
+    const value=sum();
+    if(tokens[index++]!==')')throw Error('Unclosed expression: '+input);
+    return value;
+   }
+   if(/^(?:[0-9]|\.)/.test(token||''))return numeric(token,'DC expression');
+   if(tokens[index]==='('&&tokens[index+1]===')'){
+    index+=2;
+    if(token==='scale')return polarity==='PMOS'?-1:1;
+    if(generator&&(token==='getx'||(token==='getp'&&outer)))return NaN;
+    throw Error('Unsupported function: '+token+'()');
+   }
+   if(Object.hasOwn(variables,token))return variables[token];
+   throw Error('Unknown value or function: '+(token||input));
+  }
+  function product(){
+   let result=atom();
+   while(['*','/'].includes(tokens[index])){
+    const op=tokens[index++],value=atom();
+    if(op==='/'&&value===0)throw Error('Division by zero: '+input);
+    result=op==='*'?result*value:result/value;
+   }
+   return result;
+  }
+  function sum(){
+   let result=product();
+   while(['+','-'].includes(tokens[index])){
+    const op=tokens[index++],value=product();
+    result=op==='+'?result+value:result-value;
+   }
+   return result;
+  }
+  const result=sum();
+  if(index!==tokens.length||(!Number.isFinite(result)&&!(generator&&Number.isNaN(result))))
+   throw Error('Invalid expression: '+input);
+  return result;
+ }
+ function validateDcShape(dc){
+  const text=(value,max=256)=>typeof value==='string'&&value.length<=max;
+  if(!dc||!validDcBody(dc.bodyResource)||!text(dc.group,64)||!['NMOS','PMOS','Other'].includes(dc.polarity)||
+     !['GND','D','G','S','B'].includes(dc.reference)||!text(dc.referenceV)||!text(dc.outputs,128)||
+     !Array.isArray(dc.specIds)||dc.specIds.length>100||new Set(dc.specIds).size!==dc.specIds.length||
+     !dc.target||!['formula','x','y','h','p'].every(key=>text(dc.target[key],key==='formula'?4096:256))||
+     !dc.strategy||!['global','local'].includes(dc.strategy.mode)||
+     !text(dc.strategy.integration)||!text(dc.strategy.delay))
+   throw Error('Invalid DC test parameters');
+  for(const key of ['D','G','S','B']){
+   const row=dc.terminals?.[key];
+   if(!row||!['voltage','current'].includes(row.mode)||!['CONDITION','X','P'].includes(row.role)||
+      !['GND','D','G','S','B'].includes(row.ref)||!text(row.limitI)||!text(row.limitV)||
+      !Array.isArray(row.segments)||!row.segments.length||row.segments.length>16||
+      !row.segments.every(seg=>seg&&Object.hasOwn(DC_METHODS,seg.method)&&
+       ['value','start','stop','step','points','list','formula'].every(field=>text(seg[field],field==='list'?2048:256))))
+    throw Error('Invalid DC terminal: '+key);
+  }
+ }
+ function dcSummary(p,dc=p.dc){
+  validateDcShape(dc);
+  const terminals=dcTerminals(p,dc),byKey=new Map(terminals.map(t=>[t.logical,t]));
+  if(new Set(terminals.map(t=>t.resource)).size!==terminals.length)
+   throw Error('Assign a different resource to the DC body terminal');
+  const smus=terminals.filter(t=>t.resource!=='GNDU');
+  const assigned=role=>smus.filter(t=>dc.terminals[t.logical].role===role);
+  if(assigned('X').length!==1||assigned('P').length>1)
+   throw Error('Select exactly one Xsweep and at most one Psweep on mapped SMUs');
+  const outer=assigned('P').length===1;
+  const reference=dc.reference,referenceRow=dc.terminals[reference];
+  const grounded=reference==='GND'||byKey.get(reference)?.resource==='GNDU';
+  if(!grounded&&(!byKey.has(reference)||referenceRow.mode!=='voltage'||
+     referenceRow.role!=='CONDITION'||referenceRow.ref!=='GND'))
+   throw Error('Ref Node must be GND or a mapped voltage Condition with Ref set to GND');
+  const variables=Object.fromEntries(p.variables.map(row=>[row.name,Number(row.value)]));
+  const value=(raw,options)=>dcExpression(raw,variables,dc.polarity,options);
+  const referenceV=grounded?0:value(dc.referenceV);
+  if(Math.abs(referenceV)>210)throw Error('Ref Node exceeds the SMU voltage envelope');
+  const outputs=dc.outputs.trim().split(/[\s,]+/);
+  if(outputs.some(out=>!dcOutputs(p,dc).includes(out))||new Set(outputs).size!==outputs.length)
+   throw Error('Outputs must be distinct measured signals on mapped SMUs');
+  for(const {logical} of smus){
+   const row=dc.terminals[logical],current=row.mode==='current';
+   let ref=row.ref;
+   const visited=new Set([logical]);
+   while(ref!=='GND'){
+    if(visited.has(ref)||!byKey.has(ref)||
+       (byKey.get(ref).resource!=='GNDU'&&dc.terminals[ref].mode!=='voltage'))
+     throw Error(logical+' Ref must lead to GND through mapped voltage terminals without a cycle');
+    visited.add(ref);
+    ref=byKey.get(ref).resource==='GNDU'?'GND':dc.terminals[ref].ref;
+   }
+   if(current&&row.ref!=='GND')throw Error(logical+' Current mode uses Ref GND');
+   const compliance=Number(current?row.limitV:row.limitI);
+   for(const [limit,max] of [[row.limitI,1.05],[row.limitV,210]]){
+    if(limit.trim()&&(numeric(limit,logical+' limit')<=0||Number(limit)>max))
+     throw Error(logical+' limit exceeds the SMU planning envelope');
+   }
+   if(!compliance)throw Error(logical+' requires a positive '+(current?'voltage':'current')+' limit');
+   if(row.role==='CONDITION'&&row.segments.length!==1)
+    throw Error(logical+' Condition requires one segment');
+   for(const seg of row.segments){
+    if(!dcMethods(row.role).includes(seg.method))throw Error(logical+' has an invalid method for its role');
+    let values;
+    if(logical===reference)values=[referenceV];
+    else if(seg.method==='constant')values=[value(seg.value)];
+    else if(seg.method==='generator'){
+     const generated=value(seg.formula,{generator:true,outer});
+     if(Number.isNaN(generated))continue;
+     values=[generated];
+    }
+    else if(seg.method==='list')values=seg.list.split(/[,\n]/).map(item=>value(item));
+    else{
+     const start=value(seg.start),stop=value(seg.stop);
+     values=[start,stop];
+     if(seg.method==='step'){
+      const step=value(seg.step);
+      if(start===stop||Math.sign(stop-start)!==Math.sign(step)||Math.abs((stop-start)/step)>4095)
+       throw Error(logical+' requires a step toward Stop and no more than 4096 planned points');
+     }else{
+      const points=positiveInt(value(seg.points),4096,logical+' Points');
+      if(points<2||start===stop||(seg.method==='log'&&(start===0||Math.sign(start)!==Math.sign(stop))))
+       throw Error(logical+' requires distinct endpoints and at least two points; log endpoints must share a nonzero sign');
+     }
+    }
+    const peak=Math.max(...values.map(Math.abs));
+    if(peak>(current?1.05:210)||(peak>(current?0.105:21)&&compliance>(current?21:0.105)))
+     throw Error(logical+' source or compliance exceeds the SMU planning envelope');
+   }
+  }
+  if(dc.strategy.mode==='local'){
+   for(const key of ['integration','delay']){
+    const raw=dc.strategy[key].trim();
+    if(raw&&(numeric(raw,key)<0||(key==='integration'&&Number(raw)===0)))
+     throw Error('Enter a positive integration time and a nonnegative delay, or leave them blank for Default');
+   }
+  }
+  return {x:assigned('X')[0].logical,p:assigned('P')[0]?.logical||null,outputs};
+ }
+
  const initial=()=>({schema:1,sequence:1,activeId:'page-1',
   activeDeviceId:'device-1',devices:[{id:'device-1',name:'MOSFET'}],
   activeRoutineId:'routine-1',
@@ -379,6 +566,12 @@
      throw Error('HARDWARE_RANGE_ENVELOPE: measurement range exceeds theoretical limit');
    }
    validateSweep(p);
+   if(p.kind==='dc'){
+    if(p.dc===undefined)p.dc=defaultDc(p);
+    validateDcShape(p.dc);
+    if(p.dc.specIds.some(id=>specOwners.get(id)!==routineOwners.get(p.routineId)))
+     throw Error('DC Spec must belong to the same Device');
+   }
    if(TIMED_DEFAULTS[p.kind]){
     p.timing={...TIMED_DEFAULTS[p.kind],...p.timing};
     timedSummary(p.kind,p.timing);
@@ -476,6 +669,15 @@
    throw Error('Spec belongs to another Device or is unknown');
   const active=s.pages.find(p=>p.id===s.activeId);
   active.associateSpecId=specId;
+  if(active.kind==='dc'&&specId&&!active.dc.specIds.includes(specId))active.dc.specIds.push(specId);
+  return validate(s);
+ }
+ function removeDcSpec(s,specId){
+  s=validate(s);
+  const page=s.pages.find(p=>p.id===s.activeId);
+  if(page.kind!=='dc')throw Error('Select a DC test');
+  page.dc.specIds=page.dc.specIds.filter(id=>id!==specId);
+  if(page.associateSpecId===specId)page.associateSpecId=page.dc.specIds[0]||null;
   return validate(s);
  }
  function remove(s,id){
@@ -499,12 +701,33 @@
   const page=s.pages.find(p=>p.id===s.activeId),patch={...changes};
   if(patch.kind!==undefined){
    const kind=KINDS.find(row=>row.id===patch.kind);if(!kind)throw Error('Unknown test type');
-   if(page.kind!==kind.id)delete page.timing;
+   if(page.kind!==kind.id){
+    delete page.timing;
+    delete page.dc;
+   }
    page.kind=kind.id;page.testType=kind.testType;
    if(patch.name===undefined)page.name=kind.label;
    delete patch.kind;
   }
   Object.assign(page,patch);
+  return validate(s);
+ }
+ function editDc(s,settings){
+  s=validate(s);
+  const page=s.pages.find(p=>p.id===s.activeId);
+  if(page.kind!=='dc')throw Error('Select a DC test');
+  const dc=clone({...settings,bodyResource:page.dc.bodyResource,specIds:page.dc.specIds});
+  dcSummary(page,dc);
+  page.dc=dc;
+  return validate(s);
+ }
+ function editDcBody(s,resource){
+  s=validate(s);
+  const page=s.pages.find(p=>p.id===s.activeId);
+  if(page.kind!=='dc'||!validDcBody(resource))throw Error('Select an SMU, GNDU or None for the DC body terminal');
+  if(resource!=='None'&&page.terminals.some(t=>t.logical!=='B'&&t.resource===resource))
+   throw Error('Resource already assigned: '+resource);
+  page.dc.bodyResource=resource;
   return validate(s);
  }
  function editTiming(s,changes){
@@ -768,6 +991,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcSummary,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

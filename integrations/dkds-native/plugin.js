@@ -1,6 +1,6 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.21","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.22","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),measurementData=ctx.modules.require('measurementData'),
    measurementRuntimeModule=ctx.modules.require('measurementRuntime'),units=ctx.ui.unitTemplates,
@@ -25,6 +25,7 @@
   let specNavigation=null;
   const historyChoices=new Map();
   const timingDrafts=new Map();
+  const dcDrafts=new Map();
   const hardware=ctx.modules.require('dkts-capabilities');
   const defineConnectionSettings=()=>ctx.ui.settings.define('instrument-connection',{
    title:t('4200A 连接设置'),
@@ -75,7 +76,7 @@
    }
   });
   const PAGE_TABS=[['sweep','Sweep'],['target','Target'],['strategy','Strategy']];
-  const pagePlots={iv:['iv','it'],transfer:['transfer','iv'],output:['iv','transfer'],
+  const pagePlots={dc:['iv','transfer'],iv:['iv','it'],transfer:['transfer','iv'],output:['iv','transfer'],
    pulse:['iv','it','vt'],retention:['it','vt'],time:['it','vt'],pund:['it','vt'],
    arb:['vt','it'],endurance:['it','iv'],cv:[]};
   const plotLabel=kind=>({iv:'I–V',transfer:t('转移特性'),it:'I–t',vt:'V–t',raw:t('数据表')})[kind];
@@ -289,7 +290,7 @@
     else ctx.status.set(tr('另一项测试正在运行。','Another test is running.'));
     return;
    }
-   if(page.timing){
+   if(page.kind==='dc'||page.timing){
     await ctx.ui.dialogs.alert({title:tr('已支持参数规划','Planning available'),message:tr(
      '此测试的 4200A 执行路径尚待核验。可先在设置中保存并校验参数。',
      'The 4200A execution path requires verification. Edit, validate and save parameters in Settings.')});
@@ -680,6 +681,229 @@
     catch(error){draft.error=String(error.message||error);timingDrafts.set(p.id,draft);render();}
    }});
   }
+
+  const dcLayout=(host,className)=>units.layout.create(host,{variant:'identity',className});
+  const dcPanel=(host,title,className,actions)=>units.panel.create(host,{
+   variant:'headed',title,sizing:'content',className,actions
+  }).body;
+  function dcInput(host,label,value,change,{key,terminal,disabled=false,kind='input',readOnly=false,help}={}){
+   return fsproField(host,{kind,label,value,disabled,readOnly,
+    attributes:{...(key?{'data-dkts-dc-field':key}:{}),...(terminal?{'aria-label':terminal+(label?' '+label:'')}:{}),
+     ...(help?{'data-dkds-tooltip':help}:{})},
+    onBlur:event=>change?.(event.target.value)});
+  }
+  function dcSelect(host,label,value,options,change,{key,terminal,disabled=false}={}){
+   const values=options.map(option=>typeof option==='string'?{value:option,label:option}:option);
+   if(!values.some(option=>option.value===value))
+    values.push({value,label:value+' · '+tr('待调整','Review')});
+   return fsproField(host,{kind:'select',label,value,options:values,disabled,
+    attributes:{...(key?{'data-dkts-dc-field':key}:{}),...(terminal?{'aria-label':terminal+(label?' '+label:'')}:{})},
+    onChange:event=>change(event.target.value)});
+  }
+  function dcDraft(p){
+   if(!dcDrafts.has(p.id))dcDrafts.set(p.id,{settings:JSON.parse(JSON.stringify(p.dc)),name:p.name,error:''});
+   return dcDrafts.get(p.id);
+  }
+  function renderDcInfo(host,p,s){
+   const draft=dcDraft(p),dc=draft.settings;
+   const row=dcLayout(host,'dkts-dc-info');
+   row?.setAttribute?.('data-dkts-dc-info','true');
+   const device=s.devices.find(item=>item.id===s.activeDeviceId);
+   dcInput(row,tr('器件','Device'),device?.name||'',null,{readOnly:true});
+   dcSelect(row,tr('极性','Polarity'),dc.polarity,['NMOS','PMOS','Other'],value=>{dc.polarity=value;},
+    {key:'polarity'});
+   dcInput(row,tr('组别','Group'),dc.group,value=>{dc.group=value;},{key:'group'});
+   dcInput(row,tr('测试类型','Test type'),'DC',null,{readOnly:true});
+   dcInput(row,tr('名称','Name'),draft.name,value=>{draft.name=value;},{key:'name'});
+  }
+  function renderDcSweep(host,p,s,dc,redraw){
+   const terminals=model.dcTerminals(p),smus=terminals.filter(term=>term.resource!=='GNDU');
+   const refChoices=terms=>['GND',...terms.map(term=>term.logical)];
+   const isGround=key=>key==='GND'||terminals.find(term=>term.logical===key)?.resource==='GNDU';
+   const reference=dcLayout(host,'dkts-dc-reference');
+   const referenceChoices=terminals.filter(term=>term.resource==='GNDU'||
+    (dc.terminals[term.logical].mode==='voltage'&&dc.terminals[term.logical].role==='CONDITION'));
+   dcSelect(reference,'Ref Node',dc.reference,refChoices(referenceChoices),value=>{
+    dc.reference=value;
+    if(value!=='GND')dc.terminals[value].ref='GND';
+    if(isGround(value))dc.referenceV='0';
+    redraw();
+   },{key:'reference'});
+   dcInput(reference,'Ref (V)',isGround(dc.reference)?'0':dc.referenceV,
+    value=>{dc.referenceV=value;},{key:'referenceV',readOnly:isGround(dc.reference)});
+   const outputs=model.dcOutputs(p);
+   dcInput(reference,'Outputs',dc.outputs,value=>{dc.outputs=value;},{key:'outputs',
+    help:tr('以逗号或空格分隔：','Separate signals with commas or spaces: ')+outputs.join(', ')});
+   const panel=dcPanel(host,tr('输入设置','Input settings'),'dkts-dc-input-panel');
+   const affected=p.terminals.filter(term=>term.logical!=='B'&&term.resource!=='None'&&!terminals.includes(term));
+   if(affected.length)units.note.create(panel,{variant:'warning',text:
+    affected.map(term=>term.logical+' · '+term.resource).join(' / ')+
+    tr('：DC 偏置需使用 SMU 或 GNDU。',': DC bias requires SMU or GNDU.')});
+   if(!terminals.length)units.emptyState.create(panel,{message:tr('请先分配 DC 端子。','Assign DC terminals first.')});
+   for(const term of terminals){
+    const key=term.logical,row=dc.terminals[key],ground=term.resource==='GNDU',root=dc.reference===key;
+    const mode=ground?'common':root?'voltage':row.mode;
+    const role=root||ground?'CONDITION':row.role;
+    const band=dcLayout(panel,'dkts-dc-terminal');
+    band?.setAttribute?.('data-dkts-dc-terminal',key);
+    const segmentList=root||ground?[{method:'constant',value:ground?'0':dc.referenceV}]:row.segments;
+    const unit=mode==='current'?'A':'V';
+    const methods=model.dcMethods(role).map(value=>({value,label:model.DC_METHODS[value]}));
+    for(const [index,segment] of segmentList.entries()){
+     const line=dcLayout(band,'dkts-dc-primary');
+     line?.setAttribute?.('data-dkts-dc-primary',String(index+1));
+     if(index===0){
+      const identity=dcLayout(line,'dkts-dc-terminal-id');
+      units.note.create(identity,{variant:'meta',className:'dkts-terminal-badge',text:key+' · '+t(logicalNames[key])})
+       ?.setAttribute?.('data-dkts-terminal-tone',key);
+      units.note.create(identity,{variant:'meta',text:term.resource});
+      dcSelect(line,tr('模式','Mode'),mode,ground?[{value:'common',label:'Common'}]:
+       [{value:'voltage',label:'Voltage'},{value:'current',label:'Current'}],value=>{
+        row.mode=value;
+        if(value==='current')row.ref='GND';
+        redraw();
+       },{key:'mode',terminal:key,disabled:ground||root});
+     }else units.note.create(line,{variant:'meta',className:'dkts-dc-segment-index',
+      text:tr('分段 ','Segment ')+(index+1)});
+     dcSelect(line,tr('方法','Method'),segment.method,methods,value=>{segment.method=value;redraw();},
+      {key:'method',terminal:key,disabled:ground||root});
+     const fields=dcLayout(line,'dkts-dc-segment-fields');
+     const field=(name,label)=>dcInput(fields,label,segment[name],value=>{
+      if(root&&name==='value')dc.referenceV=value;
+      else segment[name]=value;
+     },{key:name,terminal:key,readOnly:ground,help:name==='formula'?
+      tr('支持页面变量、scale()、getx() 及有 Psweep 时的 getp()。',
+       'Supports Page Var, scale(), getx(), and getp() when a Psweep exists.'):undefined});
+     if(segment.method==='constant')field('value',tr('设定值','Value')+' ('+unit+')');
+     else if(segment.method==='list')field('list','List ('+unit+')');
+     else if(segment.method==='generator')field('formula',tr('表达式','Expression'));
+     else{
+      field('start','Start ('+unit+')');
+      field('stop','Stop ('+unit+')');
+      if(segment.method==='step')field('step','Step ('+unit+')');
+      else field('points','Points');
+     }
+     const actions=dcLayout(line,'dkts-dc-segment-actions');
+     if(role!=='CONDITION'){
+      units.action.create(actions,{id:'dc-remove-'+key+'-'+index,label:'−',
+       title:tr('删除扫描段','Remove sweep segment'),variant:'quiet',enabled:row.segments.length>1,
+       onInvoke:()=>{row.segments.splice(index,1);redraw();}});
+      if(index===segmentList.length-1)
+       units.action.create(actions,{id:'dc-add-'+key,label:'＋',title:tr('新增扫描段','Add sweep segment'),
+        variant:'quiet',enabled:row.segments.length<16,onInvoke:()=>{
+         row.segments.push({...segment});redraw();
+        }});
+     }
+    }
+    const secondary=dcLayout(band,'dkts-dc-secondary');
+    const availableRefs=mode==='current'||root||ground?[]:terminals.filter(other=>
+     other.logical!==key&&(other.resource==='GNDU'||dc.terminals[other.logical].mode==='voltage'));
+    dcSelect(secondary,'Ref',ground||root?'GND':row.ref,refChoices(availableRefs),value=>{row.ref=value;},
+     {key:'ref',terminal:key,disabled:ground||root||mode==='current'});
+    const roles=[{value:'CONDITION',label:'Condition'},{value:'X',label:'Xsweep'},{value:'P',label:'Psweep'}];
+    dcSelect(secondary,tr('角色','Role'),role,roles.filter(option=>option.value===role||
+     (option.value==='CONDITION'?row.segments.length===1:
+      !smus.some(other=>other.logical!==key&&dc.terminals[other.logical].role===option.value))),
+     value=>{
+      row.role=value;
+      for(const segment of row.segments)
+       if(!model.dcMethods(value).includes(segment.method))segment.method=value==='CONDITION'?'constant':'step';
+      redraw();
+     },{key:'role',terminal:key,disabled:ground||root});
+   }
+   const bottom=dcLayout(host,'dkts-dc-bottom');
+   const limits=dcPanel(bottom,t('Limits'),'dkts-dc-limits');
+   const head=dcLayout(limits,'dkts-dc-limit-row');
+   for(const name of ['Node','I (A)','V (V)'])units.note.create(head,{variant:'meta',text:name});
+   for(const {logical,resource} of terminals){
+    const line=dcLayout(limits,'dkts-dc-limit-row'),row=dc.terminals[logical],ground=resource==='GNDU';
+    units.note.create(line,{variant:'meta',text:logical});
+    dcInput(line,false,ground?'':row.limitI,value=>{row.limitI=value;},
+     {key:'limitI',terminal:logical+' I (A)',readOnly:ground});
+    dcInput(line,false,ground?'':row.limitV,value=>{row.limitV=value;},
+     {key:'limitV',terminal:logical+' V (V)',readOnly:ground});
+   }
+   renderVariablesPanel(bottom,p);
+   renderDcSpecs(bottom,p,s.specs.filter(spec=>spec.deviceId===s.activeDeviceId));
+  }
+  function renderDcSpecs(host,p,available){
+   const panel=dcPanel(host,t('Associate Spec'),'dkts-dc-specs',[{
+    id:'dc-add-spec',label:'＋',title:t('新建并关联规格'),variant:'quiet',
+    onInvoke:()=>commitTransaction(()=>model.addSpec(state()))
+   }]);
+   const associated=p.dc.specIds;
+   const unselected=available.filter(spec=>!associated.includes(spec.id));
+   if(unselected.length)dcSelect(panel,tr('添加已有规格','Add existing spec'),'',[
+    {value:'',label:tr('选择规格','Select spec')},...unselected.map(spec=>({value:spec.id,label:spec.name}))
+   ],value=>{if(value)commitTransaction(()=>model.associateSpec(state(),value));},{key:'associateSpec'});
+   if(!associated.length)units.emptyState.create(panel,{message:tr('尚未关联规格。','No associated specs.')});
+   for(const id of associated){
+    const row=dcLayout(panel,'dkts-dc-spec-row');
+    units.note.create(row,{variant:'meta',text:available.find(spec=>spec.id===id)?.name||id});
+    units.action.create(row,{id:'dc-remove-'+id,label:'−',title:tr('解除关联','Remove association'),
+     variant:'quiet',onInvoke:()=>commitTransaction(()=>model.removeDcSpec(state(),id))});
+   }
+  }
+  function renderDcTarget(host,p,dc){
+   const formula=dcPanel(host,tr('公式','Formula'),'dkts-dc-target');
+   dcInput(formula,tr('目标公式','Target formula'),dc.target.formula,value=>{dc.target.formula=value;},
+    {key:'formula',kind:'textarea'});
+   const bottom=dcLayout(host,'dkts-dc-bottom');
+   const plot=dcPanel(bottom,tr('绘图','Plot'),'dkts-dc-plot');
+   for(const key of ['x','y','h','p'])
+    dcInput(plot,key.toUpperCase(),dc.target[key],value=>{dc.target[key]=value;},{key:'plot-'+key});
+   renderVariablesPanel(bottom,p);
+   const quoted=dcPanel(bottom,'Quote Var','dkts-dc-quote');
+   for(const signal of dc.outputs.trim().split(/[\s,]+/).filter(Boolean))
+    units.note.create(quoted,{variant:'meta',text:signal+' · '+tr('输出','Output')});
+   for(const {logical} of model.dcTerminals(p)){
+    const {role}=dc.terminals[logical];
+    units.note.create(quoted,{variant:'meta',text:logical+' · '+({X:'Xsweep',P:'Psweep',CONDITION:'Condition'}[role])});
+   }
+  }
+  function renderDcStrategy(host,dc,redraw){
+   const panel=dcPanel(host,tr('测试策略','Measurement strategy'),'dkts-dc-strategy');
+   const row=dcLayout(panel,'dkts-dc-strategy-fields'),settings=dc.strategy;
+   dcSelect(row,tr('设置','Setting'),settings.mode,[{value:'global',label:'Global Setting'},
+    {value:'local',label:'Local Setting'}],value=>{settings.mode=value;redraw();},{key:'strategy'});
+   if(settings.mode==='local'){
+    dcInput(row,tr('积分时间 (s)','Integration time (s)'),settings.integration,
+     value=>{settings.integration=value;},{key:'integration',help:'Default: blank'});
+    dcInput(row,tr('延迟时间 (s)','Delay time (s)'),settings.delay,
+     value=>{settings.delay=value;},{key:'delay',help:'Default: blank'});
+   }
+  }
+  function renderDc(host,p,s){
+   const draft=dcDraft(p),dc=draft.settings;
+   const surface=dcLayout(host,'dkts-dc-editor');
+   surface?.setAttribute?.('data-dkts-dc-editor',editorSection);
+   function redraw(){
+    const offset=parameters.scrollTop;
+    render();
+    parameters.scrollTop=offset;
+   }
+   if(editorSection==='sweep')renderDcSweep(surface,p,s,dc,redraw);
+   else if(editorSection==='target')renderDcTarget(surface,p,dc);
+   else renderDcStrategy(surface,dc,redraw);
+   const footer=dcLayout(surface,'dkts-dc-footer');
+   if(draft.error)units.note.create(footer,{variant:'warning',text:draft.error})?.setAttribute?.('role','alert');
+   else units.note.create(footer,{variant:'meta',text:tr('DC 参数规划','DC parameter planning')});
+   units.action.create(footer,{id:'dkts-reset-dc',label:tr('重置','Reset'),variant:'quiet',
+    onInvoke:()=>{dcDrafts.delete(p.id);redraw();}});
+   units.action.create(footer,{id:'dkts-save-dc',label:tr('应用参数','Apply parameters'),variant:'primary',
+    direct:true,onInvoke:()=>{
+     try{
+      const next=model.editDc(model.editPage(state(),{name:draft.name}),dc);
+      dcDrafts.delete(p.id);
+      persist(next);
+      ctx.status.set(tr('DC 参数已保存','DC parameters saved'));
+     }catch(error){
+      draft.error=String(error.message||error);
+      redraw();
+     }
+    }});
+  }
+
   function renderSweep(host,p,s){
    if(!['iv','transfer','output'].includes(p.kind)){
     units.note.create(host,{variant:'warning',
@@ -769,7 +993,7 @@
     onBlur:event=>{if(event.target.value!==p.name)commitTransaction(
      ()=>model.editPage(state(),{name:event.target.value}));}});
    fsproField(grid,{kind:'select',label:t('Test Type'),value:p.kind,
-    options:model.KINDS.map(kind=>({value:kind.id,label:t(kind.label)})),
+    options:model.KINDS.filter(kind=>kind.id!=='dc').map(kind=>({value:kind.id,label:t(kind.label)})),
     onChange:event=>commitTransaction(()=>model.editPage(state(),{kind:event.target.value,name:p.name}))});
    scalarField(grid,t('循环次数'),p.sweep.loops,value=>changeSweep('loops',value));
    const device=s.devices.find(row=>row.id===s.activeDeviceId);
@@ -1068,7 +1292,7 @@
    if(!specs.length)return;
    units.header.create(specNavigation,{kind:'section',variant:'section',title:t('关联规格'),meta:String(specs.length)});
    const list=units.list.create(specNavigation,{variant:'compact'});
-   for(const spec of specs)list.item({leading:'◇',title:spec.name,selected:spec.id===p.associateSpecId,
+   for(const spec of specs)list.item({leading:'◇',title:spec.name,selected:p.kind==='dc'?p.dc.specIds.includes(spec.id):spec.id===p.associateSpecId,
     onInvoke:()=>{projectSurface?.close();editorOpen=true;plotScope='page';editorSection='sweep';persist(model.associateSpec(state(),spec.id));}});
   }
   function render(keepNavigation=false){
@@ -1205,48 +1429,64 @@
   function renderSharedPorts(p){
    const inventory=measurementRuntime.status().connection.inventory;
    const modules=inventory?.slots||[];
+   const logicals=p.kind==='dc'?['S','D','G','B']:['S','D','G'];
    const hardware=inventory?modules.flatMap(slot=>{
     if(!Number.isInteger(slot.channel)||!['SMU','PMU'].includes(slot.family))return [];
     return [slot.family+slot.channel];
    }):['SMU1','SMU2','SMU3','SMU4'];
    const resources=[...new Set(['None','GNDU',...hardware])];
-   const portOptions=value=>[
-    ...resources.map(resource=>({value:resource,label:resource==='None'?t(resource):resource.replace(/^SMU(\d)$/,'SMU $1')})),
+   const portOptions=(value,logical)=>[
+    ...resources.filter(resource=>logical!=='B'||!resource.startsWith('PMU')).map(resource=>({value:resource,label:resource==='None'?t(resource):resource.replace(/^SMU(\d)$/,'SMU $1')})),
     ...(resources.includes(value)?[]:[{value,label:value+' · '+(inventory?
      tr('未检测到','Not detected'):tr('未核验','Unverified'))}])
    ];
    terminalRegion=units.layout.create(projectToolbar,{variant:'identity',className:'dkts-terminal-strip'});
    terminalRegion?.setAttribute?.('data-dkts-terminal-strip','true');
    terminalRegion?.setAttribute?.('aria-label',tr('工程共享端口映射','Project-wide port mapping'));
+   if(p.kind==='dc'){
+    terminalRegion?.setAttribute?.('data-dkts-dc-ports','true');
+    terminalRegion?.setAttribute?.('aria-label',tr('工程共享端口及 DC 体端映射','Shared ports and DC body mapping'));
+   }
    const terminalGroup=units.layout.create(terminalRegion,{variant:'row',className:'dkts-terminal-control-group'});
    const terminalToolbar=units.layout.create(terminalGroup,{variant:'row',className:'dkts-terminal-toolbar'});
    terminalToolbar?.setAttribute?.('data-dkts-port-desktop','true');
-   for(const logical of ['S','D','G']){
-    const term=p.terminals.find(item=>item.logical===logical);
+   for(const logical of logicals){
+    const resource=logical==='B'?p.dc.bodyResource:p.terminals.find(item=>item.logical===logical).resource;
     const terminal=units.layout.create(terminalToolbar,{variant:'identity',className:'dkts-terminal-item'});
     renderTerminalBadge(terminal,logical);
     fsproField(terminal,{kind:'select',label:t(logicalNames[logical])+' · '+logical,
-     controlOnly:true,controlClassName:'dkts-terminal-field',value:term?.resource||'None',
+     controlOnly:true,controlClassName:'dkts-terminal-field',value:resource,
      attributes:{'aria-label':t(logicalNames[logical])+' ('+logical+') '+t('端口'),title:t(logicalNames[logical])+' ('+logical+')'},
-     options:portOptions(term.resource),onChange:event=>change(logical,'resource',event.target.value)});
+     options:portOptions(resource,logical),onChange:event=>{
+      if(logical==='B')commitTransaction(()=>model.editDcBody(state(),event.target.value));
+      else change(logical,'resource',event.target.value);
+     }});
    }
    let mobilePortAction=null;
    function openPortPopover(anchor){
     portPopover?.close?.();let draft=state();
-    const pop=units.popover.create(null,{variant:'picker',title:t('Terminal 端口映射'),
-     role:'dialog',ariaLabel:t('Source、Drain、Gate 端口映射'),anchor,placement:'bottom-start',
+    const dcPorts=p.kind==='dc';
+    const pop=units.popover.create(dcPorts?workspace:null,{variant:'picker',title:t('Terminal 端口映射'),
+     className:dcPorts?'dkts-dc-port-popover':undefined,
+     role:'dialog',ariaLabel:p.kind==='dc'?tr('S、D、G、B 端口映射','S, D, G and B port mapping'):
+      t('Source、Drain、Gate 端口映射'),anchor,placement:'bottom-start',
      dismissOnOutside:true,offset:4,onClose:()=>{if(portPopover===pop)portPopover=null;}});
     portPopover=pop;
     const form=units.layout.create(pop.body,{variant:'form-grid-2',className:'dkts-mobile-port-grid'});
     const draftPage=draft.pages.find(item=>item.id===draft.activeId);
-    for(const logical of ['S','D','G']){
-     const term=draftPage.terminals.find(item=>item.logical===logical);
+    for(const logical of logicals){
+     const resource=logical==='B'?draftPage.dc.bodyResource:draftPage.terminals.find(item=>item.logical===logical).resource;
      const pair=units.layout.create(form,{variant:'stack-compact',className:'dkts-bias-entry'});
      renderTerminalBadge(pair,logical);
      fsproField(pair,{kind:'select',label:false,
-      value:term.resource,options:portOptions(term.resource),attributes:{'aria-label':t(logicalNames[logical])+' ('+logical+') '+t('端口')},
-      onChange:event=>{try{draft=model.edit(draft,logical,{resource:event.target.value});}
-       catch(error){event.target.value=term.resource;ctx.status.set('端口映射无效：'+String(error.message||error));}}});
+      value:resource,options:portOptions(resource,logical),attributes:{'aria-label':t(logicalNames[logical])+' ('+logical+') '+t('端口')},
+      onChange:event=>{try{
+       draft=logical==='B'?model.editDcBody(draft,event.target.value):model.edit(draft,logical,{resource:event.target.value});
+      }catch(error){
+       const latest=draft.pages.find(item=>item.id===draft.activeId);
+       event.target.value=logical==='B'?latest.dc.bodyResource:latest.terminals.find(t=>t.logical===logical).resource;
+       ctx.status.set('端口映射无效：'+String(error.message||error));
+      }}});
     }
     const actions=units.layout.create(pop.body,{variant:'row-wrap'});
     units.action.create(actions,{id:'apply-port-map',label:t('应用'),variant:'primary',onInvoke:()=>{
@@ -1258,7 +1498,8 @@
     return pop;
    }
    mobilePortAction=units.action.create(terminalGroup,{id:'mobile-port-map',label:t('端口'),
-    title:t('配置 Source、Drain、Gate 端口'),variant:'secondary',
+    title:p.kind==='dc'?tr('配置 S、D、G、B 端口','Configure S, D, G and B ports'):
+     t('配置 Source、Drain、Gate 端口'),variant:'secondary',
     onInvoke:()=>openPortPopover(mobilePortAction?.element)});
    mobilePortAction?.element?.setAttribute?.('data-dkts-port-mobile','true');
   }
@@ -1274,6 +1515,10 @@
 
    if(editorSection!=='info'&&!PAGE_TABS.some(([id])=>id===editorSection))editorSection='sweep';
    editorTabs.replaceChildren();
+   if(p.kind==='dc'){
+    if(editorSection==='info')editorSection='sweep';
+    renderDcInfo(editorTabs,p,s);
+   }
    function selectTab(id){
     if(!PAGE_TABS.some(row=>row[0]===id)||id===editorSection)return;
     const scroll=parameters.scrollTop;
@@ -1292,7 +1537,8 @@
     units.note.create(parameters,{variant:'warning',text:tr(
      '此测试已改用工程共享端口。运行前请核对原映射与当前接线。','This test now uses the shared mapping. Check the original mapping against the wiring before running.')+
      ' '+Object.entries(p.previousPortMapping).map(([key,value])=>key+' '+value).join(' · ')});
-   if(editorSection==='info')renderPageInfo(parameters,p,s);
+   if(p.kind==='dc')renderDc(parameters,p,s);
+   else if(editorSection==='info')renderPageInfo(parameters,p,s);
    else if(p.timing)renderTiming(parameters,p);
    else if(editorSection==='sweep')renderSweep(parameters,p,s);
    else if(editorSection==='target')renderTargetPanel(parameters,p);

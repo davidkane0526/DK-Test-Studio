@@ -1,12 +1,13 @@
 # DK Test Studio 开发交接
 
-在另一台电脑的 Codex 中可以直接说：「按 `docs/HANDOFF.md` 在现有 InstaBox 继续 DKTS 开发。」云端最新源码批次为 `V0.3.34 a214`，基于 GitHub `main` 的 `06a40a6`。正式发行编号取同一 SHA 的 `DKTS canonical release sequence`。
+在另一台电脑的 Codex 中可以直接说：「按 `docs/HANDOFF.md` 在现有 InstaBox 继续 DKTS 开发。」云端最新源码批次为 `V0.3.35 a215`，基于 GitHub `main` 的 `99015c7`。正式发行编号取同一 SHA 的 `DKTS canonical release sequence`。
 
 ## 继续使用现有环境
 
 1. 登录同一 InstaBox 账号，复用现有 Free 实例 `box-fe583e`。开始前用 `instabox usage --json` 确认费用和超额均为 0，使用 `instabox get box-fe583e --json` 核对实例。
-2. 实例已有 Git 工作区 `/data/home/DKTS/a214/work/DK-Test-Studio`。先运行 `git status -sb` 和 `git log -1 --oneline`。有未提交改动时先检查并接续，工作区干净时运行 `git fetch origin main` 和 `git merge --ff-only origin/main`。目录迁移后，可在同一实例从 `https://github.com/davidkane0526/DK-Test-Studio.git` 克隆唯一的 `main`。`a214` 的源码 ZIP、预览 ZIP 和校验清单在同一实例的 `/data/home/DKTS/a214/artifacts/`。
-3. 使用 Node.js 22。运行 `npm install --omit=dev --ignore-scripts --no-package-lock` 安装预览所需依赖，然后运行 `npm test`、`node tests/test-dkds-native-plugin.cjs` 和 `node tests/test-dkds-native-host.cjs`。`node tools/build-dkds-native-plugin.cjs` 构建当前独立插件 0.8.21。
+2. 未推送的 a215 工作区为 `/data/home/DKTS/a215/work/DK-Test-Studio`，源码 ZIP 和同源预览在 `/data/home/DKTS/a215/artifacts/`。从已校验的 a215 源码 ZIP 接续。GitHub `main` 的同步基线为 V0.3.34。
+
+3. 使用 Node.js 22。运行 `npm install --omit=dev --ignore-scripts --no-package-lock` 安装预览所需依赖，然后运行 `npm test`、`node tests/test-dkds-native-plugin.cjs` 和 `node tests/test-dkds-native-host.cjs`。`node tools/build-dkds-native-plugin.cjs` 构建当前独立插件 0.8.22。
 4. 同源预览使用只读 DKDS SHA `20f056851a61d2144e9524c3ed568628d4b8557c`。实例缓存是 `/data/home/DKTS/a207/upstream/DK-Data-Studio`，也可从 GitHub 的同 SHA 复原。把该目录和输出目录传给 `node tools/build-same-source-preview.cjs`。本地使用输出目录内的启动脚本。公开预览使用同一实例的 4174 端口，限制 60 分钟与 256 MiB。
 5. 最终发布由 `.github/workflows/dkts-framework-contract.yml` 执行。获得最终构建授权后，正式 `main` 提交附 `[DKTS-FINAL-BUILD]`。用 `gh run list --commit <SHA>` 对照源码归档、正式序号、Windows 原生预览／编译、Android 编译及固定签名。只有同 SHA 的发布任务成功后才交付 `dkts-v<版本>-a<序号>` 的统一 Release。核对 `PROVENANCE.txt` 的源提交，再下载资产并运行 `sha256sum -c SHA256SUMS.txt`。
 

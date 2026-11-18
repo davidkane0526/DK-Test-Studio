@@ -41,8 +41,7 @@ test('Xsweep and Psweep preserve the FS-Pro scan table columns and header contro
 });
 
 test('Terminal, Terminal Settings and Fixed Bias are separate FS-Pro regions',()=>{
- assert.match(plugin,/for\(const logical of \['S','D','G'\]\)/);
- assert.doesNotMatch(plugin,/for\(const logical of \['S','D','G','B'\]\)/);
+ assert.match(plugin,/const logicals=p.kind==='dc'\?\['S','D','G','B'\]:\['S','D','G'\]/);
  assert.match(plugin,/GNDU/);
  assert.match(plugin,/title:t\('Terminal Settings'\)/);
  assert.match(plugin,/Range Mode/);

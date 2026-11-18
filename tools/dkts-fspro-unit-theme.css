@@ -217,3 +217,9 @@
  min-height:29px;padding-inline:8px
 }
 .context-commandbar .dkts-topbar-action:disabled{opacity:.65}
+
+#dktsKeithley4200Page .dkts-dc-terminal{
+ border:1px solid var(--dkts-divider);
+ border-radius:var(--dkds-radius-sm,4px);
+ background:var(--dkts-surface)
+}

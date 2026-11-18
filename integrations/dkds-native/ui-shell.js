@@ -540,6 +540,10 @@
   "已分配端子无需固定偏置。",
   "No assigned terminal needs fixed bias."
  ],
+ "DC 测试": [
+  "DC 测试",
+  "DC Test"
+ ],
  "I–V 扫描": [
   "I–V 扫描",
   "I–V Sweep"

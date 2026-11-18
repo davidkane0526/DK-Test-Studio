@@ -722,3 +722,11 @@
 - 保持特性增加偏置阶段、读出时间轴、线性／对数取点与 SMU 电流保护。脉冲扫描增加基线／幅值扫描、平顶、周期、边沿、测量窗口与 PMU 采样预算。两种方案由 `model.js` 统一校验和保存，保留原有生产执行门禁。
 - [4200A 能力与时序界面](TIMING_AND_4200A_UI.md) 记录了已实现界面、实装模块约束、待增交互及时间表、Measure Event、硬件同步和采样回传的接续顺序。LabExpress 参考库内 V6 转录。原厂截图、KXCI Rev F 和 PMU Rev D 正文差异及真实 4200A 行为仍待核验。
 - Node 224/224 通过，独立插件、宿主契约、DKDS SDK 校验与运行时通过。InstaBox Chromium 在 1651×871、1280×800、744×600 和 390×844 验证两种参数页、保存后重入、非法读出窗提示、图标切换和无横向溢出，宽屏同时验证器件双击重命名和端口分隔。包和统一 Release 以本轮同 SHA 的 Actions 为准。
+
+## 2026-11-18 · V0.3.35 a215 · 独立 DC 测试参数页
+
+- 需求 R-20261118-004。使用现有 Free InstaBox，源码基线 V0.3.34 a214 与 GitHub main 99015c7e7efe4827cc31a25aa6aec68f747226af 一致。DKDS 3.72.3 继续固定只读 20f056851a61d2144e9524c3ed568628d4b8557c。
+- 核对 LabExpress 2022.01 印刷第 14–16、34–36 页，Keithley 4200A-SMU-900-01A 第 5 节、KXCI 4200A-KXCI-907-01E 第 5 节。新类型使用 DKDS Unit，并按 D、G、S、已分配 B 排列；第一行是源模式、信号产生法及参数，第二行用 Ref 和扫描角色。Ref Node、参考值及 Outputs 同组。扫描页底部依次是限值、变量、关联规格；Target 有公式、Plot、Page Var、Quote Var；Strategy 可选全局、局部积分和延迟设置。DC 的 B 端映射仅保存在该测试内。原 I–V 数据模型、编辑器和执行路径通过回归检查。
+- 扫描支持 Constant、Linear Step、Linear Points、Log Points、List、Generator；按角色提供选项。偏置表达式支持四则运算、页面变量、scale()，Generator 另识别 getx()/getp()。DC 保存时检查参考关系、角色、源输出规划范围及测量输出。Target 公式和 Plot 绑定保存为配置。真实目标公式求值、仪器执行、KXCI Rev F 正文对照和实机验收待接入或验证。
+- Node 224/224、独立插件模型及 Core 宿主契约通过；DKDS SDK 1.19 validate、test-runtime、64 个 test-layout 用例通过。Chromium 同源 Core 1651×930、1280×800、744×600、390×844 检查分行、Ref、方法切换、跨标签保存、重开和原 I–V 编辑器，桌面和窄屏均检查 B 映射，窄屏经端口弹层设置。首轮 SDK 检查发现插件 CSS 持有边框与背景，已移到 DKTS Core 主题后通过。验收截图与源码和预览 ZIP 同批交付。
+- 发布身份 V0.3.35 a215（开发暂存），原生插件 0.8.22。GitHub 未推送，未编译 EXE/APK。提供完整源码 ZIP、同源预览 ZIP、DKDS 插件和 SHA-256 清单。
