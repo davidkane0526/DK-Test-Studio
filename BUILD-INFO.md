@@ -111,3 +111,8 @@
 - UI stage: seven independent tabs and FS-Pro sweep columns implemented; DKTS-derived Unit extension is active for Tabs/Field/Layout. `npm test` 224/224; official DKDS SDK validator/runtime pass; layout harness 64/64.
 - Web FS-Pro and Core still use different host renderers; shared renderer/DOM/CSS extraction is not complete. Real Chromium screenshots could not be captured in this cloud container because Chromium hangs even on `about:blank`; therefore this is not a final visual sign-off or OEM FS-Pro pixel match.
 - This is a source/UI preview only; not a published Release or native app. No EXE/APK build, GitHub push, new branch, or DKDS upstream modification.
+
+## 2026-11-23 · V0.3.39 统一 Core 发布
+
+- 发布基线：GitHub main `cb247cc35e00b8a634bee5a8edcbdd7bb2da534f`，原生插件 0.8.26。正式构建序号由本次发布提交对应的 UI workflow 分配。
+- 发布内容：Windows Portable、固定证书签名的 Android APK、完整源码归档、独立 DKDS 插件及能力数据库。以发布资产中的 `PROVENANCE.txt` 和 `SHA256SUMS.txt` 核对源提交及校验和。
