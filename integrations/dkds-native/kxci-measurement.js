@@ -131,6 +131,12 @@
     return Object.freeze({currentA,status,channel,
       rawResponse:text,requestedSmU:requested});
   }
+  function parseStatusByte(raw){
+    const text=String(raw??'').trim();
+    if(!/^\d{1,3}$/.test(text)||Number(text)>255)throw Error('KXCI SP 状态字节无法解析：'+text);
+    const value=Number(text);
+    return {value,ready:Boolean(value&1),syntaxError:Boolean(value&2),busy:Boolean(value&16)};
+  }
   function createRunner(options={}){
     const {controller,execution}=options;
     const wait=typeof options.wait==='function'?options.wait:null;
@@ -156,8 +162,14 @@
       // DVn with no arguments disables that SMU output (KXCI Rev E, ex. 2).
       let ok=true;
       const failed=[];
+      // Drain a prior syntax flag before checking the off commands themselves.
+      try{await command('SP',true);}catch{}
       for(const role of [...j.compiled.active].reverse()){
-        try{await command('DV'+j.compiled.channels[role]);}
+        try{
+          await command('DV'+j.compiled.channels[role]);
+          const flags=parseStatusByte(await command('SP',true));
+          if(flags.syntaxError||flags.busy)throw Error('关闭命令状态异常 SP='+flags.value);
+        }
         catch(e){ok=false;failed.push(role+': '+String(e.message||e));}
       }
       j.shutdown=ok?'commands-sent':'unconfirmed';
@@ -169,6 +181,7 @@
       const plan=j.compiled.plan;
       const lastCommands=Object.create(null);
       let previousP=null,timeOrigin=null;
+      let outputAttempted=false;
       const timing=j.compiled.timeProgram;
       const started=Date.now();
       const waitFor=async delay=>{
@@ -179,13 +192,21 @@
         j.wake=null;
       };
       const verifyError=async()=>{
-        const last=await command(':ERROR:LAST:GET',true);
-        const match=last.match(/\((-?\d+)\)/);
-        if(match?Number(match[1])!==0:!/^\s*no\s+errors?\b/i.test(last))throw Error('4200A KXCI 仪器错误或无法识别响应：'+last.slice(0,140));
+        const flags=parseStatusByte(await command('SP',true));
+        if(flags.syntaxError){
+          let detail='';
+          try{detail=await command(':ERROR:LAST:GET',true);}catch(error){detail=String(error.message||error);}
+          throw Error('KXCI 命令错误（SP='+flags.value+'）：'+(detail||'请查看仪器 KXCI Console'));
+        }
+        if(flags.busy)throw Error('仪器仍处于 Busy 状态，拒绝叠加新的测量');
       };
       try{
+        const initialStatus=parseStatusByte(await command('SP',true));
+        if(initialStatus.busy)throw Error('仪器已有测量正在运行；未启动本次输出');
         await command(':ERROR:LAST:CLEAR');
+        await command('EM 1,0');
         await command('US');
+        await command('BC');
         if(timing?.integration)await command(timing.integration);
         await verifyError();
         for(const point of points(plan)){
@@ -204,6 +225,7 @@
               setting.complianceA:(selected??setting.complianceA);
             const code='DV'+ch+',0,'+numeric(voltage)+','+numeric(compliance);
             if(lastCommands[role]!==code){
+              outputAttempted=true;
               await command(code);
               lastCommands[role]=code;
               changed=true;
@@ -292,16 +314,18 @@
         // KXCI exposes its last error non-destructively. A failed query is
         // handled as a communication failure, not as an acceptable null read.
         if(!j.cancelled){
+          await verifyError();
           const last=await command(':ERROR:LAST:GET',true);
           const match=last.match(/\((-?\d+)\)/);
-          if(!match&& !/^\s*no\s+errors?\b/i.test(last))
-            throw Error('KXCI 错误查询响应异常：'+last.slice(0,140));
           if(match&&Number(match[1])!==0)
             throw Error('4200A KXCI 仪器错误：'+last.slice(0,140));
+          if(!match&&last&&!/^\s*(?:no\s+errors?\b|ACK$)/i.test(last))
+            throw Error('KXCI 错误查询响应无法确认：'+last.slice(0,140));
         }
       }catch(error){j.state='failed';j.error=String(error.message||error);}
       finally{
-        const safe=await shutdown(j);
+        const safe=outputAttempted?await shutdown(j):true;
+        if(!outputAttempted)j.shutdown='not-started';
         if(j.state!=='failed')j.state=safe?(j.cancelled?'stopped':'completed'):'failed';
         j.finishedAt=new Date().toISOString();
         lease.end();
@@ -350,7 +374,7 @@
     }
     return Object.freeze({start,stop,status:publicState,waitForCompletion,dispose});
   }
-  const api=Object.freeze({compileSweep,points,parseTi,createRunner});
+  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
     window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci-measurement',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

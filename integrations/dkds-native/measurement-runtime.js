@@ -210,7 +210,6 @@ function pageToBasicProgram(page, model){
    const connection=controller.status(),run=runner.status(0);
    return Object.freeze({connection,run,execution:execution.status(),
     protocolVerified:hardwareCapabilities.DATABASE?.safetyPolicies?.kxci?.latestOfficialContentVerified===true&&hardwareCapabilities.DATABASE?.safetyPolicies?.kxci?.allowInstrumentOutput===true,
-    commandTrace:controller.measurementTrace(),
     protocolRevision:String(hardwareCapabilities.DATABASE?.safetyPolicies?.kxci?.latestOfficialRevision||''),
     executionAdapterAvailable,
     transportAvailable:ctx.capabilities.get?.('network.tcp')!==null&&
@@ -272,7 +271,7 @@ function pageToBasicProgram(page, model){
       });
      }catch(error){publishError=String(error?.message||error);}
     }
-    notify('measurement-finished',{rows:rows.length,published,publishError});
+    notify('measurement-finished',{rows:rows.length,published,publishError,commandTrace:controller.measurementTrace()});
     return Object.freeze({run:current,rows:rows.length,published,publishError});
    }catch(error){
     const failure=String(error?.message||error);

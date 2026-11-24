@@ -9,6 +9,7 @@ const {verify}=require('./dkds-host-profile.cjs');
 const {verifyUpdaterParity}=require('./verify-dkds-updater-parity.cjs');
 const {buildIdentity}=require('./core-build-identity.cjs');
 const {patchInteractiveTcp}=require('./dkds-tcp-interactive.cjs');
+const {patchDesktopKxci,patchAndroidKxci}=require('./dkts-kxci-framing.cjs');
 function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpdater=verifyUpdaterParity,patchUpdaters=true}={}){
  const upstream=path.resolve(source),output=path.resolve(target);
  if(output===upstream||output.startsWith(upstream+path.sep)||
@@ -92,6 +93,11 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
   connectivity.requiresCore.push('events');
   connectivity.capabilities.push('network.tcp.interactive');
   fs.writeFileSync(file,JSON.stringify(connectivity,null,2)+'\n','utf8');
+ }
+ // The protocol framing patch is confined to the DKTS staged host.
+ for(const [relative,patch] of [['desktop/main-modules/tcp-runtime.js',patchDesktopKxci],['mobile/plugins/DkdsLanTcp.template',patchAndroidKxci]]){
+  const target=path.join(tmp,relative);
+  if(fs.existsSync(target))fs.writeFileSync(target,patch(fs.readFileSync(target,'utf8')),'utf8');
  }
  // DKDS's actual Electron boot code is the entrypoint, not a DKTS imitation.
  const replaceExact=(file,search,replace)=>{

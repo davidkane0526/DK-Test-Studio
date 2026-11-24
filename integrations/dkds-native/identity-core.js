@@ -22,6 +22,11 @@
     if(/身份不匹配/.test(s))return '设备不是预期的 Keithley 4200A';
     return s.split('\n')[0].slice(0,110);
   }
+  function decodeKxciFrame(base64){
+    const frame=atob(base64||'');
+    if(!frame.endsWith('\0')||frame.slice(0,-1).includes('\0'))throw Error('KXCI 响应不是单个完整 NUL 帧');
+    return frame.slice(0,-1).trim();
+  }
   function createIdentityController(tcp,protocol){
     if(!tcp||typeof tcp.open!=='function'||typeof tcp.exchange!=='function'||typeof tcp.close!=='function')throw Error('必须提供宿主 TCP open/exchange/close 适配器');
     if(!protocol||typeof protocol.parseIdentity!=='function'||protocol.IDN_REQUEST!=='*IDN?\0')throw Error('缺少已验证的 KXCI 身份协议');
@@ -40,9 +45,9 @@
         let opened=null,receivedIdentity=false;
         try{
           opened=await tcp.open({host:next.host,port:next.port,networkMode:next.networkMode,interfaceName:next.interfaceName,localAddress:next.localAddress,connectTimeoutMs:next.timeoutMs,preferLinkLocalEthernet:next.networkMode==='auto'&&next.host.startsWith('169.254.')},reuseSessionId);
-          const reply=await tcp.exchange({sessionId:opened.sessionId,base64:btoa(protocol.IDN_REQUEST),readTimeoutMs:next.timeoutMs,idleTimeoutMs:120,maxBytes:8192});
+          const reply=await tcp.exchange({sessionId:opened.sessionId,base64:btoa(protocol.IDN_REQUEST),responseTerminator:'nul',readTimeoutMs:next.timeoutMs,idleTimeoutMs:120,maxBytes:8192});
           receivedIdentity=true;
-          const found=protocol.parseIdentity(atob(reply.base64),next.expectedSerial);
+          const found=protocol.parseIdentity(decodeKxciFrame(reply.base64),next.expectedSerial);
           connection=opened;identity=found;phase='connected';diagnostic='';return status();
         }catch(e){
           if(opened){
@@ -68,10 +73,10 @@
           // KXCI Ethernet always replies. Commands which have no textual result
           // return ACK\0; draining it here prevents stale ACK bytes from being
           // mistaken for the next GN result or TI measurement.
-          const response=await tcp.exchange({sessionId:targetId,base64:btoa(command),
+          const response=await tcp.exchange({sessionId:targetId,base64:btoa(command),responseTerminator:'nul',
             readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:expectData?120:30,maxBytes,noReply:false});
           if(connection?.sessionId!==targetId)throw Error('连接已切换，模块查询已作废');
-          const raw=atob(response?.base64||'').replace(/\0+$/g,'').trim();
+          const raw=decodeKxciFrame(response?.base64);
           if(!expectData&&raw.toUpperCase()!=='ACK')
             throw Error('KXCI 写入命令未收到 ACK：'+command+' / '+(raw||'空响应'));
           return raw;
@@ -106,9 +111,9 @@
       const id=connection.sessionId;
       const request=(async()=>{
         try{
-          const answer=await tcp.exchange({sessionId:id,base64:btoa(protocol.IDN_REQUEST),
+          const answer=await tcp.exchange({sessionId:id,base64:btoa(protocol.IDN_REQUEST),responseTerminator:'nul',
             readTimeoutMs:settings.timeoutMs,idleTimeoutMs:120,maxBytes:8192});
-          protocol.parseIdentity(atob(answer.base64),identity.serial);
+          protocol.parseIdentity(decodeKxciFrame(answer.base64),identity.serial);
         }catch(error){
           await closeCurrent();
           phase='error';diagnostic='连接已失效：'+String(error?.message||error);
@@ -138,25 +143,24 @@
         throw Error('KXCI RI 参数越界');
       if(rg&&!(Number(rg[2])>0&&Number(rg[2])<=1))
         throw Error('KXCI RG 参数越界');
-      if(!['US','DE',':ERROR:LAST:CLEAR',':ERROR:LAST:GET'].includes(cmd)&&
+      if(!['US','DE','EM 1,0','BC','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET'].includes(cmd)&&
          !/^DV[1-9]$/.test(cmd)&&!/^TI[1-9]$/.test(cmd)&&!/^IT[123]$/.test(cmd)&&!dv&&!ri&&!rg)
         throw Error('禁止非测量白名单 KXCI 指令');
-      if(expectReply&&!(/^TI[1-9]$/.test(cmd)||cmd===':ERROR:LAST:GET'))
+      if(expectReply&&!(/^TI[1-9]$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
         throw Error('此 KXCI 指令没有测量响应');
-      if(!expectReply&&(/^TI[1-9]$/.test(cmd)||cmd===':ERROR:LAST:GET'))
+      if(!expectReply&&(/^TI[1-9]$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
         throw Error('数据查询不能丢弃响应');
       const id=connection.sessionId;
       // Ethernet KXCI returns one NUL-terminated response for every command.
       // Always consume it; otherwise ACK from DV/US/RI/RG can poison the next TI.
       const item={command:cmd,sentAt:new Date().toISOString(),response:'',error:'',durationMs:0},started=Date.now();
       try{
-       const answer=await tcp.exchange({sessionId:id,base64:btoa(cmd+'\0'),
+       const answer=await tcp.exchange({sessionId:id,base64:btoa(cmd+'\0'),responseTerminator:'nul',
          noReply:false,readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:expectReply?120:30,maxBytes:8192});
        const frame=atob(answer.base64||'');item.response=frame;
        if(connection?.sessionId!==id)throw Error('测量期间仪器连接发生变化');
-       if(!frame.endsWith('\0')||frame.slice(0,-1).includes('\0'))throw Error('响应缺少 NUL 或包含多个帧');
-       const raw=frame.slice(0,-1).trim();
-       if(expectReply){if(!raw||raw.toUpperCase()==='ACK')throw Error('查询未返回数据');return raw;}
+       const raw=decodeKxciFrame(answer.base64);
+       if(expectReply){if((!raw||raw.toUpperCase()==='ACK')&&cmd!==':ERROR:LAST:GET')throw Error('查询未返回数据');return raw;}
        if(raw.toUpperCase()!=='ACK')throw Error('未收到 ACK：'+raw);
        return '';
       }catch(error){item.error=String(error?.message||error);throw Error(cmd+'：'+item.error);}

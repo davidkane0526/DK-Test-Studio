@@ -58,7 +58,7 @@ function makeInstrumentContext(modules,options={}){
     if(command==='*OPT?\0')return reply('SMU1,SMU2\0');
     if(options.failDvAck&&/^DV[1-8]/.test(command))return reply('');
     if(command==='UL\0'||command==='DE\0'||command==='US\0'||
-       command===':ERROR:LAST:CLEAR\0'||/^DV[1-8](?:,0,[^,]+,[^,]+)?\0$/.test(command)||
+       command===':ERROR:LAST:CLEAR\0'||command==='EM 1,0\0'||command==='BC\0'||/^IT[123]\0$/.test(command)||/^DV[1-8](?:,0,[^,]+,[^,]+)?\0$/.test(command)||
        /^RI [1-8],[^,]+,[^,]+\0$/.test(command)||/^RG [1-8],[^,]+\0$/.test(command))
       return reply('ACK\0');
     if(command==='EX SystemUtil instrumentinfo(,4096,)\0'){lastQuery='instrument';return reply('OK\0');}
@@ -66,6 +66,7 @@ function makeInstrumentContext(modules,options={}){
     if(command==='GN result\0')return reply(lastQuery==='instrument'?instrumentInfo+'\0':remoteInfo+'\0');
     if(command==='TI1\0')return reply('NAI+1.0000E-09\0');
     if(command==='TI2\0')return reply('NBI+0.0000E+00\0');
+    if(command==='SP\0')return reply('0\0');
     if(command===':ERROR:LAST:GET\0')return reply('No error (0)\0');
     if(payload.noReply===true)throw Error('KXCI Ethernet command must drain its ACK');
     throw Error('Unexpected mock KXCI command: '+JSON.stringify(command));
@@ -223,7 +224,7 @@ test('native stop cancels the DKDS-owned point timer before shutting down SMUs',
   assert.equal(fake.timerState.cancelled,1,'stop cancels the outstanding lifecycle timer');
   assert.equal(fake.timerState.fired,0,'a cancelled settling timer must not fire after stop');
   assert.equal(fake.commands.some(row=>row.command==='TI1\0'),false,'stop during settling does not trigger a measurement');
-  assert.equal(fake.commands.at(-1).command,'DV1\0','all active SMUs are commanded off before the run ends');
+  assert.equal(fake.commands.filter(row=>/^DV[1-9]\0$/.test(row.command)).at(-1).command,'DV1\0','all active SMUs are commanded off before the run ends');
  }finally{await runtime.dispose();}
 });
 
