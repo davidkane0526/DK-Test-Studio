@@ -143,7 +143,7 @@ function compileSystemPlan(compiled,input,inventory){
   const delay=[...delays][0]/1000;
   assert(delay>=0&&delay<=6.553,'DT 范围 0–6.553 s');
   setup.push('DT '+fmt(delay),'HT '+fmt(input.systemHoldS||0));
-  const seg=x.segments[0],linear=x.segments.length===1&&seg.points>=2&&seg.points<=1024&&
+  const seg=x.segments[0],linear=x.segments.length===1&&seg.points>=2&&seg.points<=1024&&Math.abs(levels(x,seg)[2])<=(current(x.terminal)?1.05:210)&&
     (current(x.terminal)||levels(x,seg).every(v=>v===0||Math.abs(v)>=0.001));
   if(linear)setup.push((current(x.terminal)?'IR1,':'VR1,')+[...levels(x,seg),compliance(x.terminal)].map(fmt).join(','));
   else{
@@ -167,7 +167,9 @@ function compileSystemPlan(compiled,input,inventory){
   const floor=setting.rangeMode==='limited-auto'?Number(setting.rangeA):slot?.preamplifier?1e-9:1e-7;
   setup.push('RG '+channels[r]+','+fmt(floor));
  }
- setup.push('EC 1',timing?.integration||'IT2','SM','DM2');
+ const integration=timing?.integration||input.systemIntegration||'IT2';
+ assert(['IT1','IT2','IT3'].includes(integration),'测量速度无效');
+ setup.push('EC 1',integration,'RS 7','SM','DM2');
  if(timing)setup.push('WT '+fmt(timing.startS),'IN '+fmt(timing.intervalS),'NR '+count);
  const signals=active.flatMap(r=>[{name:'V'+channels[r],role:r,quantity:'V'},{name:'I'+channels[r],role:r,quantity:'I'}]);
  assert(signals.length<=6,'LI 最多 6 项测量函数');
@@ -363,7 +365,7 @@ async function executeSystemTask(program,io){
       capabilityVerified:limitRoles,requiresInterlock,
       canExecute:physicalVerified&&limitRoles&&!requiresInterlock,
       commandMode:system?'KXCI-SYSTEM-ME1':'KXCI-US-DV-TI',measurementChannel:channels.drain,
-      totalPoints:plan.totalPoints,timeProgram:input.timeProgram||null});
+      totalPoints:plan.totalPoints,integration:input.systemIntegration||'IT2',timeProgram:input.timeProgram||null});
   }
   function parseTi(raw,expectedChannel){
     const text=String(raw??'').replace(/\0/g,'').trim().replace(/,\s*$/,'');
@@ -472,7 +474,9 @@ async function executeSystemTask(program,io){
         await command('US');
         await command('BC');
         // IT2 is the documented medium/default preset. Do not inherit IT1/IT3 from a previous run.
-        await command(timing?.integration||'IT2');
+        const integration=timing?.integration||j.compiled.integration||'IT2';
+        if(!['IT1','IT2','IT3'].includes(integration))throw Error('测量速度无效');
+        await command(integration);
         await verifyError();
         for(const point of points(plan)){
           if(j.cancelled)break;

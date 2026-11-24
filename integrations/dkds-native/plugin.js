@@ -315,11 +315,12 @@
    const voltageSegments=[...plan.xSweep.segments,...(plan.pSweep?.segments||[])];
    const maxVoltage=Math.max(0,...voltageSegments.filter(row=>Number.isFinite(row.startV)).flatMap(row=>[Math.abs(row.startV),Math.abs(row.stopV)]),
     ...Object.values(plan.fixedVoltages).map(value=>Math.abs(value)),...Object.values(plan.portSettings).map(row=>row.complianceV||0));
+   const currentPeak=Math.max(0,...voltageSegments.filter(row=>Number.isFinite(row.startA)).flatMap(row=>[Math.abs(row.startA),Math.abs(row.stopA)]),...Object.values(plan.fixedCurrents||{}).map(Math.abs));
    const confirmed=await ctx.ui.dialogs.confirm({
     title:'确认 Keithley 4200A 实际输出',tone:'warning',destructive:true,
     message:'仪器 '+current.connection.identity.serial+' 将执行“'+page.name+'”，预计 '+
      prepared.pointCount.toLocaleString()+' 个测量点。',
-    detail:'活动端口：'+channels+'。最大设定电压或限压：'+maxVoltage+' V。'+(prepared.compiled.system?.rpmRoutes?.length?'本次自动切换：'+prepared.compiled.system.rpmRoutes.map(r=>r.pmu+' → '+r.smu).join('，')+'。请确认接线未变化、所有相连输出均已关闭且无其他测试。':'')+(page.kind==='time'?'读数后等待和采样点数按测试设置执行；实际时长以仪器记录为准。':'')+'请确认实际接线、探针接触、各端口限流及现场安全条件。测量结束、停止或异常时，软件会尝试关闭活动输出。',
+    detail:'活动端口：'+channels+'。最大设定电压或限压：'+maxVoltage+' V。'+(Object.values(plan.sourceModes||{}).includes('current')?'最大设定电流：'+currentPeak.toExponential(3)+' A。':'')+(prepared.compiled.system?.rpmRoutes?.length?'本次自动切换：'+prepared.compiled.system.rpmRoutes.map(r=>r.pmu+' → '+r.smu).join('，')+'。请确认接线未变化、所有相连输出均已关闭且无其他测试。':'')+(page.kind==='time'?'读数后等待和采样点数按测试设置执行；实际时长以仪器记录为准。':'')+'请确认实际接线、探针接触、各端口限流及现场安全条件。测量结束、停止或异常时，软件会尝试关闭活动输出。',
     confirmLabel:'确认接线并开始输出'
    });
    if(!confirmed)return;
@@ -1266,14 +1267,18 @@
    dcSelect(row,tr('设置','Setting'),settings.mode,[{value:'global',label:'Global Setting'},
     {value:'local',label:'Local Setting'}],value=>{settings.mode=value;redraw();},{key:'strategy'});
    if(settings.mode==='local'){
-    dcInput(row,tr('积分时间 (s)','Integration time (s)'),settings.integration,
-     value=>{settings.integration=value;},{key:'integration',path:'integration',help:'Default: blank'});
+    const speeds=[{value:'fast',label:tr('快速','Fast')},{value:'normal',label:tr('标准','Normal')},{value:'quiet',label:tr('低噪声','Quiet')}];
+    if(settings.integrationPreset==='legacy')speeds.push({value:'legacy',label:tr('旧积分设置 · ','Legacy integration · ')+settings.integration+' s'});
+    dcSelect(row,tr('测量速度','Measurement speed'),settings.integrationPreset||'normal',speeds,
+     value=>{settings.integrationPreset=value;if(value!=='legacy')settings.integration='';redraw();},{key:'integration',path:'integration'});
     dcInput(row,tr('延迟时间 (s)','Delay time (s)'),settings.delay,
      value=>{settings.delay=value;},{key:'delay',path:'delay',help:'Default: blank'});
    }
-   if(dc.preset==='point-by-point'){
+   if(dc.preset==='optimized'||dc.preset==='point-by-point'){
     dcInput(row,tr('首点保持 (s)','Hold time (s)'),settings.hold,value=>{settings.hold=value;},
      {key:'hold',path:'hold',help:'Default: blank'});
+   }
+   if(dc.preset==='point-by-point'){
     dcSelect(row,tr('超限处理','On limit'),settings.onLimit,[
      {value:'stop',label:tr('停止本测试','Stop this test')},
      {value:'skip',label:tr('跳过该点','Skip this point')}

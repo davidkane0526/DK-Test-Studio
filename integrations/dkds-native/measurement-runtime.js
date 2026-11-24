@@ -41,7 +41,9 @@ function pageToBasicProgram(page, model){
   const hold=dc.strategy.hold.trim()?n(dc.strategy.hold,'Hold'):0;
   check(hold>=0&&hold<=655.3,'HT 允许 0–655.3 s');
   check(dc.preset==='optimized'||hold===0,'逐点模式 Hold 尚未接入');
-  check(dc.strategy.mode!=='local'||!dc.strategy.integration.trim(),'自定义积分尚未映射 PLC');
+  const speed=dc.strategy.mode==='global'?'normal':dc.strategy.integrationPreset??(dc.strategy.integration.trim()?'legacy':'normal');
+  const integration={fast:'IT1',normal:'IT2',quiet:'IT3'}[speed];
+  check(integration,'旧积分秒数未确认电源频率，请重新选择测量速度');
   const delay=dc.strategy.mode==='local'&&dc.strategy.delay.trim()?n(dc.strategy.delay,'Delay')*1000:0;
   check(dc.reference==='GND'||ports[dc.reference]?.resource==='GNDU','仅支持接地参考');
   const vars=Object.fromEntries(page.variables.map(v=>[v.name,Number(v.value)])),v=x=>model.dcExpression(x,vars,dc.polarity);
@@ -74,7 +76,7 @@ function pageToBasicProgram(page, model){
    axes[row.role]=axis(r,dc.preset==='optimized'&&row.role==='P'?segs.map(s=>({...s,delayMs:0})):segs);
   }
   check(axes.X,'缺少 Xsweep');
-  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,requestedOutputs:info.outputs,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
+  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,systemIntegration:integration,requestedOutputs:info.outputs,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
  }
  if(page.kind==='time'){
   const t=page.timing,summary=model.timedSummary('time',t);

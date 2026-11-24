@@ -385,7 +385,7 @@
     limitI:'0.01',limitV:'1',segments:[{method:key===axis?'step':'constant',
      value:'0',start:'0',stop:'1',step:'0.1',points:'11',list:'0, 0.1, 0.2',formula:'getx()',range:'auto'}]
    }])),target:{formula:'',x:'',y:'',h:'',p:''},
-   strategy:{mode:'global',integration:'',delay:'',hold:'',onLimit:'stop',direction:'forward'},specIds:p.associateSpecId?[p.associateSpecId]:[]};
+   strategy:{mode:'global',integrationPreset:'normal',integration:'',delay:'',hold:'',onLimit:'stop',direction:'forward'},specIds:p.associateSpecId?[p.associateSpecId]:[]};
  }
  function dcOutputs(p,settings=p.dc){
   return dcTerminals(p,settings).filter(t=>t.resource!=='GNDU').flatMap(t=>
@@ -450,6 +450,7 @@
  function migrateDcPreset(dc){
   if(dc.preset===undefined)dc.preset='optimized';
   if(dc.strategy){
+   if(dc.strategy.integrationPreset===undefined)dc.strategy.integrationPreset=dc.strategy.integration?.trim()?'legacy':'normal';
    if(dc.strategy.hold===undefined)dc.strategy.hold='';
    if(dc.strategy.onLimit===undefined)dc.strategy.onLimit='stop';
    if(dc.strategy.direction===undefined)dc.strategy.direction='forward';
@@ -466,7 +467,7 @@
      !Array.isArray(dc.specIds)||dc.specIds.length>100||new Set(dc.specIds).size!==dc.specIds.length||
      !dc.target||!['formula','x','y','h','p'].every(key=>text(dc.target[key],key==='formula'?4096:256))||
      !dc.strategy||!['global','local'].includes(dc.strategy.mode)||
-     !text(dc.strategy.integration)||!text(dc.strategy.delay)||!text(dc.strategy.hold)||
+     !['fast','normal','quiet','legacy'].includes(dc.strategy.integrationPreset??(dc.strategy.integration?.trim()?'legacy':'normal'))||!text(dc.strategy.integration)||!text(dc.strategy.delay)||!text(dc.strategy.hold)||
      !['stop','skip'].includes(dc.strategy.onLimit)||!['forward','forward-reverse'].includes(dc.strategy.direction))
    throw Error('Invalid DC test parameters');
   for(const key of ['D','G','S','B']){
@@ -568,9 +569,9 @@
      logical+' source or compliance exceeds the SMU planning envelope');
    }
   }
-  if(dc.preset==='point-by-point'&&dc.strategy.hold.trim()){
+  if(dc.strategy.hold.trim()){
    const hold=atField('hold',()=>numeric(dc.strategy.hold,'Hold time'));
-   if(hold<0||hold>1000)invalidField('hold','Hold time must be between 0 and 1000 s');
+   if(hold<0||hold>655.3)invalidField('hold','Hold time must be between 0 and 655.3 s');
   }
   if(dc.strategy.mode==='local'){
    for(const key of ['integration','delay']){

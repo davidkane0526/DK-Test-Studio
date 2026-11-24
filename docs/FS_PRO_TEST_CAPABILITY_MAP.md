@@ -17,3 +17,5 @@
 
 
 2026-11-25：Optimized DC 电流源 IC/IR/IP/IL 和单轴指定点数对数扫描已接入源码；固定档及自定义 Target 图轴/公式尚未完成，继续保留 FS-Pro 参数结构。
+
+2026-11-25：DC Local Strategy 支持 Fast/Normal/Quiet，原生 HT 首点保持与全分辨率回收；旧秒数需主动选定速度，固定量程仍待独立核验。

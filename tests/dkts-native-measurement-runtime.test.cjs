@@ -59,7 +59,7 @@ function makeInstrumentContext(modules,options={}){
     if(command==='US\0')measurementStarted=true;
     if(command==='ME1\0'){systemRun=true;measurementStarted=true;return reply('ACK\0');}
     if(command==='ME4\0'){systemRun=false;return reply('ACK\0');}
-    if(/^(?:CH[1-9](?:,.*)?|SS|SM|MD|DM2|VC[1-9],.*|ST .+|EC 1|WT .+|IN .+|NR .+|LI .+|VR1,.+|VL[1-9],.+|DT .+|HT .+|VP .+)\0$/.test(command))return reply('ACK\0');
+    if(/^(?:CH[1-9](?:,.*)?|SS|SM|MD|DM2|RS 7|VC[1-9],.*|ST .+|EC 1|WT .+|IN .+|NR .+|LI .+|VR1,.+|VL[1-9],.+|DT .+|HT .+|VP .+)\0$/.test(command))return reply('ACK\0');
     if(command==="DO 'V1'\0")return reply('N0.1,N0.1\0');
     if(command==="DO 'I1'\0")return reply('N1E-9,N2E-9\0');
     if(command==="DO 'V2'\0"||command==="DO 'I2'\0")return reply('N0,N0\0');
