@@ -33,12 +33,14 @@ function pageToBasicProgram(page, model){
  const axis=(terminal,segments,repeats=1)=>({terminal,segments,repeats,delayMs:0});
  if(page.kind==='dc'){
   const dc=page.dc,info=model.dcSummary(page,dc);
-  check(dc.preset==='point-by-point','请明确选择 Point-by-point；Optimized 尚未接入');
+  check(['optimized','point-by-point'].includes(dc.preset),'未知 DC 执行模式');
   check(dc.bodyResource==='None','B 端尚未接入');
   check(info.outputs.length===1&&info.outputs[0]==='Id','基础 DC 仅支持 Outputs=Id');
   check(!dc.target.formula.trim(),'Target 公式尚未接入');
   check(dc.strategy.direction==='forward'&&dc.strategy.onLimit==='stop','仅支持 Forward 和 Stop on limit');
-  check(!dc.strategy.hold.trim()||n(dc.strategy.hold,'Hold')===0,'Hold 尚未接入');
+  const hold=dc.strategy.hold.trim()?n(dc.strategy.hold,'Hold'):0;
+  check(hold>=0&&hold<=655.3,'HT 允许 0–655.3 s');
+  check(dc.preset==='optimized'||hold===0,'逐点模式 Hold 尚未接入');
   check(dc.strategy.mode!=='local'||!dc.strategy.integration.trim(),'自定义积分尚未映射 PLC');
   const delay=dc.strategy.mode==='local'&&dc.strategy.delay.trim()?n(dc.strategy.delay,'Delay')*1000:0;
   check(dc.reference==='GND'||ports[dc.reference]?.resource==='GNDU','仅支持接地参考');
@@ -59,11 +61,11 @@ function pageToBasicProgram(page, model){
     else if(s.method==='list')for(const x of s.list.split(/[,\n]/).map(v))segs.push(segment(x,x,0,range,delay));
     else throw Error('扫描方式尚未接入：'+s.method);
    }
-   check(segs.length<=256,'编译段超过当前执行器容量 256');
+   check(segs.length<=4096,'单轴最多 4096 个编译段');
    axes[row.role]=axis(r,segs);
   }
   check(axes.X,'缺少 Xsweep');
-  return {kind:'iv',pageKind:'dc',sweepProgram:{terminals,fixedVoltages,portSettings,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
+  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,sweepProgram:{terminals,fixedVoltages,portSettings,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
  }
  if(page.kind==='time'){
   const t=page.timing,summary=model.timedSummary('time',t);
@@ -81,7 +83,7 @@ function pageToBasicProgram(page, model){
    portSettings[r]={rangeMode:p.rangeMode==='minimum'?'limited-auto':p.rangeMode,rangeA:p.rangeValue,complianceMode:p.complianceMode||'follow-range',complianceA:n(p.compliance,k+' 限流')};
   }
   const e=t.events[0],count=n(e.points,'点数'),v=fixedVoltages.drain;
-  return {kind:'iv',pageKind:'time',timeProgram:{durationS:summary.durationS,cycles:summary.cycles,startS:n(e.startS,'起点'),intervalS:n(e.intervalS,'间隔'),windowS:n(e.averageS,'窗口'),count,integration},sweepProgram:{terminals,fixedVoltages,portSettings,loops:summary.cycles,xSweep:axis('drain',[segment(v,v,0)],count),pSweep:disabled}};
+  return {kind:'iv',pageKind:'time',executionMode:'system',timeProgram:{durationS:summary.durationS,cycles:summary.cycles,startS:n(e.startS,'起点'),intervalS:n(e.intervalS,'间隔'),windowS:n(e.averageS,'窗口'),count,integration},sweepProgram:{terminals,fixedVoltages,portSettings,loops:summary.cycles,xSweep:axis('drain',[segment(v,v,0)],count),pSweep:disabled}};
  }
  throw Error('测试类型尚未接入');
 }
@@ -232,8 +234,8 @@ function pageToBasicProgram(page, model){
     const protocolPolicy=hardwareCapabilities.DATABASE?.safetyPolicies?.kxci||{};
     const protocolVerified=protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
     let reason='';
-    if(!protocolVerified)reason='当前执行器依据 Rev E 编写；厂商最新 KXCI Rev F 正文（2026-10-09）尚未完成逐项核对，禁止真实仪器输出';
-    else if(!executionAdapterAvailable)reason='当前 DKDS 宿主未提供受生命周期管理的 DOM 定时服务，无法安全执行带延迟的逐点 DV/TI 测量';
+    if(!protocolVerified)reason='Rev F 已取得；基础 SMU System Mode 待完整集成和受控实机验收，当前版本尚未授权真实输出';
+    else if(!executionAdapterAvailable)reason='当前 DKDS 宿主缺少生命周期管理的查询/停止调度器';
     else if(!compiled.physicalVerified)reason='实际模块型号、序列号或附件身份尚未完整核验';
     else if(!compiled.capabilityVerified)reason='一个或多个活动 SMU 的额定值尚未核验';
     else if(compiled.requiresInterlock)reason='当前方案需要硬件高压互锁；软件尚不能可靠读取互锁状态';

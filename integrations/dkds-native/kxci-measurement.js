@@ -16,7 +16,7 @@
   }
   function numeric(v){
     const n=number(v,'KXCI 数值');
-    return n===0?'0':n.toExponential(10).replace('e+','E+').replace('e-','E-');
+    return systemNumber(n);
   }
   function channelNumber(name){
     const m=/^SMU([1-9])$/.exec(String(name||''));
@@ -74,6 +74,207 @@
       }
     }
   }
+function systemNumber(value){
+ const n=Number(value);if(!Number.isFinite(n))throw Error('KXCI number is not finite');
+ if(n===0)return '0';
+ const candidates=[String(n),...Array.from({length:12},(_,i)=>n.toExponential(11-i))].map(v=>v.replace(/e/i,'E').replace(/E\+/,'E+').replace(/(\.\d*?[1-9])0+(?=E)/,'$1').replace(/\.0+(?=E)/,''));
+ const result=candidates.find(v=>v.length<=12&&Math.abs(Number(v)-n)<=Math.abs(n)*1e-7);
+ if(!result)throw Error('KXCI 12-character numeric format cannot represent '+n);
+ return result;
+}
+function compileSystemPlan(compiled,input,inventory){
+ const {plan,channels,active}=compiled,timing=input.timeProgram||null;
+ const assert=(v,m)=>{if(!v)throw Error(m);};
+ const fmt=systemNumber,setup=['EM 1,0','BC','DE'];
+ // Startup defaults can activate unselected channels (Rev F 5-7).
+ // Use KCon logical assignments, not chassis slot indices.
+ const installed=inventory?.slots||[];
+ assert(installed.length>0,'System Mode 需要实际 KCon 模块清单');
+ const disable=[...new Set(installed.filter(s=>['SMU','VS','VM'].includes(s.family)&&Number.isInteger(s.channel)&&s.channel>=1&&s.channel<=9)
+ .map(s=>(s.family==='SMU'?'CH':s.family)+s.channel))];
+ assert(active.every(r=>disable.includes('CH'+channels[r])),'活动通道未在实际模块中确认');
+ setup.push(...disable);
+ const x=plan.xSweep,p=plan.pSweep;
+ assert(x.repeats===1||timing,'System Mode 暂不支持 Xsweep 重复嵌套，请用整体 Cycles');
+ assert(!p||p.repeats===1,'System Mode 暂不支持 Psweep 重复嵌套');
+ const axisValues=axis=>axis.segments.flatMap(s=>Array.from({length:s.points},(_,i)=>i===s.points-1?s.stopV:s.startV+i*s.stepV));
+ const xValues=axisValues(x),pValues=p?axisValues(p):[];
+ const count=timing?timing.count:xValues.length*(p?pValues.length:1);
+ assert(Number.isInteger(count)&&count>=1&&count<=4096,'Rev F ME/NR：单次仪器任务最多 4096 个采样点');
+ assert(plan.loops>=1&&Number.isSafeInteger(plan.loops),'循环数无效');
+ for(const r of active){
+  const setting=plan.portSettings[r],axis=x.terminal===r?x:p?.terminal===r?p:null;
+  assert(setting.rangeMode!=='fixed'&&(!axis||axis.segments.every(s=>s.rangeA==='auto')),'System Mode 的 RI 不能保证整个 sweep 固定档位；请使用 Auto / 最低自动量程');
+  setup.push("CH"+channels[r]+",'V"+channels[r]+"','I"+channels[r]+"',1,"+(timing?3:r===x.terminal?1:r===p?.terminal?2:3));
+ }
+ setup.push('SS');
+ for(const r of active){
+  const ch=channels[r],setting=plan.portSettings[r],limit=setting.complianceA;
+  if(timing||r!==x.terminal&&r!==p?.terminal){
+   setup.push('VC'+ch+','+fmt(plan.fixedVoltages[r])+','+fmt(limit));
+  }
+  setup.push('ST '+ch+',1');
+ }
+ if(timing){
+  assert(!p&&xValues.length===1,'固定偏置时间测试不能包含电压扫描');
+  assert(timing.startS>=0&&timing.startS<=100,'WT 允许 0–100 s');
+  assert(timing.intervalS>=0&&timing.intervalS<=10,'IN 允许 0–10 s 的读数后等待');
+  assert(plan.loops===timing.cycles&&count===x.repeats,'采样计数与循环不一致');
+ }else{
+  const delays=new Set(x.segments.map(s=>s.delayMs??x.delayMs));
+  assert(delays.size===1,'单次原生扫描要求各段使用同一个 DT');
+  const delay=[...delays][0]/1000;
+  assert(delay>=0&&delay<=6.553,'DT 范围 0–6.553 s');
+  setup.push('DT '+fmt(delay),'HT '+fmt(input.systemHoldS||0));
+  const seg=x.segments[0],linear=x.segments.length===1&&seg.points>=2&&seg.points<=1024&&
+    [seg.startV,seg.stopV,seg.stepV].every(v=>v===0||Math.abs(v)>=0.001);
+  if(linear)setup.push('VR1,'+[seg.startV,seg.stopV,seg.stepV,plan.portSettings[x.terminal].complianceA].map(fmt).join(','));
+  else{
+   assert(!p,'当前仅核验了单轴 VL 与线性 VAR1/VAR2；非线性嵌套需要独立核验');
+   setup.push('VL'+channels[x.terminal]+',1,'+fmt(plan.portSettings[x.terminal].complianceA)+','+xValues.map(fmt).join(','));
+  }
+  if(p){
+   assert(p.segments.length===1&&pValues.length<=32,'VAR2 单次最多 32 个线性步进');
+   const s=p.segments[0];
+   assert([s.startV,s.stepV].every(v=>v===0||Math.abs(v)>=0.001),'VP 小于 1 mV 的非零值可能被仪器归零');
+   assert((s.delayMs??p.delayMs)===0,'VAR2 独立延迟未映射到原生扫描');
+   setup.push('VP '+[s.startV,s.stepV,s.points,plan.portSettings[p.terminal].complianceA].map(fmt).join(','));
+  }
+ }
+ // Keep automatic range flooring explicit instead of inheriting earlier tasks.
+ for(const r of active){
+  const setting=plan.portSettings[r],slot=installed.find(s=>s.family==='SMU'&&s.channel===channels[r]);
+  const floor=setting.rangeMode==='limited-auto'?Number(setting.rangeA):slot?.preamplifier?1e-9:1e-7;
+  setup.push('RG '+channels[r]+','+fmt(floor));
+ }
+ setup.push('EC 1',timing?.integration||'IT2','SM','DM2');
+ if(timing)setup.push('WT '+fmt(timing.startS),'IN '+fmt(timing.intervalS),'NR '+count);
+ const signals=active.flatMap(r=>[{name:'V'+channels[r],role:r,quantity:'V'},{name:'I'+channels[r],role:r,quantity:'I'}]);
+ assert(signals.length<=6,'LI 最多 6 项测量函数');
+ setup.push('LI '+signals.map(s=>"'"+s.name+"'").join(','),'MD');
+ const timestamp='V'+channels.drain+'T';
+ const reads=[...signals.map(s=>"DO '"+s.name+"'"),"DO '"+timestamp+"'"];
+ const cleanup=['MD','ME4','DE',...active.map(r=>'CH'+channels[r])];
+ // Only these exact validated setup/read/stop strings may pass the internal
+ // transport lease. RD indices are separately bounded by count.
+ return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,xRole:x.terminal,pRole:p?.terminal||null,timing,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
+}
+function parseSystemValues(raw){
+ const text=String(raw??'').trim().replace(/,+$/,'');
+ if(!text||/^UNAVAILABLE$/i.test(text)||/^ACK$/i.test(text))throw Error('KXCI data unavailable: '+text);
+ return text.split(/[,;\r\n]+/).map(token=>{
+  const literal=token.trim(),match=/^([NC])?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:E[+-]?\d+)?)$/i.exec(literal);
+  if(!match)throw Error('Invalid KXCI reading: '+literal);
+  const value=Number(match[2]);if(!Number.isFinite(value)||Math.abs(value)>=9e37)throw Error('Invalid/missing KXCI reading: '+literal);
+  return {value,status:match[1]?.toUpperCase()||'unknown',literal};
+ });
+}
+function systemRows(program,columns,cycle,offset){
+ const lengths=Object.values(columns).map(v=>v.length);
+ if(!lengths.length||!lengths[0]||lengths.some(v=>v!==lengths[0])||lengths[0]>program.count)throw Error('KXCI 原始列长度不一致或超过计划点数');
+ const rows=[];
+ for(let i=0;i<lengths[0];i++){
+  const t=columns[program.timestamp][i],row={sequence:offset+i+1,cycle,timeS:t.value,measurementCompleteness:'complete',source:'4200A-KXCI-DO',rawKxciResponses:{timestamp:t.literal},measurementStatusByRole:{},measurementOrder:program.signals.map(s=>s.name),complianceRole:null,measurementStatus:'unknown',point:program.timing?i+1:i%program.xValues.length+1,pPoint:program.pRole?Math.floor(i/program.xValues.length)+1:1};
+  if(t.value<0||(i&&t.value<columns[program.timestamp][i-1].value))throw Error('仪器时间戳不单调');
+  for(const s of program.signals){
+   const v=columns[s.name][i];
+   row[s.role+(s.quantity==='V'?'VoltageV':'CurrentA')]=v.value;
+   row.rawKxciResponses[s.name]=v.literal;
+   const before=row.measurementStatusByRole[s.role];
+   row.measurementStatusByRole[s.role]=before==='C'||v.status==='C'?'C':before==='N'&&v.status==='N'?'N':before? 'unknown':v.status;
+   if(v.status==='C')row.complianceRole=s.role;
+  }
+  row.measurementStatus=row.complianceRole?'C':Object.values(row.measurementStatusByRole).every(s=>s==='N')?'N':'unknown';
+  row.rawKxciResponse=row.rawKxciResponses['I'+program.channels.drain];
+  row.voltageV=row.drainVoltageV;row.currentA=row.drainCurrentA;
+  row.xVoltageV=row[program.xRole+'VoltageV'];row.pVoltageV=program.pRole?row[program.pRole+'VoltageV']:null;
+  row.plannedXVoltageV=program.xValues[program.timing?0:i%program.xValues.length];
+  row.plannedPVoltageV=program.pRole?program.pValues[row.pPoint-1]:null;
+  rows.push(Object.freeze(row));
+ }
+ return rows;
+}
+async function executeSystemTask(program,io){
+ const {command,wait,cancelled,onBatch,onPreview}=io;
+ const poll=async()=>{
+  const raw=String(await command('SP',true)).trim().replace(/,+$/,'');
+  if(!/^\d{1,3}$/.test(raw)||Number(raw)>255)throw Error('Invalid KXCI SP: '+raw);
+  const value=Number(raw);
+  if(value&2){let detail='';try{detail=await command(':ERROR:LAST:GET',true);}catch{}throw Error('KXCI syntax error SP='+value+' '+detail);}
+  return {busy:Boolean(value&16),ready:Boolean(value&1)};
+ };
+ let configured=false,triggered=false,offset=0,shutdown='not-started',state='completed',error='';
+ const settle=async()=>{for(let i=0;i<100;i++){const status=await poll();if(!status.busy)return;await wait(100);}throw Error('仪器中止后仍 Busy');};
+ try{
+  const initial=await poll();
+  if(initial.busy)throw Error('仪器已有测量正在运行');
+  if(cancelled())return {state:'stopped',shutdown,error};
+  await command(':ERROR:LAST:CLEAR');
+  configured=true;
+  for(const cmd of program.setup){if(cancelled())break;await command(cmd);const status=await poll();if(status.busy)throw Error('配置期间仪器意外进入 Busy');}
+  for(let cycle=1;cycle<=program.cycles&&!cancelled();cycle++){
+   // ME1 starts an entire instrument-owned test. No DV/TI loop here.
+   triggered=true;await command('ME1');
+   let cursor=1,preview=[],idlePolls=0,done=false;
+   while(!cancelled()){
+    const status=await poll();
+    if(status.ready&&!status.busy){done=true;triggered=false;break;}
+    if(!status.busy&&++idlePolls>50)throw Error('ME1 未返回 Busy 或 Data Ready');
+    if(status.busy){
+     idlePolls=0;
+     // RD is optional preview, not measurement scheduling. A zero timestamp
+     // is ambiguous; never invent a data point. Final DO is authoritative.
+     for(let k=0;k<8&&cursor<=program.count&&!cancelled();k++){
+      const raw=String(await command("RD '"+program.rdNames.at(-1)+"',"+cursor,true)).trim();
+      if(raw==='0'||/^UNAVAILABLE$/i.test(raw))break;
+      const time=parseSystemValues(raw);
+      if(time.length!==1||time[0].value<=0)break;
+      const columns={[program.timestamp]:time};
+      for(const s of program.signals)columns[s.name]=parseSystemValues(await command("RD '"+s.name+"',"+cursor,true));
+      if(Object.values(columns).some(v=>v.length!==1))throw Error('RD returned multiple points');
+      const row=systemRows(program,columns,cycle,offset+cursor-1)[0];
+      preview.push({...row,source:'4200A-KXCI-RD',point:program.timing?cursor:(cursor-1)%program.xValues.length+1});
+      cursor++;
+     }
+     if(preview.length)onPreview(preview);
+    }
+    await wait(100);
+   }
+   if(!done)break;
+   const columns={};
+   for(const name of [...program.signals.map(s=>s.name),program.timestamp]){
+    columns[name]=parseSystemValues(await command("DO '"+name+"'",true));
+   }
+   const rows=systemRows(program,columns,cycle,offset);
+   onPreview([]);
+   for(let i=0;i<rows.length;i+=128)onBatch(rows.slice(i,i+128));
+   offset+=rows.length;
+   if(rows.some(r=>r.measurementStatus==='C'))throw Error('仪器检测到 Compliance，保留已取得的原始记录');
+   if(rows.length!==program.count)throw Error('仪器返回点数 '+rows.length+'，预期 '+program.count);
+   // GET is non-destructive; clear only before a new task.
+   const last=String(await command(':ERROR:LAST:GET',true)).trim().replace(/,+$/,'');
+   const match=last.match(/\((-?\d+)\)/);
+   if(match?Number(match[1])!==0:!!last&&!/^ACK$|^no errors?\b/i.test(last))throw Error('KXCI 错误：'+last);
+  }
+  if(cancelled())state='stopped';
+ }catch(e){state='failed';error=String(e.message||e);}
+ finally{
+  if(configured){
+   let safe=true;
+   if(triggered){
+    try{await command('ME4');await settle();}catch(e){safe=false;error+=(error?'；':'')+'停止未确认：'+String(e.message||e);}
+   }
+   if(safe){
+    try{
+     await command('DE');await poll();
+     for(const r of [...program.active].reverse()){await command('CH'+program.channels[r]);const status=await poll();if(status.busy)throw Error('关断后仍 Busy');}
+    }catch(e){safe=false;error+=(error?'；':'')+'关闭未确认：'+String(e.message||e);}
+   }
+   shutdown=safe?'commands-sent':'unconfirmed';if(!safe)state='failed';
+  }
+ }
+ return {state,shutdown,error};
+}
   function compileSweep(input,hardware={}){
     const planner=typeof require==='function'
       ?require('./measurement-plan.js')
@@ -107,10 +308,12 @@
     }
     const requiresInterlock=highestV>21||active.some(role=>
       plan.limitsByRole?.[role]?.segmentLimits?.some(s=>s.requiresInterlock));
-    return Object.freeze({plan,channels,active,physicalVerified,
+    const base={plan,channels,active};
+    const system=input.executionMode==='system'?compileSystemPlan(base,input,hardware.inventory):null;
+    return Object.freeze({plan,channels,active,system,physicalVerified,
       capabilityVerified:limitRoles,requiresInterlock,
       canExecute:physicalVerified&&limitRoles&&!requiresInterlock,
-      commandMode:'KXCI-US-DV-TI',measurementChannel:channels.drain,
+      commandMode:system?'KXCI-SYSTEM-ME1':'KXCI-US-DV-TI',measurementChannel:channels.drain,
       totalPoints:plan.totalPoints,timeProgram:input.timeProgram||null});
   }
   function parseTi(raw,expectedChannel){
@@ -151,7 +354,7 @@
       const rows=j.rows.slice(from,Math.min(from+250,j.rows.length));
       return {runId:j.id,state:j.state,running:j.state==='running'||j.state==='stopping',
         totalPoints:j.compiled.totalPoints,totalRows:j.rows.length,
-        nextCursor:from+rows.length,rows,error:j.error,
+        nextCursor:from+rows.length,rows,liveRows:j.state==='running'?[...j.rows.slice(-4096),...(j.previewRows||[])].slice(-4096):[],error:j.error,
         shutdown:j.shutdown,startedAt:j.startedAt,finishedAt:j.finishedAt};
     }
     async function command(cmd,reply=false){
@@ -177,7 +380,19 @@
         '输出关闭未获确认，请在仪器现场检查：'+failed.join('; ');
       return ok;
     }
+    async function executeNative(j,lease){
+      try{
+        controller.beginSystemProgram(j.compiled.system);
+        const result=await executeSystemTask(j.compiled.system,{command,wait,cancelled:()=>j.cancelled,
+          onBatch:rows=>{j.rows.push(...rows);try{onProgress(publicState(0));}catch{}},
+          onPreview:rows=>{j.previewRows=rows.slice();try{onProgress(publicState(0));}catch{}}});
+        Object.assign(j,result);
+      }catch(error){j.state='failed';j.error=String(error.message||error);j.shutdown='unconfirmed';}
+      finally{controller.endSystemProgram();j.previewRows=[];j.finishedAt=new Date().toISOString();lease.end();}
+      return publicState(0);
+    }
     async function execute(j,lease){
+      if(j.compiled.system)return executeNative(j,lease);
       const plan=j.compiled.plan;
       const lastCommands=Object.create(null);
       let previousP=null,timeOrigin=null;
@@ -346,7 +561,7 @@
       if(compiled.requiresInterlock)
         throw Error('该方案需要硬件高压互锁，尚未实现互锁状态的可靠读取');
       // No implicit partial plan override and no software-derived measurement.
-      const needsWait=Boolean(compiled.timeProgram)||compiled.plan.xSweep.delayMs>0||
+      const needsWait=Boolean(compiled.system)||Boolean(compiled.timeProgram)||compiled.plan.xSweep.delayMs>0||
         compiled.plan.xSweep.segments.some(s=>(s.delayMs||0)>0)||
         Boolean(compiled.plan.pSweep&&(compiled.plan.pSweep.delayMs>0||
           compiled.plan.pSweep.segments.some(s=>(s.delayMs||0)>0)));
@@ -375,7 +590,7 @@
     }
     return Object.freeze({start,stop,status:publicState,waitForCompletion,dispose});
   }
-  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner});
+  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
     window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci-measurement',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

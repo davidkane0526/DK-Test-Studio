@@ -6,6 +6,7 @@
  const FIELDS=[
   ['sequence','序号','','index'],['timeS','测量时间','s','x'],
   ['plannedTimeS','计划采样时间','s','raw'],['sampleStartS','主机采样起点','s','raw'],['sampleWindowOverrun','采样窗口超时','','raw'],
+  ['plannedXVoltageV','Xsweep 设定电压','V','raw'],['plannedPVoltageV','Psweep 设定电压','V','raw'],
   ['drainVoltageV','漏极电压','V','x'],['drainCurrentA','漏极电流','A','y'],
   ['gateVoltageV','栅极电压','V','group'],['gateCurrentA','栅极电流','A','y'],
   ['sourceVoltageV','源极电压','V','group'],['sourceCurrentA','源极电流','A','y'],
@@ -17,7 +18,7 @@
  ];
  const STRINGS=[
   ['measurementStatus','测量状态'],['measurementCompleteness','采样完整性'],
-  ['complianceRole','触及限流端口'],['rawKxciResponse','KXCI 原始 TI 响应'],
+  ['complianceRole','触及限流端口'],['rawKxciResponse','KXCI 原始响应'],
   ['rawKxciResponses','各端口原始响应 JSON'],
   ['measurementStatusByRole','端口状态 JSON'],
   ['measurementOrder','采样端口顺序 JSON']
@@ -32,10 +33,10 @@
   if(!/^[A-Za-z0-9._:-]{1,90}$/.test(id)||!instrument)
    throw Error('Verified KXCI run ID and instrument serial are required');
   if(!Array.isArray(rows)||rows.length<1)
-   throw Error('No actual KXCI TI samples to publish');
+   throw Error('No actual KXCI samples to publish');
   for(let i=0;i<rows.length;i++){
    const row=rows[i];
-   if(row?.source!=='4200A-KXCI-TI'||row.sequence!==i+1||
+   if(!['4200A-KXCI-TI','4200A-KXCI-DO'].includes(row?.source)||row.sequence!==i+1||
       !Number.isFinite(row.timeS)||!Number.isFinite(row.drainVoltageV)||
       !Number.isFinite(row.drainCurrentA)||!row.rawKxciResponse||
       !['complete','partial'].includes(row.measurementCompleteness))

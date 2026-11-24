@@ -125,6 +125,12 @@
     }
     // Internal measurement-only path. UI receives no raw-command endpoint.
     const trace=[];
+    let systemProgram=null;
+    function beginSystemProgram(program){
+      if(systemProgram)throw Error('已有 System Mode 任务');
+      systemProgram={commands:new Set([...program.setup,...program.reads,...program.cleanup,'ME1','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET']),reads:new Set(program.reads),rdNames:new Set(program.rdNames),count:program.count};
+    }
+    function endSystemProgram(){systemProgram=null;}
     function measurementTrace(){return trace.map(x=>({...x}));}
     function clearMeasurementTrace(){trace.length=0;}
     async function measurementExchange(text,expectReply=false){
@@ -133,6 +139,9 @@
          inventory?.hardwareLimitsVerified!==true)
         throw Error('仪器及物理模块尚未完成身份核验');
       const cmd=String(text||'');
+      const rd=/^RD '([A-Z0-9]+)',([1-9][0-9]*)$/.exec(cmd);
+      const systemAllowed=Boolean(systemProgram&&(systemProgram.commands.has(cmd)||(rd&&systemProgram.rdNames.has(rd[1])&&Number(rd[2])<=systemProgram.count)));
+      const systemRead=Boolean(systemAllowed&&(systemProgram.reads.has(cmd)||rd));
       const n='(?:0|[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[Ee][+-]?\\d+)?)';
       const dv=new RegExp('^DV([1-9]),0,('+n+'),('+n+')$').exec(cmd);
       const ri=new RegExp('^RI ([1-9]),('+n+'),('+n+')$').exec(cmd);
@@ -143,12 +152,12 @@
         throw Error('KXCI RI 参数越界');
       if(rg&&!(Number(rg[2])>0&&Number(rg[2])<=1))
         throw Error('KXCI RG 参数越界');
-      if(!['US','DE','EM 1,0','BC','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET'].includes(cmd)&&
+      if(!systemAllowed&&!['US','DE','EM 1,0','BC','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET'].includes(cmd)&&
          !/^DV[1-9]$/.test(cmd)&&!/^TI[1-9]$/.test(cmd)&&!/^IT[123]$/.test(cmd)&&!dv&&!ri&&!rg)
         throw Error('禁止非测量白名单 KXCI 指令');
-      if(expectReply&&!(/^TI[1-9]$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
+      if(expectReply&&!(systemRead||/^TI[1-9]$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
         throw Error('此 KXCI 指令没有测量响应');
-      if(!expectReply&&(/^TI[1-9]$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
+      if(!expectReply&&(systemRead||/^TI[1-9]$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
         throw Error('数据查询不能丢弃响应');
       const id=connection.sessionId;
       // Ethernet KXCI returns one NUL-terminated response for every command.
@@ -156,7 +165,7 @@
       const item={command:cmd,sentAt:new Date().toISOString(),response:'',error:'',durationMs:0},started=Date.now();
       try{
        const answer=await tcp.exchange({sessionId:id,base64:btoa(cmd+'\0'),responseTerminator:'nul',
-         noReply:false,readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:expectReply?120:30,maxBytes:8192});
+         noReply:false,readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:expectReply?120:30,maxBytes:systemRead?262144:8192});
        const frame=atob(answer.base64||'');item.response=frame;
        if(connection?.sessionId!==id)throw Error('测量期间仪器连接发生变化');
        const raw=decodeKxciFrame(answer.base64);
@@ -168,7 +177,7 @@
     }
     async function disconnect(){if(inventoryPending)await inventoryPending.catch(()=>{});if(pending)await pending.catch(()=>{});if(verificationPending)await verificationPending.catch(()=>{});await closeCurrent();phase='disconnected';diagnostic='';settings=null;return status();}
     async function dispose(){await disconnect();tcp.closeAll?.();}
-    return Object.freeze({connect,inspectModules,verifyLiveConnection,disconnect,status,dispose,measurementExchange,measurementTrace,clearMeasurementTrace});
+    return Object.freeze({connect,inspectModules,verifyLiveConnection,disconnect,status,dispose,measurementExchange,measurementTrace,clearMeasurementTrace,beginSystemProgram,endSystemProgram});
   }
   const api=Object.freeze({createIdentityController,normalizeSettings,summarizeError});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-identity-core',api);

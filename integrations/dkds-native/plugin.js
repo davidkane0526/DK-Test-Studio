@@ -56,7 +56,9 @@
   const measurementRuntime=measurementRuntimeModule.createRuntime(ctx,{
    onChange:update=>{
     if(update.event==='measurement-progress'){
-     ctx.status.set('4200A 测量执行中：'+update.run.totalRows+' / '+update.run.totalPoints+' 点');
+     const received=Math.max(update.run.totalRows,update.run.liveRows?.at(-1)?.sequence||0);
+     ctx.status.set('4200A 测量执行中：已接收 '+received+' / '+update.run.totalPoints+' 点');
+     for(const item of plots)item?.requestRender?.('measurement-batch');
      return;
     }
     if(update.event==='connected')ctx.status.set('4200A 身份已验证：'+(update.connection.identity?.serial||''));
@@ -315,7 +317,7 @@
     title:'确认 Keithley 4200A 实际输出',tone:'warning',destructive:true,
     message:'仪器 '+current.connection.identity.serial+' 将执行“'+page.name+'”，预计 '+
      prepared.pointCount.toLocaleString()+' 个测量点。',
-    detail:'活动端口：'+channels+'。最大设定电压：'+maxVoltage+' V。'+(page.kind==='time'?'主机计时，每个事件一次 SMU 积分读数，不保证硬实时或多样本平均。':'')+'开始后将真实驱动 SMU 并读取 KXCI TI 响应。请先确认实际接线、探针接触、器件固定、各端口独立限流和现场安全条件。软件会在完成、停止或异常时尝试关闭全部活动 SMU。',
+    detail:'活动端口：'+channels+'。最大设定电压：'+maxVoltage+' V。'+(page.kind==='time'?'仪器按 WT/IN/NR 执行：事件间隔为读数后的等待，实际采样周期和总时长由仪器决定；平均窗口目前不是独立多样本平均。':'')+(prepared.compiled.system?'一次配置，ME1 启动仪器内部测量；RD 预览，DO 回收原始数据。':'逐点 DV/TI 测量。')+'开始后将真实驱动 SMU。请先确认实际接线、探针接触、器件固定、各端口独立限流和现场安全条件。软件会在完成、停止或异常时尝试关闭全部活动 SMU。',
     confirmLabel:'确认接线并开始输出'
    });
    if(!confirmed)return;
@@ -1510,6 +1512,7 @@
       {key:'time-quantity',path:path('quantity')});
      plannedText(row,event,'startS','起始时间 (s)','Start Time (s)',path('startS'));
      plannedText(row,event,'intervalS','事件间隔 (s)','Interval Time (s)',path('intervalS'));
+     units.note.create(row,{variant:'meta',text:tr('原生固定偏置：该值作为 IN 读数后等待；最终以仪器时间戳为准。','Native fixed bias: IN is the post-reading wait; instrument timestamps are authoritative.')});
      plannedText(row,event,'averageS','平均窗口 (s)','Average Time (s)',path('averageS'));
      plannedText(row,event,'points','点数','Points',path('points'));
      action(row,'remove-time-event-'+index,'−',tr('删除测量事件','Remove measure event'),settings.events.length>1,
@@ -1772,7 +1775,14 @@
    const kind=frameKinds[index]||'iv',selected=frameSelections[index],available=sources();
    if(kind==='raw'||selected&&!available.some(row=>row.artifactId===selected))return [];
    const list=curves(kind,available);
-   return selected?list.filter(curve=>curve.artifactId===selected):list;
+   if(selected)return list.filter(curve=>curve.artifactId===selected);
+   const run=measurementRuntime.status().run,s=state();
+   const scopeMatches=plotScope==='page'?s.activeId===runPageId:plotScope==='routine'?s.pages.some(p=>p.id===runPageId&&p.routineId===s.activeRoutineId):true;
+   if(run.running&&scopeMatches&&run.liveRows?.length){
+    const points=run.liveRows.map(r=>({x:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.drainVoltageV,y:kind==='vt'?r.drainVoltageV:r.drainCurrentA})).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
+    if(points.length)list.push({id:'dkts-live-'+run.runId,label:'4200A · '+tr('本次测量预览','Live acquisition'),points});
+   }
+   return list;
   }
   function renderHistory(s){
    historyHost.replaceChildren();
