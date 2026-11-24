@@ -831,3 +831,9 @@
 
 - R-20261124-009。用户授权编译 V0.3.45。以已验收的 `a4a82f27cb54348dc13e0869edbc5f3e44fa29ce` 为源码基线，发布提交只补本次交付记录。
 - 继承 Node 227/227、DKDS SDK 校验及浏览器模拟网关验收。使用现有最终授权触发规则生成同一提交的 Windows Portable、固定签名 Android APK、源码和 Pages。分别核对 Actions、Pages `preview.json`、发布 `PROVENANCE.txt` 与 SHA-256。真实 4200A 验收单独进行。
+
+
+## 2026-11-24 · DC/I–T 基础执行适配（待审查）
+
+- R-20261124-010。基线 49f952903020ccff7d69239be449f8cf98a78579。接通 DC 逐点电压源（Linear Step、Linear Points、List）与固定偏置 I–T 单事件主机计时，明确不支持 Optimized、Log、Generator、电流源、B 端、多段时间和多目标。IT1/2/3 映射；采样超窗停止，保留原始读数，不声称多样本平均。NUL 帧、ACK、错误查询及最近 256 条收发跟踪。Rev E 第 2/4/5 节；Rev F 无法读取，保持生产门禁。
+- 执行 7 个适配函数独立断言（模型替身）。未运行全量 Node、SDK、TCP 回归或实机测试。未移动 main，未合并、编译；版本待获批准后统一递增。

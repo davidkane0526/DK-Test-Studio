@@ -75,6 +75,11 @@
      runPageId=null;
      const run=update.run;
      if(run.shutdown==='unconfirmed')ctx.status.set('严重警告：SMU 输出关闭未获确认，请立即在仪器现场检查；不要断开连接');
+     else if(run.state==='failed'){
+      ctx.status.set('测量失败：'+(run.error||'未知错误'));
+      const trace=(update.commandTrace||[]).slice(-12).map(item=>item.command+' → '+(item.error||item.response||'')+' ['+item.durationMs+' ms]').join('\n');
+      void ctx.ui.dialogs.alert({title:'4200A 测量失败',message:run.error||'未知错误',detail:trace});
+     }
      else if(update.publishError)ctx.status.set('测量结束，但原始数据发布失败：'+update.publishError);
      else if(update.published)ctx.status.set('测量 '+run.state+'；'+update.rows+' 行 KXCI 原始数据已写入 DKDS Data Center');
      else ctx.status.set('测量 '+run.state+'；没有可发布的实际 TI 采样行');
@@ -310,7 +315,7 @@
     title:'确认 Keithley 4200A 实际输出',tone:'warning',destructive:true,
     message:'仪器 '+current.connection.identity.serial+' 将执行“'+page.name+'”，预计 '+
      prepared.pointCount.toLocaleString()+' 个测量点。',
-    detail:'活动端口：'+channels+'。最大设定电压：'+maxVoltage+' V。开始后将真实驱动 SMU 并读取 KXCI TI 响应。请先确认实际接线、探针接触、器件固定、各端口独立限流和现场安全条件。软件会在完成、停止或异常时尝试关闭全部活动 SMU。',
+    detail:'活动端口：'+channels+'。最大设定电压：'+maxVoltage+' V。'+(page.kind==='time'?'主机计时，每个事件一次 SMU 积分读数，不保证硬实时或多样本平均。':'')+'开始后将真实驱动 SMU 并读取 KXCI TI 响应。请先确认实际接线、探针接触、器件固定、各端口独立限流和现场安全条件。软件会在完成、停止或异常时尝试关闭全部活动 SMU。',
     confirmLabel:'确认接线并开始输出'
    });
    if(!confirmed)return;
@@ -341,10 +346,17 @@
    if(!page)return;
    const issue=pageParameterIssue(page);
    if(issue){ctx.status.set(issue.message);return;}
-   if(page.kind==='dc'||page.timing){
-    await ctx.ui.dialogs.alert({title:tr('已支持参数规划','Planning available'),message:tr(
-     '有效参数会自动保存。此测试的 4200A 执行路径尚待核验。',
-     'Valid parameters save automatically. The 4200A execution path still requires verification.')});
+   if(page.kind==='dc'||page.kind==='time'){
+    const prepared=measurementRuntime.prepare(page);
+    if(!prepared.canExecute){
+     await ctx.ui.dialogs.alert({title:tr('执行前检查','Execution preflight'),message:prepared.reason||'执行前检查未通过'});
+     return;
+    }
+    await handleMeasurementAction(page,prepared);
+    return;
+   }
+   if(page.timing){
+    await ctx.ui.dialogs.alert({title:'暂无法执行',message:'此测试执行器尚未接入'});
     return;
    }
    if(executionDialogOpen||runConfirmationPending)return;

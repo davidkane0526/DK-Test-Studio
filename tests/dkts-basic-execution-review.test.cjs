@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+let runtime;vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../integrations/dkds-native/measurement-runtime.js'),'utf8'),{window:{DKDSPluginModules:{define:(owner,name,api)=>runtime=api}}});
+const model={dcSummary:()=>({outputs:['Id']}),dcExpression:Number,timedSummary:()=>({durationS:2,cycles:1})};
+const dc={"kind":"dc","terminals":[{"logical":"D","resource":"SMU1","rangeMode":"auto","rangeValue":"1e-6","complianceMode":"custom","compliance":"0.001"},{"logical":"G","resource":"None"},{"logical":"S","resource":"GNDU"},{"logical":"B","resource":"None"}],"variables":[],"sweep":{"loops":"1"},"dc":{"preset":"point-by-point","bodyResource":"None","target":{"formula":""},"strategy":{"direction":"forward","onLimit":"stop","hold":"","mode":"global"},"reference":"S","terminals":{"D":{"mode":"voltage","ref":"S","limitI":"0.001","role":"X","segments":[{"method":"step","start":"0","stop":"0.2","step":"0.1","range":"auto"}]}}}};
+const tp={"kind":"time","terminals":[{"logical":"D","resource":"SMU1","rangeMode":"auto","rangeValue":"1e-6","complianceMode":"custom","compliance":"0.001"},{"logical":"G","resource":"None"},{"logical":"S","resource":"GNDU"},{"logical":"B","resource":"None"}],"timing":{"segments":[{"bias":{"D":"0.1","G":"0","S":"0"},"currentBias":{"D":"0","G":"0","S":"0"}}],"sourceModes":{"D":"voltage"},"events":[{"terminal":"D","quantity":"Current","points":"3","startS":"0.5","intervalS":"0.5","averageS":"0.1"}],"integrationPreset":"short","integrationS":""}};
+assert.equal(runtime.pageToBasicProgram(dc,model).sweepProgram.xSweep.segments[0].stopV,0.2);
+assert.equal(runtime.pageToBasicProgram(dc,model).sweepProgram.portSettings.drain.complianceA,0.001);
+assert.throws(()=>runtime.pageToBasicProgram({...dc,dc:{...dc.dc,preset:'optimized'}},model),/Optimized/);
+assert.throws(()=>runtime.pageToBasicProgram({...dc,dc:{...dc.dc,terminals:{D:{...dc.dc.terminals.D,mode:'current'}}}},model),/电压源/);
+assert.equal(runtime.pageToBasicProgram(tp,model).timeProgram.integration,'IT1');
+assert.equal(runtime.pageToBasicProgram(tp,model).sweepProgram.xSweep.repeats,3);
+assert.throws(()=>runtime.pageToBasicProgram({...tp,timing:{...tp.timing,segments:[...tp.timing.segments,...tp.timing.segments]}},model),/单段/);
+console.log('7 basic adapter checks passed');

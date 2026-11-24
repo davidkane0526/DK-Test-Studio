@@ -5,6 +5,7 @@
  const OWNER='com.dkts.keithley-4200';
  const FIELDS=[
   ['sequence','序号','','index'],['timeS','测量时间','s','x'],
+  ['plannedTimeS','计划采样时间','s','raw'],['sampleStartS','主机采样起点','s','raw'],['sampleWindowOverrun','采样窗口超时','','raw'],
   ['drainVoltageV','漏极电压','V','x'],['drainCurrentA','漏极电流','A','y'],
   ['gateVoltageV','栅极电压','V','group'],['gateCurrentA','栅极电流','A','y'],
   ['sourceVoltageV','源极电压','V','group'],['sourceCurrentA','源极电流','A','y'],
@@ -45,7 +46,7 @@
   // remains preserved verbatim in the raw metadata/text columns.
   const columns=FIELDS.map(([key,name,unit,role])=>({
    key,name,unit,role,dtype:'float64',
-   values:rows.map(row=>row[key]==null?NaN:row[key])
+   values:rows.map(row=>row[key]==null?NaN:Number(row[key]))
   }));
   for(const [key,name] of STRINGS){
    columns.push({key,name,unit:'',role:'raw',dtype:'string',

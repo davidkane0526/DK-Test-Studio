@@ -19,7 +19,74 @@
    delayMs:finite(row.delayMs,label+' 第 '+(index+1)+' 段点间延迟')
   }));
  }
- function pageToSweepProgram(page){
+function pageToBasicProgram(page, model){
+ const check=(x,m)=>{if(!x)throw Error(m);};
+ const n=(x,label)=>{check(x!==null&&x!==undefined&&String(x).trim()!==''&&Number.isFinite(Number(x)),label+' 数值无效');return Number(x);};
+ const roles={D:'drain',G:'gate',S:'source'},ports=Object.fromEntries(page.terminals.map(t=>[t.logical,t]));
+ const terminals=Object.fromEntries(Object.entries(roles).map(([k,r])=>[r,ports[k]?.resource||'None']));
+ const active=Object.keys(roles).filter(k=>/^SMU[1-8]$/.test(ports[k]?.resource||''));
+ check(Object.keys(roles).every(k=>['None','GNDU'].includes(ports[k]?.resource)||active.includes(k)),'基础执行仅支持 SMU1–8、GNDU 或 None');
+ check(active.includes('D'),'请将漏极映射到 SMU');
+ check(new Set(active.map(k=>ports[k].resource)).size===active.length,'端口重复');
+ const fixedVoltages={},portSettings={},disabled={enabled:false,terminal:'gate'};
+ const segment=(startV,stopV,stepV,rangeA='auto',delayMs=0)=>({startV,stopV,stepV,rangeA,delayMs});
+ const axis=(terminal,segments,repeats=1)=>({terminal,segments,repeats,delayMs:0});
+ if(page.kind==='dc'){
+  const dc=page.dc,info=model.dcSummary(page,dc);
+  check(dc.preset==='point-by-point','请明确选择 Point-by-point；Optimized 尚未接入');
+  check(dc.bodyResource==='None','B 端尚未接入');
+  check(info.outputs.length===1&&info.outputs[0]==='Id','基础 DC 仅支持 Outputs=Id');
+  check(!dc.target.formula.trim(),'Target 公式尚未接入');
+  check(dc.strategy.direction==='forward'&&dc.strategy.onLimit==='stop','仅支持 Forward 和 Stop on limit');
+  check(!dc.strategy.hold.trim()||n(dc.strategy.hold,'Hold')===0,'Hold 尚未接入');
+  check(dc.strategy.mode!=='local'||!dc.strategy.integration.trim(),'自定义积分尚未映射 PLC');
+  const delay=dc.strategy.mode==='local'&&dc.strategy.delay.trim()?n(dc.strategy.delay,'Delay')*1000:0;
+  check(dc.reference==='GND'||ports[dc.reference]?.resource==='GNDU','仅支持接地参考');
+  const vars=Object.fromEntries(page.variables.map(v=>[v.name,Number(v.value)])),v=x=>model.dcExpression(x,vars,dc.polarity);
+  const axes={};
+  for(const k of active){
+   const row=dc.terminals[k],r=roles[k];
+   check(row.mode==='voltage','仅支持电压源：'+k);
+   check(row.ref==='GND'||ports[row.ref]?.resource==='GNDU','仅支持接地参考：'+k);
+   check(new Set(row.segments.map(s=>s.range)).size===1,'扫描段间量程切换尚未接入');
+   const range=row.segments[0].range;
+   portSettings[r]={rangeMode:range==='auto'?'auto':'fixed',rangeA:range==='auto'?'1e-6':range,complianceMode:'custom',complianceA:n(row.limitI,k+' 限流')};
+   if(row.role==='CONDITION'){check(row.segments[0].method==='constant','Generator 尚未接入');fixedVoltages[r]=v(row.segments[0].value);continue;}
+   const segs=[];
+   for(const s of row.segments){
+    if(s.method==='step')segs.push(segment(v(s.start),v(s.stop),v(s.step),range,delay));
+    else if(s.method==='points')segs.push(segment(v(s.start),v(s.stop),(v(s.stop)-v(s.start))/(v(s.points)-1),range,delay));
+    else if(s.method==='list')for(const x of s.list.split(/[,\n]/).map(v))segs.push(segment(x,x,0,range,delay));
+    else throw Error('扫描方式尚未接入：'+s.method);
+   }
+   check(segs.length<=256,'编译段超过当前执行器容量 256');
+   axes[row.role]=axis(r,segs);
+  }
+  check(axes.X,'缺少 Xsweep');
+  return {kind:'iv',pageKind:'dc',sweepProgram:{terminals,fixedVoltages,portSettings,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
+ }
+ if(page.kind==='time'){
+  const t=page.timing,summary=model.timedSummary('time',t);
+  check(ports.B?.resource==='None','B 端尚未接入');
+  check(t.segments.length===1,'仅支持单段固定偏置；多段切换待接入');
+  check(t.events.length===1&&t.events[0].terminal==='D'&&t.events[0].quantity==='Current','仅支持一个漏极电流采样事件');
+  check(!t.integrationS,'旧积分秒数尚未映射 PLC');
+  const integration={instrument:'',short:'IT1',medium:'IT2',long:'IT3'}[t.integrationPreset];
+  check(integration!==undefined,'积分预设无效');
+  for(const k of Object.keys(roles)){
+   const v=n(t.segments[0].bias[k],k+' 偏置');
+   if(!active.includes(k)){check(v===0&&n(t.segments[0].currentBias[k],k+' 电流偏置')===0,'接地或未映射端不得施加偏置');continue;}
+   check(t.sourceModes[k]==='voltage','仅支持电压源：'+k);
+   const r=roles[k],p=ports[k];fixedVoltages[r]=v;
+   portSettings[r]={rangeMode:p.rangeMode==='minimum'?'limited-auto':p.rangeMode,rangeA:p.rangeValue,complianceMode:p.complianceMode||'follow-range',complianceA:n(p.compliance,k+' 限流')};
+  }
+  const e=t.events[0],count=n(e.points,'点数'),v=fixedVoltages.drain;
+  return {kind:'iv',pageKind:'time',timeProgram:{durationS:summary.durationS,cycles:summary.cycles,startS:n(e.startS,'起点'),intervalS:n(e.intervalS,'间隔'),windowS:n(e.averageS,'窗口'),count,integration},sweepProgram:{terminals,fixedVoltages,portSettings,loops:summary.cycles,xSweep:axis('drain',[segment(v,v,0)],count),pSweep:disabled}};
+ }
+ throw Error('测试类型尚未接入');
+}
+ function pageToSweepProgram(page,model){
+  if(page?.kind==='dc'||page?.kind==='time')return pageToBasicProgram(page,model);
   if(!page||!['iv','transfer','output'].includes(page.kind))
    throw Error('当前原生 KXCI 执行器仅支持 I–V、转移特性和输出特性');
   if(Array.isArray(page.targets)&&page.targets.length!==1)
@@ -106,6 +173,7 @@
   const plan=ctx.modules.require('dkts-plan');
   const measurement=ctx.modules.require('dkts-kxci-measurement');
   const measurementData=ctx.modules.require('measurementData');
+  const model=ctx.modules.require('model');
   if(typeof ctx.capabilities?.invoke!=='function')
    throw Error('DKDS Generic TCP capability facade is unavailable');
   const sharedCapability='network.tcp.interactive',sharedSessions=new Set();
@@ -142,6 +210,7 @@
    const connection=controller.status(),run=runner.status(0);
    return Object.freeze({connection,run,execution:execution.status(),
     protocolVerified:hardwareCapabilities.DATABASE?.safetyPolicies?.kxci?.latestOfficialContentVerified===true&&hardwareCapabilities.DATABASE?.safetyPolicies?.kxci?.allowInstrumentOutput===true,
+    commandTrace:controller.measurementTrace(),
     protocolRevision:String(hardwareCapabilities.DATABASE?.safetyPolicies?.kxci?.latestOfficialRevision||''),
     executionAdapterAvailable,
     transportAvailable:ctx.capabilities.get?.('network.tcp')!==null&&
@@ -157,7 +226,7 @@
    if(!connection.inventory||connection.inventoryError)
     return {ready:false,canExecute:false,reason:connection.inventoryError||'尚未完成实际模块识别'};
    try{
-    const input=pageToSweepProgram(page);
+    const input=pageToSweepProgram(page,model);
     const compiled=measurement.compileSweep(input,{
      inventory:connection.inventory,capabilities:hardwareCapabilities
     });
@@ -248,6 +317,7 @@
     throw Error(prepared.reason||'测量方案未通过硬件安全校验');
    const connection=controller.status(),serial=connection.identity.serial;
    const runId='dkts-kxci-'+Date.now()+'-'+(++runSequence);
+   controller.clearMeasurementTrace();
    const initial=runner.start(prepared.input,{
     inventory:connection.inventory,capabilities:hardwareCapabilities
    },'CONFIRM_WIRING_AND_OUTPUT');
@@ -284,6 +354,6 @@
    currentRanges:(resource,voltagePeaks)=>hardwareCapabilities.verifiedCurrentRanges(
     controller.status(),resource,voltagePeaks)});
  }
- const api=Object.freeze({createRuntime,pageToSweepProgram});
+ const api=Object.freeze({createRuntime,pageToSweepProgram,pageToBasicProgram});
  window.DKDSPluginModules.define(OWNER,'measurementRuntime',api,{replace:true});
 })();

@@ -111,7 +111,7 @@
       capabilityVerified:limitRoles,requiresInterlock,
       canExecute:physicalVerified&&limitRoles&&!requiresInterlock,
       commandMode:'KXCI-US-DV-TI',measurementChannel:channels.drain,
-      totalPoints:plan.totalPoints});
+      totalPoints:plan.totalPoints,timeProgram:input.timeProgram||null});
   }
   function parseTi(raw,expectedChannel){
     const text=String(raw??'').replace(/\0/g,'').trim();
@@ -168,13 +168,29 @@
     async function execute(j,lease){
       const plan=j.compiled.plan;
       const lastCommands=Object.create(null);
-      let previousP=null;
+      let previousP=null,timeOrigin=null;
+      const timing=j.compiled.timeProgram;
       const started=Date.now();
+      const waitFor=async delay=>{
+        if(delay<=0||j.cancelled)return;
+        if(!wait)throw Error('宿主缺少受控时序调度器');
+        const pending=wait(delay);
+        await Promise.race([Promise.resolve(pending),new Promise(resolve=>{j.wake=()=>{try{pending?.cancel?.();}finally{resolve();}};})]);
+        j.wake=null;
+      };
+      const verifyError=async()=>{
+        const last=await command(':ERROR:LAST:GET',true);
+        const match=last.match(/\((-?\d+)\)/);
+        if(match?Number(match[1])!==0:!/^\s*no\s+errors?\b/i.test(last))throw Error('4200A KXCI 仪器错误或无法识别响应：'+last.slice(0,140));
+      };
       try{
-        await command('US');
         await command(':ERROR:LAST:CLEAR');
+        await command('US');
+        if(timing?.integration)await command(timing.integration);
+        await verifyError();
         for(const point of points(plan)){
           if(j.cancelled)break;
+          let changed=false;
           for(const role of j.compiled.active){
             const ch=j.compiled.channels[role];
             const voltage=point.voltages[role];
@@ -190,34 +206,35 @@
             if(lastCommands[role]!==code){
               await command(code);
               lastCommands[role]=code;
+              changed=true;
             }
             if(selected!==null){
               const rangeCode='RI '+ch+','+numeric(selected)+','+numeric(compliance);
               if(lastCommands[role+'-range']!==rangeCode){
                 await command(rangeCode);
                 lastCommands[role+'-range']=rangeCode;
+                changed=true;
               }
             }else if(setting.rangeMode==='limited-auto'){
               const rangeCode='RG '+ch+','+numeric(Number(setting.rangeA));
               if(lastCommands[role+'-range']!==rangeCode){
                 await command(rangeCode);
                 lastCommands[role+'-range']=rangeCode;
+                changed=true;
               }
             }
             if(j.cancelled)break;
           }
           if(j.cancelled)break;
-          const delay=point.delayMs+(point.changedP&&previousP!==null?
-            point.pDelayMs:0);
+          if(changed)await verifyError();
+          if(timing&&timeOrigin===null)timeOrigin=Date.now();
+          const plannedS=timing?(point.cycle-1)*timing.durationS+timing.startS+(point.xRepeat-1)*timing.intervalS:null;
+          const deadline=timing?timeOrigin+plannedS*1000:null;
+          const delay=timing?Math.max(0,deadline-Date.now()):point.delayMs+(point.changedP&&previousP!==null?point.pDelayMs:0);
           previousP=point.pPoint;
-          if(delay>0){
-            if(!wait)throw Error('当前插件宿主未提供测量时序调度器');
-            const pending=wait(delay);
-            await Promise.race([Promise.resolve(pending),new Promise(resolve=>{
-              j.wake=()=>{try{pending?.cancel?.();}finally{resolve();}};
-            })]);
-          }
-          j.wake=null;
+          await waitFor(delay);
+          if(timing&&!j.cancelled&&Date.now()>deadline+timing.windowS*1000)throw Error('I–T 采样窗口已错过');
+          const sampleStarted=Date.now();
           if(j.cancelled)break;
           // TI samples one SMU at a time. All actively driven terminals need
           // their own compliance check; a healthy drain never proves the gate
@@ -239,7 +256,10 @@
             const now=Date.now();
             const full=rolesToRead.every(role=>Boolean(readings[role]));
             j.rows.push(Object.freeze({
-              timeS:(now-started)/1000,voltageV:point.voltages.drain,
+              timeS:(now-(timeOrigin??started))/1000,plannedTimeS:plannedS,
+              sampleStartS:timing?(sampleStarted-timeOrigin)/1000:null,
+              sampleWindowOverrun:timing?now>deadline+timing.windowS*1000:false,
+              voltageV:point.voltages.drain,
               currentA:readings.drain.currentA,
               drainCurrentA:readings.drain.currentA,
               gateCurrentA:readings.gate?.currentA??null,
@@ -262,10 +282,12 @@
             }));
             try{onProgress(publicState(0));}catch{}
           }
+          if(timing&&Date.now()>deadline+timing.windowS*1000&&!j.cancelled)throw Error('I–T 超出采样窗口，已保留真实读数并停止');
           if(complianceRole)
             throw Error(complianceRole+' SMU 触及电流保护（Compliance），测量已终止');
           if(j.cancelled)break;
         }
+        if(timing&&timeOrigin!==null&&!j.cancelled)await waitFor(timeOrigin+timing.durationS*timing.cycles*1000-Date.now());
         if(j.cancelled)j.state='stopping';
         // KXCI exposes its last error non-destructively. A failed query is
         // handled as a communication failure, not as an acceptable null read.
@@ -299,7 +321,7 @@
       if(compiled.requiresInterlock)
         throw Error('该方案需要硬件高压互锁，尚未实现互锁状态的可靠读取');
       // No implicit partial plan override and no software-derived measurement.
-      const needsWait=compiled.plan.xSweep.delayMs>0||
+      const needsWait=Boolean(compiled.timeProgram)||compiled.plan.xSweep.delayMs>0||
         compiled.plan.xSweep.segments.some(s=>(s.delayMs||0)>0)||
         Boolean(compiled.plan.pSweep&&(compiled.plan.pSweep.delayMs>0||
           compiled.plan.pSweep.segments.some(s=>(s.delayMs||0)>0)));
