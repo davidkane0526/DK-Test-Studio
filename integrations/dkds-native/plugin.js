@@ -9,6 +9,7 @@
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const preferences=ctx.ui.settings.define('workspace-language',{defaults:{language:'zh-CN'}});
   let language=preferences.get('language')==='en'?'en':'zh-CN';
+  const wiringPreferences=ctx.ui.settings.define('instrument-wiring',{defaults:{profile:''}});
   const navigationPreferences=ctx.ui.settings.define('workspace-navigation',{defaults:{templatesCollapsed:false}});
   let templatesCollapsed=navigationPreferences.get('templatesCollapsed')===true;
   const tr=(zh,en)=>language==='en'?en:zh;
@@ -278,6 +279,7 @@
       interfaceName:profile.interfaceName,expectedSerial:identity.serial,autoReconnect:true});
      await measurementRuntime.inspectModules();
     }else await measurementRuntime.inspectModules({refresh:true});
+    try{measurementRuntime.setTopologyProfile(JSON.parse(wiringPreferences.get('profile')||'null'));}catch{measurementRuntime.setTopologyProfile(null);}
    }catch(error){
     const reason=String(error.message||error);
     const detail=/Host capability unavailable: tcpOpen|网页服务未提供通用 TCP 网关|远程 TCP 请求失败，HTTP 405/.test(reason)?
@@ -2127,12 +2129,8 @@
   }
   function renderSharedPorts(p){
    const inventory=measurementRuntime.status().connection.inventory;
-   const modules=inventory?.slots||[];
    const logicals=p.kind==='dc'?['S','D','G','B']:['S','D','G'];
-   const hardware=inventory?modules.flatMap(slot=>{
-    if(!Number.isInteger(slot.channel)||!['SMU','PMU'].includes(slot.family))return [];
-    return [slot.family+slot.channel];
-   }):['SMU1','SMU2','SMU3','SMU4'];
+   const hardware=inventory?(inventory.ports||ctx.modules.require('dkts-kxci').portCatalog(inventory)).filter(port=>['SMU','PMU'].includes(port.family)).map(port=>port.id):['SMU1','SMU2','SMU3','SMU4'];
    const resources=[...new Set(['None','GNDU',...hardware])];
    const portOptions=(value,logical)=>[
     ...resources.filter(resource=>logical!=='B'||!resource.startsWith('PMU')).map(resource=>({value:resource,label:resource==='None'?t(resource):resource.replace(/^SMU(\d)$/,'SMU $1')})),
@@ -2268,6 +2266,32 @@
    updateGraphLanguage();
    if(measurementRuntime.status().connection.phase==='disconnected')showOfflineStatus();
   }
+  async function configureWiring(connection){
+   const protocol=ctx.modules.require('dkts-kxci'),ports=protocol.portCatalog(connection.inventory);
+   const rpms=ports.filter(p=>p.hasRpm&&p.verified),smus=ports.filter(p=>p.family==='SMU'&&p.verified).map(p=>p.id);
+   if(!rpms.length){await ctx.ui.dialogs.alert({title:tr('接线','Wiring'),message:tr('未检测到 RPM。','No RPM detected.')});return;}
+   let prior=null;try{prior=JSON.parse(wiringPreferences.get('profile')||'null');}catch{}
+   const valid=prior?.signature===protocol.topologySignature(connection.inventory,connection.identity.serial);
+   const links=[];
+   for(const port of rpms){
+    const answer=await ctx.ui.dialogs.prompt({title:port.id+' · RPM',message:tr('请按实际接线或 KCon 确认与该 RPM 连接的 SMU。未连接 SMU 时填 None。可选：','Confirm the SMU connected to this RPM in KCon or at the instrument. Enter None when no SMU is connected. Options: ')+smus.join(', ')+', None',input:{label:tr('连接的 SMU','Connected SMU'),value:valid?prior.links.find(l=>l.pmu===port.id)?.smu||'':''},cancelLabel:t('取消'),confirmLabel:tr('下一步','Next')});
+    if(answer==null)return;
+    const smu=answer.trim().toUpperCase()==='NONE'?'None':answer.trim().toUpperCase();
+    if(![...smus,'None'].includes(smu))throw Error(tr('请选择实际存在的 SMU 或 None。','Enter an installed SMU or None.'));
+    links.push({pmu:port.id,smu});
+   }
+   const ok=await ctx.ui.dialogs.confirm({title:tr('确认实际接线','Confirm physical wiring'),message:links.map(l=>l.pmu+' ↔ '+l.smu).join('\n'),detail:tr('这里只保存接线记录，不改变硬件输出。','This saves wiring only; it does not change instrument outputs.'),confirmLabel:t('保存'),cancelLabel:t('取消')});
+   if(!ok)return;
+   const profile=measurementRuntime.confirmWiring(links);
+   wiringPreferences.set({profile:JSON.stringify(profile)});
+   ctx.status.set(tr('已保存 RPM 接线。','RPM wiring saved.'));
+  }
+  async function showInstrumentDetails(connection){
+   const inv=connection.inventory,system=inv?.systemInfo;
+   const records=[...(inv?.instrumentInfoRecords||[]),...(inv?.remoteModuleInfoRecords||[])];
+   const detail=[system?('Clarius '+system.clariusVersion+' · '+system.softwareVersion):tr('系统版本未确认','System version unverified'),...records.map(r=>[r.name,r.model,r.serialNo,r.calibrationDate&&tr('校准 ','Calibrated ')+r.calibrationDate,r.calibrationDueDate&&tr('到期 ','Due ')+r.calibrationDueDate].filter(Boolean).join(' · '))].join('\n');
+   await ctx.ui.dialogs.alert({title:tr('模块与校准信息','Modules and calibration'),message:detail||tr('尚未识别模块','Modules not detected')});
+  }
   async function connectFromToolbar(){
    if(!instrumentIdle()||connectionDialogOpen)return;
    connectionDialogOpen=true;
@@ -2285,10 +2309,12 @@
      const result=await ctx.ui.dialogs.show({
       title,message:[connection.identity.serial,route?.remoteAddress&&route.remoteAddress+':'+route.remotePort].filter(Boolean).join(' · '),
       detail,detailOpen:true,defaultAction:'cancel',cancelAction:'cancel',
-      actions:[{...cancel,label:tr('关闭','Close')},advanced,{id:'disconnect',label:tr('断开','Disconnect'),kind:'secondary'}]
+      actions:[{...cancel,label:tr('关闭','Close')},{id:'modules',label:tr('模块与校准','Modules & calibration'),kind:'secondary'},{id:'wiring',label:tr('接线','Wiring'),kind:'secondary'},advanced,{id:'disconnect',label:tr('断开','Disconnect'),kind:'secondary'}]
      });
      if(result==='disconnect')await disconnectInstrument();
      else if(result==='advanced')connectionSettings.open();
+     else if(result==='modules')await showInstrumentDetails(connection);
+     else if(result==='wiring')await configureWiring(connection);
      return;
     }
     const session=await measurementRuntime.currentTcp();

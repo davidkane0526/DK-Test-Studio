@@ -94,8 +94,13 @@
           const instrumentInfo=await send(protocol.GN_RESULT_REQUEST,8192);
           await send(protocol.REMOTE_MODULE_INFO_REQUEST,1024);
           const remoteModuleInfo=await send(protocol.GN_RESULT_REQUEST,8192);
+          await send(protocol.SYSTEM_INFO_REQUEST,1024);
+          const systemRaw=await send(protocol.GN_RESULT_REQUEST,8192);
           await send(protocol.DE_REQUEST,1024,false);enteredUserLibrary=false;
-          inventory=protocol.parseHardwareInventory(optionsRaw,instrumentInfo,remoteModuleInfo);inventoryError='';return status();
+          const parsed=protocol.parseHardwareInventory(optionsRaw,instrumentInfo,remoteModuleInfo);
+          let systemInfo=null,systemInfoError='';
+          try{systemInfo=protocol.parseSystemInfo(systemRaw,identity.serial);}catch(e){systemInfoError=String(e.message||e);if(/序列号不匹配/.test(systemInfoError))throw e;}
+          inventory=Object.freeze({...parsed,systemInfo,systemInfoError,ports:Object.freeze(protocol.portCatalog(parsed))});inventoryError='';return status();
         }catch(error){
           let reason=String(error?.message||error).slice(0,300);
           if(enteredUserLibrary&&connection?.sessionId===targetId){try{await send(protocol.DE_REQUEST,1024,false);enteredUserLibrary=false;}catch(restoreError){reason+='；恢复 KXCI 系统模式失败：'+String(restoreError?.message||restoreError).slice(0,120);}}
@@ -128,7 +133,7 @@
     let systemProgram=null;
     function beginSystemProgram(program){
       if(systemProgram)throw Error('已有 System Mode 任务');
-      systemProgram={commands:new Set([...program.setup,...program.reads,...program.cleanup,'ME1','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET']),reads:new Set(program.reads),rdNames:new Set(program.rdNames),count:program.count};
+      systemProgram={commands:new Set([...program.setup,...program.reads,...program.cleanup,...(program.rpmRoutes?.length?[':PMU:TEST:STATUS?']:[]),'ME1','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET']),reads:new Set([...program.reads,...(program.rpmRoutes?.length?[':PMU:TEST:STATUS?']:[])]),rdNames:new Set(program.rdNames),count:program.count};
     }
     function endSystemProgram(){systemProgram=null;}
     function measurementTrace(){return trace.map(x=>({...x}));}

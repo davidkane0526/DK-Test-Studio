@@ -109,7 +109,19 @@ function compileSystemPlan(compiled,input,inventory){
   assert(setting.rangeMode!=='fixed'&&(!axis||axis.segments.every(s=>s.rangeA==='auto')),'System Mode 的 RI 不能保证整个 sweep 固定档位；请使用 Auto / 最低自动量程');
   setup.push("CH"+channels[r]+",'V"+channels[r]+"','I"+channels[r]+"',1,"+(timing?3:r===x.terminal?1:r===p?.terminal?2:3));
  }
+ const rpmRoutes=input.rpmRoutes||[];
+ for(const route of rpmRoutes){
+  assert(/^PMU[1-9]-[12]$/.test(route.pmu)&&/^SMU[1-8]$/.test(route.smu)&&Number.isInteger(route.pulseChannel)&&route.pulseChannel>=1&&route.pulseChannel<=8,'RPM 路由无效');
+  assert(active.some(r=>'SMU'+channels[r]===route.smu),'RPM 目标 SMU 不在任务中');
+  const m=/^PMU([1-9])-([12])$/.exec(route.pmu);
+  assert(installed.some(s=>s.family==='PMU'&&s.channel===Number(m[1])&&s.rpmChannels?.includes(Number(m[2]))&&s.physicalIdentityVerified===true),'RPM 未由模块识别确认');
+  assert(route.pulseChannel===2*(Number(m[1])-1)+Number(m[2]),'脉冲通道编号不一致');
+ }
  setup.push('SS');
+ if(rpmRoutes.length){
+  setup.push('ZE');
+  for(const route of rpmRoutes)setup.push(':PMU:OUTPUT:STATE '+route.pulseChannel+',0','RP '+route.pmu+', 2');
+ }
  for(const r of active){
   const ch=channels[r],setting=plan.portSettings[r],limit=setting.complianceA;
   if(timing||r!==x.terminal&&r!==p?.terminal){
@@ -156,10 +168,10 @@ function compileSystemPlan(compiled,input,inventory){
  setup.push('LI '+signals.map(s=>"'"+s.name+"'").join(','),'MD');
  const timestamp='V'+channels.drain+'T';
  const reads=[...signals.map(s=>"DO '"+s.name+"'"),"DO '"+timestamp+"'"];
- const cleanup=['MD','ME4','DE',...active.map(r=>'CH'+channels[r])];
+ const cleanup=['MD','ME4','DE',...active.map(r=>'CH'+channels[r]),...(rpmRoutes.length?['SS','ZE',...rpmRoutes.map(r=>'RP '+r.pmu+', 0')]:[])];
  // Only these exact validated setup/read/stop strings may pass the internal
  // transport lease. RD indices are separately bounded by count.
- return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,xRole:x.terminal,pRole:p?.terminal||null,timing,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
+ return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,rpmRoutes:Object.freeze(rpmRoutes.slice()),xRole:x.terminal,pRole:p?.terminal||null,timing,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
 }
 function parseSystemValues(raw){
  const text=String(raw??'').trim().replace(/,\s*$/,'');
@@ -220,14 +232,18 @@ async function executeSystemTask(program,io){
   return {busy:Boolean(value&16),ready:Boolean(value&1)};
  };
  let configured=false,triggered=false,offset=0,shutdown='not-started',state='completed',error='',preview=[];
+ const switched=[];
  const settle=async()=>{for(let i=0;i<100;i++){const status=await poll();if(!status.busy)return;await wait(100);}throw Error('仪器中止后仍 Busy');};
  try{
   const initial=await poll();
   if(initial.busy)throw Error('仪器已有测量正在运行');
+  if(program.rpmRoutes?.length){const pulse=String(await command(':PMU:TEST:STATUS?',true)).trim();if(pulse!=='0')throw Error('PMU 正在测量或状态无法确认；未切换 RPM');}
   if(cancelled())return {state:'stopped',shutdown,error};
   await command(':ERROR:LAST:CLEAR');
   configured=true;
-  for(const cmd of program.setup){if(cancelled())break;await command(cmd);const status=await poll();if(status.busy)throw Error('配置期间仪器意外进入 Busy');}
+  for(const cmd of program.setup){if(cancelled())break;
+   const route=program.rpmRoutes?.find(r=>cmd==='RP '+r.pmu+', 2');if(route)switched.push(route);
+   await command(cmd);const status=await poll();if(status.busy)throw Error('配置期间仪器意外进入 Busy');}
   for(let cycle=1;cycle<=program.cycles&&!cancelled();cycle++){
    // ME1 starts an entire instrument-owned test. No DV/TI loop here.
    triggered=true;await command('ME1');
@@ -290,6 +306,7 @@ async function executeSystemTask(program,io){
     try{
      await command('DE');await poll();
      for(const r of [...program.active].reverse()){await command('CH'+program.channels[r]);const status=await poll();if(status.busy)throw Error('关断后仍 Busy');}
+     if(switched.length){await command('SS');await command('ZE');await poll();for(const route of switched){await command('RP '+route.pmu+', 0');await poll();}}
     }catch(e){safe=false;error+=(error?'；':'')+'关闭未确认：'+String(e.message||e);}
    }
    shutdown=safe?'commands-sent':'unconfirmed';if(!safe)state='failed';

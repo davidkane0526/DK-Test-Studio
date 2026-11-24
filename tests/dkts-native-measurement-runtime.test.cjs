@@ -72,7 +72,8 @@ function makeInstrumentContext(modules,options={}){
       return reply('ACK\0');
     if(command==='EX SystemUtil instrumentinfo(,4096,)\0'){lastQuery='instrument';return reply('OK\0');}
     if(command==='EX SystemUtil remotemoduleinfo(,4096,)\0'){lastQuery='remote';return reply('OK\0');}
-    if(command==='GN result\0')return reply(lastQuery==='instrument'?instrumentInfo+'\0':remoteInfo+'\0');
+    if(command==='EX SystemUtil systeminfo(,2048,)\0'){lastQuery='system';return reply('OK\0');}
+    if(command==='GN result\0')return reply(lastQuery==='instrument'?instrumentInfo+'\0':lastQuery==='system'?'serialno:1498377,swver:4200A-852-1.0,platformver:4200A-300-1,clariusver:V1.14\0':remoteInfo+'\0');
     if(command==='TI1\0')return reply('NAI+1.0000E-09\0');
     if(command==='TI2\0')return reply('NBI+0.0000E+00\0');
     if(command==='SP\0'){

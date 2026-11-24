@@ -201,6 +201,9 @@ function pageToBasicProgram(page, model){
   });
   const controller=identity.createIdentityController(tcp,protocol);
   const execution=plan.createExecutionCoordinator();
+  let topologyProfile=null;
+  function setTopologyProfile(profile){if(runner.status(0).running)throw Error('测量期间不能更改接线');topologyProfile=profile||null;}
+  function confirmWiring(links){const c=controller.status();if(runner.status(0).running||c.phase!=='connected')throw Error('请在仪器空闲时确认接线');const profile=protocol.confirmTopology(c.inventory,c.identity.serial,links);setTopologyProfile(profile);return profile;}
   // DKDS owns DOM timers and cancels them with the plugin lifecycle. Never
   // create raw setTimeout/setInterval resources inside a plugin.
   const wait=typeof options.wait==='function'?options.wait:createHostWait(ctx.ui?.dom);
@@ -231,6 +234,9 @@ function pageToBasicProgram(page, model){
     return {ready:false,canExecute:false,reason:connection.inventoryError||'尚未完成实际模块识别'};
    try{
     const input=pageToSweepProgram(page,model);
+    const routes=protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,Object.values(input.sweepProgram.terminals));
+    if(routes.length&&input.executionMode!=='system')throw Error('RPM 自动切换目前仅支持仪器原生 DC 和固定偏置时间测试');
+    input.rpmRoutes=routes;
     const compiled=measurement.compileSweep(input,{
      inventory:connection.inventory,capabilities:hardwareCapabilities
     });
@@ -354,7 +360,7 @@ function pageToBasicProgram(page, model){
   }
   return Object.freeze({connect,inspectModules,connectAndInspect,checkConnection,disconnect,
    currentTcp:()=>hasShared()?shared('current'):null,
-   prepare,start,stop,status,waitForCompletion,dispose,
+   prepare,start,stop,status,waitForCompletion,dispose,setTopologyProfile,confirmWiring,
    currentRanges:(resource,voltagePeaks)=>hardwareCapabilities.verifiedCurrentRanges(
     controller.status(),resource,voltagePeaks)});
  }

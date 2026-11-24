@@ -869,3 +869,11 @@
 
 - 直接从 615d7f9 Git 树读取 8 个实际模块（hardware-capabilities、kxci-protocol、identity-core、measurement-plan、kxci-measurement、model、measurement-data、measurement-runtime），在独立 JS 运行环境装载原始源码，以模拟 KXCI TCP capability、DKDS DataTable/Artifact facade 和计时服务完成两种实际页面模型的完整调用链。20/20 断言通过。两种测试均通过实际模块识别、Scoped System Mode 预检，分别发送一次 ME1，RD 预览、DO V/I/仪器时间戳、Data Center canonical publish、CH 关断；没有 DV/TI 逐点输出。Time 测试 IN=0。此为真实源码的模拟集成，不是实机测试或完整 Node/SDK/Electron/Kotlin 构建。
 - 补充零时间戳尾部截断和中间缺口拒绝逻辑，保留限流及真正的零值；对最终提交中的实际解析函数另执行 5 项断言通过。更新集成 mock 的第二 SMU 原始列和 scoped gate 回归。GitHub main 不变；无分支、合并、构建、发布。PDF 原件未上传至仓库。
+
+
+## 2026-11-25 · 独立端口与 RPM 接线公共能力（待审查）
+
+- Rev F 4-5、4-18、7-17、7-24、7-34、7-72：新增独立 PMU 双通道目录、systeminfo 查询和模块/附件校准日期展示；KCon 接线确认按仪器序列号、模块/附件标识绑定，拒绝重复 SMU、缺少 RPM、签名过期；不冒充物理接线或继电器状态可自动读取。保持 FS-Pro 原布局、共享端口映射，旧 PMU 卡级选项标为未检测到，不自动映射。接线保存不触发硬件切换。
+- System Mode DC/固定偏置时间测试在 ME1 前检查 PMU 空闲，关闭对应 PMU 输出，ZE 后按已确认 RPM 路径切换 SMU；结束后关断 SMU、ZE，再恢复 Pulse。内部白名单限定任务指令。PMU 原生执行器和 AC/连接补偿的实际操作尚未实现。保留现有额定值和安全门禁；不得称实体继电器已读回确认。无合并/编译/发布，DKDS 上游不变。
+
+- 本会话实际执行 13 项源码独立断言：端口目录、双路/单路、错误与更换设备后的失效、系统信息、指令顺序、双 RPM 模拟执行、PMU Busy 不触发输出；另对五个修改 JS 文件进行语法解析。未执行完整 UI/SDK、真实仪器或全量回归。
