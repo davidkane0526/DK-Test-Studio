@@ -28,14 +28,14 @@ function pageToBasicProgram(page, model){
  check(Object.keys(roles).every(k=>['None','GNDU'].includes(ports[k]?.resource)||active.includes(k)),'基础执行仅支持 SMU1–8、GNDU 或 None');
  check(active.includes('D'),'请将漏极映射到 SMU');
  check(new Set(active.map(k=>ports[k].resource)).size===active.length,'端口重复');
- const fixedVoltages={},portSettings={},disabled={enabled:false,terminal:'gate'};
+ const fixedVoltages={},fixedCurrents={},sourceModes={},portSettings={},disabled={enabled:false,terminal:'gate'};
  const segment=(startV,stopV,stepV,rangeA='auto',delayMs=0)=>({startV,stopV,stepV,rangeA,delayMs});
  const axis=(terminal,segments,repeats=1)=>({terminal,segments,repeats,delayMs:0});
  if(page.kind==='dc'){
   const dc=page.dc,info=model.dcSummary(page,dc);
   check(['optimized','point-by-point'].includes(dc.preset),'未知 DC 执行模式');
   check(dc.bodyResource==='None','B 端尚未接入');
-  check(info.outputs.length===1&&info.outputs[0]==='Id','基础 DC 仅支持 Outputs=Id');
+  check(dc.preset==='optimized'||(info.outputs.length===1&&info.outputs[0]==='Id'),'逐点 DC 仅支持 Outputs=Id');
   check(!dc.target.formula.trim(),'Target 公式尚未接入');
   check(dc.strategy.direction==='forward'&&dc.strategy.onLimit==='stop','仅支持 Forward 和 Stop on limit');
   const hold=dc.strategy.hold.trim()?n(dc.strategy.hold,'Hold'):0;
@@ -48,17 +48,25 @@ function pageToBasicProgram(page, model){
   const axes={};
   for(const k of active){
    const row=dc.terminals[k],r=roles[k];
-   check(row.mode==='voltage','仅支持电压源：'+k);
+   const current=row.mode==='current';
+   check(!current||dc.preset==='optimized','电流源请使用 Optimized 扫描');
+   sourceModes[r]=row.mode;
    check(row.ref==='GND'||ports[row.ref]?.resource==='GNDU','仅支持接地参考：'+k);
    check(new Set(row.segments.map(s=>s.range)).size===1,'扫描段间量程切换尚未接入');
    const range=row.segments[0].range;
-   portSettings[r]={rangeMode:range==='auto'?'auto':'fixed',rangeA:range==='auto'?'1e-6':range,complianceMode:'custom',complianceA:n(row.limitI,k+' 限流')};
-   if(row.role==='CONDITION'){check(row.segments[0].method==='constant','Generator 尚未接入');fixedVoltages[r]=v(row.segments[0].value);continue;}
+   portSettings[r]={rangeMode:range==='auto'?'auto':'fixed',rangeA:range==='auto'?'1e-6':range,complianceMode:'custom',...(current?{complianceV:n(row.limitV,k+' 限压')}:{complianceA:n(row.limitI,k+' 限流')})};
+   if(row.role==='CONDITION'){check(row.segments[0].method==='constant','Generator 尚未接入');(current?fixedCurrents:fixedVoltages)[r]=v(row.segments[0].value);continue;}
    const segs=[];
+   const make=(a,b,c)=>current?{startA:a,stopA:b,stepA:c,rangeA:range,delayMs:delay}:segment(a,b,c,range,delay);
    for(const s of row.segments){
-    if(s.method==='step')segs.push(segment(v(s.start),v(s.stop),v(s.step),range,delay));
-    else if(s.method==='points')segs.push(segment(v(s.start),v(s.stop),(v(s.stop)-v(s.start))/(v(s.points)-1),range,delay));
-    else if(s.method==='list')for(const x of s.list.split(/[,\n]/).map(v))segs.push(segment(x,x,0,range,delay));
+    if(s.method==='step')segs.push(make(v(s.start),v(s.stop),v(s.step)));
+    else if(s.method==='points')segs.push(make(v(s.start),v(s.stop),(v(s.stop)-v(s.start))/(v(s.points)-1)));
+    else if(s.method==='log'){
+     check(dc.preset==='optimized'&&row.role==='X','对数扫描请使用 Optimized 的 Xsweep');
+     const a=v(s.start),b=v(s.stop),count=v(s.points);check(Number.isInteger(count)&&count>=2&&count<=4096&&a*b>0,'对数扫描参数无效');
+     for(let i=0;i<count;i++){const level=i===0?a:i===count-1?b:Math.sign(a)*Math.exp(Math.log(Math.abs(a))+(Math.log(Math.abs(b))-Math.log(Math.abs(a)))*i/(count-1));segs.push(make(level,level,0));}
+    }
+    else if(s.method==='list')for(const x of s.list.split(/[,\n]/).map(v))segs.push(make(x,x,0));
     else throw Error('扫描方式尚未接入：'+s.method);
    }
    check(segs.length<=4096,'单轴最多 4096 个编译段');
@@ -66,7 +74,7 @@ function pageToBasicProgram(page, model){
    axes[row.role]=axis(r,dc.preset==='optimized'&&row.role==='P'?segs.map(s=>({...s,delayMs:0})):segs);
   }
   check(axes.X,'缺少 Xsweep');
-  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,sweepProgram:{terminals,fixedVoltages,portSettings,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
+  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,requestedOutputs:info.outputs,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
  }
  if(page.kind==='time'){
   const t=page.timing,summary=model.timedSummary('time',t);

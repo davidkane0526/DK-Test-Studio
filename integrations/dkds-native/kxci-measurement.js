@@ -97,7 +97,10 @@ function compileSystemPlan(compiled,input,inventory){
  const x=plan.xSweep,p=plan.pSweep;
  assert(x.repeats===1||timing,'System Mode 暂不支持 Xsweep 重复嵌套，请用整体 Cycles');
  assert(!p||p.repeats===1,'System Mode 暂不支持 Psweep 重复嵌套');
- const axisValues=axis=>axis.segments.flatMap(s=>Array.from({length:s.points},(_,i)=>i===s.points-1?s.stopV:s.startV+i*s.stepV));
+ const current=r=>plan.sourceModes?.[r]==='current';
+ const levels=(axis,s)=>current(axis.terminal)?[s.startA,s.stopA,s.stepA]:[s.startV,s.stopV,s.stepV];
+ const axisValues=axis=>axis.segments.flatMap(s=>{const [a,b,c]=levels(axis,s);return Array.from({length:s.points},(_,i)=>i===s.points-1?b:a+i*c);});
+ const compliance=r=>current(r)?plan.portSettings[r].complianceV:plan.portSettings[r].complianceA;
  const axisCount=axis=>axis.segments.reduce((sum,s)=>sum+s.points,0);
  const count=timing?timing.count:axisCount(x)*(p?axisCount(p):1);
  assert(Number.isInteger(count)&&count>=1&&count<=4096,'Rev F ME/NR：单次仪器任务最多 4096 个采样点');
@@ -107,7 +110,7 @@ function compileSystemPlan(compiled,input,inventory){
  for(const r of active){
   const setting=plan.portSettings[r],axis=x.terminal===r?x:p?.terminal===r?p:null;
   assert(setting.rangeMode!=='fixed'&&(!axis||axis.segments.every(s=>s.rangeA==='auto')),'System Mode 的 RI 不能保证整个 sweep 固定档位；请使用 Auto / 最低自动量程');
-  setup.push("CH"+channels[r]+",'V"+channels[r]+"','I"+channels[r]+"',1,"+(timing?3:r===x.terminal?1:r===p?.terminal?2:3));
+  setup.push("CH"+channels[r]+",'V"+channels[r]+"','I"+channels[r]+"',"+(current(r)?2:1)+","+(timing?3:r===x.terminal?1:r===p?.terminal?2:3));
  }
  const rpmRoutes=input.rpmRoutes||[];
  for(const route of rpmRoutes){
@@ -123,9 +126,9 @@ function compileSystemPlan(compiled,input,inventory){
   for(const route of rpmRoutes)setup.push(':PMU:OUTPUT:STATE '+route.pulseChannel+',0','RP '+route.pmu+', 2');
  }
  for(const r of active){
-  const ch=channels[r],setting=plan.portSettings[r],limit=setting.complianceA;
+  const ch=channels[r],setting=plan.portSettings[r],limit=compliance(r);
   if(timing||r!==x.terminal&&r!==p?.terminal){
-   setup.push('VC'+ch+','+fmt(plan.fixedVoltages[r])+','+fmt(limit));
+   setup.push((current(r)?'IC':'VC')+ch+','+fmt(current(r)?plan.fixedCurrents[r]:plan.fixedVoltages[r])+','+fmt(limit));
   }
   setup.push('ST '+ch+',1');
  }
@@ -141,23 +144,26 @@ function compileSystemPlan(compiled,input,inventory){
   assert(delay>=0&&delay<=6.553,'DT 范围 0–6.553 s');
   setup.push('DT '+fmt(delay),'HT '+fmt(input.systemHoldS||0));
   const seg=x.segments[0],linear=x.segments.length===1&&seg.points>=2&&seg.points<=1024&&
-    [seg.startV,seg.stopV,seg.stepV].every(v=>v===0||Math.abs(v)>=0.001);
-  if(linear)setup.push('VR1,'+[seg.startV,seg.stopV,seg.stepV,plan.portSettings[x.terminal].complianceA].map(fmt).join(','));
+    (current(x.terminal)||levels(x,seg).every(v=>v===0||Math.abs(v)>=0.001));
+  if(linear)setup.push((current(x.terminal)?'IR1,':'VR1,')+[...levels(x,seg),compliance(x.terminal)].map(fmt).join(','));
   else{
    assert(!p,'当前仅核验了单轴 VL 与线性 VAR1/VAR2；非线性嵌套需要独立核验');
-   setup.push('VL'+channels[x.terminal]+',1,'+fmt(plan.portSettings[x.terminal].complianceA)+','+xValues.map(fmt).join(','));
+   setup.push((current(x.terminal)?'IL':'VL')+channels[x.terminal]+',1,'+fmt(compliance(x.terminal))+','+xValues.map(fmt).join(','));
   }
   if(p){
    assert(p.segments.length===1&&pValues.length<=32,'VAR2 单次最多 32 个线性步进');
    const s=p.segments[0];
-   assert([s.startV,s.stepV].every(v=>v===0||Math.abs(v)>=0.001),'VP 小于 1 mV 的非零值可能被仪器归零');
+   const [start,stop,step]=levels(p,s);
+   assert(current(p.terminal)||[start,step].every(v=>v===0||Math.abs(v)>=0.001),'VP 小于 1 mV 的非零值可能被仪器归零');
+   assert(Math.abs(step)<=(current(p.terminal)?1.05:210),'外层扫描步长超出原厂指令范围');
    assert((s.delayMs??p.delayMs)===0,'VAR2 独立延迟未映射到原生扫描');
-   setup.push('VP '+[s.startV,s.stepV,s.points,plan.portSettings[p.terminal].complianceA].map(fmt).join(','));
+   setup.push((current(p.terminal)?'IP ':'VP ')+[start,step,s.points,compliance(p.terminal)].map(fmt).join(','));
   }
  }
  // Keep automatic range flooring explicit instead of inheriting earlier tasks.
  for(const r of active){
   const setting=plan.portSettings[r],slot=installed.find(s=>s.family==='SMU'&&s.channel===channels[r]);
+  if(current(r))continue; // RG sets current measurement floor, not voltage range.
   const floor=setting.rangeMode==='limited-auto'?Number(setting.rangeA):slot?.preamplifier?1e-9:1e-7;
   setup.push('RG '+channels[r]+','+fmt(floor));
  }
@@ -171,7 +177,7 @@ function compileSystemPlan(compiled,input,inventory){
  const cleanup=['MD','ME4','DE',...active.map(r=>'CH'+channels[r]),...(rpmRoutes.length?['SS','ZE',...rpmRoutes.map(r=>'RP '+r.pmu+', 0')]:[])];
  // Only these exact validated setup/read/stop strings may pass the internal
  // transport lease. RD indices are separately bounded by count.
- return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,rpmRoutes:Object.freeze(rpmRoutes.slice()),xRole:x.terminal,pRole:p?.terminal||null,timing,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
+ return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,rpmRoutes:Object.freeze(rpmRoutes.slice()),xRole:x.terminal,pRole:p?.terminal||null,xMode:current(x.terminal)?'current':'voltage',pMode:p?(current(p.terminal)?'current':'voltage'):null,requestedOutputs:input.requestedOutputs||['Id'],timing,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
 }
 function parseSystemValues(raw){
  const text=String(raw??'').trim().replace(/,\s*$/,'');
@@ -216,8 +222,12 @@ function systemRows(program,columns,cycle,offset,startIndex=0){
   row.rawKxciResponse=row.rawKxciResponses['I'+program.channels.drain];
   row.voltageV=row.drainVoltageV;row.currentA=row.drainCurrentA;
   row.xVoltageV=row[program.xRole+'VoltageV'];row.pVoltageV=program.pRole?row[program.pRole+'VoltageV']:null;
-  row.plannedXVoltageV=program.xValues[program.timing?0:(startIndex+i)%program.xValues.length];
-  row.plannedPVoltageV=program.pRole?program.pValues[row.pPoint-1]:null;
+  const xv=program.xValues[program.timing?0:(startIndex+i)%program.xValues.length],pv=program.pRole?program.pValues[row.pPoint-1]:null;
+  row.plannedXVoltageV=program.xMode==='current'?null:xv;
+  row.plannedPVoltageV=program.pMode==='current'?null:pv;
+  row.plannedXCurrentA=program.xMode==='current'?xv:null;
+  row.plannedPCurrentA=program.pMode==='current'?pv:null;
+  row.xCurrentA=row[program.xRole+'CurrentA'];row.pCurrentA=program.pRole?row[program.pRole+'CurrentA']:null;
   rows.push(Object.freeze(row));
  }
  return rows;
@@ -341,7 +351,7 @@ async function executeSystemTask(program,io){
     for(const role of active){
       const axis=plan.xSweep.terminal===role?plan.xSweep:
         plan.pSweep?.terminal===role?plan.pSweep:null;
-      const volts=axis?axis.segments.flatMap(s=>[s.startV,s.stopV]):
+      const volts=plan.sourceModes?.[role]==='current'?[plan.portSettings[role].complianceV]:axis?axis.segments.flatMap(s=>[s.startV,s.stopV]):
         [plan.fixedVoltages[role]];
       highestV=Math.max(highestV,...volts.map(v=>Math.abs(v)));
     }

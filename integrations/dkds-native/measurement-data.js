@@ -6,6 +6,7 @@
  const FIELDS=[
   ['sequence','序号','','index'],['timeS','测量时间','s','x'],
   ['plannedTimeS','计划采样时间','s','raw'],['sampleStartS','主机采样起点','s','raw'],['sampleWindowOverrun','采样窗口超时','','raw'],
+  ['plannedXCurrentA','Xsweep 设定电流','A','raw'],['plannedPCurrentA','Psweep 设定电流','A','raw'],['xCurrentA','Xsweep 实测电流','A','raw'],['pCurrentA','Psweep 实测电流','A','raw'],
   ['plannedXVoltageV','Xsweep 设定电压','V','raw'],['plannedPVoltageV','Psweep 设定电压','V','raw'],
   ['drainVoltageV','漏极电压','V','x'],['drainCurrentA','漏极电流','A','y'],
   ['gateVoltageV','栅极电压','V','group'],['gateCurrentA','栅极电流','A','y'],

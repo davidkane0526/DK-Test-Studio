@@ -313,13 +313,13 @@
    const plan=prepared.compiled.plan;
    const channels=Object.entries(prepared.channels).map(([role,channel])=>role+'=SMU'+channel).join('，');
    const voltageSegments=[...plan.xSweep.segments,...(plan.pSweep?.segments||[])];
-   const maxVoltage=Math.max(0,...voltageSegments.flatMap(row=>[Math.abs(row.startV),Math.abs(row.stopV)]),
-    ...Object.values(plan.fixedVoltages).map(value=>Math.abs(value)));
+   const maxVoltage=Math.max(0,...voltageSegments.filter(row=>Number.isFinite(row.startV)).flatMap(row=>[Math.abs(row.startV),Math.abs(row.stopV)]),
+    ...Object.values(plan.fixedVoltages).map(value=>Math.abs(value)),...Object.values(plan.portSettings).map(row=>row.complianceV||0));
    const confirmed=await ctx.ui.dialogs.confirm({
     title:'确认 Keithley 4200A 实际输出',tone:'warning',destructive:true,
     message:'仪器 '+current.connection.identity.serial+' 将执行“'+page.name+'”，预计 '+
      prepared.pointCount.toLocaleString()+' 个测量点。',
-    detail:'活动端口：'+channels+'。最大设定电压：'+maxVoltage+' V。'+(prepared.compiled.system?.rpmRoutes?.length?'本次自动切换：'+prepared.compiled.system.rpmRoutes.map(r=>r.pmu+' → '+r.smu).join('，')+'。请确认接线未变化、所有相连输出均已关闭且无其他测试。':'')+(page.kind==='time'?'读数后等待和采样点数按测试设置执行；实际时长以仪器记录为准。':'')+'请确认实际接线、探针接触、各端口限流及现场安全条件。测量结束、停止或异常时，软件会尝试关闭活动输出。',
+    detail:'活动端口：'+channels+'。最大设定电压或限压：'+maxVoltage+' V。'+(prepared.compiled.system?.rpmRoutes?.length?'本次自动切换：'+prepared.compiled.system.rpmRoutes.map(r=>r.pmu+' → '+r.smu).join('，')+'。请确认接线未变化、所有相连输出均已关闭且无其他测试。':'')+(page.kind==='time'?'读数后等待和采样点数按测试设置执行；实际时长以仪器记录为准。':'')+'请确认实际接线、探针接触、各端口限流及现场安全条件。测量结束、停止或异常时，软件会尝试关闭活动输出。',
     confirmLabel:'确认接线并开始输出'
    });
    if(!confirmed)return;
