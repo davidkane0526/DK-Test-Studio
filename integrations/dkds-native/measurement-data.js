@@ -17,7 +17,7 @@
   ['pPoint','Psweep 点序','','index']
  ];
  const STRINGS=[
-  ['measurementStatus','测量状态'],['measurementCompleteness','采样完整性'],
+  ['source','采集协议来源'],['measurementStatus','测量状态'],['measurementCompleteness','采样完整性'],
   ['complianceRole','触及限流端口'],['rawKxciResponse','KXCI 原始响应'],
   ['rawKxciResponses','各端口原始响应 JSON'],
   ['measurementStatusByRole','端口状态 JSON'],
@@ -36,7 +36,7 @@
    throw Error('No actual KXCI samples to publish');
   for(let i=0;i<rows.length;i++){
    const row=rows[i];
-   if(!['4200A-KXCI-TI','4200A-KXCI-DO'].includes(row?.source)||row.sequence!==i+1||
+   if(!['4200A-KXCI-TI','4200A-KXCI-DO','4200A-KXCI-RD'].includes(row?.source)||row.sequence!==i+1||
       !Number.isFinite(row.timeS)||!Number.isFinite(row.drainVoltageV)||
       !Number.isFinite(row.drainCurrentA)||!row.rawKxciResponse||
       !['complete','partial'].includes(row.measurementCompleteness))

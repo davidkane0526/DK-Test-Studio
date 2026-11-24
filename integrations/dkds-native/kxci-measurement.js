@@ -98,10 +98,12 @@ function compileSystemPlan(compiled,input,inventory){
  assert(x.repeats===1||timing,'System Mode 暂不支持 Xsweep 重复嵌套，请用整体 Cycles');
  assert(!p||p.repeats===1,'System Mode 暂不支持 Psweep 重复嵌套');
  const axisValues=axis=>axis.segments.flatMap(s=>Array.from({length:s.points},(_,i)=>i===s.points-1?s.stopV:s.startV+i*s.stepV));
- const xValues=axisValues(x),pValues=p?axisValues(p):[];
- const count=timing?timing.count:xValues.length*(p?pValues.length:1);
+ const axisCount=axis=>axis.segments.reduce((sum,s)=>sum+s.points,0);
+ const count=timing?timing.count:axisCount(x)*(p?axisCount(p):1);
  assert(Number.isInteger(count)&&count>=1&&count<=4096,'Rev F ME/NR：单次仪器任务最多 4096 个采样点');
  assert(plan.loops>=1&&Number.isSafeInteger(plan.loops),'循环数无效');
+ assert(axisCount(x)<=4096&&(!p||axisCount(p)<=32),'原生单次任务轴长度超过手册限制');
+ const xValues=axisValues(x),pValues=p?axisValues(p):[];
  for(const r of active){
   const setting=plan.portSettings[r],axis=x.terminal===r?x:p?.terminal===r?p:null;
   assert(setting.rangeMode!=='fixed'&&(!axis||axis.segments.every(s=>s.rangeA==='auto')),'System Mode 的 RI 不能保证整个 sweep 固定档位；请使用 Auto / 最低自动量程');
@@ -160,21 +162,21 @@ function compileSystemPlan(compiled,input,inventory){
  return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,xRole:x.terminal,pRole:p?.terminal||null,timing,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
 }
 function parseSystemValues(raw){
- const text=String(raw??'').trim().replace(/,+$/,'');
+ const text=String(raw??'').trim().replace(/,\s*$/,'');
  if(!text||/^UNAVAILABLE$/i.test(text)||/^ACK$/i.test(text))throw Error('KXCI data unavailable: '+text);
- return text.split(/[,;\r\n]+/).map(token=>{
+ return text.split(',').map(token=>{
   const literal=token.trim(),match=/^([NC])?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:E[+-]?\d+)?)$/i.exec(literal);
   if(!match)throw Error('Invalid KXCI reading: '+literal);
   const value=Number(match[2]);if(!Number.isFinite(value)||Math.abs(value)>=9e37)throw Error('Invalid/missing KXCI reading: '+literal);
   return {value,status:match[1]?.toUpperCase()||'unknown',literal};
  });
 }
-function systemRows(program,columns,cycle,offset){
+function systemRows(program,columns,cycle,offset,startIndex=0){
  const lengths=Object.values(columns).map(v=>v.length);
  if(!lengths.length||!lengths[0]||lengths.some(v=>v!==lengths[0])||lengths[0]>program.count)throw Error('KXCI 原始列长度不一致或超过计划点数');
  const rows=[];
  for(let i=0;i<lengths[0];i++){
-  const t=columns[program.timestamp][i],row={sequence:offset+i+1,cycle,timeS:t.value,measurementCompleteness:'complete',source:'4200A-KXCI-DO',rawKxciResponses:{timestamp:t.literal},measurementStatusByRole:{},measurementOrder:program.signals.map(s=>s.name),complianceRole:null,measurementStatus:'unknown',point:program.timing?i+1:i%program.xValues.length+1,pPoint:program.pRole?Math.floor(i/program.xValues.length)+1:1};
+  const t=columns[program.timestamp][i],row={sequence:offset+i+1,cycle,timeS:t.value,measurementCompleteness:'complete',source:'4200A-KXCI-DO',rawKxciResponses:{timestamp:t.literal},measurementStatusByRole:{},measurementOrder:program.signals.map(s=>s.name),complianceRole:null,measurementStatus:'unknown',point:program.timing?startIndex+i+1:(startIndex+i)%program.xValues.length+1,pPoint:program.pRole?Math.floor((startIndex+i)/program.xValues.length)+1:1};
   if(t.value<0||(i&&t.value<columns[program.timestamp][i-1].value))throw Error('仪器时间戳不单调');
   for(const s of program.signals){
    const v=columns[s.name][i];
@@ -188,7 +190,7 @@ function systemRows(program,columns,cycle,offset){
   row.rawKxciResponse=row.rawKxciResponses['I'+program.channels.drain];
   row.voltageV=row.drainVoltageV;row.currentA=row.drainCurrentA;
   row.xVoltageV=row[program.xRole+'VoltageV'];row.pVoltageV=program.pRole?row[program.pRole+'VoltageV']:null;
-  row.plannedXVoltageV=program.xValues[program.timing?0:i%program.xValues.length];
+  row.plannedXVoltageV=program.xValues[program.timing?0:(startIndex+i)%program.xValues.length];
   row.plannedPVoltageV=program.pRole?program.pValues[row.pPoint-1]:null;
   rows.push(Object.freeze(row));
  }
@@ -203,7 +205,7 @@ async function executeSystemTask(program,io){
   if(value&2){let detail='';try{detail=await command(':ERROR:LAST:GET',true);}catch{}throw Error('KXCI syntax error SP='+value+' '+detail);}
   return {busy:Boolean(value&16),ready:Boolean(value&1)};
  };
- let configured=false,triggered=false,offset=0,shutdown='not-started',state='completed',error='';
+ let configured=false,triggered=false,offset=0,shutdown='not-started',state='completed',error='',preview=[];
  const settle=async()=>{for(let i=0;i<100;i++){const status=await poll();if(!status.busy)return;await wait(100);}throw Error('仪器中止后仍 Busy');};
  try{
   const initial=await poll();
@@ -215,7 +217,8 @@ async function executeSystemTask(program,io){
   for(let cycle=1;cycle<=program.cycles&&!cancelled();cycle++){
    // ME1 starts an entire instrument-owned test. No DV/TI loop here.
    triggered=true;await command('ME1');
-   let cursor=1,preview=[],idlePolls=0,done=false;
+   let cursor=1,idlePolls=0,done=false;
+   preview=[];
    while(!cancelled()){
     const status=await poll();
     if(status.ready&&!status.busy){done=true;triggered=false;break;}
@@ -232,8 +235,8 @@ async function executeSystemTask(program,io){
       const columns={[program.timestamp]:time};
       for(const s of program.signals)columns[s.name]=parseSystemValues(await command("RD '"+s.name+"',"+cursor,true));
       if(Object.values(columns).some(v=>v.length!==1))throw Error('RD returned multiple points');
-      const row=systemRows(program,columns,cycle,offset+cursor-1)[0];
-      preview.push({...row,source:'4200A-KXCI-RD',point:program.timing?cursor:(cursor-1)%program.xValues.length+1});
+      const row=systemRows(program,columns,cycle,offset+cursor-1,cursor-1)[0];
+      preview.push({...row,source:'4200A-KXCI-RD'});
       cursor++;
      }
      if(preview.length)onPreview(preview);
@@ -246,11 +249,17 @@ async function executeSystemTask(program,io){
     columns[name]=parseSystemValues(await command("DO '"+name+"'",true));
    }
    const rows=systemRows(program,columns,cycle,offset);
-   onPreview([]);
-   for(let i=0;i<rows.length;i+=128)onBatch(rows.slice(i,i+128));
-   offset+=rows.length;
-   if(rows.some(r=>r.measurementStatus==='C'))throw Error('仪器检测到 Compliance，保留已取得的原始记录');
-   if(rows.length!==program.count)throw Error('仪器返回点数 '+rows.length+'，预期 '+program.count);
+   // After Data Ready, timestamps distinguish unmeasured trailing zero slots.
+   // A legitimate first zero timestamp is preserved; no later zero may
+   // silently be treated as a new acquired record.
+   const verified=rows.filter((r,i)=>i===0||r.timeS>0);
+   if(verified.length!==rows.length&&verified.length>1&&rows.slice(0,verified.length).some((r,i)=>i>0&&r.timeS===0))throw Error('KXCI 时间戳缺口');
+   const acquired=verified.length===rows.length?rows:rows.slice(0,verified.length);
+   preview=[];onPreview([]);
+   for(let i=0;i<acquired.length;i+=128)onBatch(acquired.slice(i,i+128));
+   offset+=acquired.length;
+   if(acquired.some(r=>r.measurementStatus==='C'))throw Error('仪器检测到 Compliance，保留已取得的原始记录');
+   if(acquired.length!==program.count)throw Error('仪器返回有效点数 '+acquired.length+'，预期 '+program.count);
    // GET is non-destructive; clear only before a new task.
    const last=String(await command(':ERROR:LAST:GET',true)).trim().replace(/,+$/,'');
    const match=last.match(/\((-?\d+)\)/);
@@ -259,6 +268,9 @@ async function executeSystemTask(program,io){
   if(cancelled())state='stopped';
  }catch(e){state='failed';error=String(e.message||e);}
  finally{
+  // RD samples are real instrument readings, but not final DO columns.
+  // Keep the fully received prefix on interruption, explicitly tagged RD.
+  if(preview.length){onBatch(preview.slice());preview=[];onPreview([]);}
   if(configured){
    let safe=true;
    if(triggered){
@@ -317,7 +329,7 @@ async function executeSystemTask(program,io){
       totalPoints:plan.totalPoints,timeProgram:input.timeProgram||null});
   }
   function parseTi(raw,expectedChannel){
-    const text=String(raw??'').replace(/\0/g,'').trim();
+    const text=String(raw??'').replace(/\0/g,'').trim().replace(/,\s*$/,'');
     // 4200A user-mode: status letter, channel letter, I, signed scientific reading.
     const m=/^([A-Z])([A-Z])I\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)[Ee][+-]?\d+)$/i.exec(text);
     if(!m)throw Error('KXCI TI 原始响应无法解析：'+text.slice(0,95));
@@ -335,7 +347,7 @@ async function executeSystemTask(program,io){
       rawResponse:text,requestedSmU:requested});
   }
   function parseStatusByte(raw){
-    const text=String(raw??'').trim();
+    const text=String(raw??'').trim().replace(/,\s*$/,'');
     if(!/^\d{1,3}$/.test(text)||Number(text)>255)throw Error('KXCI SP 状态字节无法解析：'+text);
     const value=Number(text);
     return {value,ready:Boolean(value&1),syntaxError:Boolean(value&2),busy:Boolean(value&16)};

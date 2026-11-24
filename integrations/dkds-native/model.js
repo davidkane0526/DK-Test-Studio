@@ -67,7 +67,19 @@
  const timeBiasKey=mode=>mode==='current'?'currentBias':'bias';
  const timeBias=(settings,segment,terminal)=>segment[timeBiasKey(settings.sourceModes?.[terminal])]?.[terminal];
  function timeGrid(v){
-  if(v.mode!==undefined&&v.mode!=='linear-step')invalidField('mode','Select a supported time sweep mode');
+  if(v.mode!==undefined&&!['linear-step','native-fixed'].includes(v.mode))invalidField('mode','Select a supported time sweep mode');
+  if(v.mode==='native-fixed'){
+   if(!Array.isArray(v.segments)||v.segments.length!==1)invalidField('mode','Native fixed bias requires one bias segment');
+   if(!Array.isArray(v.events)||v.events.length!==1)invalidField('mode','Native fixed bias requires one measurement event');
+   const event=v.events[0];
+   const count=atField('events.0.points',()=>positiveInt(event.points,4096,'Native NR'));
+   const start=atField('events.0.startS',()=>numeric(event.startS,'Native WT'));
+   const interval=atField('events.0.intervalS',()=>numeric(event.intervalS,'Native IN'));
+   if(start<0||start>100)invalidField('events.0.startS','WT must be between 0 and 100 s');
+   if(interval<0||interval>10)invalidField('events.0.intervalS','IN must be between 0 and 10 s');
+   // This is a diagram scale only, not a claimed physical duration.
+   return {starts:[0],durationS:Math.max(0.001,start+count*interval),segmentCount:1,samplePoints:count,sampleStep:interval,nativeFixed:true};
+  }
   const switchStep=atField('switchStepS',()=>numeric(v.switchStepS,'Switching Step'));
   const sampleStep=atField('sampleStepS',()=>numeric(v.sampleStepS,'Sampling Step'));
   if(switchStep<=0)invalidField('switchStepS','Switching Step must be positive');
@@ -106,6 +118,13 @@
   const cycles=atField('cycles',()=>positiveInt(v.cycles,10000,'Cycles'));
   if(!Object.hasOwn(SMU_INTEGRATION_PLC,v.integrationPreset))
    invalidField('integrationPreset','Select a supported SMU integration preset');
+  if(grid.nativeFixed){
+   if(v.integrationS!=='')invalidField('integrationPreset','Select an instrument integration preset');
+   const event=v.events[0];
+   if(event.terminal!=='D'||event.quantity!=='Current')invalidField('events.0.terminal','Native fixed bias currently captures drain current');
+   if(!Number.isSafeInteger(grid.samplePoints*cycles))invalidField('cycles','Total readings exceed safe integer');
+   return {...grid,cycles,points:grid.samplePoints*cycles};
+  }
   const legacyIntegration=v.integrationS!==''?atField('integrationPreset',()=>numeric(v.integrationS,'Legacy integration time')):null;
   // Even at 60 Hz, a PLC preset has this minimum conversion time.
   // Instrument line frequency and settling time are verified separately.
@@ -335,6 +354,7 @@
   const type=KINDS.find(x=>x.id===kind);if(!type)throw Error('Unknown test type');
   return {id,routineId,kind,name:type.label,testType:type.testType,note:'',
    terminals:ports(),sweep:defaultSweep(),
+   ...(kind==='time'?{timing:{...clone(TIMED_DEFAULTS.time),mode:'native-fixed'}}:{}),
    target:{name:'Id',logical:'D',quantity:'Current',range:'auto'},
    targets:[{id:'target-1',name:'Id',logical:'D',quantity:'Current',range:'auto'}],variables:[]};
  };

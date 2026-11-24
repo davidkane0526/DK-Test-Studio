@@ -205,8 +205,8 @@
     if(!DC_ROLES.includes(terminal))throw Error(name+' 必须指定源极、漏极或栅极');
     const delayMs=finite(input.delayMs??20,name+' 点间延迟',0,6553);
     const repeats=count(input.repeats??1,name+' 重复次数',1,10000);
-    if(!Array.isArray(input.segments)||input.segments.length<1||input.segments.length>256)
-      throw Error(name+' 需要 1–256 个连续扫描段');
+    if(!Array.isArray(input.segments)||input.segments.length<1||input.segments.length>4096)
+      throw Error(name+' 需要 1–4096 个扫描段');
     const segments=input.segments.map((row,i)=>sweepSegment(row,i+1,name));
     const points=segments.reduce((sum,row)=>sum+row.points,0);
     if(!Number.isSafeInteger(points))throw Error(name+' 点数超出安全整数范围');

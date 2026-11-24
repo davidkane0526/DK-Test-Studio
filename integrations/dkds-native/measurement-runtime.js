@@ -62,13 +62,15 @@ function pageToBasicProgram(page, model){
     else throw Error('扫描方式尚未接入：'+s.method);
    }
    check(segs.length<=4096,'单轴最多 4096 个编译段');
-   axes[row.role]=axis(r,segs);
+   // DC strategy Delay is shared, not an independent VAR2 step delay.
+   axes[row.role]=axis(r,dc.preset==='optimized'&&row.role==='P'?segs.map(s=>({...s,delayMs:0})):segs);
   }
   check(axes.X,'缺少 Xsweep');
   return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,sweepProgram:{terminals,fixedVoltages,portSettings,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
  }
  if(page.kind==='time'){
   const t=page.timing,summary=model.timedSummary('time',t);
+  check(t.mode==='native-fixed','请选择时间测试的 Native Fixed Bias（仪器执行）模式；旧线性时序计划不自动转换为 IN');
   check(ports.B?.resource==='None','B 端尚未接入');
   check(t.segments.length===1,'仅支持单段固定偏置；多段切换待接入');
   check(t.events.length===1&&t.events[0].terminal==='D'&&t.events[0].quantity==='Current','仅支持一个漏极电流采样事件');
@@ -212,6 +214,7 @@ function pageToBasicProgram(page, model){
    const connection=controller.status(),run=runner.status(0);
    return Object.freeze({connection,run,execution:execution.status(),
     protocolVerified:hardwareCapabilities.DATABASE?.safetyPolicies?.kxci?.latestOfficialContentVerified===true&&hardwareCapabilities.DATABASE?.safetyPolicies?.kxci?.allowInstrumentOutput===true,
+    systemModeProtocolVerified:hardwareCapabilities.DATABASE?.safetyPolicies?.kxci?.smuSystemModeManualVerified===true&&hardwareCapabilities.DATABASE?.safetyPolicies?.kxci?.allowSystemModeOutput===true,
     protocolRevision:String(hardwareCapabilities.DATABASE?.safetyPolicies?.kxci?.latestOfficialRevision||''),
     executionAdapterAvailable,
     transportAvailable:ctx.capabilities.get?.('network.tcp')!==null&&
@@ -232,9 +235,9 @@ function pageToBasicProgram(page, model){
      inventory:connection.inventory,capabilities:hardwareCapabilities
     });
     const protocolPolicy=hardwareCapabilities.DATABASE?.safetyPolicies?.kxci||{};
-    const protocolVerified=protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
+    const protocolVerified=compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true:protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
     let reason='';
-    if(!protocolVerified)reason='Rev F 已取得；基础 SMU System Mode 待完整集成和受控实机验收，当前版本尚未授权真实输出';
+    if(!protocolVerified)reason='Rev F 已取得；当前执行模式尚未取得输出许可';
     else if(!executionAdapterAvailable)reason='当前 DKDS 宿主缺少生命周期管理的查询/停止调度器';
     else if(!compiled.physicalVerified)reason='实际模块型号、序列号或附件身份尚未完整核验';
     else if(!compiled.capabilityVerified)reason='一个或多个活动 SMU 的额定值尚未核验';

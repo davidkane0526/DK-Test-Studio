@@ -33,7 +33,7 @@ function configuredPage(model){
 }
 function makeInstrumentContext(modules,options={}){
  const commands=[],published=[],status=[];let closed=false;
- let lastQuery='',measurementStarted=false,syntaxPending=false,firstOutput=true;
+ let lastQuery='',measurementStarted=false,syntaxPending=false,firstOutput=true,systemRun=false;
  const instrumentInfo=[
   'slotno:1,name:SMU1,model:KISMU4200,serialno:SMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
   'slotno:2,name:SMU2,model:KISMU4200,serialno:SMU002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026'
@@ -57,6 +57,12 @@ function makeInstrumentContext(modules,options={}){
     if(command==='*IDN?\0')return reply('KI4200A,1498377,V1.14\0');
     if(command==='*OPT?\0')return reply('SMU1,SMU2\0');
     if(command==='US\0')measurementStarted=true;
+    if(command==='ME1\0'){systemRun=true;measurementStarted=true;return reply('ACK\0');}
+    if(command==='ME4\0'){systemRun=false;return reply('ACK\0');}
+    if(/^(?:CH[1-9](?:,.*)?|SS|SM|MD|DM2|VC[1-9],.*|ST .+|EC 1|WT .+|IN .+|NR .+|LI .+|VR1,.+|VL[1-9],.+|DT .+|HT .+|VP .+)\0$/.test(command))return reply('ACK\0');
+    if(command==="DO 'V1'\0")return reply('N0.1,N0.1\0');
+    if(command==="DO 'I1'\0")return reply('N1E-9,N2E-9\0');
+    if(command==="DO 'V1T'\0")return reply('0,0.12\0');
     if(measurementStarted&&options.syntaxOnFirstDv&&firstOutput&&/^DV[1-8],/.test(command)){firstOutput=false;syntaxPending=true;}
     if(options.failDvAck&&/^DV[1-8]/.test(command))return reply('');
     if(command==='UL\0'||command==='DE\0'||command==='US\0'||
@@ -69,6 +75,7 @@ function makeInstrumentContext(modules,options={}){
     if(command==='TI1\0')return reply('NAI+1.0000E-09\0');
     if(command==='TI2\0')return reply('NBI+0.0000E+00\0');
     if(command==='SP\0'){
+      if(systemRun){systemRun=false;return reply('1\0');}
       if(options.busyAtStart&&!measurementStarted)return reply('16\0');
       if(syntaxPending){syntaxPending=false;return reply('2\0');}
       return reply('0\0');
@@ -123,8 +130,8 @@ test('native runtime blocks real output until the latest KXCI Rev F manual is ve
   assert.equal(runtime.status().protocolVerified,false);
   const prepared=runtime.prepare(configuredPage(modules.get('model')));
   assert.equal(prepared.canExecute,false);
-  assert.match(prepared.reason,/Rev E.*Rev F.*禁止真实仪器输出/);
-  assert.throws(()=>runtime.start(configuredPage(modules.get('model')),true),/Rev E.*Rev F/);
+  assert.match(prepared.reason,/当前执行模式尚未取得输出许可/);
+  assert.throws(()=>runtime.start(configuredPage(modules.get('model')),true),/当前执行模式尚未取得输出许可/);
   assert.equal(commands.some(row=>/^DV/.test(row.command)),false);
  }finally{await runtime.dispose();}
 });
@@ -207,7 +214,7 @@ test('native runtime blocks timed execution when the DKDS lifecycle timer is una
   assert.equal(prepared.executionAdapterAvailable,false);
   assert.equal(prepared.canExecute,false);
   assert.match(prepared.reason,/生命周期管理的 DOM 定时服务/);
-  assert.throws(()=>runtime.start(configuredPage(modules.get('model')),true),/DOM 定时服务/);
+  assert.throws(()=>runtime.start(configuredPage(modules.get('model')),true),/生命周期管理/);
   assert.equal(commands.some(row=>/^DV/.test(row.command)),false);
  }finally{await runtime.dispose();}
 });
@@ -353,6 +360,7 @@ test('real time model executes fixed-bias events with selected integration and a
  const model=modules.get('model'),runtime=modules.get('measurementRuntime').createRuntime(fake.ctx);
  try{
   const state=model.add(model.validate(model.initial()),'time'),page=state.pages.at(-1);
+  page.timing.mode='native-fixed';
   page.timing.integrationPreset='short';
   page.timing.segments[0].durationS='0.3';
   page.timing.segments[0].bias.D='0.1';
@@ -364,9 +372,10 @@ test('real time model executes fixed-bias events with selected integration and a
   assert.equal(result.run.state,'completed');
   assert.equal(result.rows,2);
   assert.equal(fake.commands.filter(row=>row.command==='IT1\0').length,1);
-  assert.equal(fake.commands.filter(row=>row.command==='TI1\0').length,2);
+  assert.equal(fake.commands.filter(row=>row.command==='ME1\0').length,1);
+  assert.equal(fake.commands.filter(row=>row.command==='TI1\0').length,0);
   const rows=result.run.rows;
-  assert.deepEqual(Array.from(rows,row=>row.plannedTimeS),[0.05,0.15000000000000002]);
-  assert.ok(rows.every(row=>Number.isFinite(row.sampleStartS)&&!row.sampleWindowOverrun));
+  assert.deepEqual(Array.from(rows,row=>row.timeS),[0,0.12]);
+  assert.ok(rows.every(row=>row.source==='4200A-KXCI-DO'));
  }finally{await runtime.dispose();}
 });
