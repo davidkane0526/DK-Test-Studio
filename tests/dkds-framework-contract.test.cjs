@@ -218,5 +218,5 @@ test('DKTS Android versionCode is monotonic within a V while full-package V can 
  assert(workflow.includes('DKTS_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}'));
  assert(workflow.includes('actions/workflows/ui-update.yml/runs'));
  assert(workflow.includes('100000+DKTS_BUILD_NUMBER'));
- assert.equal(require('../package.json').version,'0.3.43');
+ assert.equal(require('../package.json').version,'0.3.44');
 });

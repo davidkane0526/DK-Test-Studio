@@ -245,6 +245,9 @@ html[data-dkds-theme-header-effect="true"] #dktsKeithley4200Page .dkts-dc-termin
  position:relative;z-index:1;box-shadow:var(--surface-shadow);
  box-shadow:0 2px 5px light-dark(color-mix(in srgb,var(--text-primary) 15%,transparent),rgb(0 0 0 / 35%))
 }
+#dktsKeithley4200Page [data-dkts-dc-editor=sweep] .dkts-dc-bottom>*>.dkds-surface-header{
+ min-block-size:35px;padding-block:4px
+}
 #dktsKeithley4200Page [data-dkts-editor-kind="dc"] .dkts-fspro-tablist [role="tab"]{
  flex:1 0 auto;min-height:44px;justify-content:center
 }
