@@ -62,6 +62,7 @@ function makeInstrumentContext(modules,options={}){
     if(/^(?:CH[1-9](?:,.*)?|SS|SM|MD|DM2|VC[1-9],.*|ST .+|EC 1|WT .+|IN .+|NR .+|LI .+|VR1,.+|VL[1-9],.+|DT .+|HT .+|VP .+)\0$/.test(command))return reply('ACK\0');
     if(command==="DO 'V1'\0")return reply('N0.1,N0.1\0');
     if(command==="DO 'I1'\0")return reply('N1E-9,N2E-9\0');
+    if(command==="DO 'V2'\0"||command==="DO 'I2'\0")return reply('N0,N0\0');
     if(command==="DO 'V1T'\0")return reply('0,0.12\0');
     if(measurementStarted&&options.syntaxOnFirstDv&&firstOutput&&/^DV[1-8],/.test(command)){firstOutput=false;syntaxPending=true;}
     if(options.failDvAck&&/^DV[1-8]/.test(command))return reply('');
@@ -121,7 +122,7 @@ test('native Page maps to the same guarded Xsweep/Psweep KXCI domain contract',(
  assert.throws(()=>modules.get('measurementRuntime').pageToSweepProgram(wrongTarget),/漏极 SMU 电流/);
 });
 
-test('native runtime blocks real output until the latest KXCI Rev F manual is verified',async()=>{
+test('native runtime blocks legacy User Mode when its scoped execution permission is not enabled',async()=>{
  const {modules}=loadModules(false),{ctx,commands}=makeInstrumentContext(modules);
  const runtime=modules.get('measurementRuntime').createRuntime(ctx);
  try{
@@ -377,5 +378,24 @@ test('real time model executes fixed-bias events with selected integration and a
   const rows=result.run.rows;
   assert.deepEqual(Array.from(rows,row=>row.timeS),[0,0.12]);
   assert.ok(rows.every(row=>row.source==='4200A-KXCI-DO'));
+ }finally{await runtime.dispose();}
+});
+
+test('Rev F scoped System Mode can run independently of the old User Mode gate',async()=>{
+ const {modules}=loadModules(false),fake=makeInstrumentContext(modules);
+ const model=modules.get('model'),runtime=modules.get('measurementRuntime').createRuntime(fake.ctx,{wait:async()=>{}});
+ try{
+  const state=model.validate(model.initial()),page=state.pages.find(p=>p.kind==='dc');
+  page.dc.preset='optimized';
+  page.dc.terminals.D.segments[0].stop='0.1';
+  page.dc.terminals.D.segments[0].step='0.1';
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  assert.equal(runtime.prepare(page).canExecute,true);
+  runtime.start(page,true);const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'completed');
+  assert.equal(result.rows,2);
+  assert.equal(result.published.canonical,true);
+  assert.equal(fake.commands.filter(c=>c.command==='ME1\0').length,1);
+  assert.ok(!fake.commands.some(c=>/^(DV|TI)/.test(c.command)));
  }finally{await runtime.dispose();}
 });

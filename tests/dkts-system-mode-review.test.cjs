@@ -7,3 +7,12 @@ test('Rev F native DC setup and source formatting',()=>{const program=compileSys
 test('native test starts once and gets instrument data without DV/TI',async()=>{const program=compileSystemPlan(base,{}, {slots:[slot]});let started=false,commands=[],rows=[];const result=await executeSystemTask(program,{command:async c=>{commands.push(c);if(c==='ME1')started=true;if(c==='SP')return started?'1':'0';if(c==="DO 'V1'")return 'N0,N0.1,N0.2';if(c==="DO 'I1'")return 'N1E-9,N2E-9,N3E-9';if(c==="DO 'V1T'")return '0,0.1,0.2';return '';},wait:async()=>{},cancelled:()=>false,onBatch:r=>rows.push(...r),onPreview:()=>{}});assert.equal(result.state,'completed');assert.equal(commands.filter(c=>c==='ME1').length,1);assert.ok(!commands.some(c=>/^(DV|TI)/.test(c)));assert.equal(rows.length,3);assert.equal(rows[0].timeS,0);});
 
 test('malformed data columns must not collapse empty values',()=>{assert.throws(()=>parseSystemValues('N0,,N1'),/Invalid KXCI reading/);});
+
+test('preserve real zero and trim only unmeasured timestamp suffix',()=>{
+ const {acquiredColumnPrefix}=require('../integrations/dkds-native/kxci-measurement.js');
+ const program=compileSystemPlan(base,{}, {slots:[slot]});
+ const columns={'V1':parseSystemValues('N0,N0.1,0'),'I1':parseSystemValues('N0,C1E-9,0'),'V1T':parseSystemValues('0,0.1,0')};
+ const real=acquiredColumnPrefix(program,columns);
+ assert.equal(real.V1T.length,2);assert.equal(real.V1T[0].value,0);assert.equal(real.I1[1].status,'C');
+ assert.throws(()=>acquiredColumnPrefix(program,{...columns,V1T:parseSystemValues('0.1,0,0.3')}),/时间戳中间/);
+});

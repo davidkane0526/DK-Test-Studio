@@ -863,3 +863,9 @@
 - 新建 Time 使用 Native Fixed Bias：明确 IN 是读数后等待（含 0），WT/NR 由仪器执行；旧 Linear Step Plan 保留原语义，不自动将绝对采样间隔重解释为 IN。原生模式隐藏无硬件语义的平均窗口与规划步长；时间图仅示意偏置，最终用实际仪器时间戳。DC Optimized 的共享 Delay 只配置 DT，不凭空再添加 VAR2 独立延迟。4096 单次点数、32 VAR2、1024 VR 等手册限制独立于显示刷新。
 - 处理 DO 列的空单元、末尾分隔符，保存已确认 RD 前缀作为中断原始数据；预览按循环和外层扫描分组，避免污染 DKDS 曲线缓存。新增集成 mock 更新及回归用例（本会话未实际运行完整仓库）。
 - 将已核对的 SMU System Mode 子集的文档门禁与其他执行模式分离：仅此草案允许进入现有实际模块型号、额定值、互锁、独占租约、用户现场确认后的受控调试路径；不授权实际部署，不声明真实硬件已验收。其他旧模式和未核验高级功能门禁维持。未合并、未编译；完整 Node/SDK/Android 和实机必须在合入/发布前或受控调试版本中验收。
+
+
+## 2026-11-24 · 实际源码级模拟集成验证
+
+- 直接从 615d7f9 Git 树读取 8 个实际模块（hardware-capabilities、kxci-protocol、identity-core、measurement-plan、kxci-measurement、model、measurement-data、measurement-runtime），在独立 JS 运行环境装载原始源码，以模拟 KXCI TCP capability、DKDS DataTable/Artifact facade 和计时服务完成两种实际页面模型的完整调用链。20/20 断言通过。两种测试均通过实际模块识别、Scoped System Mode 预检，分别发送一次 ME1，RD 预览、DO V/I/仪器时间戳、Data Center canonical publish、CH 关断；没有 DV/TI 逐点输出。Time 测试 IN=0。此为真实源码的模拟集成，不是实机测试或完整 Node/SDK/Electron/Kotlin 构建。
+- 补充零时间戳尾部截断和中间缺口拒绝逻辑，保留限流及真正的零值；对最终提交中的实际解析函数另执行 5 项断言通过。更新集成 mock 的第二 SMU 原始列和 scoped gate 回归。GitHub main 不变；无分支、合并、构建、发布。PDF 原件未上传至仓库。

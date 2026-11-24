@@ -171,6 +171,20 @@ function parseSystemValues(raw){
   return {value,status:match[1]?.toUpperCase()||'unknown',literal};
  });
 }
+function acquiredColumnPrefix(program,columns){
+ const lists=Object.values(columns),length=lists[0]?.length||0;
+ if(!length||lists.some(v=>v.length!==length)||length>program.count||!columns[program.timestamp])throw Error('KXCI 原始列长度不一致或超过计划点数');
+ const time=columns[program.timestamp];let cutoff=length;
+ for(let i=1;i<length;i++){
+  if(time[i].value===0){cutoff=i;break;}
+ }
+ if(time.slice(cutoff).some(v=>v.value!==0))throw Error('KXCI 时间戳中间存在未采集点');
+ if(length>1&&cutoff===1&&time[0].value===0){
+  const confirmed=program.signals.some(s=>['N','C'].includes(columns[s.name]?.[0]?.status)||columns[s.name]?.[0]?.value!==0);
+  if(!confirmed)throw Error('所有时间戳均为零，无法确认已采集记录');
+ }
+ return Object.fromEntries(Object.entries(columns).map(([name,values])=>[name,values.slice(0,cutoff)]));
+}
 function systemRows(program,columns,cycle,offset,startIndex=0){
  const lengths=Object.values(columns).map(v=>v.length);
  if(!lengths.length||!lengths[0]||lengths.some(v=>v!==lengths[0])||lengths[0]>program.count)throw Error('KXCI 原始列长度不一致或超过计划点数');
@@ -248,13 +262,9 @@ async function executeSystemTask(program,io){
    for(const name of [...program.signals.map(s=>s.name),program.timestamp]){
     columns[name]=parseSystemValues(await command("DO '"+name+"'",true));
    }
-   const rows=systemRows(program,columns,cycle,offset);
-   // After Data Ready, timestamps distinguish unmeasured trailing zero slots.
-   // A legitimate first zero timestamp is preserved; no later zero may
-   // silently be treated as a new acquired record.
-   const verified=rows.filter((r,i)=>i===0||r.timeS>0);
-   if(verified.length!==rows.length&&verified.length>1&&rows.slice(0,verified.length).some((r,i)=>i>0&&r.timeS===0))throw Error('KXCI 时间戳缺口');
-   const acquired=verified.length===rows.length?rows:rows.slice(0,verified.length);
+   // Trim only an unmeasured suffix before checking timestamp monotonicity.
+   // Raw replies remain in the communication trace.
+   const acquired=systemRows(program,acquiredColumnPrefix(program,columns),cycle,offset);
    preview=[];onPreview([]);
    for(let i=0;i<acquired.length;i+=128)onBatch(acquired.slice(i,i+128));
    offset+=acquired.length;
@@ -602,7 +612,7 @@ async function executeSystemTask(program,io){
     }
     return Object.freeze({start,stop,status:publicState,waitForCompletion,dispose});
   }
-  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber});
+  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
     window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci-measurement',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
