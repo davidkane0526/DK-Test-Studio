@@ -144,5 +144,5 @@
 
 ## 2026-11-18 · 日常主线同步与同源网页预览
 
-- 每轮测试通过后提交并推送唯一的 main。同一 SHA 自动生成源码归档，并将固定 DKDS Core 与当前 DKTS 插件部署到 [GitHub Pages Core 预览](https://davidkane0526.github.io/DK-Test-Studio/core/)。网页对应提交以 [preview.json](https://davidkane0526.github.io/DK-Test-Studio/core/preview.json) 为准。
+- 每轮测试通过后提交并推送唯一的 main。同一 SHA 自动生成源码归档，并将固定 DKDS Core 与当前 DKTS 插件部署到 [GitHub Pages Core 预览](https://davidkane0526.github.io/DK-Test-Studio/core/)。核对 [preview.json](https://davidkane0526.github.io/DK-Test-Studio/core/preview.json) 的部署 SHA 后，把网页预览地址交付给用户。主线推送与网页部署在每轮验证后执行，Windows 和 Android 编译须取得明确授权。
 - 只有明确授权最终安装包时，带 [DKTS-FINAL-BUILD] 的 main 提交才进入统一 Windows、Android 编译与发布。网页部署使用源码 SHA 表明身份，GitHub Pages 运行号不参与原生包版本排序。
