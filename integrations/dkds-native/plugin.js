@@ -319,7 +319,7 @@
     title:'确认 Keithley 4200A 实际输出',tone:'warning',destructive:true,
     message:'仪器 '+current.connection.identity.serial+' 将执行“'+page.name+'”，预计 '+
      prepared.pointCount.toLocaleString()+' 个测量点。',
-    detail:'活动端口：'+channels+'。最大设定电压：'+maxVoltage+' V。'+(page.kind==='time'?'仪器按 WT/IN/NR 执行：事件间隔为读数后的等待，实际采样周期和总时长由仪器决定；平均窗口目前不是独立多样本平均。':'')+(prepared.compiled.system?'一次配置，ME1 启动仪器内部测量；RD 预览，DO 回收原始数据。':'逐点 DV/TI 测量。')+'开始后将真实驱动 SMU。请先确认实际接线、探针接触、器件固定、各端口独立限流和现场安全条件。软件会在完成、停止或异常时尝试关闭全部活动 SMU。',
+    detail:'活动端口：'+channels+'。最大设定电压：'+maxVoltage+' V。'+(prepared.compiled.system?.rpmRoutes?.length?'本次自动切换：'+prepared.compiled.system.rpmRoutes.map(r=>r.pmu+' → '+r.smu).join('，')+'。请确认接线未变化、所有相连输出均已关闭且无其他测试。':'')+(page.kind==='time'?'读数后等待和采样点数按测试设置执行；实际时长以仪器记录为准。':'')+'请确认实际接线、探针接触、各端口限流及现场安全条件。测量结束、停止或异常时，软件会尝试关闭活动输出。',
     confirmLabel:'确认接线并开始输出'
    });
    if(!confirmed)return;
@@ -687,7 +687,8 @@
    if(terminal.resource!=='None')units.note.create(caption,{variant:'meta',text:terminal.resource+unit});
   }
   function pulsePort(page,values){
-   const resource=page.terminals.find(term=>term.logical===values.terminal)?.resource||'None';
+   const mapped=page.terminals.find(term=>term.logical===values.terminal)?.resource||'None';
+   const resource=page.kind==='pulse'?measurementRuntime.resolvePulsePort(mapped,values.channel):mapped;
    const inventory=measurementRuntime.status().connection.inventory;
    const match=/^(SMU|PMU)([1-9])(?:-([12]))?$/.exec(resource);
    const slot=inventory?.slots?.find(row=>row.family===match?.[1]&&row.channel===Number(match?.[2]));
@@ -745,7 +746,7 @@
    if(editorSection==='sweep'){
     const input=panel('输入设置','Input settings');
     select(input,'terminal',tr('端子','Terminal'),['S','D','G'].map(key=>[key,t(logicalNames[key])+' · '+
-     (p.terminals.find(term=>term.logical===key)?.resource||'None')]));
+     (pulse?pulsePort(p,{...values,terminal:key}).resource:p.terminals.find(term=>term.logical===key)?.resource||'None')]));
     if(pulse){
      select(input,'rangeV',tr('PMU 电压档','PMU voltage range'),[['10','10 V'],['40','40 V']]);
      if(!match?.[3])select(input,'channel',tr('卡内通道','Card channel'),[['1','CH1'],['2','CH2']]);
@@ -839,7 +840,7 @@
      if(!reason&&result.loadOhms===null)reason=tr('填写负载后才能校核 DUT 端电压。','Enter the load to check the voltage at the DUT.');
      else if(!reason&&result.peakV>hardware.getPulseOutputLimits('pmu',result.rangeV,result.loadOhms).maxVoltageV)
       reason=tr('所设峰值超过当前负载下的电压估算上限。','The peak exceeds the estimated voltage limit at this load.');
-     else if(!reason&&!pmuVerified)reason=tr('该逻辑端子需映射到已核验的 4225-PMU。','Map this terminal to a verified 4225-PMU.');
+     else if(!reason&&!pmuVerified)reason=tr('请为该端子选择脉冲通道，或在仪器连接菜单确认 RPM 接线。','Select a pulse channel for this terminal or confirm its RPM wiring in the instrument menu.');
      else if(!reason&&values.currentRangeA&&!hardware.getPmuCurrentRanges(result.rangeV,withRpm).includes(Number(values.currentRangeA)))
       reason=tr('请选择与该 PMU 通道及 RPM 配置匹配的电流档。','Select a current range for this PMU channel and RPM configuration.');
     }else if(slot?.family!=='SMU')reason=tr('该逻辑端子需映射到实装 SMU。','Map this terminal to an installed SMU.');
@@ -1516,7 +1517,7 @@
       {value:'Voltage',label:tr('电压','Voltage')}],value=>{event.quantity=value;refreshPlan();},
       {key:'time-quantity',path:path('quantity')});
      plannedText(row,event,'startS','起始时间 (s)','Start Time (s)',path('startS'));
-     plannedText(row,event,'intervalS',native?'读数后等待 IN (s)':'事件间隔 (s)',native?'Post-reading wait IN (s)':'Interval Time (s)',path('intervalS'));
+     plannedText(row,event,'intervalS',native?'读数后等待 (s)':'事件间隔 (s)',native?'Post-reading wait (s)':'Interval Time (s)',path('intervalS'));
      if(!native)plannedText(row,event,'averageS','平均窗口 (s)','Average Time (s)',path('averageS'));
      plannedText(row,event,'points','点数','Points',path('points'));
      action(row,'remove-time-event-'+index,'−',tr('删除测量事件','Remove measure event'),settings.events.length>1,
@@ -1547,8 +1548,8 @@
    status=units.note.create(summary,{variant:'meta',className:'dkts-time-status',text:''});
    status?.setAttribute?.('aria-live','polite');
    units.note.create(summary,{variant:'meta',text:tr(
-    '采样和切换步长用于计划。KXCI Rev F 的 SMU 时域 IN 是每次测量后的等待时间，单次 NR 最多 4096 次读数。',
-    'Sampling and switching steps define the plan. KXCI Rev F SMU time-domain IN is the wait after each reading; NR supports up to 4096 readings per operation.')});
+    '固定偏置测试由仪器控制采样，实际时间以测量记录为准。线性步进用于规划多段偏置。',
+    'The instrument controls fixed-bias acquisition; actual times come from the measurements. Linear step defines a multi-segment plan.')});
    refreshPlan();
   }
 

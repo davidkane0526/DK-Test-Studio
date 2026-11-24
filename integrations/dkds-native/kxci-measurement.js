@@ -237,7 +237,7 @@ async function executeSystemTask(program,io){
  try{
   const initial=await poll();
   if(initial.busy)throw Error('仪器已有测量正在运行');
-  if(program.rpmRoutes?.length){const pulse=String(await command(':PMU:TEST:STATUS?',true)).trim();if(pulse!=='0')throw Error('PMU 正在测量或状态无法确认；未切换 RPM');}
+  if(program.rpmRoutes?.length){const pulse=String(await command(':PMU:TEST:STATUS?',true)).trim().replace(/,\s*$/,'');if(pulse!=='0')throw Error('PMU 正在测量或状态无法确认；未切换 RPM');}
   if(cancelled())return {state:'stopped',shutdown,error};
   await command(':ERROR:LAST:CLEAR');
   configured=true;

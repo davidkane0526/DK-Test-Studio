@@ -158,7 +158,9 @@
       if(slot.family==='PMU'){
         const remoteChannels=rpmRecords.filter(x=>/4225/.test(x.model)).map(x=>Number(x.name.split('-').pop())).filter(Number.isInteger).sort((a,b)=>a-b);
         const badRpm=rpmRecords.some(x=>!/4225/.test(x.model));
-        if(badRpm||remoteChannels.length!==rpmCount||(rpmChannels.length&&remoteChannels.join(',')!==rpmChannels.join(','))){mismatch=true;reason='*OPT? 的 RPM 通道类别与 remotemoduleinfo 不一致';}
+        const genericRpm=slot.logicalType==='PMURPM';
+        const uniqueChannels=new Set(remoteChannels);
+        if(badRpm||uniqueChannels.size!==remoteChannels.length||(genericRpm?remoteChannels.length<1||remoteChannels.length>2:remoteChannels.length!==rpmCount||(rpmChannels.length&&remoteChannels.join(',')!==rpmChannels.join(',')))){mismatch=true;reason='*OPT? 的 RPM 通道类别与 remotemoduleinfo 不一致';}
         rpmChannels=remoteChannels.length?remoteChannels:rpmChannels;
         rpmCount=remoteChannels.length||rpmCount;
         if(rpmCount)type='PMURPM';
@@ -233,6 +235,7 @@ function topologySignature(inventory,serial){
 function confirmTopology(inventory,serial,links){
  const ports=portCatalog(inventory),rpms=ports.filter(p=>p.hasRpm),smus=ports.filter(p=>p.family==='SMU'&&p.verified);
  if(!serial||!inventory?.physicalModelsVerified||!inventory?.hardwareLimitsVerified)throw Error('请先识别全部实装模块');
+ if(rpms.length&&(!rpms.every(p=>p.serial)||!smus.every(p=>p.serial)||rpms.some(p=>!(inventory.remoteModuleInfoRecords||[]).some(r=>r.name.toUpperCase()==='RPM'+p.card+'-'+p.subchannel&&r.serialNo))))throw Error('请先确认模块和 RPM 的序列号');
  if(!Array.isArray(links)||links.length!==rpms.length)throw Error('请逐一确认 RPM 对应的 SMU 接线');
  const seen=new Set(),used=new Set();
  for(const link of links){
@@ -257,6 +260,19 @@ function planSmURoutes(inventory,serial,profile,resources){
   return Object.freeze({pmu:x.pmu,smu:x.smu,pulseChannel:2*(port.card-1)+port.subchannel});
  });
 }
+function resolvePulseResource(inventory,serial,profile,resource,legacyChannel){
+ const ports=portCatalog(inventory);
+ // A saved explicit PMU channel remains an explicit choice.
+ if(/^PMU[1-9]-[12]$/.test(resource))return resource;
+ // Only migrate an old card-level choice when the old plan specified CH1/2.
+ if(/^PMU[1-9]$/.test(resource)&&/^[12]$/.test(String(legacyChannel))){
+  const candidate=resource+'-'+legacyChannel;
+  return ports.some(p=>p.id===candidate)?candidate:resource;
+ }
+ if(!/^SMU[1-9]$/.test(resource)||!profile||profile.serial!==serial||profile.signature!==topologySignature(inventory,serial))return resource;
+ const confirmed=confirmTopology(inventory,serial,profile.links);
+ return confirmed.links.find(l=>l.smu===resource)?.pmu||resource;
+}
 function parseSystemInfo(value,serial){
  const raw=String(value||'').trim().replace(/,\s*$/,'');
  const fields=Object.fromEntries(raw.split(',').map(s=>s.trim().split(/:(.*)/s).slice(0,2).map(x=>x.trim())));
@@ -264,7 +280,7 @@ function parseSystemInfo(value,serial){
  if(serial&&fields.serialno!==serial)throw Error('系统信息序列号不匹配');
  return Object.freeze({serial:fields.serialno,softwareVersion:fields.swver,platformVersion:fields.platformver,clariusVersion:fields.clariusver,raw});
 }
-  const api=Object.freeze({SYSTEM_INFO_REQUEST,portCatalog,topologySignature,confirmTopology,planSmURoutes,parseSystemInfo,IDN_REQUEST,OPTIONS_REQUEST,UL_REQUEST,INSTRUMENT_INFO_REQUEST,REMOTE_MODULE_INFO_REQUEST,GN_RESULT_REQUEST,DE_REQUEST,parseIdentity,parseOptions,parseInstrumentInfo,parseRemoteModuleInfo,parseHardwareInventory});
+  const api=Object.freeze({SYSTEM_INFO_REQUEST,portCatalog,topologySignature,confirmTopology,planSmURoutes,resolvePulseResource,parseSystemInfo,IDN_REQUEST,OPTIONS_REQUEST,UL_REQUEST,INSTRUMENT_INFO_REQUEST,REMOTE_MODULE_INFO_REQUEST,GN_RESULT_REQUEST,DE_REQUEST,parseIdentity,parseOptions,parseInstrumentInfo,parseRemoteModuleInfo,parseHardwareInventory});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();

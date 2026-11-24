@@ -203,6 +203,7 @@ function pageToBasicProgram(page, model){
   const execution=plan.createExecutionCoordinator();
   let topologyProfile=null;
   function setTopologyProfile(profile){if(runner.status(0).running)throw Error('测量期间不能更改接线');topologyProfile=profile||null;}
+  function resolvePulsePort(resource,legacyChannel){const c=controller.status();return protocol.resolvePulseResource(c.inventory,c.identity?.serial,topologyProfile,resource,legacyChannel);}
   function confirmWiring(links){const c=controller.status();if(runner.status(0).running||c.phase!=='connected')throw Error('请在仪器空闲时确认接线');const profile=protocol.confirmTopology(c.inventory,c.identity.serial,links);setTopologyProfile(profile);return profile;}
   // DKDS owns DOM timers and cancels them with the plugin lifecycle. Never
   // create raw setTimeout/setInterval resources inside a plugin.
@@ -360,7 +361,7 @@ function pageToBasicProgram(page, model){
   }
   return Object.freeze({connect,inspectModules,connectAndInspect,checkConnection,disconnect,
    currentTcp:()=>hasShared()?shared('current'):null,
-   prepare,start,stop,status,waitForCompletion,dispose,setTopologyProfile,confirmWiring,
+   prepare,start,stop,status,waitForCompletion,dispose,setTopologyProfile,confirmWiring,resolvePulsePort,
    currentRanges:(resource,voltagePeaks)=>hardwareCapabilities.verifiedCurrentRanges(
     controller.status(),resource,voltagePeaks)});
  }

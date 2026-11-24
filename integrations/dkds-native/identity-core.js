@@ -94,8 +94,8 @@
           const instrumentInfo=await send(protocol.GN_RESULT_REQUEST,8192);
           await send(protocol.REMOTE_MODULE_INFO_REQUEST,1024);
           const remoteModuleInfo=await send(protocol.GN_RESULT_REQUEST,8192);
-          await send(protocol.SYSTEM_INFO_REQUEST,1024);
-          const systemRaw=await send(protocol.GN_RESULT_REQUEST,8192);
+          const systemResult=await send(protocol.SYSTEM_INFO_REQUEST,1024);
+          const systemRaw=/^OK\b|^ACK$/i.test(systemResult)?await send(protocol.GN_RESULT_REQUEST,8192):systemResult;
           await send(protocol.DE_REQUEST,1024,false);enteredUserLibrary=false;
           const parsed=protocol.parseHardwareInventory(optionsRaw,instrumentInfo,remoteModuleInfo);
           let systemInfo=null,systemInfoError='';
