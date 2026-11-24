@@ -31,7 +31,7 @@ const units={
    setColumns:count=>{record.groupColumns=count},dispose:()=>record.disposals++};}},
  popover:{create:(host,spec)=>{record.popovers.push(spec);return {
   body:el(),close:()=>{record.closedPads++;}}}},
- layout:{create:(host,spec)=>{
+ layout:{apply:(host,spec)=>{assert.equal(spec.responsiveGeometry[0].maxWidth,310);return host;},create:(host,spec)=>{
    record.layouts=(record.layouts||[]);record.layouts.push(spec.variant);record.layoutSpecs.push(spec);
    // The pinned SDK allows canonical layout recipes; arbitrary geometry
    // values are not guaranteed and previously failed real Core activation.
@@ -75,7 +75,19 @@ const units={
    }
    return el();
  }},
- action:{create:(host,spec)=>{record.actions.push(spec);host?.children?.push(spec);return{element:el()}}},
+ toolbar:{create:(host,spec)=>{const element=el();element.spec=spec;host.children.push(element);return {element};}},
+ splitHandle:{create:(host,spec)=>{const element=el();element.spec=spec;host.children.push(element);return element;}},
+ splitPane:{adopt:spec=>{record.splits??=[];record.splits.push(spec);return {handle:spec.handle};}},
+ action:{create:(host,spec)=>{
+  const element=el();
+  record.actions.push(spec);
+  if(host?.spec?.className==='dkts-instrument-controls'){
+   record.toolbar??=[];
+   record.toolbar.push({spec,button:element});
+  }
+  host?.children?.push(spec);
+  return {element};
+ }},
  tabs:{create:(host,spec)=>{record.tabs=record.tabs||[];record.tabs.push(spec);
   host?.children?.push(spec);return{element:el()}}},
  list:{create:host=>{const list=el();host.children.push(list);return {
@@ -136,7 +148,6 @@ const ctx={
   model:{rows:table=>table.columns[0].values.map((_,i)=>Object.fromEntries(
    table.columns.map(col=>[col.key,col.values[i]])))}},
  ui:{unitTemplates:units,
-  toolbar:{add:spec=>{record.toolbar??=[];const button=el();record.toolbar.push({spec,button});return button;}},
   settings:{define:(id,spec)=>({get:()=>({...spec.defaults}),open:()=>{record.settingsOpened=id;}})},
   dialogs:{confirm:async spec=>{record.confirmations??=[];record.confirmations.push(spec);return false;},
    alert:async spec=>{record.alerts??=[];record.alerts.push(spec);}},
@@ -160,7 +171,7 @@ const ctx={
  assert.ok(record.fields.some(row=>row.spec.label==='漏极 · D'&&row.control.value==='SMU1'));
  assert.ok(record.fields.some(row=>row.spec.label==='栅极 · G'&&row.control.value==='SMU2'));
  assert.equal(record.fields.some(row=>row.spec.label==='体端 · B'),false);
- assert.deepEqual(record.toolbar.map(row=>row.spec.id),['dkts-workspace-language','dkts-workspace-connect','dkts-workspace-scan']);
+ assert.deepEqual(record.toolbar.map(row=>row.spec.id),['dkts-workspace-connect','dkts-workspace-scan','dkts-workspace-language']);
  assert.ok(record.toolbar.every(row=>row.spec.variant==='secondary'));
  assert.equal(record.toolbar.find(row=>row.spec.id==='dkts-workspace-scan').button.disabled,true);
  assert.ok(!record.actions.some(row=>row.id==='dkts-return-data-plots'));
@@ -175,6 +186,9 @@ const ctx={
  assert.equal(record.panels.some(row=>row.title==='Psweep'),true);
  assert.equal(record.panels.some(row=>row.title==='端子量程与保护'),true);
  assert.equal(record.panels.some(row=>row.title==='固定偏置'),true);
+ assert.deepEqual(record.splits.map(row=>[row.id,row.axis]),[['template','y'],['navigation','x'],['history','y']]);
+ assert.equal(record.plotGroups[0].responsive,false);
+ assert.equal(record.groupColumns,2);
  assert.equal(record.plotGroups.length,1);
  assert.equal(record.plotViews.length,4);
  assert.equal(record.tables.length,4);

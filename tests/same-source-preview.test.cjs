@@ -19,8 +19,8 @@ test('same-source preview is pinned to the genuine DKDS Core and current DKTS pl
  assert.doesNotMatch(build,/npm install --omit=dev/,'the preview must not require first-launch npm installation');
  assert.match(build,/hp\.dependencies=\{\};hp\.devDependencies=\{\}/);
  assert.match(build,/package-lock\.json/);
- assert.match(build,/dktsDesktopPreview/);
- assert.equal(manifest.version,'0.8.26');
+ assert.doesNotMatch(build,/dktsDesktopPreview/);
+ assert.equal(manifest.version,'0.8.27');
  assert.doesNotMatch(build,/electron-builder|assembleRelease|gradlew/,
   'preview packaging must not compile native EXE/APK packages');
 });
@@ -65,7 +65,7 @@ test('preview server binds to a caller-owned host root and blocks traversal',t=>
     const base=`http://127.0.0.1:${server.address().port}`;
     const rootResponse=await fetch(base+'/',{redirect:'manual'});
     assert.equal(rootResponse.status,302);
-    assert.equal(rootResponse.headers.get('location'),'/src/index.html?dktsDesktopPreview=1');
+    assert.equal(rootResponse.headers.get('location'),'/src/index.html');
     const page=await fetch(base+'/src/index.html');
     assert.equal(page.status,200);assert.match(await page.text(),/same source/);
     const health=await fetch(base+'/__preview_health');

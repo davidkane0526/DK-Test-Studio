@@ -109,6 +109,24 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
  replaceExact('src/core/plugins/kernel/modules/workspace/top.js',
   "const selected=String(saved||preferredId||defaultSuperCandidate()||'').trim();",
   "const selected=String(saved||preferredId||'com.dkts.keithley-4200'||defaultSuperCandidate()||'').trim();");
+ // The LAN browser loads the Core renderer at /app/. Its SDK scripts and
+ // brand image resolve against the origin, outside the /app/ static tree.
+ if(fs.existsSync(path.join(tmp,'desktop/lan-web-server.js'))){
+  replaceExact('desktop/lan-web-server.js',
+   "    if (clean === '/app' || clean === '/app/') return path.join(this.root, 'src', 'index.html');",
+   [ "    if (clean === '/app/') return path.join(this.root, 'src', 'index.html');",
+     "    if (['/assets/dkds-icon.png', '/sdk/platform-presentation-contract.js',",
+     "      '/sdk/theme-contract.js', '/sdk/theme-coverage-contract.js'].includes(clean))",
+     "      return path.join(this.root, clean.slice(1));" ].join('\n'));
+  replaceExact('desktop/lan-web-server.js',
+   '    const filePath = this.safeStaticPath(u.pathname);',
+   [ "    if (u.pathname === '/app') {",
+     "      res.writeHead(302, { Location:'/app/' + u.search, 'Cache-Control':'no-store' });",
+     "      res.end();",
+     "      return;",
+     "    }",
+     '    const filePath = this.safeStaticPath(u.pathname);' ].join('\n'));
+ }
  const hostMain=path.join(tmp,'desktop/main.js');
  fs.appendFileSync(hostMain,"\nif(process.env.DKTS_CORE_BOOT_SMOKE==='1')require('./dkts-core-boot-smoke.cjs')({app,BrowserWindow,APP_ROOT});\n");
  fs.copyFileSync(path.join(dktsRoot,'tools/dkts-core-boot-smoke.cjs'),

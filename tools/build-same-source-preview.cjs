@@ -104,14 +104,10 @@ function build(upstream,out){
  hp.dependencies={};hp.devDependencies={};hp.optionalDependencies={};hp.scripts={};
  fs.writeFileSync(hostPackage,JSON.stringify(hp,null,2)+'\n');
  fs.rmSync(path.join(host,'package-lock.json'),{force:true});
- // In the preview copy only, select the desktop layout breakpoint while the
- // existing web-bridge continues to provide browser-safe file fallbacks.
+ // Keep the stock host detection. The desktop browser uses the Web bridge
+ // while a genuine Electron or native mobile host keeps its own capability boundary.
  const htmlFile=path.join(host,'src/index.html');
  let html=fs.readFileSync(htmlFile,'utf8');
- const from="const host=mobile?'mobile':(window.electronAPI?'desktop':'web');";
- const to="const desktopPreview=query.has('dktsDesktopPreview');\n      const host=mobile?'mobile':(window.electronAPI||desktopPreview?'desktop':'web');";
- if(html.split(from).length!==2)throw Error('Pinned DKDS host detection anchor changed; refusing unsafe preview patch');
- html=html.replace(from,to);
  const d3Source='../node_modules/d3/dist/d3.min.js';
  if(html.split(d3Source).length!==2)throw Error('Pinned DKDS D3 script reference changed; refusing an incomplete offline preview');
  html=html.replace(d3Source,'../vendor/d3.min.js');
@@ -128,12 +124,12 @@ function build(upstream,out){
   framework:{retainedPlugins:staged.counts.retained,excludedAnalysisPlugins:staged.counts.excluded,
    generatedCoreHtml:true,generatedCoreCss:true,generatedRuntimeBundles:true,
    nativePluginIncluded:true,sourceOnly:true},
-  preview:{host:'browser',desktopLayoutFlag:'dktsDesktopPreview=1',serverBind:'127.0.0.1',port:4173,
+  preview:{host:'browser',serverBind:'127.0.0.1',port:4173,
    d3Version:'7.9.0',d3Bundled:true,npmInstallRequired:false,hardwareOutput:false,electronIpc:false,nativeFileDialogs:false,
    automaticUpdates:false,realInstrumentConnection:false,realKxciMeasurement:false,
    windowsPortableCompiled:false,androidApkCompiled:false}};
  fs.writeFileSync(path.join(out,'PREVIEW-MANIFEST.json'),JSON.stringify(previewManifest,null,2)+'\n');
- fs.writeFileSync(path.join(out,'README.md'),`# DKTS Core Same-Source Preview\n\n**DKTS V${dktsPkg.version} ${staged.buildId} (provisional)**\n\nThis is a browser preview built from the actual DKDS Core source pinned by DKTS and the DKTS native 4200A plugin in this source snapshot. It is not the standalone FS-Pro imitation page.\n\n## Start on Windows\n\n1. Extract this ZIP to a writable folder.\n2. Install Node.js 20 or newer.\n3. Double-click \`Start-DKTS-Core-Same-Source-Preview.cmd\`.\n4. The script starts the prebuilt Core preview and opens the browser at \`http://127.0.0.1:4173\`.\n5. Keep the command window open. Press Ctrl+C to stop the local server.\n\nThe preview bundles the exact D3 7.9.0 runtime and needs no npm install, npm registry access, or first-launch build. It installs no Electron binary and compiles no Windows EXE or Android APK. It serves the generated \`host/src/index.html\`, the same DKDS Core CSS/runtime bundles, and the DKTS plugin catalog from this package. A preview-only bootstrap flag selects the desktop layout; the existing DKDS web bridge supplies browser-safe fallbacks.\n\n## Preview limitations\n\n- Electron IPC, native window chrome, native file dialogs, native update installation and platform-specific integration are not available. Browser file picker/download fallbacks may work where the Core provides them.\n- This preview does not connect to a Keithley 4200A, send KXCI output, execute measurements, acquire instrument raw data, or verify hardware safety.\n- It is a same-source UI preview, not proof of pixel-identical rendering in Electron/Android and not a native package acceptance test.\n\n## Provenance\n\nSee \`PREVIEW-MANIFEST.json\` and \`host/DKTS_FRAMEWORK_STAGING.json\`. DKTS source tree SHA-256: \`${sourceHash}\`. DKDS is read-only: \`${PIN}\`. The generated host retains ${staged.counts.retained} non-analysis plugins and excludes ${staged.counts.excluded} analysis plugins.\n`,'utf8');
+ fs.writeFileSync(path.join(out,'README.md'),`# DKTS Core Same-Source Preview\n\n**DKTS V${dktsPkg.version} ${staged.buildId} (provisional)**\n\nThis is a browser preview built from the actual DKDS Core source pinned by DKTS and the DKTS native 4200A plugin in this source snapshot. It is not the standalone FS-Pro imitation page.\n\n## Start on Windows\n\n1. Extract this ZIP to a writable folder.\n2. Install Node.js 20 or newer.\n3. Double-click \`Start-DKTS-Core-Same-Source-Preview.cmd\`.\n4. The script starts the prebuilt Core preview and opens the browser at \`http://127.0.0.1:4173\`.\n5. Keep the command window open. Press Ctrl+C to stop the local server.\n\nThe preview bundles the exact D3 7.9.0 runtime and needs no npm install, npm registry access, or first-launch build. It installs no Electron binary and compiles no Windows EXE or Android APK. It serves the generated \`host/src/index.html\`, the same DKDS Core CSS/runtime bundles, and the DKTS plugin catalog from this package. The DKDS web bridge supplies browser-safe fallbacks on desktop and mobile browsers.\n\n## Preview limitations\n\n- Electron IPC, native window chrome, native file dialogs, native update installation and platform-specific integration are not available. Browser file picker/download fallbacks may work where the Core provides them.\n- This preview does not connect to a Keithley 4200A, send KXCI output, execute measurements, acquire instrument raw data, or verify hardware safety.\n- It is a same-source UI preview, not proof of pixel-identical rendering in Electron/Android and not a native package acceptance test.\n\n## Provenance\n\nSee \`PREVIEW-MANIFEST.json\` and \`host/DKTS_FRAMEWORK_STAGING.json\`. DKTS source tree SHA-256: \`${sourceHash}\`. DKDS is read-only: \`${PIN}\`. The generated host retains ${staged.counts.retained} non-analysis plugins and excludes ${staged.counts.excluded} analysis plugins.\n`,'utf8');
  return {out,manifest:previewManifest};
 }
 if(require.main===module){

@@ -47,7 +47,7 @@ function publishCorePreview(preview, siteRoot, commit) {
     if (!fs.existsSync(path.join(output, file))) throw new Error('Missing preview asset: ' + file);
   }
 
-  const entry = 'src/index.html?dktsDesktopPreview=1';
+  const entry = 'src/index.html';
   fs.writeFileSync(path.join(output, 'index.html'), [
     '<!doctype html>',
     '<html lang="zh-CN">',

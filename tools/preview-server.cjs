@@ -47,7 +47,7 @@ function createServer(hostRoot,metadata={}){
    res.end(req.method==='HEAD'?undefined:body);return;
   }
   if(url.pathname==='/'){
-   res.writeHead(302,{Location:'/src/index.html?dktsDesktopPreview=1','Cache-Control':'no-store'});res.end();return;
+   res.writeHead(302,{Location:'/src/index.html','Cache-Control':'no-store'});res.end();return;
   }
   const file=resolveStaticFile(root,url.pathname);
   if(!file){res.writeHead(404,{'Content-Type':'text/plain; charset=utf-8'});res.end('Not found');return;}
@@ -70,7 +70,7 @@ function start(){
  const server=createServer(hostRoot,metadata);
  server.on('error',error=>{console.error('Preview server error:',error.message);process.exitCode=1;});
  server.listen(port,'127.0.0.1',()=>{
-  const url=`http://127.0.0.1:${port}/src/index.html?dktsDesktopPreview=1`;
+  const url=`http://127.0.0.1:${port}/src/index.html`;
   console.log('DKTS Core same-source preview:',url);
   console.log('Host source:',hostRoot);
   console.log('DKTS:',metadata.dktsVersion||'unknown',metadata.buildId||'');

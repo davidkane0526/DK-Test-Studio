@@ -52,13 +52,17 @@
  --dkds-grid-auto-rows:minmax(164px,1fr);
  flex:1 1 0;min-width:0;min-height:0;overflow:auto;scrollbar-width:thin
 }
-#dktsKeithley4200Page [data-dkts-plot-frame]{min-width:0;min-height:0}
+#dktsKeithley4200Page [data-dkts-plot-frame]{min-width:0;min-height:0;container:dkts-plot / inline-size}
 #dktsKeithley4200Page [data-dkts-plot-header]{min-width:0;max-width:100%;box-sizing:border-box}
 #dktsKeithley4200Page [data-dkts-plot-frame]>[data-dkds-unit-panel-body="true"]{
  display:flex;flex-direction:column;min-height:0;overflow:visible
 }
 #dktsKeithley4200Page [data-dkts-plot-host],
 #dktsKeithley4200Page [data-dkts-raw-host]{flex:1 1 auto;min-height:0;min-width:0}
+#dktsKeithley4200Page .dkts-frame-actions{display:flex;gap:7px;min-width:0}
+@container dkts-plot (max-width:310px){
+ #dktsKeithley4200Page .dkts-frame-actions{display:contents}
+}
 #dktsKeithley4200Page [data-dkts-nav-scrim]{display:none}
 
 @container (min-width:621px){
@@ -79,10 +83,12 @@
 }
 @media(max-width:900px){
  #dktsKeithley4200Page [data-dkts-nav]{
-  position:absolute;left:0;top:0;bottom:0;width:min(300px,84vw);z-index:21;
-  transform:translateX(-105%);transition:transform 150ms ease;padding:12px 10px;max-width:84vw
+  position:absolute;left:0;top:0;bottom:0;width:var(--dkts-nav-width);z-index:21;
+  visibility:hidden;transform:translateX(-105%);transition:transform 150ms ease;padding:12px 10px;max-width:84vw
  }
- #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav]{transform:translateX(0)}
+ #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav]{
+  visibility:visible;transform:translateX(0)
+ }
  #dktsKeithley4200Page [data-dkts-nav-scrim]{position:absolute;inset:0;z-index:20}
  #dktsKeithley4200Page [data-dkts-shell][data-dkts-nav-open="true"] [data-dkts-nav-scrim]{display:block}
  #dktsKeithley4200Page [data-dkts-nav-toggle]{display:inline-flex!important}
@@ -96,6 +102,7 @@
  #dktsKeithley4200Page .dkts-editor-tabs::-webkit-scrollbar{display:none}
  #dktsKeithley4200Page .dkts-parameter-content{padding:6px 1px 10px}
  #dktsKeithley4200Page [data-dkts-view="graph"]{padding:5px;gap:5px}
+ #dktsKeithley4200Page [data-dkts-plot-group]{--dkds-grid-auto-rows:minmax(110px,1fr)}
 }
 @media(prefers-reduced-motion:reduce){#dktsKeithley4200Page [data-dkts-nav]{transition:none}}
 
@@ -111,14 +118,20 @@
  display:flex;
  align-items:center;
  justify-content:space-between;
- gap:12px;
+ flex-wrap:wrap;
+ gap:6px 12px;
  padding:5px 11px;
  flex:none;
  min-width:0;
 }
+#dktsKeithley4200Page .dkts-project-controls{
+ display:flex;flex:1 1 auto;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 12px;min-width:0
+}
+#dktsKeithley4200Page .dkts-instrument-controls{display:flex;align-items:center;gap:6px;flex:none}
 #dktsKeithley4200Page .dkts-project-actions{display:flex;flex:none;align-items:center;gap:6px}
 #dktsKeithley4200Page .dkts-main-grid{
- display:grid;grid-template-columns:270px minmax(0,1fr);flex:1 1 auto;height:auto;min-height:0
+ display:grid;grid-template-columns:var(--dkts-nav-width) 8px minmax(0,1fr);flex:1 1 auto;height:auto;min-height:0;
+ --dkts-nav-width:var(--dkds-unit-project-width,270px)
 }
 
 #dktsKeithley4200Page .dkts-project-navigation{padding:9px 10px 9px 12px}
@@ -244,7 +257,12 @@
  #dktsKeithley4200Page .dkts-terminal-strip{min-height:0}
 }
 @media(max-width:900px){
- #dktsKeithley4200Page .dkts-main-grid{grid-template-columns:minmax(0,1fr)}
+ #dktsKeithley4200Page .dkts-main-grid{
+  grid-template-columns:minmax(0,1fr);
+  --dkts-nav-width:min(var(--dkds-unit-project-width,270px),84vw)
+ }
+ #dktsKeithley4200Page .dkts-navigation-handle{display:none;position:absolute;inset-block:0;left:var(--dkts-nav-width);z-index:22}
+ #dktsKeithley4200Page [data-dkts-nav-open=true]>.dkts-navigation-handle{display:block}
 }
 @media(max-width:620px){
  #dktsKeithley4200Page .dkts-project-toolbar{padding:4px 6px}
@@ -358,7 +376,11 @@
  #dktsKeithley4200Page .dkts-project-plot-area{padding-block-start:10px}
 }
 #dktsKeithley4200Page .dkts-device-routines{margin-inline-start:8px;padding-inline-start:10px}
-#dktsKeithley4200Page .dkts-library-section{flex:0 0 auto;max-height:48%;padding-block-start:6px;overflow:auto}
+#dktsKeithley4200Page .dkts-library-section{
+ flex:0 0 min(var(--dkds-unit-template-height,258px),75%);padding-block-start:4px;box-sizing:border-box;overflow:auto
+}
+#dktsKeithley4200Page :is(.dkts-template-handle,.dkts-history-handle){flex:none;order:1}
+#dktsKeithley4200Page :is(.dkts-library-section,.dkts-history){order:2}
 #dktsKeithley4200Page .dkts-terminal-caption{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
 #dktsKeithley4200Page .dkts-bias-entry{display:grid;justify-items:start;gap:5px;min-width:0}
 #dktsKeithley4200Page .dkts-bias-entry .dkts-native-field{width:100%;min-width:0}
@@ -385,8 +407,7 @@
  display:grid;grid-row:1/span 2;grid-template-rows:subgrid;align-self:stretch;grid-auto-columns:minmax(0,1fr)
 }
 #dktsKeithley4200Page .dkts-terminal-setting>.dkts-native-field>.dkds-field-label-row{align-self:end}
-#dktsKeithley4200Page .dkts-history{flex:0 0 auto;min-width:0;max-height:31%;overflow:auto}
-#dktsKeithley4200Page .dkts-history-records{max-height:140px;overflow:auto}
+#dktsKeithley4200Page .dkts-history{flex:0 0 var(--dkds-unit-history-height,112px);min-width:0;min-height:0;overflow:auto}
 #dktsKeithley4200Page .dkts-history-panel .dkds-list-item{min-height:27px}
 #dktsKeithley4200Page .dkts-history-columns,
 #dktsKeithley4200Page .dkts-history-records .dkds-list-item-content{
@@ -590,3 +611,14 @@
  #dktsKeithley4200Page [data-dkts-dc-ports] [data-dkts-port-mobile]:not([hidden]){display:inline-flex!important}
 }
 #dktsKeithley4200Page .dkts-dc-port-popover{z-index:22}
+
+#dktsKeithley4200Page .dkts-time-setup{
+ display:grid;grid-template-columns:minmax(0,1fr) minmax(118px,.2fr);gap:8px
+}
+#dktsKeithley4200Page .dkts-time-grid-fields{
+ display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,126px),1fr));gap:8px
+}
+#dktsKeithley4200Page .dkts-time-repeat .dkts-time-grid-fields{padding:8px 10px}
+@media(max-width:620px){
+ #dktsKeithley4200Page .dkts-time-setup{grid-template-columns:minmax(0,1fr)}
+}

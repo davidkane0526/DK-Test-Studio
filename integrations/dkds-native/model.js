@@ -48,17 +48,15 @@
    firstS:'1',lastS:'100',windowS:'0.05',points:'10',spacing:'log',complianceA:'0.001'}),
   pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',
    start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
-   delayUs:'0',windowStartUs:'100',windowStopUs:'400',pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:''})
+   delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
+   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:''})
  });
  const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw']);
- function timeSummary(v){
+ function timeGrid(v){
   const switchStep=numeric(v.switchStepS,'Switching Step'),sampleStep=numeric(v.sampleStepS,'Sampling Step');
-  const cycles=positiveInt(v.cycles,10000,'Cycles');
   if(switchStep<=0||sampleStep<=0)throw Error('Switching Step and Sampling Step must be positive');
-  if(v.integrationS!==''&&(numeric(v.integrationS,'Integration time')<=0||Number(v.integrationS)>sampleStep))
-   throw Error('Integration time must fit within a sampling step');
   if(!Array.isArray(v.segments)||!v.segments.length||v.segments.length>64)throw Error('Use 1–64 time segments');
-  let durationS=0;
+  let durationS=0,segmentCount=0;
   const starts=v.segments.map(segment=>{
    const start=durationS,duration=numeric(segment?.durationS,'Segment duration');
    const ticks=duration/switchStep;
@@ -67,8 +65,21 @@
    for(const key of ['D','G','S','B'])if(Math.abs(numeric(segment.bias?.[key],key+' bias'))>210)
     throw Error('Bias exceeds the SMU planning envelope');
    durationS+=duration;
+   segmentCount+=Math.round(ticks);
    return start;
   });
+  const sampleRatio=durationS/sampleStep;
+  const wholeSamples=Math.round(sampleRatio);
+  const samplePoints=Math.abs(sampleRatio-wholeSamples)<1e-7?wholeSamples:Math.floor(sampleRatio);
+  if(!Number.isSafeInteger(segmentCount)||!Number.isSafeInteger(samplePoints))
+   throw Error('A cycle must have a finite number of switching and sampling steps');
+  return {starts,durationS,segmentCount,samplePoints,sampleStep};
+ }
+ function timeSummary(v){
+  const grid=timeGrid(v),{durationS,sampleStep}=grid;
+  const cycles=positiveInt(v.cycles,10000,'Cycles');
+  if(v.integrationS!==''&&(numeric(v.integrationS,'Integration time')<=0||Number(v.integrationS)>sampleStep))
+   throw Error('Integration time must fit within a sampling step');
   if(!Array.isArray(v.events)||!v.events.length||v.events.length>16)throw Error('Use 1–16 measurement events');
   let points=0;
   for(const event of v.events){
@@ -83,12 +94,20 @@
    points+=count;
   }
   if(!Number.isFinite(durationS*cycles)||points*cycles>65536)throw Error('Time plan exceeds the offline planning limit');
-  return {starts,durationS,cycles,points:points*cycles};
+  return {...grid,cycles,points:points*cycles};
+ }
+ function timingSettings(kind,settings){
+  const values={...clone(TIMED_DEFAULTS[kind]),...settings};
+  if(kind==='pulse'&&Object.hasOwn(values,'windowStopUs')){
+   values.windowTimeUs=String(numeric(values.windowStopUs,'Window stop')-numeric(values.windowStartUs,'Window start'));
+   delete values.windowStopUs;
+  }
+  return values;
  }
  function timedSummary(kind,settings){
   const defaults=TIMED_DEFAULTS[kind];
   if(!defaults)return null;
-  const v={...defaults,...settings};
+  const v=timingSettings(kind,settings);
   if(kind==='time')return timeSummary(v);
   if(!['S','D','G'].includes(v.terminal))throw Error('Select a Source, Drain or Gate terminal');
   const n=key=>numeric(v[key],key);
@@ -116,13 +135,17 @@
   if(peakV>rangeV)throw Error('Pulse base or top exceeds the selected voltage range');
   if(v.loadOhms!==''&&(n('loadOhms')<1||n('loadOhms')>1000000))throw Error('Load must be between 1 Ω and 1 MΩ');
   const rise=n('riseUs'),fall=n('fallUs'),period=n('periodUs'),width=n('widthUs'),delay=n('delayUs');
-  const startUs=n('windowStartUs'),stopUs=n('windowStopUs');
-  if(rise<=0||fall<=0||width<=0||delay<0||period<rise+width+fall||startUs<0||stopUs<=startUs||stopUs>width)
+  const startUs=v.windowStartUs===''?0:n('windowStartUs');
+  const windowUs=v.windowTimeUs===''?width-startUs:n('windowTimeUs');
+  const hold=n('holdUs'),baseDelay=n('baseDelayUs');
+  if(hold<0||baseDelay<0)throw Error('Hold Time and Base Delay must be non-negative');
+  if(rise<=0||fall<=0||width<=0||delay<0||period<rise+width+fall||
+     startUs<0||windowUs<=0||startUs+windowUs>width+1e-9)
    throw Error('Fit the rise, flat top and fall within the period, and the measurement window within the flat top');
   const pulseCount=positiveInt(v.pulseCount,65536,'Pulse count'),rateHz=positiveInt(v.rateHz,200000000,'Sample rate');
   if(rateHz<1000)throw Error('Sample rate is below 1 kSa/s');
   if(v.currentRangeA!==''&&n('currentRangeA')<=0)throw Error('Current range must be positive');
-  return {points,pulseCount,rateHz,rangeV,peakV,windowS:(stopUs-startUs)*1e-6,
+  return {points,pulseCount,rateHz,rangeV,peakV,windowS:windowUs*1e-6,
    loadOhms:v.loadOhms===''?null:n('loadOhms')};
  }
  function segmentPoints(seg){
@@ -639,7 +662,7 @@
      throw Error('DC Spec must belong to the same Device');
    }
    if(TIMED_DEFAULTS[p.kind]){
-    p.timing={...clone(TIMED_DEFAULTS[p.kind]),...p.timing};
+    p.timing=timingSettings(p.kind,p.timing);
     timedSummary(p.kind,p.timing);
    }
   }
@@ -805,7 +828,7 @@
  function editTiming(s,changes){
   s=validate(s);
   const p=s.pages.find(row=>row.id===s.activeId),defaults=TIMED_DEFAULTS[p.kind];
-  if(!defaults||!changes||Object.keys(changes).some(key=>!Object.hasOwn(defaults,key)))
+  if(!defaults||!changes||Object.keys(changes).some(key=>!Object.hasOwn(defaults,key)&&!(p.kind==='pulse'&&key==='windowStopUs')))
    throw Error('Invalid timing parameter');
   p.timing={...p.timing,...changes};
   return validate(s);
@@ -1063,6 +1086,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcSummary,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcSummary,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,timeGrid,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();
