@@ -27,7 +27,7 @@ jobs:
         id: scope
         env:
           DKTS_BASE_SHA: ${{ github.event.before || github.event.pull_request.base.sha || '' }}
-          DKTS_FORCE_FULL_APP: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+          DKTS_FINAL_BUILD: 'true'
         run: node tools/classify-core-update.cjs
 
   resolve-build-identity:

@@ -31,6 +31,14 @@ test('documentation and workflow edits do not produce a new application package'
   assert.equal(classify(['README.md','.github/workflows/ui-update.yml','docs/RELEASE_UPDATE_CONTRACT.md']).updateChannel,'none');
 });
 
+test('an explicit final build packages source that was already pushed to main',()=>{
+  const finalized={finalBuild:true};
+  assert.deepEqual(classify(['docs/DEVELOPMENT_LOG.md'],finalized),
+   {updateChannel:'full-app',hotUpdateAvailable:false,changedFiles:[]});
+  assert.equal(classify([],finalized).updateChannel,'full-app');
+  assert.equal(classify(['integrations/dkds-native/ui-shell.css'],finalized).updateChannel,'ui-hot');
+});
+
 test('DKTS Core staging stamps the same identity into Windows and Android',()=>{
   const stage=fs.readFileSync(path.join(root,'tools/stage-dkds-host.cjs'),'utf8');
   assert.match(stage,/pkg\.dktsBuildId=identity\.buildId/);
@@ -47,6 +55,8 @@ test('DKTS Core staging stamps the same identity into Windows and Android',()=>{
   assert.match(versioning,/必须完整安装的变更.*递增程序包版本/);
   assert.match(versioning,/仅 CSS\/UI 热更新的变更.*保持当前/);
   const coreWorkflow=fs.readFileSync(path.join(root,'.github/workflows/dkts-framework-contract.yml'),'utf8');
+  assert.match(coreWorkflow,/contains\(github\.event\.head_commit\.message, '\[DKTS-FINAL-BUILD\]'\)/);
+  assert.match(coreWorkflow,/DKTS_FINAL_BUILD: 'true'/);
   assert.match(coreWorkflow,/update_channel == 'full-app'/);
   assert.match(coreWorkflow,/revision=\"\$CORE_BUILD_NUMBER\"/);
   assert.match(coreWorkflow,/actions\/workflows\/ui-update\.yml\/runs/);
