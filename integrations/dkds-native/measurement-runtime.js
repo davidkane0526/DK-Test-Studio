@@ -108,10 +108,24 @@
   const measurementData=ctx.modules.require('measurementData');
   if(typeof ctx.capabilities?.invoke!=='function')
    throw Error('DKDS Generic TCP capability facade is unavailable');
+  const sharedCapability='network.tcp.interactive',sharedSessions=new Set();
+  const hasShared=()=>Boolean(ctx.capabilities.get?.(sharedCapability));
+  const shared=(method,payload)=>ctx.capabilities.invoke(sharedCapability,method,{...payload,owner:OWNER});
   const tcp=Object.freeze({
-   open:payload=>ctx.capabilities.invoke('network.tcp','open',payload||{}),
-   exchange:payload=>ctx.capabilities.invoke('network.tcp','exchange',payload||{}),
-   close:payload=>ctx.capabilities.invoke('network.tcp','close',payload||{})
+   async open(settings,sessionId){
+    if(!hasShared()){
+     if(sessionId)throw Error('此宿主不支持共享 TCP 会话');
+     return ctx.capabilities.invoke('network.tcp','open',settings);
+    }
+    const opened=await (sessionId?shared('claim',{sessionId}):shared('open',{settings}));
+    sharedSessions.add(opened.sessionId);
+    return opened;
+   },
+   exchange:payload=>sharedSessions.has(payload.sessionId)?shared('exchange',payload):
+    ctx.capabilities.invoke('network.tcp','exchange',payload),
+   close:async payload=>sharedSessions.delete(payload.sessionId)?shared('close',payload):
+    ctx.capabilities.invoke('network.tcp','close',payload),
+   release:async payload=>{sharedSessions.delete(payload.sessionId);return shared('release',payload);}
   });
   const controller=identity.createIdentityController(tcp,protocol);
   const execution=plan.createExecutionCoordinator();
@@ -138,6 +152,7 @@
    if(lastRun.shutdown==='unconfirmed')return {ready:false,canExecute:false,
     reason:'上一次测量的 SMU 输出关闭未获确认；必须先在仪器现场确认输出状态，禁止继续启动测量'};
    if(connection.phase!=='connected')return {ready:false,canExecute:false,reason:'尚未连接并验证 Keithley 4200A'};
+   if(connection.verificationPending)return {ready:false,canExecute:false,reason:'正在重新核验 4200A 连接，请稍候'};
    if(connection.inventoryPending)return {ready:false,canExecute:false,reason:'正在重新读取模块，请等待端口扫描完成'};
    if(!connection.inventory||connection.inventoryError)
     return {ready:false,canExecute:false,reason:connection.inventoryError||'尚未完成实际模块识别'};
@@ -196,10 +211,12 @@
     return Object.freeze({run:runner.status(0),rows:0,published:null,publishError:failure});
    }
   }
-  async function connect(settings){
+  async function connect(settings,sessionId){
    if(disposed)throw Error('测量运行时已释放');
-   if(runner.status(0).running)throw Error('测量执行期间不能重新连接仪器');
-   const result=await controller.connect(settings||{});
+   const run=runner.status(0);
+   if(run.running)throw Error('测量执行期间不能重新连接仪器');
+   if(run.shutdown==='unconfirmed')throw Error('上次测量的 SMU 关闭未获确认，请先到仪器现场核查。');
+   const result=await controller.connect(settings||{},sessionId);
    notify('connected');
    return result;
   }
@@ -211,9 +228,17 @@
    if(result.phase!=='connected')throw Error(result.diagnostic||'端口扫描过程中连接已断开');
    return result;
   }
-  async function connectAndInspect(settings){
-   await connect(settings);
+  async function connectAndInspect(settings,sessionId){
+   await connect(settings,sessionId);
    return inspectModules();
+  }
+  async function checkConnection(){
+   const {connection,run}=status();
+   if(disposed||run.running||run.shutdown==='unconfirmed'||connection.phase!=='connected'||
+      connection.inventoryPending||connection.verificationPending)
+    return;
+   const next=await controller.verifyLiveConnection();
+   if(next.phase==='error')notify('connection-lost');
   }
   function start(page,confirmed){
    if(disposed)throw Error('测量运行时已释放');
@@ -253,7 +278,8 @@
    await controller.dispose();
    disposed=true;
   }
-  return Object.freeze({connect,inspectModules,connectAndInspect,disconnect,
+  return Object.freeze({connect,inspectModules,connectAndInspect,checkConnection,disconnect,
+   currentTcp:()=>hasShared()?shared('current'):null,
    prepare,start,stop,status,waitForCompletion,dispose,
    currentRanges:(resource,voltagePeaks)=>hardwareCapabilities.verifiedCurrentRanges(
     controller.status(),resource,voltagePeaks)});

@@ -2,6 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const {createInteractiveTcp}=require('../tools/dkds-tcp-interactive.cjs');
 const dir=path.resolve(__dirname,'../integrations/dkds-native');
 const OWNER='com.dkts.keithley-4200';
 function loadModules(protocolVerified=false){
@@ -119,6 +120,73 @@ test('native runtime blocks real output until the latest KXCI Rev F manual is ve
   assert.throws(()=>runtime.start(configuredPage(modules.get('model')),true),/Rev E.*Rev F/);
   assert.equal(commands.some(row=>/^DV/.test(row.command)),false);
  }finally{await runtime.dispose();}
+});
+
+test('native runtime claims the communication console socket and automatically verifies identity and hardware',async()=>{
+ const {modules}=loadModules(),fake=makeInstrumentContext(modules);
+ const {capabilities}=fake.ctx;
+ const nativeInvoke=capabilities.invoke,events=[];
+ let opens=0,loseConnection=false;
+ const consoleTcp=createInteractiveTcp({
+  open:params=>{opens++;return nativeInvoke('network.tcp','open',params);},
+  close:params=>nativeInvoke('network.tcp','close',params),
+  exchange:params=>loseConnection?Promise.reject(Error('TCP session is unavailable or closed')):
+   nativeInvoke('network.tcp','exchange',params)
+ },event=>events.push(event));
+ const methods={
+  current:()=>consoleTcp.current(),claim:value=>consoleTcp.claim(value),
+  open:({settings,owner})=>consoleTcp.open(settings,owner),
+  exchange:value=>consoleTcp.exchange(value),close:value=>consoleTcp.close(value),release:value=>consoleTcp.release(value)
+ };
+ capabilities.get=id=>id==='network.tcp.interactive'?{id}:null;
+ capabilities.invoke=(id,method,params)=>{
+  assert.equal(id,'network.tcp.interactive');
+  return methods[method](params);
+ };
+ const runtime=modules.get('measurementRuntime').createRuntime(fake.ctx,{onChange:value=>events.push(value.event)});
+ const settings={host:'192.0.2.10',port:1225};
+ try{
+  const opened=await consoleTcp.open(settings);
+  assert.equal(runtime.currentTcp().sessionId,opened.sessionId);
+  await assert.rejects(runtime.connectAndInspect({...settings,expectedSerial:'different'},opened.sessionId),/序列号不匹配/);
+  assert.equal(consoleTcp.current().owner,'','identity mismatch returns an existing raw session to the console');
+  assert.equal(runtime.status().connection.identity,null);
+
+  const verified=await runtime.connectAndInspect(settings,opened.sessionId);
+  assert.equal(opens,1,'no second TCP socket is opened');
+  assert.equal(verified.identity.serial,'1498377');
+  assert.equal(verified.inventory.physicalModelsVerified,true);
+  assert.equal(consoleTcp.current().owner,OWNER);
+  await assert.rejects(consoleTcp.exchange({sessionId:opened.sessionId,base64:''}),/无法传输/);
+  await assert.rejects(consoleTcp.close({sessionId:opened.sessionId}),/由设备工作区管理/);
+  assert.equal(runtime.prepare(configuredPage(modules.get('model'))).canExecute,false);
+  assert.ok(!fake.commands.some(row=>/^DV/.test(row.command)));
+
+  loseConnection=true;
+  await runtime.checkConnection();
+  assert.equal(runtime.status().connection.phase,'error');
+  assert.equal(runtime.status().connection.inventory,null);
+  assert.equal(consoleTcp.current(),null);
+  assert.ok(events.includes('connection-lost'));
+ }finally{await runtime.dispose();}
+});
+
+test('an interactive TCP claim waits until the generic console exchange ends',async()=>{
+ let finish;
+ const consoleTcp=createInteractiveTcp({
+  open:async()=>({sessionId:'1'}),
+  close:async()=>true,
+  exchange:()=>new Promise(resolve=>{finish=resolve;})
+ },()=>{});
+ const settings={host:'192.0.2.10',port:5000};
+ await consoleTcp.open(settings);
+ const pending=consoleTcp.exchange({sessionId:'1',base64:'AA=='});
+ assert.throws(()=>consoleTcp.claim({sessionId:'1',owner:OWNER}),/正在传输/);
+ await assert.rejects(consoleTcp.open(settings,OWNER),/已有 TCP 会话/);
+ finish({base64:'AA=='});
+ await pending;
+ assert.equal(consoleTcp.claim({sessionId:'1',owner:OWNER}).owner,OWNER);
+ await consoleTcp.close({sessionId:'1',owner:OWNER});
 });
 
 test('native runtime blocks timed execution when the DKDS lifecycle timer is unavailable',async()=>{

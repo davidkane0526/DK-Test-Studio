@@ -1,6 +1,6 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.30","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.31","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),measurementData=ctx.modules.require('measurementData'),
    measurementRuntimeModule=ctx.modules.require('measurementRuntime'),units=ctx.ui.unitTemplates,
@@ -22,7 +22,7 @@
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
   let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSelections=['','','',''],frameKinds=['iv','transfer','it','raw'],frameGroup=null,frameTableHosts=[],framePlotHosts=[],frameTables=[],frameLayout='4',nav=null,parameters=null,dataNote=null,pad=null,portPopover=null,editorTabs=null,editorHeading=null,terminalRegion=null;
   let editorSection='sweep',editorOpen=false,plotScope='project',workRegion=null,editorRegion=null,plotRegion=null,projectSurface=null;
-  let instrumentBusy=false,connectionMenu=null;
+  let instrumentBusy=false,connectionDialogOpen=false;
   let layoutField=null,historyHost=null,plotsHeading=null;
   let specNavigation=null;
   const historyChoices=new Map();
@@ -34,19 +34,22 @@
   let disposeTimePreview=null;
   const hardware=ctx.modules.require('dkts-capabilities');
   const defineConnectionSettings=()=>ctx.ui.settings.define('instrument-connection',{
-   title:t('4200A 连接设置'),
-   description:'使用 DKDS 通用 TCP/IP 通信能力连接 4200A。连接后先核验仪器身份和实际模块型号，再开放受安全策略约束的测量操作。',
+   title:tr('4200A 高级连接设置','4200A advanced connection settings'),
+   description:tr('通常只需输入仪器地址。其余设置用于修改 KXCI 端口、网络选路或已记住的序列号。',
+    'Normally only the instrument address is needed. Change these settings for a custom KXCI port, network route or remembered serial number.'),
    defaults:{host:'',port:1225,timeoutMs:5000,networkMode:'auto',
-    interfaceName:'',expectedSerial:''},
+    interfaceName:'',expectedSerial:'',autoReconnect:false},
    fields:[
-    {id:'host',label:t('仪器 IP / 主机名'),type:'text'},
-    {id:'port',label:t('KXCI TCP 端口'),type:'number',min:1,max:65535},
-    {id:'expectedSerial',label:t('预期序列号'),type:'text'},
+    {id:'port',label:t('KXCI TCP 端口'),type:'number',min:1,max:65535,
+     description:tr('默认 1225。只有在仪器的 KCon 中修改过端口时才需要改。','Default 1225. Change only if the port was changed in KCon.')},
+    {id:'expectedSerial',label:tr('已记住的序列号','Remembered serial number'),type:'text',
+     description:tr('首次连接自动读取。更换同一地址上的仪器时，可清空后重新识别。','Read automatically on first connection. Clear it to identify a replacement instrument at the same address.')},
     {id:'timeoutMs',label:t('连接/读取超时 (ms)'),type:'number',min:250,max:30000},
     {id:'networkMode',label:t('网络接口模式'),type:'select',options:[
      {value:'auto',label:t('自动')},{value:'ethernet',label:t('以太网')},
      {value:'wifi',label:'Wi-Fi'},{value:'interface',label:t('指定网卡')}]},
-    {id:'interfaceName',label:t('指定网卡名称'),type:'text'}
+    {id:'interfaceName',label:t('指定网卡名称'),type:'text',
+     description:tr('自动模式留空。只有手动指定本机网络接口时才需要填写。','Leave blank in Auto mode. Required only when manually selecting a local network interface.')}
    ]
   });
   const connectionSettings=defineConnectionSettings();
@@ -62,7 +65,7 @@
      const modules=inventory?.slots||[];
      const count=family=>modules.filter(slot=>slot.family===family).length;
      const counts=inventory?'4200A · '+count('SMU')+' SMU / '+count('PMU')+' PMU':'4200A';
-     const issue=update.connection.inventoryError||(!inventory?.hardwareLimitsVerified||!inventory?.physicalModelsVerified
+     const issue=update.connection.diagnostic||update.connection.inventoryError||(!inventory?.hardwareLimitsVerified||!inventory?.physicalModelsVerified
       ?tr('模块型号或额定值待核验','Module models or ratings need verification'):
       !update.protocolVerified?tr('KXCI Rev F 待核验','KXCI Rev F needs verification'):
       !update.executionAdapterAvailable?tr('宿主定时服务不可用','Host timing unavailable'):tr('模块扫描完成','Port scan complete'));
@@ -77,6 +80,7 @@
      else ctx.status.set('测量 '+run.state+'；没有可发布的实际 TI 采样行');
      refreshData();
     }else if(update.event==='measurement-stopping')ctx.status.set('正在停止测量并关闭活动 SMU 输出…');
+    else if(update.event==='connection-lost')ctx.status.set(update.connection.diagnostic);
     else if(update.event==='disconnected')ctx.status.set('4200A 已断开');
     render();
    }
@@ -249,22 +253,42 @@
     return next;
    });
   }
-  async function updateInstrument({connect=false,automatic=false}={}){
+  const sameHost=(left,right)=>String(left||'').trim().toLowerCase()===String(right||'').trim().toLowerCase();
+  async function updateInstrument({settings,session}={}){
    if(instrumentBusy||measurementRuntime.status().run.running)return;
-   const settings=connectionSettings.get();
-   if(connect&&(!settings.host?.trim()||!settings.expectedSerial?.trim())){
-    if(automatic)showOfflineStatus();
-    else connectionSettings.open();
-    return;
-   }
+   const connect=Boolean(settings||session),saved=connectionSettings.get();
+   const endpoint=session?.settings||settings;
    instrumentBusy=true;syncInstrumentButtons();
    try{
     ctx.status.set(connect?tr('正在连接 4200A 并读取实装端口…','Connecting to 4200A and scanning ports…'):
      tr('正在读取 4200A 实装端口…','Scanning installed 4200A ports…'));
-    if(connect)await measurementRuntime.connectAndInspect(settings);
-    else await measurementRuntime.inspectModules({refresh:true});
-   }catch(error){ctx.status.set((connect?tr('4200A 连接失败','4200A connection failed'):
-    tr('端口扫描失败','Port scan failed'))+' · '+String(error.message||error));}
+    if(connect){
+     const profile={...saved,...endpoint,
+      expectedSerial:!saved.host||sameHost(saved.host,endpoint.host)?saved.expectedSerial:''};
+     const {identity}=await measurementRuntime.connect(profile,session?.sessionId);
+     if(identity)connectionSettings.set({
+      host:profile.host,port:Number(profile.port),networkMode:profile.networkMode,
+      interfaceName:profile.interfaceName,expectedSerial:identity.serial,autoReconnect:true});
+     await measurementRuntime.inspectModules();
+    }else await measurementRuntime.inspectModules({refresh:true});
+   }catch(error){
+    const reason=String(error.message||error);
+    const detail=/Host capability unavailable: tcpOpen|网页服务未提供通用 TCP 网关|远程 TCP 请求失败，HTTP 405/.test(reason)?
+     tr('当前网页没有仪器连接网关。请在 DKTS 客户端或已配对的局域网页面连接。',
+      'This page has no instrument gateway. Connect in the DKTS app or on a paired LAN page.'):reason;
+    ctx.status.set((connect?tr('4200A 连接失败','4200A connection failed'):
+     tr('端口扫描失败','Port scan failed'))+' · '+detail);
+   }
+   finally{instrumentBusy=false;render();}
+  }
+  async function disconnectInstrument(){
+   if(!instrumentIdle()){
+    ctx.status.set(tr('请先等待核验完成或停止测量，再断开仪器。','Wait for verification or stop the test before disconnecting.'));
+    return;
+   }
+   instrumentBusy=true;syncInstrumentButtons();
+   try{await measurementRuntime.disconnect();connectionSettings.set({autoReconnect:false});}
+   catch(error){ctx.status.set(String(error.message||error));}
    finally{instrumentBusy=false;render();}
   }
   async function handleMeasurementAction(page,prepared){
@@ -2219,40 +2243,76 @@
    updateGraphLanguage();
    if(measurementRuntime.status().connection.phase==='disconnected')showOfflineStatus();
   }
-  function connectFromToolbar(button){
-   if(!instrumentIdle())return;
-   const {connection}=measurementRuntime.status();
-   if(connection.phase==='connected'){
-    void ctx.ui.dialogs.alert({title:t('已连接'),message:tr('已验证 Keithley 4200A。','Keithley 4200A identity verified.'),
-     detail:connection.identity?.serial||''});
-    return;
-   }
-   const settings=connectionSettings.get();
-   if(!settings.host?.trim()||!settings.expectedSerial?.trim()){connectionSettings.open();return;}
-   const box=button?.getBoundingClientRect?.();
-   if(!box?.width||!ctx.ui.contextMenus?.open){void updateInstrument({connect:true});return;}
-   connectionMenu?.dispose?.();
-   connectionMenu=ctx.ui.contextMenus.open({anchor:button,x:box.left,y:box.bottom+3,items:[
-    {id:'dkts-connect-retry',label:tr('重试连接','Retry connection'),onInvoke:()=>updateInstrument({connect:true})},
-    {id:'dkts-connect-settings',label:t('连接设置'),onInvoke:()=>connectionSettings.open()}
-   ]});
+  async function connectFromToolbar(){
+   if(!instrumentIdle()||connectionDialogOpen)return;
+   connectionDialogOpen=true;
+   const advanced={id:'advanced',label:tr('高级设置','Advanced settings'),kind:'secondary'};
+   const cancel={id:'cancel',label:t('取消'),kind:'secondary'};
+   try{
+    const {connection}=measurementRuntime.status();
+    if(connection.phase==='connected'){
+     const route=connection.route;
+     const title=tr('4200A 已识别','4200A identified');
+     const modules=connection.inventory?.slots?.filter(slot=>slot.family!=='empty')||[];
+     const detail=connection.inventoryError||(!connection.inventory?.physicalModelsVerified?
+      tr('实装模块仍待核验。','Installed modules still require verification.'):
+      tr('已识别 ','Identified ')+modules.length+tr(' 个实装模块。',' installed modules.'));
+     const result=await ctx.ui.dialogs.show({
+      title,message:[connection.identity.serial,route?.remoteAddress&&route.remoteAddress+':'+route.remotePort].filter(Boolean).join(' · '),
+      detail,detailOpen:true,defaultAction:'cancel',cancelAction:'cancel',
+      actions:[{...cancel,label:tr('关闭','Close')},advanced,{id:'disconnect',label:tr('断开','Disconnect'),kind:'secondary'}]
+     });
+     if(result==='disconnect')await disconnectInstrument();
+     else if(result==='advanced')connectionSettings.open();
+     return;
+    }
+    const session=await measurementRuntime.currentTcp();
+    if(!instrumentIdle())return;
+    if(session){
+     if(session.owner&&session.owner!==manifest.id)throw Error(tr(
+      '当前 TCP 会话由另一工作区管理，请先断开。','Disconnect the session owned by the other workspace first.'));
+     await updateInstrument({session});
+     return;
+    }
+    const saved=connectionSettings.get();
+    const result=await ctx.ui.dialogs.show({
+     title:tr('连接 4200A','Connect to 4200A'),
+     message:tr('输入仪器地址。连接后会自动读取序列号与实装模块。',
+      'Enter the instrument address. The serial number and installed modules are read automatically.'),
+     input:{type:'text',label:t('仪器 IP / 主机名'),value:saved.host||''},
+     defaultAction:'connect',cancelAction:'cancel',
+     actions:[advanced,cancel,{id:'connect',label:t('连接'),kind:'primary'}]
+    });
+    if(result?.action==='advanced'){connectionSettings.open();return;}
+    if(result?.action==='connect'){
+     const host=String(result.value||'').trim();
+     if(!host){
+      ctx.status.set(tr('请输入 4200A 的 IP 地址或主机名。','Enter the 4200A IP address or hostname.'));
+      return;
+     }
+     const current=await measurementRuntime.currentTcp();
+     if(current){
+      if(!sameHost(current.settings.host,host))throw Error(tr(
+       '通信已连接其他地址，请先断开。','Communication connected to another address. Disconnect it first.'));
+      await updateInstrument({session:current});
+     }else await updateInstrument({settings:{...connectionSettings.get(),host}});
+    }
+   }catch(error){ctx.status.set(String(error.message||error));}
+   finally{connectionDialogOpen=false;}
   }
-  const connectionLabel=()=>{
-   const connected=measurementRuntime.status().connection.phase==='connected';
-   return t(instrumentBusy&&!connected?'连接中':connected?'已连接':'连接');
-  };
+  const connectionLabel=()=>instrumentBusy?tr('处理中','Working'):
+   measurementRuntime.status().connection.phase==='connected'?tr('已识别','Identified'):t('连接');
   const instrumentIdle=()=>!instrumentBusy&&!measurementRuntime.status().run.running;
   const languageTitle=()=>tr('Switch to English','切换为简体中文');
   const instrumentCommands=[
    {id:'dkts-workspace-connect',order:8,label:connectionLabel,
     enabled:instrumentIdle,
-    onInvoke:({button})=>connectFromToolbar(button)},
+    onInvoke:()=>void connectFromToolbar()},
    {id:'dkts-workspace-scan',order:9,label:()=>tr('端口','Ports'),enabled:instrumentIdle,
     title:()=>tr('重新识别 4200A 实装 SMU 和 PMU','Refresh installed 4200A SMU and PMU modules'),
     onInvoke:()=>{
      if(measurementRuntime.status().connection.phase==='connected')void updateInstrument();
-     else void ctx.ui.dialogs.alert({title:tr('端口','Ports'),
-      message:tr('连接 4200A 后可读取实装模块与量程。','Connect the 4200A to read installed modules and ranges.')});
+     else void connectFromToolbar();
     }},
    {id:'dkts-workspace-language',order:10,label:()=>tr('EN','中文'),title:languageTitle,onInvoke:toggleLanguage}
   ].map(action=>({...action,variant:'quiet'}));
@@ -2454,11 +2514,30 @@
   });
   window.addEventListener?.('resize',updateEditorLayout);
   render();refreshData();
-  function showOfflineStatus(){ctx.status.set(tr('DK Test Studio · 4200A 离线 · 请配置仪器连接',
-   'DK Test Studio · 4200A offline · configure the instrument connection'));}
-  void updateInstrument({connect:true,automatic:true});
+  function showOfflineStatus(){ctx.status.set(tr('DK Test Studio · 4200A 离线','DK Test Studio · 4200A offline'));}
+  const isInstrumentSession=(session,saved)=>session&&!session.owner&&
+   (Number(session.settings.port)===1225||
+    (saved.host&&sameHost(session.settings.host,saved.host)&&Number(session.settings.port)===Number(saved.port)));
+  const offTcp=ctx.events?.on?.('communication:interactive-tcp',({event,session})=>{
+   if(event==='opened'&&isInstrumentSession(session,connectionSettings.get()))void updateInstrument({session});
+   if(event==='disconnect-requested'&&session?.owner===manifest.id)void disconnectInstrument();
+  });
+  const stopConnectionCheck=ctx.ui.dom?.interval?.(()=>{
+   if(instrumentIdle()&&!runConfirmationPending)void measurementRuntime.checkConnection();
+  },15000);
+  async function restoreInstrument(){
+   try{
+    const session=await measurementRuntime.currentTcp(),saved=connectionSettings.get();
+    if(isInstrumentSession(session,saved))await updateInstrument({session});
+    else if(!session&&saved.host&&saved.autoReconnect)await updateInstrument({settings:saved});
+    else if(instrumentIdle()&&measurementRuntime.status().connection.phase==='disconnected')showOfflineStatus();
+   }catch(error){ctx.status.set(String(error.message||error));}
+  }
+  void restoreInstrument();
   return {deactivate(){treeMenu?.dispose?.();projectSurface?.dispose();disposeTimePreview?.();window.removeEventListener?.('resize',updateEditorLayout);
-   connectionMenu?.dispose?.();pad?.close?.();portPopover?.close?.();off?.();offProjectRestore?.();for(const item of plots)item?.dispose?.();
+   pad?.close?.();portPopover?.close?.();off?.();offProjectRestore?.();offTcp?.();stopConnectionCheck?.();
+   void measurementRuntime.dispose().catch(()=>{});
+   for(const item of plots)item?.dispose?.();
    for(const item of plotViews)item?.dispose?.();
    for(const item of frameTables)item?.dispose?.();frameGroup?.dispose?.();wb?.dispose?.();}};
  });

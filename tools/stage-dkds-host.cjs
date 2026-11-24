@@ -8,6 +8,7 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const {verify}=require('./dkds-host-profile.cjs');
 const {verifyUpdaterParity}=require('./verify-dkds-updater-parity.cjs');
 const {buildIdentity}=require('./core-build-identity.cjs');
+const {patchInteractiveTcp}=require('./dkds-tcp-interactive.cjs');
 function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpdater=verifyUpdaterParity,patchUpdaters=true}={}){
  const upstream=path.resolve(source),output=path.resolve(target);
  if(output===upstream||output.startsWith(upstream+path.sep)||
@@ -81,6 +82,17 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
  // Never reuse a generated catalog with removed analysis plugins.
  const generated=path.join(tmp,'src/generated/plugin-index.js');
  fs.rmSync(generated,{force:true});
+ // Share the derived host's interactive TCP session through a generic capability.
+ const tcpConsole=path.join(tmp,'src/plugins/connectivity-center/plugin.js');
+ if(fs.existsSync(tcpConsole)){
+  const source=fs.readFileSync(tcpConsole,'utf8').replace(/\r\n?/g,'\n');
+  fs.writeFileSync(tcpConsole,patchInteractiveTcp(source),'utf8');
+  const file=path.join(path.dirname(tcpConsole),'plugin.json');
+  const connectivity=JSON.parse(fs.readFileSync(file,'utf8'));
+  connectivity.requiresCore.push('events');
+  connectivity.capabilities.push('network.tcp.interactive');
+  fs.writeFileSync(file,JSON.stringify(connectivity,null,2)+'\n','utf8');
+ }
  // DKDS's actual Electron boot code is the entrypoint, not a DKTS imitation.
  const replaceExact=(file,search,replace)=>{
   const target=path.join(tmp,file);

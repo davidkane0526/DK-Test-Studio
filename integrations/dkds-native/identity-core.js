@@ -10,7 +10,7 @@
     if(!['auto','ethernet','wifi','interface'].includes(networkMode))throw Error('不支持的网络连接方式');
     const interfaceName=String(input.interfaceName||'').trim();if(networkMode==='interface'&&!interfaceName)throw Error('指定网卡模式必须填写网卡名称');
     const localAddress=String(input.localAddress||'').trim();if(localAddress&&!isIPv4(localAddress))throw Error('本地 IP 必须是 IPv4 地址');
-    const expectedSerial=String(input.expectedSerial??'').trim();if(!expectedSerial)throw Error('填写预期 4200A 序列号');if(expectedSerial.length>128)throw Error('序列号过长');
+    const expectedSerial=String(input.expectedSerial??'').trim();if(expectedSerial.length>128)throw Error('序列号过长');
     return Object.freeze({host,port,timeoutMs,networkMode,interfaceName,localAddress,expectedSerial});
   }
   function summarizeError(error){
@@ -25,25 +25,38 @@
   function createIdentityController(tcp,protocol){
     if(!tcp||typeof tcp.open!=='function'||typeof tcp.exchange!=='function'||typeof tcp.close!=='function')throw Error('必须提供宿主 TCP open/exchange/close 适配器');
     if(!protocol||typeof protocol.parseIdentity!=='function'||protocol.IDN_REQUEST!=='*IDN?\0')throw Error('缺少已验证的 KXCI 身份协议');
-    let connection=null,phase='disconnected',identity=null,diagnostic='',settings=null,pending=null,inventory=null,inventoryError='',inventoryPending=null;
-    function status(){return {phase,identity,inventory,inventoryError,inventoryPending:Boolean(inventoryPending),route:connection?{localAddress:connection.localAddress,remoteAddress:connection.remoteAddress,remotePort:connection.remotePort,interfaceName:connection.interfaceName,routeStrategy:connection.routeStrategy}:null,summary:phase==='connected'?'4200A 已识别':phase==='connecting'?'正在连接':phase==='error'?summarizeError(diagnostic):'未连接',diagnostic};}
+    let connection=null,phase='disconnected',identity=null,diagnostic='',settings=null,pending=null,inventory=null,inventoryError='',inventoryPending=null,verificationPending=null;
+    function status(){return {phase,sessionId:connection?.sessionId||'',identity,inventory,inventoryError,inventoryPending:Boolean(inventoryPending),verificationPending:Boolean(verificationPending),route:connection?{localAddress:connection.localAddress,remoteAddress:connection.remoteAddress,remotePort:connection.remotePort,interfaceName:connection.interfaceName,routeStrategy:connection.routeStrategy}:null,summary:phase==='connected'?'4200A 已识别':phase==='connecting'?'正在连接':phase==='error'?summarizeError(diagnostic):'未连接',diagnostic};}
     async function closeCurrent(){const id=connection?.sessionId;connection=null;identity=null;inventory=null;inventoryError='';if(id)await tcp.close({sessionId:id}).catch(()=>{});}
-    async function connect(payload={}){
+    async function connect(payload={},reuseSessionId=''){
       if(pending)return pending;
       const task=(async()=>{
         const next=normalizeSettings(payload);
-        if(phase==='connected'&&settings&&JSON.stringify(settings)===JSON.stringify(next))return status();
-        await closeCurrent();settings=next;phase='connecting';diagnostic='';let opened=null;
+        if(phase==='connected'&&(!reuseSessionId||reuseSessionId===connection?.sessionId)&&
+            settings&&JSON.stringify(settings)===JSON.stringify(next))return status();
+        if(inventoryPending)await inventoryPending;
+        if(verificationPending)await verificationPending;
+        await closeCurrent();settings=next;phase='connecting';diagnostic='';
+        let opened=null,receivedIdentity=false;
         try{
-          opened=await tcp.open({host:next.host,port:next.port,networkMode:next.networkMode,interfaceName:next.interfaceName,localAddress:next.localAddress,connectTimeoutMs:next.timeoutMs,preferLinkLocalEthernet:next.networkMode==='auto'&&next.host.startsWith('169.254.')});
+          opened=await tcp.open({host:next.host,port:next.port,networkMode:next.networkMode,interfaceName:next.interfaceName,localAddress:next.localAddress,connectTimeoutMs:next.timeoutMs,preferLinkLocalEthernet:next.networkMode==='auto'&&next.host.startsWith('169.254.')},reuseSessionId);
           const reply=await tcp.exchange({sessionId:opened.sessionId,base64:btoa(protocol.IDN_REQUEST),readTimeoutMs:next.timeoutMs,idleTimeoutMs:120,maxBytes:8192});
+          receivedIdentity=true;
           const found=protocol.parseIdentity(atob(reply.base64),next.expectedSerial);
           connection=opened;identity=found;phase='connected';diagnostic='';return status();
-        }catch(e){if(opened)await tcp.close({sessionId:opened.sessionId}).catch(()=>{});connection=null;identity=null;phase='error';diagnostic=String(e?.message||e);throw e;}
+        }catch(e){
+          if(opened){
+            if(receivedIdentity&&reuseSessionId&&tcp.release)
+              await tcp.release({sessionId:opened.sessionId}).catch(()=>{});
+            else await tcp.close({sessionId:opened.sessionId}).catch(()=>{});
+          }
+          connection=null;identity=null;phase='error';diagnostic=String(e?.message||e);throw e;
+        }
       })();pending=task;try{return await task;}finally{if(pending===task)pending=null;}
     }
     async function inspectModules({refresh=false}={}){
       if(pending)await pending;
+      if(verificationPending)await verificationPending;
       if(!connection||!identity||phase!=='connected')throw Error('必须先验证 4200A 仪器身份');
       if(inventoryPending)return inventoryPending;
       if(!refresh&&inventory&&!inventoryError)return status();
@@ -87,9 +100,27 @@
         }
       })();inventoryPending=request;try{return await request;}finally{if(inventoryPending===request)inventoryPending=null;}
     }
+    async function verifyLiveConnection(){
+      if(verificationPending)return verificationPending;
+      if(pending||inventoryPending||phase!=='connected'||!connection)return status();
+      const id=connection.sessionId;
+      const request=(async()=>{
+        try{
+          const answer=await tcp.exchange({sessionId:id,base64:btoa(protocol.IDN_REQUEST),
+            readTimeoutMs:settings.timeoutMs,idleTimeoutMs:120,maxBytes:8192});
+          protocol.parseIdentity(atob(answer.base64),identity.serial);
+        }catch(error){
+          await closeCurrent();
+          phase='error';diagnostic='连接已失效：'+String(error?.message||error);
+        }
+      })();
+      verificationPending=request;
+      try{await request;}finally{if(verificationPending===request)verificationPending=null;}
+      return status();
+    }
     // Internal measurement-only path. UI receives no raw-command endpoint.
     async function measurementExchange(text,expectReply=false){
-      if(phase!=='connected'||!connection||!identity||inventoryPending||
+      if(phase!=='connected'||!connection||!identity||inventoryPending||verificationPending||
          inventory?.physicalModelsVerified!==true||
          inventory?.hardwareLimitsVerified!==true)
         throw Error('仪器及物理模块尚未完成身份核验');
@@ -123,9 +154,9 @@
       if(raw.toUpperCase()!=='ACK')throw Error('KXCI 写入命令未收到 ACK：'+cmd+' / '+(raw||'空响应'));
       return '';
     }
-    async function disconnect(){if(inventoryPending)await inventoryPending.catch(()=>{});if(pending)await pending.catch(()=>{});await closeCurrent();phase='disconnected';diagnostic='';settings=null;return status();}
+    async function disconnect(){if(inventoryPending)await inventoryPending.catch(()=>{});if(pending)await pending.catch(()=>{});if(verificationPending)await verificationPending.catch(()=>{});await closeCurrent();phase='disconnected';diagnostic='';settings=null;return status();}
     async function dispose(){await disconnect();tcp.closeAll?.();}
-    return Object.freeze({connect,inspectModules,disconnect,status,dispose,measurementExchange});
+    return Object.freeze({connect,inspectModules,verifyLiveConnection,disconnect,status,dispose,measurementExchange});
   }
   const api=Object.freeze({createIdentityController,normalizeSettings,summarizeError});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-identity-core',api);

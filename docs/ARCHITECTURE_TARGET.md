@@ -33,6 +33,8 @@ Keep DKDS plot engine, group-chart title/action styling, data center and canonic
 
 ## Native KXCI execution boundary
 - DKTS native plugin consumes the DKDS `network.tcp` capability from `builtin.connectivity-center`; it must not create a second TCP transport implementation.
+- The derived DKTS host also exposes a local interactive TCP session to the workspace. The communication console and DKTS use the same socket, and the console defers raw byte exchanges while the workspace has claimed it. The generic adapter carries no instrument protocol.
+- DKTS identifies connections from the communication console on the default KXCI port or a remembered endpoint. Clicking the workspace connection action can explicitly verify an existing session on another port. Settings persist the verified address and serial, while each live connection must verify the instrument and read its modules again. Idle connections periodically recheck identity, outside measurement and module queries.
 - KXCI Ethernet write commands return NUL-terminated ACK responses. Every ACK must be consumed and validated before the next command/query.
 - Plugin API 1.19 does not expose an approved host-delay scheduler to plugins; plugin code must not create raw browser timers. The current host-stepped `DV/TI` runner is therefore not enabled in production. Prefer a fully validated instrument-native sweep sequence for hardware timing.
 - The current official manual index lists KXCI Rev F, but until its complete text is retrieved and compared with the implemented Rev E command path, `safetyPolicies.kxci.allowInstrumentOutput` remains false.
