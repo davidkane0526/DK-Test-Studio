@@ -229,7 +229,9 @@
 #dktsKeithley4200Page :is(.dkts-dc-terminal-modes,.dkts-dc-segments,.dkts-dc-preset,.dkts-dc-reference-fields){
  border-inline-start:1px solid var(--dkts-divider)
 }
-#dktsKeithley4200Page .dkts-dc-terminal-id{background:var(--dkts-soft);align-self:stretch}
+#dktsKeithley4200Page .dkts-dc-terminal-id{
+ background:color-mix(in srgb,var(--dkts-surface) 88%,var(--text-primary));align-self:stretch
+}
 #dktsKeithley4200Page .dkts-dc-terminal-name{
  color:var(--text-primary);font-size:15px;font-weight:650;letter-spacing:.055em;
  line-height:var(--dkts-dc-terminal-marker);white-space:nowrap

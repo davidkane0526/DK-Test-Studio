@@ -270,8 +270,12 @@ const ctx={
  assert.equal(record.plots[0].getCurves().length,1,'test scope exposes its own run');
  assert.deepEqual(Array.from(record.actions.find(row=>row.id==='dkts-frame-kind-1').items(),row=>row.id),
   ['kind-iv','kind-it','kind-raw']);
+ const historyAction=()=>record.actions.findLast(row=>row.id==='dkts-history-plot');
+ assert.equal(historyAction().variant,'quiet');
+ assert.equal(historyAction().enabled,false);
  record.listItems.findLast(row=>row.title==='Raw IV').onInvoke();
- record.actions.findLast(row=>row.id==='dkts-history-plot').items()[1].onInvoke();
+ assert.equal(historyAction().enabled,true);
+ historyAction().items()[1].onInvoke();
  assert.equal(state.ui.scopedGraphs['page-1'].sources[1],'a1');
  record.actions.findLast(row=>row.id==='add-routine').onInvoke();
  assert.equal(record.plots[0].getCurves().length,0,'a separate routine does not inherit another test history');
