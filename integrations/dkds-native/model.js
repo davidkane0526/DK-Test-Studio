@@ -40,9 +40,19 @@
       !Number.isFinite(Number(text)))throw Error('Invalid numeric input: '+label);
   return Number(text);
  };
+ function atField(field,validate){
+  try{return validate();}
+  catch(error){error.field??=field;throw error;}
+ }
+ function invalidField(field,message){
+  throw Object.assign(Error(message),{field});
+ }
+ const TIME_TERMINALS=['D','G','S','B'];
+ const timeTerminalDefaults=value=>Object.fromEntries(TIME_TERMINALS.map(key=>[key,value]));
  const TIMED_DEFAULTS=Object.freeze({
-  time:Object.freeze({switchStepS:'0.1',sampleStepS:'0.1',cycles:'1',integrationPreset:'instrument',integrationS:'',
-   segments:Object.freeze([{durationS:'1',bias:{D:'0',G:'0',S:'0',B:'0'}}]),
+  time:Object.freeze({mode:'linear-step',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),
+   switchStepS:'0.1',sampleStepS:'0.1',cycles:'1',integrationPreset:'instrument',integrationS:'',
+   segments:Object.freeze([{durationS:'1',bias:timeTerminalDefaults('0'),currentBias:timeTerminalDefaults('0')}]),
    events:Object.freeze([{terminal:'D',quantity:'Current',startS:'0.1',intervalS:'0.1',averageS:'0.02',points:'9'}])}),
   retention:Object.freeze({terminal:'D',conditionV:'0',conditionS:'0',holdV:'0',readV:'0.1',
    firstS:'1',lastS:'100',windowS:'0.05',points:'10',spacing:'log',complianceA:'0.001'}),
@@ -54,18 +64,22 @@
  // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
  const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});
  const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw']);
+ const timeBiasKey=mode=>mode==='current'?'currentBias':'bias';
+ const timeBias=(settings,segment,terminal)=>segment[timeBiasKey(settings.sourceModes?.[terminal])]?.[terminal];
  function timeGrid(v){
-  const switchStep=numeric(v.switchStepS,'Switching Step'),sampleStep=numeric(v.sampleStepS,'Sampling Step');
-  if(switchStep<=0||sampleStep<=0)throw Error('Switching Step and Sampling Step must be positive');
+  if(v.mode!==undefined&&v.mode!=='linear-step')invalidField('mode','Select a supported time sweep mode');
+  const switchStep=atField('switchStepS',()=>numeric(v.switchStepS,'Switching Step'));
+  const sampleStep=atField('sampleStepS',()=>numeric(v.sampleStepS,'Sampling Step'));
+  if(switchStep<=0)invalidField('switchStepS','Switching Step must be positive');
+  if(sampleStep<=0)invalidField('sampleStepS','Sampling Step must be positive');
   if(!Array.isArray(v.segments)||!v.segments.length||v.segments.length>64)throw Error('Use 1–64 time segments');
   let durationS=0,segmentCount=0;
-  const starts=v.segments.map(segment=>{
-   const start=durationS,duration=numeric(segment?.durationS,'Segment duration');
+  const starts=v.segments.map((segment,index)=>{
+   const field='segments.'+index+'.durationS';
+   const start=durationS,duration=atField(field,()=>numeric(segment?.durationS,'Segment duration'));
    const ticks=duration/switchStep;
-   if(duration<switchStep||!Number.isSafeInteger(Math.round(ticks))||Math.abs(ticks-Math.round(ticks))>1e-7)
-    throw Error('Segment duration must be a positive multiple of Switching Step');
-   for(const key of ['D','G','S','B'])if(Math.abs(numeric(segment.bias?.[key],key+' bias'))>210)
-    throw Error('Bias exceeds the SMU planning envelope');
+   if(duration<=0||Math.round(ticks)<1||!Number.isSafeInteger(Math.round(ticks))||Math.abs(ticks-Math.round(ticks))>1e-7)
+    invalidField(field,'Segment duration must be a positive multiple of Switching Step');
    durationS+=duration;
    segmentCount+=Math.round(ticks);
    return start;
@@ -79,33 +93,54 @@
  }
  function timeSummary(v){
   const grid=timeGrid(v),{durationS,sampleStep}=grid;
-  const cycles=positiveInt(v.cycles,10000,'Cycles');
+  for(const key of TIME_TERMINALS){
+   const mode=v.sourceModes[key];
+   if(!['voltage','current'].includes(mode))invalidField('sourceModes.'+key,'Select voltage or current source mode');
+   const current=mode==='current';
+   for(const [index,segment] of v.segments.entries()){
+    const field='segments.'+index+'.'+timeBiasKey(mode)+'.'+key;
+    const value=atField(field,()=>numeric(timeBias(v,segment,key),key+' bias'));
+    if(Math.abs(value)>(current?1.05:210))invalidField(field,'Bias exceeds the SMU planning envelope');
+   }
+  }
+  const cycles=atField('cycles',()=>positiveInt(v.cycles,10000,'Cycles'));
   if(!Object.hasOwn(SMU_INTEGRATION_PLC,v.integrationPreset))
-   throw Error('Select a supported SMU integration preset');
-  const legacyIntegration=v.integrationS!==''?numeric(v.integrationS,'Legacy integration time'):null;
+   invalidField('integrationPreset','Select a supported SMU integration preset');
+  const legacyIntegration=v.integrationS!==''?atField('integrationPreset',()=>numeric(v.integrationS,'Legacy integration time')):null;
   // Even at 60 Hz, a PLC preset has this minimum conversion time.
   // Instrument line frequency and settling time are verified separately.
   const integrationMinimumS=legacyIntegration??SMU_INTEGRATION_PLC[v.integrationPreset]/60;
   if((legacyIntegration!==null&&legacyIntegration<=0)||integrationMinimumS>sampleStep+1e-12)
-   throw Error('The SMU integration time must fit within a sampling step');
+   invalidField('integrationPreset','The SMU integration time must fit within a sampling step');
   if(!Array.isArray(v.events)||!v.events.length||v.events.length>16)throw Error('Use 1–16 measurement events');
   let points=0;
-  for(const event of v.events){
+  for(const [index,event] of v.events.entries()){
+   const field=key=>'events.'+index+'.'+key;
    if(!['D','G','S','B'].includes(event?.terminal)||!['Current','Voltage'].includes(event.quantity))
-    throw Error('Select a valid measurement terminal and quantity');
-   const start=numeric(event.startS,'Event start'),interval=numeric(event.intervalS,'Event interval');
-   const average=numeric(event.averageS,'Average time'),count=positiveInt(event.points,65536,'Event points');
-   if(start<0||interval<sampleStep||average<=0||average>interval||integrationMinimumS>average+1e-12)
-    throw Error('The averaging window must fit the measurement interval and integration time');
+    invalidField(field('terminal'),'Select a valid measurement terminal and quantity');
+   const start=atField(field('startS'),()=>numeric(event.startS,'Event start'));
+   const interval=atField(field('intervalS'),()=>numeric(event.intervalS,'Event interval'));
+   const average=atField(field('averageS'),()=>numeric(event.averageS,'Average time'));
+   const count=atField(field('points'),()=>positiveInt(event.points,65536,'Event points'));
+   if(start<0)invalidField(field('startS'),'Event start cannot be negative');
+   if(interval<sampleStep)invalidField(field('intervalS'),'Event interval cannot be shorter than Sampling Step');
+   if(average<=0||average>interval||integrationMinimumS>average+1e-12)
+    invalidField(field('averageS'),'The averaging window must fit the measurement interval and integration time');
    if(start+(count-1)*interval+average>durationS+Math.max(1e-12,durationS*1e-9))
-    throw Error('A measurement event exceeds the cycle duration');
+    invalidField(field('points'),'A measurement event exceeds the cycle duration');
    points+=count;
   }
-  if(!Number.isFinite(durationS*cycles)||points*cycles>65536)throw Error('Time plan exceeds the offline planning limit');
+  if(!Number.isFinite(durationS*cycles)||points*cycles>65536)invalidField('cycles','Time plan exceeds the offline planning limit');
   return {...grid,cycles,points:points*cycles};
  }
  function timingSettings(kind,settings){
   const values={...clone(TIMED_DEFAULTS[kind]),...settings};
+  if(kind==='time'){
+   values.sourceModes={...timeTerminalDefaults('voltage'),...values.sourceModes};
+   if(Array.isArray(values.segments))values.segments=values.segments.map(segment=>segment&&({
+    ...segment,currentBias:{...timeTerminalDefaults('0'),...segment.currentBias}
+   }));
+  }
   if(kind==='pulse'&&Object.hasOwn(values,'windowStopUs')){
    values.windowTimeUs=String(numeric(values.windowStopUs,'Window stop')-numeric(values.windowStartUs,'Window start'));
    delete values.windowStopUs;
@@ -429,24 +464,24 @@
   validateDcShape(dc);
   const terminals=dcTerminals(p,dc),byKey=new Map(terminals.map(t=>[t.logical,t]));
   if(new Set(terminals.map(t=>t.resource)).size!==terminals.length)
-   throw Error('Assign a different resource to the DC body terminal');
+   invalidField('bodyResource','Assign a different resource to the DC body terminal');
   const smus=terminals.filter(t=>t.resource!=='GNDU');
   const assigned=role=>smus.filter(t=>dc.terminals[t.logical].role===role);
   if(assigned('X').length!==1||assigned('P').length>1)
-   throw Error('Select exactly one Xsweep and at most one Psweep on mapped SMUs');
+   invalidField('roles','Select exactly one Xsweep and at most one Psweep on mapped SMUs');
   const outer=assigned('P').length===1;
   const reference=dc.reference,referenceRow=dc.terminals[reference];
   const grounded=reference==='GND'||byKey.get(reference)?.resource==='GNDU';
   if(!grounded&&(!byKey.has(reference)||referenceRow.mode!=='voltage'||
      referenceRow.role!=='CONDITION'||referenceRow.ref!=='GND'))
-   throw Error('Ref Node must be GND or a mapped voltage Condition with Ref set to GND');
+   invalidField('reference','Ref Node must be GND or a mapped voltage Condition with Ref set to GND');
   const variables=Object.fromEntries(p.variables.map(row=>[row.name,Number(row.value)]));
   const value=(raw,options)=>dcExpression(raw,variables,dc.polarity,options);
-  const referenceV=grounded?0:value(dc.referenceV);
-  if(Math.abs(referenceV)>210)throw Error('Ref Node exceeds the SMU voltage envelope');
+  const referenceV=grounded?0:atField('referenceV',()=>value(dc.referenceV));
+  if(Math.abs(referenceV)>210)invalidField('referenceV','Ref Node exceeds the SMU voltage envelope');
   const outputs=dc.outputs.trim().split(/[\s,]+/);
   if(outputs.some(out=>!dcOutputs(p,dc).includes(out))||new Set(outputs).size!==outputs.length)
-   throw Error('Outputs must be distinct measured signals on mapped SMUs');
+   invalidField('outputs','Outputs must be distinct measured signals on mapped SMUs');
   for(const {logical} of smus){
    const row=dc.terminals[logical],current=row.mode==='current';
    let ref=row.ref;
@@ -454,63 +489,74 @@
    while(ref!=='GND'){
     if(visited.has(ref)||!byKey.has(ref)||
        (byKey.get(ref).resource!=='GNDU'&&dc.terminals[ref].mode!=='voltage'))
-     throw Error(logical+' Ref must lead to GND through mapped voltage terminals without a cycle');
+     invalidField(logical+'.ref',logical+' Ref must lead to GND through mapped voltage terminals without a cycle');
     visited.add(ref);
     ref=byKey.get(ref).resource==='GNDU'?'GND':dc.terminals[ref].ref;
    }
-   if(current&&row.ref!=='GND')throw Error(logical+' Current mode uses Ref GND');
+   if(current&&row.ref!=='GND')invalidField(logical+'.ref',logical+' Current mode uses Ref GND');
    const compliance=Number(current?row.limitV:row.limitI);
-   for(const [limit,max] of [[row.limitI,1.05],[row.limitV,210]]){
-    if(limit.trim()&&(numeric(limit,logical+' limit')<=0||Number(limit)>max))
-     throw Error(logical+' limit exceeds the SMU planning envelope');
+   for(const [key,max] of [['limitI',1.05],['limitV',210]]){
+    const limit=row[key],field=logical+'.'+key;
+    if(limit.trim()&&(atField(field,()=>numeric(limit,logical+' limit'))<=0||Number(limit)>max))
+     invalidField(field,logical+' limit exceeds the SMU planning envelope');
    }
-   if(!compliance)throw Error(logical+' requires a positive '+(current?'voltage':'current')+' limit');
+   if(!compliance)invalidField(logical+'.'+(current?'limitV':'limitI'),
+    logical+' requires a positive '+(current?'voltage':'current')+' limit');
    if(row.role==='CONDITION'&&row.segments.length!==1)
-    throw Error(logical+' Condition requires one segment');
+    invalidField(logical+'.role',logical+' Condition requires one segment');
    if(row.segments.some(seg=>seg.method!==row.segments[0].method))
-    throw Error(logical+' requires a single method shared by all segments');
-   for(const seg of row.segments){
-    if(!dcMethods(row.role).includes(seg.method))throw Error(logical+' has an invalid method for its role');
+    invalidField(logical+'.method',logical+' requires a single method shared by all segments');
+   for(const [index,seg] of row.segments.entries()){
+    const field=key=>logical+'.segments.'+index+'.'+key;
+    const input=(key,options)=>atField(field(key),()=>value(seg[key],options));
+    if(!dcMethods(row.role).includes(seg.method))invalidField(logical+'.method',logical+' has an invalid method for its role');
     if(dc.preset==='point-by-point'&&seg.range!=='auto'){
-     const range=numeric(seg.range,logical+' range');
-     if(range<=0||range>(current?200:1))throw Error(logical+' measurement range is outside the SMU planning envelope');
+     const range=atField(field('range'),()=>numeric(seg.range,logical+' range'));
+     if(range<=0||range>(current?200:1))
+      invalidField(field('range'),logical+' measurement range is outside the SMU planning envelope');
     }
-    let values;
+    let values,keys=[];
     if(logical===reference)values=[referenceV];
-    else if(seg.method==='constant')values=[value(seg.value)];
+    else if(seg.method==='constant'){values=[input('value')];keys=['value'];}
     else if(seg.method==='generator'){
-     const generated=value(seg.formula,{generator:true,outer});
+     const generated=input('formula',{generator:true,outer});
      if(Number.isNaN(generated))continue;
-     values=[generated];
+     values=[generated];keys=['formula'];
     }
-    else if(seg.method==='list')values=seg.list.split(/[,\n]/).map(item=>value(item));
+    else if(seg.method==='list'){
+     values=atField(field('list'),()=>seg.list.split(/[,\n]/).map(item=>value(item)));
+     keys=values.map(()=> 'list');
+    }
     else{
-     const start=value(seg.start),stop=value(seg.stop);
+     const start=input('start'),stop=input('stop');
      values=[start,stop];
+     keys=['start','stop'];
      if(seg.method==='step'){
-      const step=value(seg.step);
+      const step=input('step');
       if(start===stop||Math.sign(stop-start)!==Math.sign(step)||Math.abs((stop-start)/step)>4095)
-       throw Error(logical+' requires a step toward Stop and no more than 4096 planned points');
+       invalidField(field('step'),logical+' requires a step toward Stop and no more than 4096 planned points');
      }else{
-      const points=positiveInt(value(seg.points),4096,logical+' Points');
+      const points=atField(field('points'),()=>positiveInt(input('points'),4096,logical+' Points'));
       if(points<2||start===stop||(seg.method==='log'&&(start===0||Math.sign(start)!==Math.sign(stop))))
-       throw Error(logical+' requires distinct endpoints and at least two points; log endpoints must share a nonzero sign');
+       invalidField(field(points<2?'points':'stop'),
+        logical+' requires distinct endpoints and at least two points; log endpoints must share a nonzero sign');
      }
     }
-    const peak=Math.max(...values.map(Math.abs));
-    if(peak>(current?1.05:210)||(peak>(current?0.105:21)&&compliance>(current?21:0.105)))
-     throw Error(logical+' source or compliance exceeds the SMU planning envelope');
+    const outside=values.findIndex(level=>Math.abs(level)>(current?1.05:210)||
+     (Math.abs(level)>(current?0.105:21)&&compliance>(current?21:0.105)));
+    if(outside>=0)invalidField(keys[outside]?field(keys[outside]):'referenceV',
+     logical+' source or compliance exceeds the SMU planning envelope');
    }
   }
   if(dc.preset==='point-by-point'&&dc.strategy.hold.trim()){
-   const hold=numeric(dc.strategy.hold,'Hold time');
-   if(hold<0||hold>1000)throw Error('Hold time must be between 0 and 1000 s');
+   const hold=atField('hold',()=>numeric(dc.strategy.hold,'Hold time'));
+   if(hold<0||hold>1000)invalidField('hold','Hold time must be between 0 and 1000 s');
   }
   if(dc.strategy.mode==='local'){
    for(const key of ['integration','delay']){
     const raw=dc.strategy[key].trim();
-    if(raw&&(numeric(raw,key)<0||(key==='integration'&&Number(raw)===0)))
-     throw Error('Enter a positive integration time and a nonnegative delay, or leave them blank for Default');
+    if(raw&&(atField(key,()=>numeric(raw,key))<0||(key==='integration'&&Number(raw)===0)))
+     invalidField(key,'Enter a positive integration time and a nonnegative delay, or leave them blank for Default');
    }
   }
   return {x:assigned('X')[0].logical,p:assigned('P')[0]?.logical||null,outputs,preset:dc.preset};

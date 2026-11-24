@@ -84,7 +84,9 @@ const units={
  action:{create:(host,spec)=>{
   record.actions.push(spec);
   host?.children?.push(spec);
-  return {element:el()};
+  const element=el();
+  spec.element=element;
+  return {element};
  }},
  tabs:{create:(host,spec)=>{record.tabs=record.tabs||[];record.tabs.push(spec);
   host?.children?.push(spec);return{element:el()}}},
@@ -303,17 +305,32 @@ const ctx={
  assert.deepEqual(Array.from(preset.spec.options,option=>option.value),['optimized','point-by-point']);
  preset.spec.onChange({target:{value:'point-by-point'}});
  assert.ok(record.fields.some(row=>row.spec.attributes?.['data-dkts-dc-field']==='range'&&row.control.value==='auto'));
- record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='points').spec.onBlur({target:{value:'9'}});
- record.actions.findLast(row=>row.id==='dkts-save-dc').onInvoke();
+ const dcPoints=record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='points');
+ const dcRun=record.actions.findLast(row=>row.id==='dkts-run-'+state.activeId).element;
+ dcPoints.spec.onInput({target:{value:'0'}});
+ assert.equal(dcRun.disabled,true);
+ await record.actions.findLast(row=>row.id==='dkts-run-'+state.activeId).onInvoke();
+ assert.equal(record.alerts?.length||0,0,'the execution entry also blocks an invalid draft');
+ assert.equal(state.pages.find(row=>row.id===state.activeId).dc.terminals.D.segments[0].points,'11');
+ dcPoints.spec.onInput({target:{value:'9'}});
+ assert.equal(dcRun.disabled,false);
  assert.equal(state.pages.find(row=>row.id===state.activeId).dc.terminals.D.segments[0].points,'9');
  assert.equal(JSON.stringify(state.pages[0]),oldIv);
  const beforeTime=record.fields.length;
  record.actions.findLast(row=>row.id==='library-time').onInvoke();
  assert.ok(record.fields.slice(beforeTime).some(row=>row.spec.attributes?.['data-dkts-timing-field']==='switchStepS'));
  assert.ok(record.layoutSpecs.some(spec=>spec.tagName==='canvas'&&spec.className==='dkts-time-waveform'));
+ const timeMode=record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-mode');
+ assert.equal(timeMode.spec.kind,'select');
+ assert.ok(record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-stop').spec.readOnly);
+ record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-source-D').spec.onChange({target:{value:'current'}});
+ record.fields.findLast(row=>row.spec.attributes?.['data-dkts-parameter-path']==='segments.0.currentBias.D').spec.onInput({target:{value:'0.001'}});
  record.actions.findLast(row=>row.id==='add-time-segment').onInvoke();
- record.actions.findLast(row=>row.id==='dkts-save-time').onInvoke();
- assert.equal(state.pages.find(row=>row.id===state.activeId).timing.segments.length,2);
+ const plan=state.pages.find(row=>row.id===state.activeId).timing;
+ assert.equal(plan.sourceModes.D,'current');
+ assert.equal(plan.segments[1].currentBias.D,'0.001');
+ assert.equal(plan.segments[1].bias.D,'0');
+ assert.ok(!record.actions.some(row=>/^dkts-save-(dc|time|timing)$/.test(row.id)));
  instance.deactivate();
  assert.ok(record.disposals>=1);
  console.log('Core-host native plugin: LabExpress main tabs, Unit extensions, X/P rows, Terminal, Fixed Bias, Target/Strategy/Limits/Page Var/Spec, Data Center and four PlotViews PASS');

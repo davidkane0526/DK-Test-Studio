@@ -5,12 +5,6 @@
  font-size:13px;
  line-height:1.2;
 }
-#dktsKeithley4200Page .dkts-plan-actions>.dkds-action-button{
- width:100%;
- min-height:30px;
- justify-content:center;
- padding-inline:5px;
-}
 #dktsKeithley4200Page .dkts-project-toolbar{
  background:var(--dkts-soft);
  border-bottom:1px solid var(--dkts-divider);
@@ -129,7 +123,9 @@
 #dktsKeithley4200Page .dkts-tree-row .dkds-list-item.selected{
  background:color-mix(in srgb,var(--dkts-accent) 13%,var(--dkts-surface));border-color:transparent
 }
-#dktsKeithley4200Page .dkts-tree-run{padding:0;line-height:1;color:color-mix(in srgb,var(--dkts-accent) 65%,var(--text-primary))}
+#dktsKeithley4200Page .dkts-tree-run{padding:0;line-height:1}
+#dktsKeithley4200Page .dkts-tree-run:not(:disabled){color:color-mix(in srgb,var(--dkts-accent) 65%,var(--text-primary))}
+#dktsKeithley4200Page .dkts-tree-run:disabled{color:var(--dkui-disabled-text,var(--text-secondary))}
 #dktsKeithley4200Page .dkts-tree-run[data-dkts-running="true"]{color:var(--danger)}
 #dktsKeithley4200Page .dkts-device-routines{border-inline-start:1px solid var(--dkts-divider)}
 #dktsKeithley4200Page .dkts-tree-routine>.dkts-tree-row::before{
@@ -230,8 +226,16 @@
  border-inline-start:1px solid var(--dkts-divider)
 }
 #dktsKeithley4200Page .dkts-dc-terminal-id{
- background:color-mix(in srgb,var(--dkts-surface) 88%,var(--text-primary));align-self:stretch
+ background-color:color-mix(in srgb,var(--dkui-component-panel-header-surface,var(--dkts-soft)) 50%,var(--dkts-surface));
+ align-self:stretch
 }
+html[data-dkds-theme-header-effect="true"] #dktsKeithley4200Page .dkts-dc-terminal-id{
+ background-image:linear-gradient(var(--dkui-effect-gradient-angle,90deg),
+  color-mix(in srgb,var(--dkui-effect-header-gradient-start,transparent) 50%,transparent),
+  color-mix(in srgb,var(--dkui-effect-header-gradient-end,transparent) 50%,transparent))
+}
+#dktsKeithley4200Page [aria-describedby="dkts-parameter-issue"]{border-color:var(--danger)}
+#dktsKeithley4200Page .dkts-parameter-issue{color:var(--danger)}
 #dktsKeithley4200Page .dkts-dc-terminal-name{
  color:var(--text-primary);font-size:15px;font-weight:650;letter-spacing:.055em;
  line-height:var(--dkts-dc-terminal-marker);white-space:nowrap

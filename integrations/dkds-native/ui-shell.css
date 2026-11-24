@@ -382,6 +382,7 @@
 @media(min-width:901px){
  #dktsKeithley4200Page .dkts-project-navigation{padding-block-start:0}
  #dktsKeithley4200Page .dkts-project-plot-area{padding-block-start:10px}
+ #dktsKeithley4200Page .dkts-page-heading{display:none}
 }
 #dktsKeithley4200Page .dkts-device-routines{margin-inline-start:8px;padding-inline-start:10px}
 #dktsKeithley4200Page .dkts-library-section{
@@ -488,6 +489,10 @@
 #dktsKeithley4200Page .dkts-dc-reference{
  grid-column:2/-1;grid-template-columns:subgrid;gap:0;align-items:stretch
 }
+#dktsKeithley4200Page .dkts-page-reference{
+ flex:1 1 490px;grid-template-columns:minmax(128px,1fr) minmax(0,3fr);
+ --dkts-dc-column-padding:12px;--dkts-dc-actions-width:8px;--dkts-dc-segment-gap:4px
+}
 #dktsKeithley4200Page :is(.dkts-dc-preset,.dkts-dc-reference-fields){
  align-content:center;min-width:0;padding:8px var(--dkts-dc-column-padding)
 }
@@ -499,7 +504,9 @@
  display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:8px
 }
 #dktsKeithley4200Page .dkts-dc-reference .dkds-field-label{white-space:nowrap}
-#dktsKeithley4200Page .dkts-plan-actions{display:grid;grid-template-columns:repeat(2,86px);gap:6px}
+#dktsKeithley4200Page .dkts-parameter-issue{margin-block-end:7px;padding:5px 8px}
+#dktsKeithley4200Page .dkts-parameter-issue[hidden]{display:none}
+#dktsKeithley4200Page>.dkts-numeric-pad{z-index:10}
 #dktsKeithley4200Page .dkts-dc-input-panel>[data-dkds-unit-panel-body=true]{display:grid;gap:0;padding:0}
 #dktsKeithley4200Page .dkts-dc-terminal{
  display:grid;grid-template-columns:var(--dkts-dc-columns);grid-template-rows:min-content min-content 1fr;
@@ -594,6 +601,9 @@
 }
 #dktsKeithley4200Page .dkts-time-workspace>*{min-width:0}
 #dktsKeithley4200Page .dkts-time-table{display:grid;gap:0;min-width:0;container-type:inline-size}
+#dktsKeithley4200Page .dkts-time-source-modes{
+ display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,135px),1fr));gap:8px
+}
 #dktsKeithley4200Page :is(.dkts-time-segment,.dkts-time-event){
  display:grid;gap:6px 9px;align-items:end
 }
@@ -648,4 +658,12 @@
  #dktsKeithley4200Page [data-dkts-resize]::before{content:"";position:absolute;inset:0}
  #dktsKeithley4200Page [data-dkts-resize][data-axis=y]::before{inset-block:-5px}
  #dktsKeithley4200Page [data-dkts-resize][data-axis=x]::before{inset-inline:-5px}
+}
+
+@media(max-width:570px){
+ #dktsKeithley4200Page .dkts-page-reference{grid-template-columns:minmax(0,1fr)}
+ #dktsKeithley4200Page .dkts-page-reference .dkts-dc-reference-fields{
+  grid-template-columns:repeat(3,minmax(0,1fr));column-gap:8px;padding-inline:12px
+ }
+ #dktsKeithley4200Page .dkts-page-reference .dkts-native-field{grid-template-columns:minmax(0,1fr);align-items:end}
 }

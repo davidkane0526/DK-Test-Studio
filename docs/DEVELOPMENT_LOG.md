@@ -799,3 +799,11 @@
 
 - R-20261124-004。用户授权推送和编译本轮 V0.3.42，并明确后续每轮均应验证、同步 GitHub main、核对同 SHA 的 Core Pages 并给出地址。Windows 和 Android 编译沿用明确授权门禁。
 - 发布提交继承本地已验收改动 `91eb5c2e54d866b4465b0b04accadb9349539e46`，只补交付规则与发布记录。参照上一节 Node 224/224、DKDS SDK 三项检查与实际 Chromium 验收。以本次 Actions、Pages `preview.json` 与 Release `PROVENANCE.txt` 分别核对编译产物与网页源码。4200A 实机验收单独进行。
+
+## 2026-11-24 · V0.3.43 a223 · 参数即时校验及时间扫描
+
+- R-20261124-005。基线为已发布的 GitHub main `d330d14088678fc0016ff61073dcc21cf096c9d3`，DKTS 原生插件 0.8.30，沿用只读 DKDS `20f056851a61d2144e9524c3ed568628d4b8557c`。
+- `tools/dkts-fspro-unit-theme.css` 将 DC 端子列由中性深灰改为面板标题色与正文表面各半，主题渐变端点的透明度也减半。参数页共享同一层级的类型、参考、Outputs。桌面合并进现有参数区头部，手机保留抽屉入口。时间扫描参考为 GND，Outputs 从测量事件读取。
+- `integrations/dkds-native/plugin.js` 移除 DC、时间、保持及脉冲编辑器的「应用参数」。输入触发本地校验，正确的方案自动保存，错误字段标记并灰显工程树运行按钮。执行入口重新检查当前方案。各工程恢复时清除临时编辑错误；不会覆盖上次有效方案。手机科学计数键盘在参数区上方且避开状态栏。
+- `integrations/dkds-native/model.js` 增加时间扫描源模式及独立的电压／电流存储，迁移保留旧偏置。时间偏置表是各段持续时间的编辑入口，终止时间为合计。Linear Step 用下拉呈现。参照用户 FS-Pro 样例与库内 LabExpress 2022.01 第 42–43 页的转录，切换步数等于单周期时长除以 Switching Step，采样步长和测量事件单独计算。Tektronix 安装和维护手册确认 SMU 可输出 V 或 I。连接后进一步用已核验的实装 SMU 上限检查，时间扫描硬件执行仍待核验。
+- Node 224/224、原生插件与宿主契约、DKDS SDK 校验、运行时和 64 个布局用例通过。Chromium 在 1387×758、390×844 检查即时校验、运行按钮、自动保存、V/A 值隔离、手机键盘。桌面核对 DKDS 默认亮色、Aurora Pop 明暗及 Thin Glass 亮色。交付同 SHA 源码 ZIP 和 Core Pages，原生编译及 4200A 实机执行未纳入本轮网页验收。
