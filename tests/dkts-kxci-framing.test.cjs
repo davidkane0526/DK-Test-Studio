@@ -17,11 +17,11 @@ test('derived Desktop TCP completes a split NUL frame without idle wait and reje
  });});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const open=()=>tcp.open({host:'127.0.0.1',port:server.address().port});
- const exchange=(s,c,framed=true)=>tcp.exchange({sessionId:s.sessionId,base64:Buffer.from(c).toString('base64'),readTimeoutMs:250,idleTimeoutMs:200,...(framed?{responseTerminator:'nul'}:{})});
+ const exchange=(s,c,framed=true)=>tcp.exchange({sessionId:s.sessionId,base64:Buffer.from(c).toString('base64'),readTimeoutMs:250,idleTimeoutMs:20,...(framed?{responseTerminator:'nul'}:{})});
  try{
   let s=await open(),start=Date.now();
   const r=await exchange(s,'split\0');
-  assert.equal(Buffer.from(r.base64,'base64').toString(),'ACK\0');assert.ok(Date.now()-start<180);
+  assert.equal(Buffer.from(r.base64,'base64').toString(),'ACK\0');assert.ok(Date.now()-start<180); // split arrives after the configured generic idle gap
   await assert.rejects(exchange(s,'extra\0'),/extra bytes/);
   s=await open();await assert.rejects(exchange(s,'partial\0'),/timeout/i);
   s=await open();const plain=await exchange(s,'plain',false);assert.equal(Buffer.from(plain.base64,'base64').toString(),'ordinary');

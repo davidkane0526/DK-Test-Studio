@@ -33,7 +33,7 @@ function configuredPage(model){
 }
 function makeInstrumentContext(modules,options={}){
  const commands=[],published=[],status=[];let closed=false;
- let lastQuery='';
+ let lastQuery='',measurementStarted=false,syntaxPending=false,firstOutput=true;
  const instrumentInfo=[
   'slotno:1,name:SMU1,model:KISMU4200,serialno:SMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
   'slotno:2,name:SMU2,model:KISMU4200,serialno:SMU002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026'
@@ -56,6 +56,8 @@ function makeInstrumentContext(modules,options={}){
     commands.push({command,noReply:payload.noReply===true});
     if(command==='*IDN?\0')return reply('KI4200A,1498377,V1.14\0');
     if(command==='*OPT?\0')return reply('SMU1,SMU2\0');
+    if(command==='US\0')measurementStarted=true;
+    if(measurementStarted&&options.syntaxOnFirstDv&&firstOutput&&/^DV[1-8],/.test(command)){firstOutput=false;syntaxPending=true;}
     if(options.failDvAck&&/^DV[1-8]/.test(command))return reply('');
     if(command==='UL\0'||command==='DE\0'||command==='US\0'||
        command===':ERROR:LAST:CLEAR\0'||command==='EM 1,0\0'||command==='BC\0'||/^IT[123]\0$/.test(command)||/^DV[1-8](?:,0,[^,]+,[^,]+)?\0$/.test(command)||
@@ -66,8 +68,12 @@ function makeInstrumentContext(modules,options={}){
     if(command==='GN result\0')return reply(lastQuery==='instrument'?instrumentInfo+'\0':remoteInfo+'\0');
     if(command==='TI1\0')return reply('NAI+1.0000E-09\0');
     if(command==='TI2\0')return reply('NBI+0.0000E+00\0');
-    if(command==='SP\0')return reply('0\0');
-    if(command===':ERROR:LAST:GET\0')return reply('No error (0)\0');
+    if(command==='SP\0'){
+      if(options.busyAtStart&&!measurementStarted)return reply('16\0');
+      if(syntaxPending){syntaxPending=false;return reply('2\0');}
+      return reply('0\0');
+    }
+    if(command===':ERROR:LAST:GET\0')return reply(options.syntaxOnFirstDv?'KXCI command error. (-992)\0':'No error (0)\0');
     if(payload.noReply===true)throw Error('KXCI Ethernet command must drain its ACK');
     throw Error('Unexpected mock KXCI command: '+JSON.stringify(command));
    }
@@ -286,11 +292,81 @@ test('native runtime verifies compact KI4200A identity, physical modules, gates 
   assert.deepEqual(Array.from(column('drainCurrentA').values),[1e-9,1e-9]);
   assert.deepEqual(Array.from(column('xVoltageV').values),[0,.1]);
   assert.deepEqual(Array.from(column('rawKxciResponse').values),['NAI+1.0000E-09','NAI+1.0000E-09']);
-  assert.deepEqual(commands.slice(-1).map(row=>row.command),['DV1\0']);
+  assert.equal(commands.filter(row=>/^DV[1-9]\0$/.test(row.command)).at(-1).command,'DV1\0');
+  assert.equal(commands.at(-1).command,'SP\0','confirm last off command status');
   assert.ok(commands.filter(row=>/^DV/.test(row.command)||row.command==='US\0'||
    row.command===':ERROR:LAST:CLEAR\0').every(row=>row.noReply===false),
    'every write-only KXCI command must consume and validate ACK before the next query');
   await runtime.disconnect();
   assert.equal(runtime.status().connection.phase,'disconnected');
+ }finally{await runtime.dispose();}
+});
+
+
+test('busy instrument preflight does not clear buffers or drive or disable other tests',async()=>{
+ const {modules}=loadModules(true),fake=makeInstrumentContext(modules,{busyAtStart:true});
+ const runtime=modules.get('measurementRuntime').createRuntime(fake.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  runtime.start(configuredPage(modules.get('model')),true);
+  const final=await runtime.waitForCompletion();
+  assert.equal(final.run.state,'failed');
+  assert.equal(final.run.shutdown,'not-started');
+  assert.match(final.run.error,/已有测量/);
+  assert.ok(!fake.commands.some(row=>/^DV/.test(row.command)||row.command==='BC\0'||row.command==='US\0'));
+ }finally{await runtime.dispose();}
+});
+test('SP detects syntax error after first output before further source settings',async()=>{
+ const {modules}=loadModules(true),fake=makeInstrumentContext(modules,{syntaxOnFirstDv:true});
+ const runtime=modules.get('measurementRuntime').createRuntime(fake.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  runtime.start(configuredPage(modules.get('model')),true);
+  const final=await runtime.waitForCompletion();
+  assert.equal(final.run.state,'failed');
+  assert.match(final.run.error,/-992/);
+  assert.equal(final.run.shutdown,'commands-sent');
+  assert.equal(fake.commands.filter(row=>/^DV[1-9],/.test(row.command)).length,1);
+  assert.ok(!fake.commands.some(row=>/^TI/.test(row.command)));
+ }finally{await runtime.dispose();}
+});
+test('real DC model reaches guarded SMU runner in point-by-point mode',async()=>{
+ const {modules}=loadModules(true),fake=makeInstrumentContext(modules);
+ const model=modules.get('model'),runtime=modules.get('measurementRuntime').createRuntime(fake.ctx);
+ try{
+  const state=model.validate(model.initial());
+  const page=state.pages.find(row=>row.kind==='dc');
+  page.dc.preset='point-by-point';
+  page.dc.terminals.D.segments[0].stop='0.1';
+  page.dc.terminals.D.segments[0].step='0.1';
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  assert.equal(runtime.prepare(page).canExecute,true);
+  runtime.start(page,true);
+  const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'completed');
+  assert.equal(result.rows,2);
+  assert.equal(fake.commands.filter(row=>row.command==='TI1\0').length,2);
+ }finally{await runtime.dispose();}
+});
+test('real time model executes fixed-bias events with selected integration and actual times',async()=>{
+ const {modules}=loadModules(true),fake=makeInstrumentContext(modules);
+ const model=modules.get('model'),runtime=modules.get('measurementRuntime').createRuntime(fake.ctx);
+ try{
+  const state=model.add(model.validate(model.initial()),'time'),page=state.pages.at(-1);
+  page.timing.integrationPreset='short';
+  page.timing.segments[0].durationS='0.3';
+  page.timing.segments[0].bias.D='0.1';
+  page.timing.events[0]={...page.timing.events[0],startS:'0.05',intervalS:'0.1',averageS:'0.08',points:'2'};
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  assert.equal(runtime.prepare(page).canExecute,true);
+  runtime.start(page,true);
+  const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'completed');
+  assert.equal(result.rows,2);
+  assert.equal(fake.commands.filter(row=>row.command==='IT1\0').length,1);
+  assert.equal(fake.commands.filter(row=>row.command==='TI1\0').length,2);
+  const rows=result.run.rows;
+  assert.deepEqual(Array.from(rows,row=>row.plannedTimeS),[0.05,0.15000000000000002]);
+  assert.ok(rows.every(row=>Number.isFinite(row.sampleStartS)&&!row.sampleWindowOverrun));
  }finally{await runtime.dispose();}
 });

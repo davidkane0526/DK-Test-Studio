@@ -207,11 +207,11 @@
         await command('EM 1,0');
         await command('US');
         await command('BC');
-        if(timing?.integration)await command(timing.integration);
+        // IT2 is the documented medium/default preset. Do not inherit IT1/IT3 from a previous run.
+        await command(timing?.integration||'IT2');
         await verifyError();
         for(const point of points(plan)){
           if(j.cancelled)break;
-          let changed=false;
           for(const role of j.compiled.active){
             const ch=j.compiled.channels[role];
             const voltage=point.voltages[role];
@@ -227,28 +227,29 @@
             if(lastCommands[role]!==code){
               outputAttempted=true;
               await command(code);
+              await verifyError();
               lastCommands[role]=code;
-              changed=true;
+              // DV may change range state; reapply the selected range after a new source level.
+              delete lastCommands[role+'-range'];
             }
             if(selected!==null){
               const rangeCode='RI '+ch+','+numeric(selected)+','+numeric(compliance);
               if(lastCommands[role+'-range']!==rangeCode){
                 await command(rangeCode);
+                await verifyError();
                 lastCommands[role+'-range']=rangeCode;
-                changed=true;
               }
             }else if(setting.rangeMode==='limited-auto'){
               const rangeCode='RG '+ch+','+numeric(Number(setting.rangeA));
               if(lastCommands[role+'-range']!==rangeCode){
                 await command(rangeCode);
+                await verifyError();
                 lastCommands[role+'-range']=rangeCode;
-                changed=true;
               }
             }
             if(j.cancelled)break;
           }
           if(j.cancelled)break;
-          if(changed)await verifyError();
           if(timing&&timeOrigin===null)timeOrigin=Date.now();
           const plannedS=timing?(point.cycle-1)*timing.durationS+timing.startS+(point.xRepeat-1)*timing.intervalS:null;
           const deadline=timing?timeOrigin+plannedS*1000:null;

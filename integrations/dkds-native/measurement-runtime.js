@@ -71,7 +71,7 @@ function pageToBasicProgram(page, model){
   check(t.segments.length===1,'仅支持单段固定偏置；多段切换待接入');
   check(t.events.length===1&&t.events[0].terminal==='D'&&t.events[0].quantity==='Current','仅支持一个漏极电流采样事件');
   check(!t.integrationS,'旧积分秒数尚未映射 PLC');
-  const integration={instrument:'',short:'IT1',medium:'IT2',long:'IT3'}[t.integrationPreset];
+  const integration={instrument:'IT2',short:'IT1',medium:'IT2',long:'IT3'}[t.integrationPreset];
   check(integration!==undefined,'积分预设无效');
   for(const k of Object.keys(roles)){
    const v=n(t.segments[0].bias[k],k+' 偏置');
