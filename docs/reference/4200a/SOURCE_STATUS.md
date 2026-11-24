@@ -1,6 +1,6 @@
 # 4200A reference source status
 
-Checked: 2026-11-17
+Checked: 2026-11-24
 
 | Source | Retrieved? | Repository treatment | Private bundle |
 |---|---|---|---|
@@ -15,8 +15,8 @@ Checked: 2026-11-17
 | FSPro_4200A_Agent_Dev_Pack_V5.zip | Not recoverable as a file in the current Library | Not recreated or represented as original | Not included |
 | DKTS_FSPro_V6_full_retry.zip | Not recoverable as a file in the current Library | Not recreated or represented as original | Not included |
 | keithley-main.zip | Not recoverable as a file in the current Library | Official public examples repository linked below | Not included |
-| Tektronix 4200A-KXCI-907-01F Rev F PDF | Official listing verified; PDF itself not downloaded | Official metadata/link only | Not included |
-| Tektronix 4200A-PMU-900-01D Rev D PDF | Official listing verified; PDF itself not downloaded | Official metadata/link only | Not included |
+| Tektronix 4200A-KXCI-907-01F Rev F PDF | Retrieved official September 2026 PDF | SMU IN, NR and IT plus PMU timing, sample rate and ranges reviewed | Not included |
+| Tektronix 4200A-PMU-900-01D Rev D PDF | Retrieved official September 2026 PDF | PMU sample-rate and point-limit sections reviewed | Not included |
 
 ## Official manufacturer references
 
@@ -33,7 +33,7 @@ Checked: 2026-11-17
 
 ## Notes
 
-- V2/V3/V5 documents reference Rev E in places. The newer Rev F listing must be checked before implementing or enabling any command path.
+- V2/V3/V5 documents reference Rev E in places. Rev F was reviewed for the timing editor. Instrument execution still requires command-by-command verification against the installed model and firmware.
 - A public manual listing is not proof that its downloadable PDF was retrieved.
 - The private companion ZIP preserves user-provided and recovered original files for the user's internal project use. Do not redistribute the LabExpress manual.
 - No real SMU/PMU source output or measurement was performed as part of this reference recovery.
@@ -45,3 +45,10 @@ Checked: 2026-11-17
 - Size: 13,782,750 bytes
 - SHA-256: `f8b37d42220e68a186827a3cc02fa687bf88551549094f6357c1206cb6ed9349`
 - ZIP integrity check: PASS; 27 files; 16,041,043 uncompressed bytes.
+
+## 2026-11-24 timing editor verification
+
+- KXCI Rev F sections 5 and 7 distinguish the SMU post-reading interval (IN) from a periodic host plan. IN accepts 0–10 seconds in 4200A mode and 0.01–10 seconds in 4145 emulation. NR supports up to 4096 SMU readings in 4200A mode. IT lists 0.1, 1 and 10 PLC as the three presets.
+- PMU sample rate accepts an integer from 1,000 to 200,000,000 Sa/s. Rev F preserves the ambiguous boundary at 65,536 generated points. DKTS leaves that boundary out of ready presets and flags it for review. DKTS preserves the requested rate. Pulse period, transition limits and off time are checked against the selected voltage range.
+- PMU Rev D confirms 200 MSa/s and the Clarius waveform sample/point limits. The timing fields reviewed here do not certify the full KXCI or PMU capability database or an installed chassis.
+- PDFs: [KXCI Rev F](https://download.tek.com/manual/4200A-KXCI-907-01F_Sept2026.pdf) · [Pulse Card Rev D](https://download.tek.com/manual/4200A-PMU-900-01D_Sept_2026.pdf).

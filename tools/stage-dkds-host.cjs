@@ -127,6 +127,53 @@ function stage(source,target,{dktsRoot=path.resolve(__dirname,'..'),validateUpda
      "    }",
      '    const filePath = this.safeStaticPath(u.pathname);' ].join('\n'));
  }
+ // The context overflow stores moved primary buttons. Clear the old projection
+ // before rebuilding navigation, while keeping the scoped toolbar commands.
+ const desktopNavigation='src/core/ui/modules/presentation/desktop-shell.js';
+ if(fs.existsSync(path.join(tmp,desktopNavigation))){
+  replaceExact(desktopNavigation,
+   '    primary?.replaceChildren();secondary.replaceChildren();overflow?.replaceChildren();',
+   [ '    primary?.replaceChildren();secondary.replaceChildren();overflow?.replaceChildren();',
+     `    document.querySelector('#contextOverflowMenu')?.querySelectorAll(':scope > .activity-tab[data-dkds-context-overflow-activity="1"]')`,
+     '      .forEach(node=>node.remove());' ].join('\n'));
+ }
+ // Keep the Core splitter's touch and capture behavior while sizing the
+ // DKTS instance with tokens consumed by the Core-owned seam and grip.
+ const splitStyles='src/styles/structure/super-top-contract.css';
+ if(fs.existsSync(path.join(tmp,splitStyles))){
+  replaceExact(splitStyles,'.dkds-split-handle[data-axis="y"]{height:8px;',
+   '.dkds-split-handle[data-axis="y"]{height:var(--dkds-split-handle-size,8px);');
+  replaceExact(splitStyles,'.dkds-split-handle[data-axis="x"]{width:8px;',
+   '.dkds-split-handle[data-axis="x"]{width:var(--dkds-split-handle-size,8px);');
+  replaceExact(splitStyles,'left:50%;top:3px;width:44px;height:2px;',
+   'left:50%;top:var(--dkds-split-grip-inset,3px);width:var(--dkds-split-grip-length,44px);height:2px;');
+  replaceExact(splitStyles,'left:3px;top:50%;width:2px;height:44px;',
+   'left:var(--dkds-split-grip-inset,3px);top:50%;width:2px;height:var(--dkds-split-grip-length,44px);');
+ }
+ // The Web host must leave room for the Core context overflow control.
+ // Native mobile already projects these actions into its own header.
+ const webShellStyles=path.join(tmp,'src/styles/structure/schema-and-plugin-ui.css');
+ if(fs.existsSync(webShellStyles))fs.appendFileSync(webShellStyles,`
+@media (max-width:760px){
+ html[data-dkds-host="web"] .topbar-primary{height:auto;min-height:0}
+ html[data-dkds-host="web"] .topbar-primary{flex-wrap:wrap;gap:4px;padding:4px 5px}
+ html[data-dkds-host="web"] .topbar-primary>.brand{display:none}
+ html[data-dkds-host="web"] .topbar-primary>.global-commandbar{order:1}
+ html[data-dkds-host="web"] .topbar-primary>.system-commandbar{order:2}
+ html[data-dkds-host="web"] .topbar-primary>.workspace-commandbar{order:3;flex:1 1 100%}
+ html[data-dkds-host="web"] .topbar-primary :is(.global-commandbar,.system-commandbar) .toolbar-btn{
+  --dkds-command-padding-inline:5px;font-size:11px;min-width:0
+ }
+ html[data-dkds-host="web"] .topbar-primary #editMenuBtn{min-width:0}
+}
+`,'utf8');
+ const navStyles=path.join(tmp,'src/styles/structure/shell-navigation.css');
+ if(fs.existsSync(navStyles))fs.appendFileSync(navStyles,`
+@media (max-width:760px){
+ html[data-dkds-host="web"] .topbar{height:auto;min-height:0}
+ html[data-dkds-host="web"] .context-commandbar{padding-left:0}
+}
+`,'utf8');
  const hostMain=path.join(tmp,'desktop/main.js');
  fs.appendFileSync(hostMain,"\nif(process.env.DKTS_CORE_BOOT_SMOKE==='1')require('./dkts-core-boot-smoke.cjs')({app,BrowserWindow,APP_ROOT});\n");
  fs.copyFileSync(path.join(dktsRoot,'tools/dkts-core-boot-smoke.cjs'),

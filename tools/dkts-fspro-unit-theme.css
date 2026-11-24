@@ -260,4 +260,7 @@
 }
 #dktsKeithley4200Page .dkts-time-status[data-dkts-time-valid="false"]{color:var(--danger)}
 
-#dktsKeithley4200Page [data-dkts-resize]:not(:is(:hover,:active,.is-dragging))::after{opacity:.55}
+#dktsKeithley4200Page [data-dkts-resize]::after{
+ background:var(--border-strong);box-shadow:none
+}
+#dktsKeithley4200Page [data-dkts-resize]:not(:is(:hover,:active,.is-dragging))::after{opacity:.38}

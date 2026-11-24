@@ -1,6 +1,6 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.27","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.28","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),measurementData=ctx.modules.require('measurementData'),
    measurementRuntimeModule=ctx.modules.require('measurementRuntime'),units=ctx.ui.unitTemplates,
@@ -9,6 +9,8 @@
   const ACTIVITY='dkts-keithley-4200',PAGE='dktsKeithley4200Page';
   const preferences=ctx.ui.settings.define('workspace-language',{defaults:{language:'zh-CN'}});
   let language=preferences.get('language')==='en'?'en':'zh-CN';
+  const navigationPreferences=ctx.ui.settings.define('workspace-navigation',{defaults:{templatesCollapsed:false}});
+  let templatesCollapsed=navigationPreferences.get('templatesCollapsed')===true;
   const tr=(zh,en)=>language==='en'?en:zh;
   const t=key=>uiShell.translate(key,language);
   let updateGraphLanguage=()=>{};
@@ -594,7 +596,7 @@
   function renderTiming(host,p){
    const pulse=p.kind==='pulse',draft=timingDrafts.get(p.id)||{values:{},error:''};
    const values={...p.timing,...draft.values};
-   const put=(key,value)=>{draft.values[key]=value;timingDrafts.set(p.id,draft);};
+   const put=(key,value)=>{values[key]=value;draft.values[key]=value;timingDrafts.set(p.id,draft);};
    const panel=(zh,en)=>{
     const group=units.panel.create(host,{variant:'headed',title:tr(zh,en),sizing:'content',className:'dkts-timing-panel'});
     return units.layout.create(group.body,{variant:'identity',className:'dkts-timing-fields'});
@@ -612,6 +614,27 @@
    const slot=inventory?.slots?.find(row=>row.family===match?.[1]&&row.channel===Number(match?.[2]));
    const pmuVerified=slot?.family==='PMU'&&slot.physicalIdentityVerified===true;
    const withRpm=slot?.rpmChannels?.includes(Number(match?.[3]||values.channel))===true;
+   const captureBudget=(result,rate)=>hardware.getPmuCaptureBudget(result.windowS*result.points*result.pulseCount,
+    result.windowS,rate,{pulseCount:result.pulseCount,sweepPoints:result.points});
+   function pulseCompatibility(result,budget=captureBudget(result,result.rateHz)){
+    const measured=hardware.getPulseTimingRecommendation(result.rangeV,null,true);
+    const timing=measured.kxciInterfaceTiming;
+    const toSeconds=key=>Number(values[key])*1e-6;
+    const period=toSeconds('periodUs'),flat=toSeconds('widthUs');
+    const rise=toSeconds('riseUs'),fall=toSeconds('fallUs'),delay=toSeconds('delayUs');
+    const width=flat+(rise+fall)/2;
+    const offTime=period-delay-flat-rise-fall;
+    const edgeMin=Math.max(timing.transitionMinS,measured.transitionMinS);
+    if(period<Math.max(timing.periodMinS,measured.periodMinS)||period>Math.min(timing.periodMaxS,measured.periodMaxS)||
+       width<Math.max(timing.pulseWidthMinS,measured.pulseWidthMinS)||rise<edgeMin||fall<edgeMin||
+       rise>timing.transitionMaxS||fall>timing.transitionMaxS||rise>width||
+       (delay>0&&delay<timing.delayStepS)||offTime<=timing.minOffTimeS+1e-15)
+     return tr('周期、平顶或边沿不满足所选 PMU 电压档的 KXCI 时序限制。',
+      'Period, flat top or transitions exceed the KXCI limits for this PMU range.');
+    if(budget.kxciBoundaryStatus!=='within-published-range')
+     return tr('采样率和测量窗口达到或超出 KXCI 每通道点数边界。','Rate and measure windows reach or exceed the KXCI per-channel point limit.');
+    return '';
+   }
    const pulseRanges=()=>{
     const ranges=pmuVerified?hardware.getPmuCurrentRanges(values.rangeV,withRpm):[];
     const options=[['',tr('自动','Auto')],...ranges.map(range=>[String(range),String(range)+' A'])];
@@ -633,9 +656,14 @@
      if(!amplitude)fields(levels,[['fixedV','固定幅值 (V)','Fixed amplitude (V)']]);
      fields(levels,[['start','起始 (V)','Start (V)'],['stop','终止 (V)','Stop (V)'],['step','步进 (V)','Step (V)']]);
      const basic=panel('脉冲设置 · 基本','Pulse Settings · Basic');
-     fields(basic,[['periodUs','脉冲周期 (µs)','Pulse Period (µs)'],['widthUs','导通时间 / 平顶 (µs)','On Time / Flat Top (µs)']]);
+     fields(basic,[['periodUs','脉冲周期 (µs)','Pulse Period (µs)'],['widthUs','计划平顶时长 (µs)','Planned flat top (µs)']]);
      const advanced=panel('脉冲设置 · 高级','Pulse Settings · Advanced');
-     fields(advanced,[['holdUs','保持时间 (µs)','Hold Time (µs)'],['baseDelayUs','基线延迟 (µs)','Base Delay (µs)']]);
+     for(const [key,zh,en] of [['holdUs','保持时间 (µs)','Hold Time (µs)'],
+      ['baseDelayUs','基线延迟 (µs)','Base Delay (µs)']])
+      scalarField(advanced,tr(zh,en),values[key],null,false,{'data-dkts-timing-field':key},true);
+     units.note.create(advanced,{variant:'meta',text:tr(
+      '保持和基线延迟保留旧方案值。当前 KXCI 脉冲设置仅提供独立的首脉冲延迟。',
+      'Hold and base delay preserve legacy plan values. This KXCI pulse setup exposes the first-pulse delay separately.')});
      for(const [key,zh,en] of [['windowStartUs','测量延迟 (µs)','Measure Delay (µs)'],
       ['windowTimeUs','测量时间 (µs)','Measure Time (µs)']]){
       const field=scalarField(advanced,tr(zh,en),values[key],value=>put(key,String(value).trim()),false,
@@ -662,7 +690,26 @@
     const event=panel('测量事件','Measure event');
     if(pulse){
      select(event,'mode',tr('采样方式','Acquisition'),[['spot',tr('窗内均值（Pulse I–V）','Spot mean (Pulse I–V)')],['waveform',tr('窗内波形','Window waveform')]]);
-     fields(event,[['rateHz','采样率 (Sa/s)','Sample rate (Sa/s)']]);
+     const presets=['1000','10000','100000','1000000','10000000','50000000','100000000','200000000'];
+     let rates=[];
+     try{
+      const budget=captureBudget(model.timedSummary('pulse',values),null);
+      rates=presets.filter(rate=>Number(rate)>=budget.minSampleRateHz&&Number(rate)<=budget.kxciMaxSampleRateHz&&
+       Math.ceil(Number(rate)*budget.totalMeasureDurationS-1e-9)<budget.interfaceMaxGeneratedPointsPerChannel);
+      units.note.create(event,{variant:'meta',text:tr('KXCI 采样范围 ','KXCI sample rate ') +
+       Math.ceil(budget.minSampleRateHz)+' – '+Math.floor(budget.kxciMaxSampleRateHz)+tr(' Sa/s（上限待核验）',' Sa/s (boundary pending verification)')});
+     }catch{}
+     const selected=rates.find(rate=>Number(rate)===Number(values.rateHz));
+     const customLabel=tr('自定义整数采样率','Custom integer rate');
+     dcSelect(event,tr('采样率 (Sa/s)','Sample rate (Sa/s)'),draft.customRate?'custom':selected||'custom',
+      [...rates.map(value=>({value,label:Number(value).toLocaleString(language)})),{value:'custom',label:customLabel}],
+      value=>{
+       draft.customRate=value==='custom';
+       timingDrafts.set(p.id,draft);
+       if(value!=='custom')put('rateHz',value);
+       render();
+      },{key:'pulse-rate-preset'});
+     if(draft.customRate||!selected)fields(event,[['rateHz','自定义采样率 (Sa/s)','Custom rate (Sa/s)']]);
     }else fields(event,[['readV','读出偏置 (V)','Read bias (V)'],['windowS','读出窗口 (s)','Read window (s)'],['complianceA','SMU 电流保护 (A)','SMU compliance (A)']]);
    }else{
     const strategy=panel('仪器与调度','Instrument and scheduling');
@@ -683,15 +730,16 @@
     if(pulse){
      if(values.windowStartUs===''||values.windowTimeUs==='')
       units.note.create(summary,{variant:'meta',text:tr('Auto 采样预算按可用平顶窗口估算。','Auto estimates sample usage from the available flat-top window.')});
-     const budget=hardware.getPmuCaptureBudget(result.windowS*result.points*result.pulseCount,result.windowS,
-      result.rateHz,{pulseCount:result.pulseCount,sweepPoints:result.points});
+     const budget=captureBudget(result,result.rateHz);
      units.note.create(summary,{variant:'meta',text:tr('每通道预计采样点','Estimated samples per channel')+' '+budget.sampleCountAtSelectedRate});
-     if(!budget.kxciCompatible||budget.kxciBoundaryStatus==='exact-upper-bound-ambiguous')reason=tr('达到或超出 KXCI 生成点数边界。','At or above the KXCI generated-point boundary.');
-     else if(result.loadOhms===null)reason=tr('填写负载后才能校核 DUT 端电压。','Enter the load to check the voltage at the DUT.');
-     else if(result.peakV>hardware.getPulseOutputLimits('pmu',result.rangeV,result.loadOhms).maxVoltageV)
+     reason=pulseCompatibility(result,budget);
+     if(!reason&&(Number(values.holdUs)!==0||Number(values.baseDelayUs)!==0))
+      reason=tr('保留的旧保持或基线延迟暂无 KXCI 映射。','Legacy hold or base delay awaits KXCI mapping.');
+     if(!reason&&result.loadOhms===null)reason=tr('填写负载后才能校核 DUT 端电压。','Enter the load to check the voltage at the DUT.');
+     else if(!reason&&result.peakV>hardware.getPulseOutputLimits('pmu',result.rangeV,result.loadOhms).maxVoltageV)
       reason=tr('所设峰值超过当前负载下的电压估算上限。','The peak exceeds the estimated voltage limit at this load.');
-     else if(!pmuVerified)reason=tr('该逻辑端子需映射到已核验的 4225-PMU。','Map this terminal to a verified 4225-PMU.');
-     else if(values.currentRangeA&&!hardware.getPmuCurrentRanges(result.rangeV,withRpm).includes(Number(values.currentRangeA)))
+     else if(!reason&&!pmuVerified)reason=tr('该逻辑端子需映射到已核验的 4225-PMU。','Map this terminal to a verified 4225-PMU.');
+     else if(!reason&&values.currentRangeA&&!hardware.getPmuCurrentRanges(result.rangeV,withRpm).includes(Number(values.currentRangeA)))
       reason=tr('请选择与该 PMU 通道及 RPM 配置匹配的电流档。','Select a current range for this PMU channel and RPM configuration.');
     }else if(slot?.family!=='SMU')reason=tr('该逻辑端子需映射到实装 SMU。','Map this terminal to an installed SMU.');
     else{
@@ -703,7 +751,14 @@
    const footer=units.layout.create(host,{variant:'row-wrap',className:'dkts-timing-footer'});
    units.note.create(footer,{variant:draft.error?'warning':'meta',text:draft.error||tr('参数规划 · 待实机验收','Parameter planning · Pending instrument validation')});
    units.action.create(footer,{id:'dkts-save-timing',label:tr('应用参数','Apply parameters'),variant:'primary',direct:true,onInvoke:()=>{
-    try{const next=model.editTiming(state(),draft.values);timingDrafts.delete(p.id);persist(next);
+    try{
+     if(pulse){
+      const issue=pulseCompatibility(model.timedSummary('pulse',values));
+      if(issue)throw Error(issue);
+      if(pmuVerified&&values.currentRangeA&&!hardware.getPmuCurrentRanges(values.rangeV,withRpm).includes(Number(values.currentRangeA)))
+       throw Error(tr('该电流档与实装 PMU/RPM 不匹配。','This current range is incompatible with the installed PMU/RPM.'));
+     }
+     const next=model.editTiming(state(),draft.values);timingDrafts.delete(p.id);persist(next);
      ctx.status.set(tr('测试参数已保存','Test parameters saved'));}
     catch(error){draft.error=String(error.message||error);timingDrafts.set(p.id,draft);render();}
    }});
@@ -1117,7 +1172,17 @@
     },false,{'data-dkts-timing-field':'stopS'});
     plannedText(controls,settings,'switchStepS','切换步长 (s)','Switching Step (s)');
     segmentCount=dcInput(controls,tr('切换段数','Segments'),'—',null,{readOnly:true,key:'time-segments'}).control;
-    plannedText(controls,settings,'sampleStepS','采样步长 (s)','Sampling Step (s)');
+    const sampleSteps=['0.01','0.02','0.05','0.1','0.2','0.5','1','2','5','10'];
+    const preset=sampleSteps.find(value=>Number(value)===Number(settings.sampleStepS));
+    const customSampling=draft.customSampling||!preset;
+    dcSelect(controls,tr('计划采样步长 (s)','Planned Sampling Step (s)'),customSampling?'custom':preset,
+     [...sampleSteps.map(value=>({value,label:value})),{value:'custom',label:tr('自定义计划值','Custom plan value')}],
+     value=>{
+      draft.customSampling=value==='custom';
+      if(value!=='custom')settings.sampleStepS=value;
+      redrawDc();
+     },{key:'time-sampling-step'});
+    if(customSampling)plannedText(controls,settings,'sampleStepS','自定义计划采样步长 (s)','Custom planned sample step (s)');
     samplePoints=dcInput(controls,tr('单周期总采样点','Total Time Points'),'—',null,{readOnly:true,key:'time-points'}).control;
     const repeat=dcPanel(input,tr('重复','Repeat'),'dkts-time-panel dkts-time-repeat');
     plannedText(dcLayout(repeat,'dkts-time-grid-fields'),settings,'cycles','循环次数','Cycles');
@@ -1194,13 +1259,28 @@
    }else{
     const strategy=dcPanel(surface,tr('测试策略','Measurement strategy'),'dkts-time-panel');
     const controls=dcLayout(strategy,'dkts-dc-strategy-fields');
-    plannedText(controls,settings,'integrationS','积分时间 (s)','Integration time (s)');
-    units.note.create(strategy,{variant:'meta',text:tr('偏置切换与读出调度独立。应用后保存到工程，真实采样时钟待仪器验证。',
-     'Bias switching and read scheduling are separate. Apply to save the plan. The acquisition clock requires instrument validation.')});
+    const presets=[{value:'instrument',label:tr('仪器默认','Instrument default')},
+     {value:'short',label:tr('短 · 0.1 PLC','Short · 0.1 PLC')},
+     {value:'medium',label:tr('中 · 1 PLC','Medium · 1 PLC')},
+     {value:'long',label:tr('长 · 10 PLC','Long · 10 PLC')}];
+    if(settings.integrationS!=='')presets.push({value:'legacy',label:tr('旧方案 · ','Legacy plan · ')+settings.integrationS+' s'});
+    dcSelect(controls,tr('SMU 积分档','SMU integration preset'),settings.integrationS!==''?'legacy':settings.integrationPreset,
+     presets,value=>{
+      if(value==='legacy')return;
+      settings.integrationS='';
+      settings.integrationPreset=value;
+      redrawDc();
+     },{key:'time-integration-preset'});
+    units.note.create(strategy,{variant:'meta',text:tr(
+     '积分时间随 50/60 Hz 电源线频率变化。实测采样还需计入稳定时间和读出开销。',
+     'Integration time depends on the 50/60 Hz power line frequency. Actual sampling also includes settling and readout overhead.')});
    }
    const summary=dcPanel(surface,tr('方案校验','Plan checks'),'dkts-time-panel');
    status=units.note.create(summary,{variant:'meta',className:'dkts-time-status',text:''});
    status?.setAttribute?.('aria-live','polite');
+   units.note.create(summary,{variant:'meta',text:tr(
+    '采样和切换步长用于计划。KXCI Rev F 的 SMU 时域 IN 是每次测量后的等待时间，单次 NR 最多 4096 次读数。',
+    'Sampling and switching steps define the plan. KXCI Rev F SMU time-domain IN is the wait after each reading; NR supports up to 4096 readings per operation.')});
    mappingNote=units.note.create(summary,{variant:'warning',
     text:tr('有测量事件的端子尚未映射到 SMU。','A measure event is assigned to a terminal without an SMU.')});
    refreshPlan();
@@ -1654,7 +1734,7 @@
     branch?.setAttribute?.('data-dkts-device',item.id);
     const deviceRow=units.layout.create(branch,{variant:'identity',className:'dkts-tree-row dkts-tree-device'});
     const deviceButton=units.list.create(deviceRow,{variant:'compact'}).item({leading:'▤',title:item.name,
-     attributes:{'data-dkts-device-item':item.id,title:tr('双击重命名器件','Double-click to rename device')},
+     attributes:{'data-dkts-device-item':item.id,title:item.name+' · '+tr('双击重命名器件','Double-click to rename device')},
      onInvoke:()=>{projectSurface?.close();editorOpen=false;plotScope='project';
       store.patch(model.selectDevice(state(),item.id));ctx.project.capture?.();render(true);}});
     deviceButton?.addEventListener?.('dblclick',()=>renameDevice(item));
@@ -1665,9 +1745,29 @@
    }
    specNavigation=units.layout.create(navigation,{variant:'identity'});
    renderSpecNavigation(s,p);
-   const libraryHeader=units.header.create(librarySection,{kind:'panel',variant:'content',title:t('TEST LIBRARY')});
+   const libraryHeader=units.header.create(librarySection,{kind:'panel',variant:'content',
+    title:t('TEST LIBRARY'),className:'dkts-library-heading',actionHost:true});
+   const collapseTemplates=units.action.create(libraryHeader.actions,{
+    id:'dkts-toggle-templates',label:'−',variant:'quiet',direct:true,onInvoke:()=>{
+     templatesCollapsed=!templatesCollapsed;
+     navigationPreferences.set({templatesCollapsed});
+     syncTemplatePanel();
+    }
+   }).element;
+   const syncTemplatePanel=()=>{
+    librarySection.setAttribute('data-dkts-library-collapsed',String(templatesCollapsed));
+    templateSplit.handle.hidden=templatesCollapsed;
+    const label=templatesCollapsed?tr('展开测试模板','Expand test templates'):tr('收起测试模板','Collapse test templates');
+    collapseTemplates.textContent=templatesCollapsed?'+':'−';
+    collapseTemplates.title=label;
+    collapseTemplates.setAttribute('aria-label',label);
+    collapseTemplates.setAttribute('aria-expanded',String(!templatesCollapsed));
+    collapseTemplates.setAttribute('aria-controls','dkts-test-templates');
+   };
+   syncTemplatePanel();
    libraryHeader.element?.setAttribute?.('data-dkts-workspace-heading','true');
    const library=units.layout.create(librarySection,{variant:'identity',className:'dkts-test-library'});
+   library.id='dkts-test-templates';
    for(const kind of model.KINDS)units.action.create(library,{id:'library-'+kind.id,
     label:t(kind.label),variant:'quiet',direct:true,onInvoke:()=>openTestType(kind.id)});
    renderEditor(p,s);
@@ -1677,7 +1777,7 @@
    const routineHost=units.layout.create(treeHost,{variant:'identity',className:'dkts-tree-routine'});
    routineHost?.setAttribute?.('data-dkts-routine',routine.id);
    const routineRow=units.layout.create(routineHost,{variant:'identity',className:'dkts-tree-row'});
-   const routineItem=units.list.create(routineRow,{variant:'compact'}).item({leading:'▦',title:routine.name,
+   const routineItem=units.list.create(routineRow,{variant:'compact'}).item({leading:'▦',title:routine.name,attributes:{title:routine.name},
     selected:plotScope==='routine'&&routine.id===s.activeRoutineId,
     onInvoke:()=>showRoutine(routine.id)});
    routineItem?.setAttribute?.('data-dkts-routine-item','true');
@@ -1697,7 +1797,7 @@
    for(const page of routinePages){
     const pageHost=units.layout.create(pagesHost,{variant:'identity',className:'dkts-project-page dkts-tree-row'});
     pageHost?.setAttribute?.('data-dkts-page-select',page.id);
-    const pageItem=units.list.create(pageHost,{variant:'compact'}).item({leading:'▧',title:page.name,
+    const pageItem=units.list.create(pageHost,{variant:'compact'}).item({leading:'▧',title:page.name,attributes:{title:page.name},
      selected:plotScope==='page'&&page.id===s.activeId,
      onInvoke:()=>showPageGraphs(page.id,true)});
     pageItem?.setAttribute?.('data-dkts-page-item','true');
@@ -1866,7 +1966,6 @@
    language=language==='en'?'zh-CN':'en';
    preferences.set({language});
    defineConnectionSettings();
-   syncLanguageButton();
    const scroll=parameters.scrollTop;
    render();
    parameters.scrollTop=scroll;
@@ -1874,40 +1973,62 @@
    updateGraphLanguage();
    if(measurementRuntime.status().connection.phase==='disconnected')showOfflineStatus();
   }
-  function connectFromToolbar(){
-   if(instrumentBusy||measurementRuntime.status().connection.phase==='connected')return;
+  function connectFromToolbar(button){
+   if(!instrumentIdle())return;
+   const {connection}=measurementRuntime.status();
+   if(connection.phase==='connected'){
+    void ctx.ui.dialogs.alert({title:t('已连接'),message:tr('已验证 Keithley 4200A。','Keithley 4200A identity verified.'),
+     detail:connection.identity?.serial||''});
+    return;
+   }
    const settings=connectionSettings.get();
    if(!settings.host?.trim()||!settings.expectedSerial?.trim()){connectionSettings.open();return;}
-   const box=connectionButton?.getBoundingClientRect?.();
-   if(!box||!ctx.ui.contextMenus?.open){void updateInstrument({connect:true});return;}
+   const box=button?.getBoundingClientRect?.();
+   if(!box?.width||!ctx.ui.contextMenus?.open){void updateInstrument({connect:true});return;}
    connectionMenu?.dispose?.();
-   connectionMenu=ctx.ui.contextMenus.open({anchor:connectionButton,x:box.left,y:box.bottom+3,items:[
+   connectionMenu=ctx.ui.contextMenus.open({anchor:button,x:box.left,y:box.bottom+3,items:[
     {id:'dkts-connect-retry',label:tr('重试连接','Retry connection'),onInvoke:()=>updateInstrument({connect:true})},
     {id:'dkts-connect-settings',label:t('连接设置'),onInvoke:()=>connectionSettings.open()}
    ]});
   }
+  const connectionLabel=()=>{
+   const connected=measurementRuntime.status().connection.phase==='connected';
+   return t(instrumentBusy&&!connected?'连接中':connected?'已连接':'连接');
+  };
+  const instrumentIdle=()=>!instrumentBusy&&!measurementRuntime.status().run.running;
+  const languageTitle=()=>tr('Switch to English','切换为简体中文');
+  const instrumentCommands=[
+   {id:'dkts-workspace-connect',order:8,label:connectionLabel,
+    enabled:instrumentIdle,
+    onInvoke:({button})=>connectFromToolbar(button)},
+   {id:'dkts-workspace-scan',order:9,label:()=>tr('端口','Ports'),enabled:instrumentIdle,
+    title:()=>tr('重新识别 4200A 实装 SMU 和 PMU','Refresh installed 4200A SMU and PMU modules'),
+    onInvoke:()=>{
+     if(measurementRuntime.status().connection.phase==='connected')void updateInstrument();
+     else void ctx.ui.dialogs.alert({title:tr('端口','Ports'),
+      message:tr('连接 4200A 后可读取实装模块与量程。','Connect the 4200A to read installed modules and ranges.')});
+    }},
+   {id:'dkts-workspace-language',order:10,label:()=>tr('EN','中文'),title:languageTitle,onInvoke:toggleLanguage}
+  ].map(action=>({...action,variant:'quiet'}));
+  const desktopInstrumentButtons=instrumentCommands.map(action=>units.toolbar.contribute({
+   id:action.id,order:action.order,label:action.label(),activity:ACTIVITY,section:'instrument',
+   group:'analysis',priority:100,variant:action.variant,onClick:event=>action.onInvoke({button:event.currentTarget})
+  }));
+  // The native presenter reads the same activity-scoped actions from the SDK.
+  // The detached Unit has no workspace geometry or duplicate visible controls.
+  const nativeInstrumentCommands=units.toolbar.create(units.layout.create(null,{variant:'identity'}),{
+   variant:'ordinary',activity:ACTIVITY,actions:instrumentCommands
+  }).actionGroup;
   function syncInstrumentButtons(){
-   const {connection,run}=measurementRuntime.status();
-   const connected=connection.phase==='connected';
-   if(connectionButton){
-    const label=t(instrumentBusy&&!connected?'连接中':connected?'已连接':'连接');
-    connectionButton.textContent=label;
-    connectionButton.title=label;
-    connectionButton.disabled=connected||instrumentBusy||run.running;
+   for(const [index,button] of desktopInstrumentButtons.entries()){
+    const action=instrumentCommands[index],label=action.label(),title=action.title?.()||label;
+    if(!button)continue;
+    button.textContent=label;
+    button.title=title;
+    button.setAttribute('aria-label',title);
+    button.disabled=action.enabled?.()===false;
    }
-   if(scanButton){
-    scanButton.textContent=tr('端口','Ports');
-    scanButton.title=tr('重新识别 4200A 实装 SMU 和 PMU','Refresh installed 4200A SMU and PMU modules');
-    scanButton.disabled=!connected||instrumentBusy||run.running;
-   }
-  }
-  function syncLanguageButton(){
-   if(!languageButton)return;
-   const label=tr('Switch to English','切换为简体中文');
-   languageButton.textContent=tr('EN','中文');
-   languageButton.setAttribute('aria-label',label);
-   languageButton.title=label;
-   languageButton.lang=tr('en','zh-CN');
+   nativeInstrumentCommands?.update();
   }
   const page=ctx.ui.pages.add({id:'dkts-4200a-page',pageId:PAGE,activity:ACTIVITY,
    label:'4200A',title:'',toolbar:false,html:''});
@@ -1922,16 +2043,6 @@
   const workspace=units.layout.create(null,{variant:'identity',className:'dkts-workbench'});
   const projectToolbar=units.layout.create(workspace,{variant:'identity',className:'dkts-project-toolbar'});
   const projectControls=units.layout.create(projectToolbar,{variant:'identity',className:'dkts-project-controls'});
-  const instrumentControls=units.toolbar.create(projectToolbar,{variant:'ordinary',className:'dkts-instrument-controls'}).element;
-  const instrumentAction=(id,label,onInvoke)=>units.action.create(instrumentControls,{
-   id,label,variant:'secondary',direct:true,onInvoke
-  }).element;
-  const connectionButton=instrumentAction('dkts-workspace-connect',t('连接'),connectFromToolbar);
-  const scanButton=instrumentAction('dkts-workspace-scan',tr('端口','Ports'),()=>{
-   if(measurementRuntime.status().connection.phase==='connected')void updateInstrument();
-  });
-  const languageButton=instrumentAction('dkts-workspace-language',tr('EN','中文'),toggleLanguage);
-  syncLanguageButton();
   const resizePanels=(container,target,id,axis,token,label,limits)=>{
    const handle=units.splitHandle.create(container,{
     axis:axis==='x'?'vertical':'horizontal',className:'dkts-'+id+'-handle'
@@ -1945,14 +2056,14 @@
   const projectPanel=units.panel.create(main,{variant:'control-card',
    header:false,sizing:'fill',className:'dkts-project-panel'});
   projectPanel.body?.setAttribute?.('data-dkts-project-body','true');
-  nav=units.layout.create(projectPanel.body,{variant:'stack-compact',
+  nav=units.layout.create(projectPanel.body,{variant:'identity',
    className:'dkts-project-navigation'});
   const navigation=units.layout.create(nav,{variant:'stack-compact',className:'dkts-navigation-scroll'});
   const librarySection=units.layout.create(nav,{variant:'stack-compact',className:'dkts-library-section'});
   const templateSplit=resizePanels(nav,librarySection,'template','y','template-height',
    tr('调整测试模板高度','Resize test templates'),{defaultSize:258,min:66,max:400,reverse:true});
   const navigationSplit=resizePanels(main,projectPanel.element,'navigation','x','project-width',
-   tr('调整工程导航宽度','Resize project navigation'),{defaultSize:270,min:160,max:510,mobileStateScope:true});
+   tr('调整工程导航宽度','Resize project navigation'),{defaultSize:270,min:240,max:510,mobileStateScope:true});
   // DKDS owns the drawer surface paint, not plugin CSS.
   projectSurface=uiShell.attach(units,main,projectPanel.element);
   // FS-Pro keeps the Page inspector and independent PlotGroup in sibling
@@ -1967,7 +2078,7 @@
    className:'dkts-parameter-content'});
   const plotArea=units.layout.create(work,{variant:'stack-comfortable',
    className:'dkts-project-plot-area',geometry:{display:'flex',flexDirection:'column',
-    minWidth:'0',minHeight:'0',flex:'1 1 auto',overflow:'hidden',gap:'8px'}});
+    minWidth:'0',minHeight:'0',flex:'1 1 auto',overflow:'hidden',gap:'0px'}});
   // DKTS-owned markers let Electron validate real frames independently of
   // internal DKDS Unit attribute naming or temporary detached Page views.
   plotArea?.setAttribute?.('data-dkts-view','graph');

@@ -75,18 +75,16 @@ const units={
    }
    return el();
  }},
- toolbar:{create:(host,spec)=>{const element=el();element.spec=spec;host.children.push(element);return {element};}},
+ toolbar:{
+  create:(host,spec)=>{const element=el();host.children.push(element);record.nativeCommands=spec;return {element,actionGroup:{update(){}}};},
+  contribute:spec=>{record.toolbar??=[];const button=el();record.toolbar.push({spec,button});return button;}
+ },
  splitHandle:{create:(host,spec)=>{const element=el();element.spec=spec;host.children.push(element);return element;}},
  splitPane:{adopt:spec=>{record.splits??=[];record.splits.push(spec);return {handle:spec.handle};}},
  action:{create:(host,spec)=>{
-  const element=el();
   record.actions.push(spec);
-  if(host?.spec?.className==='dkts-instrument-controls'){
-   record.toolbar??=[];
-   record.toolbar.push({spec,button:element});
-  }
   host?.children?.push(spec);
-  return {element};
+  return {element:el()};
  }},
  tabs:{create:(host,spec)=>{record.tabs=record.tabs||[];record.tabs.push(spec);
   host?.children?.push(spec);return{element:el()}}},
@@ -172,8 +170,11 @@ const ctx={
  assert.ok(record.fields.some(row=>row.spec.label==='栅极 · G'&&row.control.value==='SMU2'));
  assert.equal(record.fields.some(row=>row.spec.label==='体端 · B'),false);
  assert.deepEqual(record.toolbar.map(row=>row.spec.id),['dkts-workspace-connect','dkts-workspace-scan','dkts-workspace-language']);
- assert.ok(record.toolbar.every(row=>row.spec.variant==='secondary'));
- assert.equal(record.toolbar.find(row=>row.spec.id==='dkts-workspace-scan').button.disabled,true);
+ assert.ok(record.toolbar.every(row=>row.spec.variant==='quiet'&&row.spec.section==='instrument'));
+ assert.deepEqual(Array.from(record.nativeCommands.actions,row=>row.id),record.toolbar.map(row=>row.spec.id));
+ assert.equal(record.nativeCommands.activity,'dkts-keithley-4200');
+ assert.ok(record.actions.some(row=>row.id==='dkts-toggle-templates'));
+ assert.equal(record.toolbar.find(row=>row.spec.id==='dkts-workspace-scan').button.disabled,false);
  assert.ok(!record.actions.some(row=>row.id==='dkts-return-data-plots'));
  assert.ok(record.actions.some(row=>row.id==='dkts-page-view-page-1'&&row.label==='⚙︎'));
  assert.deepEqual(Array.from(record.fields.find(row=>row.spec.label==='漏极 · D').spec.options,row=>row.value),

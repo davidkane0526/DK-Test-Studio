@@ -127,17 +127,16 @@
 #dktsKeithley4200Page .dkts-project-controls{
  display:flex;flex:1 1 auto;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 12px;min-width:0
 }
-#dktsKeithley4200Page .dkts-instrument-controls{display:flex;align-items:center;gap:6px;flex:none}
 #dktsKeithley4200Page .dkts-project-actions{display:flex;flex:none;align-items:center;gap:6px}
 #dktsKeithley4200Page .dkts-main-grid{
- display:grid;grid-template-columns:var(--dkts-nav-width) 8px minmax(0,1fr);flex:1 1 auto;height:auto;min-height:0;
- --dkts-nav-width:var(--dkds-unit-project-width,270px)
+ display:grid;grid-template-columns:var(--dkts-nav-width) 5px minmax(0,1fr);flex:1 1 auto;height:auto;min-height:0;
+ --dkts-nav-width:max(240px,var(--dkds-unit-project-width,270px))
 }
 
 #dktsKeithley4200Page .dkts-project-navigation{padding:9px 10px 9px 12px}
 #dktsKeithley4200Page .dkts-project-page{padding-inline-start:15px}
 #dktsKeithley4200Page .dkts-test-library{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
-#dktsKeithley4200Page .dkts-test-library>button{width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere;text-align:start;justify-content:flex-start}
+#dktsKeithley4200Page .dkts-test-library>button{width:100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:start;justify-content:flex-start}
 #dktsKeithley4200Page .dkts-work-region{position:relative;overflow:hidden}
 #dktsKeithley4200Page .dkts-page-editor{
  display:flex;
@@ -259,7 +258,7 @@
 @media(max-width:900px){
  #dktsKeithley4200Page .dkts-main-grid{
   grid-template-columns:minmax(0,1fr);
-  --dkts-nav-width:min(var(--dkds-unit-project-width,270px),84vw)
+  --dkts-nav-width:min(max(240px,var(--dkds-unit-project-width,270px)),84vw)
  }
  #dktsKeithley4200Page .dkts-navigation-handle{display:none;position:absolute;inset-block:0;left:var(--dkts-nav-width);z-index:22}
  #dktsKeithley4200Page [data-dkts-nav-open=true]>.dkts-navigation-handle{display:block}
@@ -311,7 +310,10 @@
 #dktsKeithley4200Page .dkts-tree-row{display:flex;align-items:center;gap:5px;position:relative;min-height:32px;flex:none}
 #dktsKeithley4200Page .dkts-tree-row>.dkds-list{flex:1;min-width:0;min-height:32px;max-height:none;overflow:visible}
 #dktsKeithley4200Page .dkts-tree-row .dkds-list-item{display:flex;width:100%;min-width:0;justify-content:flex-start;gap:7px}
-#dktsKeithley4200Page .dkts-tree-row .dkds-list-item-content{min-width:0;overflow-wrap:anywhere;white-space:normal}
+#dktsKeithley4200Page .dkts-tree-row .dkds-list-item-content{min-width:0;white-space:nowrap}
+#dktsKeithley4200Page .dkts-tree-row .dkds-list-item-title{
+ min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
 #dktsKeithley4200Page .dkts-tree-more{flex:none;min-width:26px}
 #dktsKeithley4200Page .dkts-tree-pages .dkts-project-page{padding-inline-start:0}
 #dktsKeithley4200Page .dkts-range-explanation{display:block;padding:3px 0 6px;white-space:normal}
@@ -377,9 +379,18 @@
 }
 #dktsKeithley4200Page .dkts-device-routines{margin-inline-start:8px;padding-inline-start:10px}
 #dktsKeithley4200Page .dkts-library-section{
- flex:0 0 min(var(--dkds-unit-template-height,258px),75%);padding-block-start:4px;box-sizing:border-box;overflow:auto
+ flex:0 0 min(var(--dkds-unit-template-height,258px),75%);min-height:0;box-sizing:border-box;overflow:auto
 }
-#dktsKeithley4200Page :is(.dkts-template-handle,.dkts-history-handle){flex:none;order:1}
+#dktsKeithley4200Page .dkts-library-section[data-dkts-library-collapsed=true]{flex-basis:auto;overflow:visible}
+#dktsKeithley4200Page .dkts-library-section[data-dkts-library-collapsed=true] .dkts-test-library,
+#dktsKeithley4200Page .dkts-template-handle[hidden]{display:none}
+#dktsKeithley4200Page .dkts-library-heading{white-space:nowrap}
+#dktsKeithley4200Page [data-dkts-resize]{
+ --dkds-split-grip-length:24px;--dkds-split-grip-inset:2px
+}
+#dktsKeithley4200Page :is(.dkts-template-handle,.dkts-history-handle){flex:none;order:1;--dkds-split-handle-size:6px}
+#dktsKeithley4200Page .dkts-navigation-handle{--dkds-split-handle-size:5px}
+#dktsKeithley4200Page [data-dkts-view=graph]>[data-dkts-workspace-heading]{margin-bottom:6px}
 #dktsKeithley4200Page :is(.dkts-library-section,.dkts-history){order:2}
 #dktsKeithley4200Page .dkts-terminal-caption{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
 #dktsKeithley4200Page .dkts-bias-entry{display:grid;justify-items:start;gap:5px;min-width:0}
@@ -621,4 +632,10 @@
 #dktsKeithley4200Page .dkts-time-repeat .dkts-time-grid-fields{padding:8px 10px}
 @media(max-width:620px){
  #dktsKeithley4200Page .dkts-time-setup{grid-template-columns:minmax(0,1fr)}
+}
+
+@media(pointer:coarse){
+ #dktsKeithley4200Page [data-dkts-resize]::before{content:"";position:absolute;inset:0}
+ #dktsKeithley4200Page [data-dkts-resize][data-axis=y]::before{inset-block:-5px}
+ #dktsKeithley4200Page [data-dkts-resize][data-axis=x]::before{inset-inline:-5px}
 }

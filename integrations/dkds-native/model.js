@@ -41,7 +41,7 @@
   return Number(text);
  };
  const TIMED_DEFAULTS=Object.freeze({
-  time:Object.freeze({switchStepS:'0.1',sampleStepS:'0.1',cycles:'1',integrationS:'',
+  time:Object.freeze({switchStepS:'0.1',sampleStepS:'0.1',cycles:'1',integrationPreset:'instrument',integrationS:'',
    segments:Object.freeze([{durationS:'1',bias:{D:'0',G:'0',S:'0',B:'0'}}]),
    events:Object.freeze([{terminal:'D',quantity:'Current',startS:'0.1',intervalS:'0.1',averageS:'0.02',points:'9'}])}),
   retention:Object.freeze({terminal:'D',conditionV:'0',conditionS:'0',holdV:'0',readV:'0.1',
@@ -51,6 +51,8 @@
    delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
    pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:''})
  });
+ // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
+ const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});
  const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw']);
  function timeGrid(v){
   const switchStep=numeric(v.switchStepS,'Switching Step'),sampleStep=numeric(v.sampleStepS,'Sampling Step');
@@ -78,8 +80,14 @@
  function timeSummary(v){
   const grid=timeGrid(v),{durationS,sampleStep}=grid;
   const cycles=positiveInt(v.cycles,10000,'Cycles');
-  if(v.integrationS!==''&&(numeric(v.integrationS,'Integration time')<=0||Number(v.integrationS)>sampleStep))
-   throw Error('Integration time must fit within a sampling step');
+  if(!Object.hasOwn(SMU_INTEGRATION_PLC,v.integrationPreset))
+   throw Error('Select a supported SMU integration preset');
+  const legacyIntegration=v.integrationS!==''?numeric(v.integrationS,'Legacy integration time'):null;
+  // Even at 60 Hz, a PLC preset has this minimum conversion time.
+  // Instrument line frequency and settling time are verified separately.
+  const integrationMinimumS=legacyIntegration??SMU_INTEGRATION_PLC[v.integrationPreset]/60;
+  if((legacyIntegration!==null&&legacyIntegration<=0)||integrationMinimumS>sampleStep+1e-12)
+   throw Error('The SMU integration time must fit within a sampling step');
   if(!Array.isArray(v.events)||!v.events.length||v.events.length>16)throw Error('Use 1–16 measurement events');
   let points=0;
   for(const event of v.events){
@@ -87,7 +95,7 @@
     throw Error('Select a valid measurement terminal and quantity');
    const start=numeric(event.startS,'Event start'),interval=numeric(event.intervalS,'Event interval');
    const average=numeric(event.averageS,'Average time'),count=positiveInt(event.points,65536,'Event points');
-   if(start<0||interval<sampleStep||average<=0||average>interval||(v.integrationS!==''&&Number(v.integrationS)>average))
+   if(start<0||interval<sampleStep||average<=0||average>interval||integrationMinimumS>average+1e-12)
     throw Error('The averaging window must fit the measurement interval and integration time');
    if(start+(count-1)*interval+average>durationS+Math.max(1e-12,durationS*1e-9))
     throw Error('A measurement event exceeds the cycle duration');
@@ -1086,6 +1094,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcSummary,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,timeGrid,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcSummary,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

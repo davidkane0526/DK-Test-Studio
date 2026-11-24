@@ -1,5 +1,5 @@
 name: DKTS canonical release sequence
-run-name: DKTS V0.3.40 a${{ github.run_number }}
+run-name: DKTS V0.3.41 a${{ github.run_number }}
 on:
   push:
     branches: [main]

@@ -43,7 +43,7 @@ test('DKTS Core mobile drawer uses SDK Units, scoped stylesheet, and close inter
  assert(css.includes('#dktsKeithley4200Page [data-dkts-shell]'));
  const plugin=fs.readFileSync(path.join(root,'plugin.js'),'utf8');
  assert.match(plugin,/variant:'identity',className:'dkts-main-grid'/);
- assert.match(css,/grid-template-columns:var\(--dkts-nav-width\) 8px minmax\(0,1fr\)/);
+ assert.match(css,/grid-template-columns:var\(--dkts-nav-width\) 5px minmax\(0,1fr\)/);
  const priorityRules=[...css.matchAll(/#[^{]+\{[^{}]*!important[^{}]*\}/g)].map(x=>x[0]);
  assert(priorityRules.length>=3,'explicit overrides are required for Core inline display attributes');
  assert(priorityRules.every(rule=>/(?:\[data-dkts-(?:nav-toggle|port-desktop|port-mobile)\]|\.dkts-sweep-segment \.dkds-field-label-row|\.dkts-(?:page-editor|project-plot-area)\[hidden\])/.test(rule)),
