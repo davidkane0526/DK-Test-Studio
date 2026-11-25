@@ -45,14 +45,17 @@
       !['complete','partial'].includes(row.measurementCompleteness))
     throw Error('Malformed/mixed/synthetic KXCI original record at '+(i+1));
   }
+  const pulseRun=rows[0].source==='4200A-KXCI-PMU';
+  if(rows.some(row=>(row.source==='4200A-KXCI-PMU')!==pulseRun))throw Error('Mixed SMU and PMU records require separate tables');
+  if(pulseRun&&rows.some(row=>row.pulseResource!==rows[0].pulseResource||row.pulseMode!==rows[0].pulseMode))throw Error('Mixed pulse channels or acquisition modes require separate tables');
   // Numeric acquisition channels stay in original units. Missing measurements
   // are NaN in the numeric DataTable; their null/status/response information
   // remains preserved verbatim in the raw metadata/text columns.
-  const columns=FIELDS.map(([key,name,unit,role])=>({
+  const columns=FIELDS.filter(([key])=>pulseRun?rows.some(row=>row[key]!=null):!key.startsWith('pulse')).map(([key,name,unit,role])=>({
    key,name,unit,role,dtype:'float64',
    values:rows.map(row=>row[key]==null?NaN:Number(row[key]))
   }));
-  for(const [key,name] of STRINGS){
+  for(const [key,name] of STRINGS.filter(([key])=>pulseRun||!key.startsWith('pulse'))){
    columns.push({key,name,unit:'',role:'raw',dtype:'string',
     values:rows.map(row=>
      key==='rawKxciResponses'||key==='measurementStatusByRole'||key==='measurementOrder'
@@ -65,7 +68,7 @@
    transient:false,
    source:source||{name:'KI4200A '+instrument},
    metadata:{instrument:'KI4200A',instrumentSerial:instrument,
-    rawInstrumentResponse:true,...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
+    rawInstrumentResponse:true,...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
     acquisition:{runId:id,timestamp:String(startedAt||''),
      finishedAt:String(finishedAt||''),runState,sequenceIndex:0,
      provenance:'kxci-native-acquisition'},
