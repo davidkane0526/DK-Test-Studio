@@ -59,7 +59,7 @@
   pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',
    start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
    delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
-   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:''})
+   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:'',secondary:null})
  });
  // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
  const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});
@@ -207,8 +207,17 @@
   const pulseCount=positiveInt(v.pulseCount,65536,'Pulse count'),rateHz=positiveInt(v.rateHz,200000000,'Sample rate');
   if(rateHz<1000)throw Error('Sample rate is below 1 kSa/s');
   if(v.currentRangeA!==''&&n('currentRangeA')<=0)throw Error('Current range must be positive');
-  return {points,pulseCount,rateHz,rangeV,peakV,windowS:windowUs*1e-6,
-   loadOhms:v.loadOhms===''?null:n('loadOhms')};
+  const result={points,pulseCount,rateHz,rangeV,peakV,windowS:windowUs*1e-6,loadOhms:v.loadOhms===''?null:n('loadOhms')};
+  if(v.secondary!==null){
+   if(!v.secondary||typeof v.secondary!=='object'||Array.isArray(v.secondary)||v.secondary.terminal===v.terminal||!['S','D','G'].includes(v.secondary.terminal))throw Error('Select a distinct Psweep terminal');
+   const allowed=['terminal','channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA'];
+   if(Object.keys(v.secondary).some(k=>!allowed.includes(k))||allowed.some(k=>typeof v.secondary[k]!=='string'))throw Error('Invalid Psweep pulse parameters');
+   const outer=timedSummary('pulse',{...v,...v.secondary,secondary:null,sweep:'amplitude'});
+   if(v.mode!=='spot')throw Error('Dual-channel pulse currently requires Spot Mean');
+   if(outer.points>1&&points===1)throw Error('Psweep requires a multi-point Xsweep');
+   result.secondary=outer;result.totalSweepPoints=points*outer.points;
+  }
+  return result;
  }
  function segmentPoints(seg){
   const a=Number(seg.start),b=Number(seg.stop),step=Number(seg.step);

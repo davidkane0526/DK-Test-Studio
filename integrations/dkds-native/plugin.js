@@ -321,7 +321,7 @@
     title:'确认 Keithley 4200A 实际输出',tone:'warning',destructive:true,
     message:'仪器 '+current.connection.identity.serial+' 将执行“'+page.name+'”，预计 '+
      prepared.pointCount.toLocaleString()+' 个测量点。',
-    detail:'活动端口：'+(pulse?pulse.resource:channels)+'。最大设定电压或限压：'+maxVoltage+' V。'+(pulse?'仅所选脉冲通道输出，其他 SMU 输出关闭。':'')+(Object.values(plan.sourceModes||{}).includes('current')?'最大设定电流：'+currentPeak.toExponential(3)+' A。':'')+(prepared.compiled.system?.rpmRoutes?.length?'本次自动切换：'+prepared.compiled.system.rpmRoutes.map(r=>r.pmu+' → '+r.smu).join('，')+'。请确认接线未变化、所有相连输出均已关闭且无其他测试。':'')+(page.kind==='time'?'读数后等待和采样点数按测试设置执行；实际时长以仪器记录为准。':'')+'请确认实际接线、探针接触、各端口限流及现场安全条件。测量结束、停止或异常时，软件会尝试关闭活动输出。',
+    detail:'活动端口：'+(pulse?(pulse.resources||[pulse.resource]).join(' / '):channels)+'。最大设定电压或限压：'+maxVoltage+' V。'+(pulse?'仅所选脉冲通道输出，其他 SMU 输出关闭。':'')+(Object.values(plan.sourceModes||{}).includes('current')?'最大设定电流：'+currentPeak.toExponential(3)+' A。':'')+(prepared.compiled.system?.rpmRoutes?.length?'本次自动切换：'+prepared.compiled.system.rpmRoutes.map(r=>r.pmu+' → '+r.smu).join('，')+'。请确认接线未变化、所有相连输出均已关闭且无其他测试。':'')+(page.kind==='time'?'读数后等待和采样点数按测试设置执行；实际时长以仪器记录为准。':'')+'请确认实际接线、探针接触、各端口限流及现场安全条件。测量结束、停止或异常时，软件会尝试关闭活动输出。',
     confirmLabel:'确认接线并开始输出'
    });
    if(!confirmed)return;
@@ -698,8 +698,8 @@
    const withRpm=slot?.rpmChannels?.includes(Number(match?.[3]||values.channel))===true;
    return {resource,match,slot,pmuVerified,withRpm};
   }
-  const captureBudget=(result,rate)=>hardware.getPmuCaptureBudget(result.windowS*result.points*result.pulseCount,
-   result.windowS,rate,{pulseCount:result.pulseCount,sweepPoints:result.points});
+  const captureBudget=(result,rate)=>hardware.getPmuCaptureBudget(result.windowS*(result.totalSweepPoints||result.points)*result.pulseCount,
+   result.windowS,rate,{pulseCount:result.pulseCount,sweepPoints:result.points,stepPoints:result.secondary?.points||1});
   function pulseCompatibility(values,result,budget=captureBudget(result,result.rateHz)){
    const measured=hardware.getPulseTimingRecommendation(result.rangeV,null,true,'pmu',false,result.peakV);
    const timing=measured.kxciInterfaceTiming;
@@ -758,6 +758,22 @@
      select(levels,'sweep',tr('扫描方式','Sweep mode'),[['amplitude',tr('扫描幅值','Amplitude sweep')],['base',tr('扫描基线','Base sweep')]]);
      if(!amplitude)fields(levels,[['fixedV','固定幅值 (V)','Fixed amplitude (V)']]);
      fields(levels,[['start','起始 (V)','Start (V)'],['stop','终止 (V)','Stop (V)'],['step','步进 (V)','Step (V)']]);
+     const outer=panel('Psweep · 脉冲电平','Psweep · Pulse levels');
+     const otherKeys=['S','D','G'].filter(key=>key!==values.terminal);
+     fsproField(outer,{kind:'select',label:tr('端子','Terminal'),value:values.secondary?.terminal||'None',options:[{value:'None',label:'None'},...otherKeys.map(key=>({value:key,label:t(logicalNames[key])+' · '+pulsePort(p,{...values,terminal:key}).resource}))],onChange:event=>{
+      const terminal=event.target.value;if(terminal==='None'){put('secondary',null);render();return;}
+      const keys=['channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA'];
+      const secondary=values.secondary?{...values.secondary,terminal}:{...Object.fromEntries(keys.map(k=>[k,String(values[k])])),terminal,stop:String(values.start),step:'0',currentRangeA:''};
+      put('secondary',secondary);render();
+     }});
+     if(values.secondary){
+      const second=values.secondary,port=pulsePort(p,{...values,...second});
+      const setSecond=(key,value)=>{put('secondary',{...values.secondary,[key]:String(value)});refreshTimingSummary();};
+      dcSelect(outer,tr('电压档','Voltage range'),second.rangeV,[{value:'10',label:'10 V'},{value:'40',label:'40 V'}],value=>{setSecond('rangeV',value);render();},{key:'psweep-range',path:'secondary.rangeV'});
+      dcSelect(outer,tr('电流档','Current range'),second.currentRangeA,[{value:'',label:tr('自动','Auto')},...(port.pmuVerified?hardware.getPmuCurrentRanges(Number(second.rangeV),port.withRpm):[]).map(x=>({value:String(x),label:String(x)+' A'}))],value=>setSecond('currentRangeA',value),{key:'psweep-current-range',path:'secondary.currentRangeA'});
+      for(const [key,zh,en] of [['fixedV','基线 (V)','Base (V)'],['start','起始幅值 (V)','Start amplitude (V)'],['stop','终止幅值 (V)','Stop amplitude (V)'],['step','步进 (V)','Step (V)'],['loadOhms','负载 (Ω)','Load (Ω)'],['widthUs','平顶 (µs)','Flat top (µs)'],['riseUs','上升 (µs)','Rise (µs)'],['fallUs','下降 (µs)','Fall (µs)'],['delayUs','延迟 (µs)','Delay (µs)'],['windowStartUs','测量延迟 (µs)','Measure delay (µs)'],['windowTimeUs','测量时间 (µs)','Measure time (µs)']])
+       scalarField(outer,tr(zh,en),second[key],value=>setSecond(key,value),false,{'data-dkts-parameter-path':'secondary.'+key},false,true);
+     }
      const basic=panel('脉冲设置 · 基本','Pulse Settings · Basic');
      fields(basic,[['periodUs','脉冲周期 (µs)','Pulse Period (µs)'],['widthUs','计划平顶时长 (µs)','Planned flat top (µs)']]);
      const advanced=panel('脉冲设置 · 高级','Pulse Settings · Advanced');
@@ -826,7 +842,7 @@
     summary.replaceChildren();
    try{
     const result=model.timedSummary(p.kind,values);
-    units.note.create(summary,{variant:'meta',text:pulse?`${result.points} ${tr('扫描点','sweep points')} × ${result.pulseCount} ${tr('脉冲','pulses')}`:
+    units.note.create(summary,{variant:'meta',text:pulse?`${result.points}${result.secondary?' × '+result.secondary.points:''} ${tr('扫描点','sweep points')} × ${result.pulseCount} ${tr('脉冲','pulses')}`:
      `${result.points} ${tr('次读出','reads')} · ${result.firstS}–${result.lastS} s · ${tr('窗口','Window')} ${result.windowS} s`});
     units.note.create(summary,{variant:'meta',text:resource+(slot?.physicalIdentityVerified===true?
      ' · '+String(slot.physicalModel||slot.family)+(withRpm?' + RPM':''):' · '+tr('模块待核验','Module unverified'))});
@@ -932,6 +948,7 @@
    if(page.kind==='pulse'){
     const issue=pulseCompatibility(settings,result);
     if(issue)throw Error(issue);
+    if(settings.secondary){const secondary={...settings,...settings.secondary,secondary:null,sweep:'amplitude'},summary={...result.secondary,totalSweepPoints:result.totalSweepPoints};const outerIssue=pulseCompatibility(secondary,summary);if(outerIssue)throw Error('Psweep: '+outerIssue);}
     const port=pulsePort(page,settings);
     if(port.pmuVerified&&settings.currentRangeA&&
        !hardware.getPmuCurrentRanges(settings.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))
@@ -1791,7 +1808,7 @@
    const scopeMatches=plotScope==='page'?s.activeId===runPageId:plotScope==='routine'?s.pages.some(p=>p.id===runPageId&&p.routineId===s.activeRoutineId):true;
    if(run.running&&scopeMatches&&run.liveRows?.length){
     const groups=new Map();
-    for(const r of run.liveRows){if(r.source==='4200A-KXCI-PMU'&&kind==='transfer')continue;const key=r.cycle+':'+(r.pPoint||1);if(!groups.has(key))groups.set(key,[]);groups.get(key).push({x:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.pulseVoltageV??r.drainVoltageV,y:kind==='vt'?(r.pulseVoltageV??r.drainVoltageV):(r.pulseCurrentA??r.drainCurrentA)});}
+    for(const r of run.liveRows){if(r.source==='4200A-KXCI-PMU'&&kind==='transfer')continue;const key=(r.pulseResource?r.pulseResource+' · ':'')+r.cycle+':'+(r.pPoint||1);if(!groups.has(key))groups.set(key,[]);groups.get(key).push({x:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.pulseVoltageV??r.drainVoltageV,y:kind==='vt'?(r.pulseVoltageV??r.drainVoltageV):(r.pulseCurrentA??r.drainCurrentA)});}
     for(const [key,rows] of groups){const points=rows.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));if(points.length)list.push({id:'dkts-live-'+run.runId+'-'+key,label:'4200A · '+tr('本次测量预览','Live acquisition')+' '+key,points});}
    }
    return list;

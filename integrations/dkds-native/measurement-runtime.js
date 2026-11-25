@@ -249,6 +249,7 @@ function pageToBasicProgram(page, model){
      const v=page.timing,resource=resolvePulsePort(page.terminals.find(t=>t.logical===v.terminal)?.resource,v.channel);
      protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,[]);
      input={executionMode:'pulse',settings:v,summary:model.timedSummary('pulse',v),resource,wiringConfirmed:true};
+     if(v.secondary){const settings={...v,...v.secondary,secondary:null,sweep:'amplitude'};input.secondary={settings,summary:model.timedSummary('pulse',settings),resource:resolvePulsePort(page.terminals.find(t=>t.logical===settings.terminal)?.resource,settings.channel),wiringConfirmed:true};}
     }else{
      input=pageToSweepProgram(page,model);
      const routes=protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,Object.values(input.sweepProgram.terminals));
@@ -292,7 +293,7 @@ function pageToBasicProgram(page, model){
     if(rows.length){
      try{
       const connection=controller.status();
-      published=measurementData.publishRaw(ctx,{
+      published=measurementData.publishRun(ctx,{
        runId,rows,serial,startedAt:current.startedAt,
        finishedAt:current.finishedAt,runState:current.state,scope,
        source:{name:'KI4200A '+serial,model:'KI4200A',serial,

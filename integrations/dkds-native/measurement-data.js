@@ -8,6 +8,7 @@
   ['plannedTimeS','计划采样时间','s','raw'],['sampleStartS','主机采样起点','s','raw'],['sampleWindowOverrun','采样窗口超时','','raw'],
   ['plannedXCurrentA','Xsweep 设定电流','A','raw'],['plannedPCurrentA','Psweep 设定电流','A','raw'],['xCurrentA','Xsweep 实测电流','A','raw'],['pCurrentA','Psweep 实测电流','A','raw'],
   ['plannedXVoltageV','Xsweep 设定电压','V','raw'],['plannedPVoltageV','Psweep 设定电压','V','raw'],
+  ['pulseChannelSequence','通道原始点序','','index'],['pulseRunSequence','任务接收顺序','','index'],
   ['pulseVoltageV','脉冲实测电压','V','x'],['pulseCurrentA','脉冲实测电流','A','y'],
   ['drainVoltageV','漏极电压','V','x'],['drainCurrentA','漏极电流','A','y'],
   ['gateVoltageV','栅极电压','V','group'],['gateCurrentA','栅极电流','A','y'],
@@ -82,6 +83,19 @@
   return Object.freeze({artifactId:table.id,rows:rows.length,published:result?.changed!==false,
    canonical:true,unprocessed:true});
  }
- const api=Object.freeze({publishRaw,owner:OWNER,fields:FIELDS.map(x=>x[0])});
+function publishRun(ctx,opts){
+ const rows=opts.rows;
+ if(!rows?.length||rows[0].source!=='4200A-KXCI-PMU')return publishRaw(ctx,opts);
+ const groups=new Map();for(const row of rows){
+  if(row.source!=='4200A-KXCI-PMU')throw Error('Mixed measurement sources');
+  if(!groups.has(row.pulseResource))groups.set(row.pulseResource,[]);
+  const group=groups.get(row.pulseResource);
+  if(row.pulseChannelSequence!==undefined&&row.pulseChannelSequence!==group.length+1)throw Error('PMU channel sequence is not contiguous');
+  group.push({...row,pulseRunSequence:row.sequence,sequence:group.length+1});
+ }
+ const artifacts=[];for(const [resource,group] of groups)artifacts.push(publishRaw(ctx,{...opts,runId:groups.size>1?opts.runId+'-'+resource:opts.runId,rows:group}));
+ return {...artifacts[0],rows:rows.length,artifacts,canonical:true,unprocessed:true};
+}
+ const api=Object.freeze({publishRaw,publishRun,owner:OWNER,fields:FIELDS.map(x=>x[0])});
  window.DKDSPluginModules.define(OWNER,'measurementData',api,{replace:true});
 })();
