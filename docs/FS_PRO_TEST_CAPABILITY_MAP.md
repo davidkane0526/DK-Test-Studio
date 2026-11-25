@@ -53,3 +53,5 @@
 - Target: `set` 逐点运算、X/Y 表达式与别名已接入；H/P、向量函数及派生导出待完成。历史曲线按采集循环/外层扫描点分组。
 
 - Pulse: Psweep baseline steps, independent limited autorange, paired waveform plan (equal-length parallel sweeps/fixed train) compiled. No native nested waveform step implied; physical output unverified.
+
+- Generator: nonlinear/getp() via native list compiler, with original X/P index. Multi-channel list output requires commissioning; no per-point network execution.

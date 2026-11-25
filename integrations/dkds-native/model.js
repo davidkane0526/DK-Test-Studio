@@ -427,13 +427,13 @@
   return dcTerminals(p,settings).filter(t=>t.resource!=='GNDU').flatMap(t=>
    ['I','V'].map(prefix=>prefix+t.logical.toLowerCase()));
  }
-function targetExpression(input,known,deps){
+function targetExpression(input,known,deps,options={}){
  const s=String(input).trim();if(!s||s.length>512)throw Error('Target expression length must be 1–512');
  const re=/\s*([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?\d+)?|\.[0-9]+(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*|[()+*/,^-])/y;
  const t=[];for(let p=0;p<s.length;p=re.lastIndex){re.lastIndex=p;const a=re.exec(s);if(!a)throw Error('Invalid Target expression');t.push(a[1]);}
  let i=0;const arity={abs:1,sqrt:1,ln:1,lg:1,sin:1,cos:1,tan:1,asin:1,acos:1,atan:1,sinh:1,cosh:1,tanh:1,sgn:1,pow:2,mod:2,pi:0,e:0,scale:0};
  function atom(){const a=t[i++];if(a==='('){const n=sum();if(t[i++]!==')')throw Error('Unclosed Target expression');return n;}if(/^[\d.]/.test(a||'')){const n=Number(a);if(!Number.isFinite(n))throw Error('Invalid Target number');return ['n',n];}if(!a||! /^[A-Za-z]/.test(a))throw Error('Expected Target value');
- const k=a.toLowerCase();if(t[i]==='('){i++;const args=[];if(t[i]!==')'){args.push(sum());while(t[i]===','){i++;args.push(sum());}}if(t[i++]!==')'||!Object.hasOwn(arity,k)||args.length!==arity[k])throw Error('Unsupported Target function: '+a);return ['f',k,args];}if(!known.has(k))throw Error('Unknown Target variable: '+a);deps.add(k);return ['v',k];}
+ const k=a.toLowerCase();if(t[i]==='('){i++;const args=[];if(t[i]!==')'){args.push(sum());while(t[i]===','){i++;args.push(sum());}}if((k==='getx'||k==='getp')&&options.generator&&args.length===0){if(t[i++]!==')'||k==='getp'&&!options.outer)throw Error('Generator has no Psweep');return ['v',k];}if(t[i++]!==')'||!Object.hasOwn(arity,k)||args.length!==arity[k])throw Error('Unsupported Target function: '+a);return ['f',k,args];}if(!known.has(k))throw Error('Unknown Target variable: '+a);deps.add(k);return ['v',k];}
  function power(){const a=atom();if(t[i]==='^'){i++;return ['^',a,unary()];}return a;}
  function unary(){if(t[i]==='+'||t[i]==='-'){const op=t[i++];return op==='+'?unary():['neg',unary()];}return power();}
  function product(){let a=unary();while(t[i]==='*'||t[i]==='/'){const op=t[i++];a=[op,a,unary()];}return a;}
@@ -483,7 +483,9 @@ function dcAffine(raw,variables,polarity){
  function sum(){let a=product();while(['+','-'].includes(tokens[i])){const op=tokens[i++],b=scale(product(),op==='-'?-1:1);a=[a[0]+b[0],a[1]+b[1]];}return a;}
  const [ratio,offset]=sum();if(i!==tokens.length||!Number.isFinite(ratio)||!Number.isFinite(offset))throw Error('Invalid Generator expression');if(Math.abs(ratio)>10||Math.abs(offset)>210)throw Error('Native Generator ratio/offset exceed RT/FS limits');return {ratio,offset};
 }
- function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
+ function generatorEvaluator(raw,variables,polarity,outer){const env=Object.assign(Object.create(null),Object.fromEntries(Object.entries(variables).map(([k,v])=>[k.toLowerCase(),Number(v)])));const ast=targetExpression(raw,new Set(Object.keys(env)),new Set(),{generator:true,outer});return (x,p)=>{const value=targetValue(ast,{...env,getx:x,getp:p},polarity);if(!Number.isFinite(value))throw Error('Generator output is not finite');return value;};}
+function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
+  if(generator){generatorEvaluator(raw,variables,polarity,outer);return NaN;}
   const input=String(raw??'').trim();
   if(!input||input.length>256)throw Error('Enter an expression of 1–256 characters');
   const tokenPattern=/\s*([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?\d+)?|\.[0-9]+(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*|[()+*/-])/y;
@@ -1262,6 +1264,6 @@ function dcAffine(raw,variables,polarity){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,dcSummary,dcExpression,dcAffine,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,pulseSecondarySettings,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,pulseSecondarySettings,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

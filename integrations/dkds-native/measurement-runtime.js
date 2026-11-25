@@ -49,7 +49,7 @@ function pageToBasicProgram(page, model){
   const delay=dc.strategy.mode==='local'&&dc.strategy.delay.trim()?n(dc.strategy.delay,'Delay')*1000:0;
   check(dc.reference==='GND'||ports[dc.reference]?.resource==='GNDU','仅支持接地参考');
   const vars=Object.fromEntries(page.variables.map(v=>[v.name,Number(v.value)])),v=x=>model.dcExpression(x,vars,dc.polarity);
-  const axes={},generators={};
+  const axes={},generators={},generatorFormulas={};
   for(const k of active){
    const row=dc.terminals[k],r=roles[k];
    const current=row.mode==='current';
@@ -59,7 +59,7 @@ function pageToBasicProgram(page, model){
    check(new Set(row.segments.map(s=>s.range)).size===1,'扫描段间量程切换尚未接入');
    const range=row.segments[0].range;
    portSettings[r]={rangeMode:range==='auto'?'auto':'fixed',rangeA:range==='auto'?'1e-6':range,complianceMode:'custom',...(current?{complianceV:n(row.limitV,k+' 限压')}:{complianceA:n(row.limitI,k+' 限流')})};
-   if(row.role==='CONDITION'){const s=row.segments[0];if(s.method==='generator'){check(dc.preset==='optimized'&&!current,'原生 Generator 使用 Optimized 电压源');generators[r]=model.dcAffine(s.formula,vars,dc.polarity);}else{check(s.method==='constant','未知 Condition 模式');(current?fixedCurrents:fixedVoltages)[r]=v(s.value);}continue;}
+   if(row.role==='CONDITION'){const s=row.segments[0];if(s.method==='generator'){check(dc.preset==='optimized','Generator 使用 Optimized 原生扫描');generatorFormulas[r]=s.formula;}else{check(s.method==='constant','未知 Condition 模式');(current?fixedCurrents:fixedVoltages)[r]=v(s.value);}continue;}
    const segs=[];
    const make=(a,b,c)=>current?{startA:a,stopA:b,stepA:c,rangeA:range,delayMs:delay}:segment(a,b,c,range,delay);
    for(const s of row.segments){
@@ -79,15 +79,28 @@ function pageToBasicProgram(page, model){
   }
   check(axes.X,'缺少 Xsweep');
   if(dc.strategy.direction==='forward-reverse'){
-   check(!axes.P||dc.preset==='point-by-point','Optimized 双向扫描暂仅支持单轴；嵌套扫描需独立核验');
+   check(!axes.P||dc.preset==='point-by-point'||Object.keys(generatorFormulas).length,'Optimized 双向扫描与 Psweep 需要原生列表模式');
    const x=axes.X,r=x.terminal,current=sourceModes[r]==='current',levels=[];
    for(const seg of x.segments){const a=current?seg.startA:seg.startV,b=current?seg.stopA:seg.stopV,d=current?seg.stepA:seg.stepV;const count=a===b?1:Math.round((b-a)/d)+1;check(Number.isSafeInteger(count)&&count>=1&&count<=4096&&(count===1||Math.abs(a+(count-1)*d-b)<=Math.max(1e-15,Math.abs(d)*1e-8)),'双向扫描起止值与步长不匹配');for(let i=0;i<count;i++)levels.push({...seg,value:i===count-1?b:a+i*d});check(levels.length<=4096,'扫描点数超出单轴容量');}
    // Turning point is measured once. Other repeated points are preserved.
    const ordered=[...levels,...levels.slice(0,-1).reverse()];check(ordered.length<=4096,'往返扫描最多 4096 点');
    axes.X={...x,segments:ordered.map(({value,rangeA,delayMs})=>current?{startA:value,stopA:value,stepA:0,rangeA,delayMs}:segment(value,value,0,rangeA,delayMs))};
   }
-  if(Object.keys(generators).length)check(sourceModes[axes.X.terminal]==='voltage','原生 Generator 需要电压 Xsweep');
-  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,systemIntegration:integration,requestedOutputs:info.outputs,plotSignals,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
+  const followers={};let dcList=null;
+  if(Object.keys(generatorFormulas).length){
+   const x=axes.X,p=axes.P,mode=sourceModes[x.terminal],seg=x.segments[0],current=mode==='current';
+   const linear=x.segments.length===1&&((current?seg.stopA:seg.stopV)!==(current?seg.startA:seg.startV))&&Math.abs((current?seg.stopA-seg.startA:seg.stopV-seg.startV)/(current?seg.stepA:seg.stepV))+1<=1024&&(!current&&[seg.startV,seg.stopV,seg.stepV].every(z=>z===0||Math.abs(z)>=.001));
+   let affine=linear;for(const [role,formula] of Object.entries(generatorFormulas)){try{if(sourceModes[role]!=='voltage')throw Error('current generator');generators[role]=model.dcAffine(formula,vars,dc.polarity);}catch{affine=false;}}
+   if(!affine){for(const role of Object.keys(generators))delete generators[role];
+    const expand=a=>{const cur=sourceModes[a.terminal]==='current',values=[];for(const s of a.segments){const [lo,hi,step]=cur?[s.startA,s.stopA,s.stepA]:[s.startV,s.stopV,s.stepV];const count=lo===hi?1:Math.round((hi-lo)/step)+1;check(Number.isSafeInteger(count)&&count>=1&&count<=4096&&(count===1||Math.abs(lo+(count-1)*step-hi)<=Math.max(1e-15,Math.abs(step)*1e-8)),'Generator 列表轴参数无效');check(values.length+count<=4096,'Generator 列表超过 4096 点');for(let i=0;i<count;i++)values.push(i===count-1?hi:lo+i*step);}return values;};
+    const xs=expand(x),ps=p?expand(p):[null];check(xs.length*ps.length<=4096,'Generator 单次列表最多 4096 点');
+    const master=[],pLevels=[],evals=Object.fromEntries(Object.entries(generatorFormulas).map(([role,expr])=>[role,model.generatorEvaluator(expr,vars,dc.polarity,!!p)]));for(const role of Object.keys(evals))followers[role]=[];if(p)followers[p.terminal]=[];
+    for(const pv of ps)for(const xv of xs){master.push(xv);if(p){followers[p.terminal].push(pv);pLevels.push(pv);}for(const [role,evalFn] of Object.entries(evals))followers[role].push(evalFn(xv,pv));}
+    dcList={xCount:xs.length,pRole:p?.terminal||null,pMode:p?sourceModes[p.terminal]:null,pValues:pLevels};
+    const range=x.segments[0].rangeA;axes.X={...x,segments:master.map(z=>current?{startA:z,stopA:z,stepA:0,rangeA:range,delayMs:delay}:segment(z,z,0,range,delay))};delete axes.P;
+   }
+  }
+  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,systemIntegration:integration,requestedOutputs:info.outputs,plotSignals,dcList,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,listFollowers:followers,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
  }
  if(page.kind==='time'){
   const t=page.timing,summary=model.timedSummary('time',t);
@@ -288,7 +301,7 @@ function pageToBasicProgram(page, model){
      inventory:connection.inventory,capabilities:hardwareCapabilities
     });
     const protocolPolicy=hardwareCapabilities.DATABASE?.safetyPolicies?.kxci||{};
-    const protocolVerified=compiled.pulse?protocolPolicy.pmuModeManualVerified===true&&protocolPolicy.allowPulseModeOutput===true&&(!compiled.pulse.arb||protocolPolicy.segmentArbManualVerified===true&&protocolPolicy.allowSegmentArbOutput===true):compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true&&(!compiled.system.timeList?.multiChannel||protocolPolicy.allowMultiChannelListOutput===true):protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
+    const protocolVerified=compiled.pulse?protocolPolicy.pmuModeManualVerified===true&&protocolPolicy.allowPulseModeOutput===true&&(!compiled.pulse.arb||protocolPolicy.segmentArbManualVerified===true&&protocolPolicy.allowSegmentArbOutput===true):compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true&&(!(compiled.system.timeList?.multiChannel||compiled.system.dcList?.multiChannel)||protocolPolicy.allowMultiChannelListOutput===true):protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
     let reason='';
     if(!protocolVerified)reason=compiled.pulse?'脉冲方案已转换；等待受控实机验收后开放输出':'Rev F 已取得；当前执行模式尚未取得输出许可';
     else if(!executionAdapterAvailable)reason='当前 DKDS 宿主缺少生命周期管理的查询/停止调度器';
