@@ -56,10 +56,10 @@
    events:Object.freeze([{terminal:'D',quantity:'Current',startS:'0.1',intervalS:'0.1',averageS:'0.02',points:'9'}])}),
   retention:Object.freeze({terminal:'D',conditionV:'0',conditionS:'0',holdV:'0',readV:'0.1',
    firstS:'1',lastS:'100',windowS:'0.05',points:'10',spacing:'log',complianceA:'0.001'}),
-  pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',
+  pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',basePeakV:'',
    start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
    delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
-   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:'',secondary:null,arb:null,arbPartner:null,testMode:'sweep'})
+   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',secondary:null,arb:null,arbPartner:null,testMode:'sweep'})
  });
  // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
  const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});
@@ -205,8 +205,9 @@
   if(![10,40].includes(rangeV)||!['1','2'].includes(v.channel)||!['amplitude','base'].includes(v.sweep)||!['spot','waveform'].includes(v.mode))
    throw Error('Invalid PMU range, sweep or acquisition mode');
   const points=segmentPoints({start,stop,step});
-  const peakV=Math.max(Math.abs(fixedV+start),Math.abs(fixedV+stop),
-   ...(v.sweep==='amplitude'?[Math.abs(fixedV)]:[Math.abs(start),Math.abs(stop)]));
+  const basePeakV=v.sweep==='base'?(v.basePeakV===''?(points===1?start+fixedV:NaN):n('basePeakV')):null;
+  if(v.sweep==='base'&&!Number.isFinite(basePeakV))invalidField('basePeakV','Enter the fixed absolute peak voltage for a multi-point base sweep');
+  const peakV=v.sweep==='amplitude'?Math.max(Math.abs(fixedV+start),Math.abs(fixedV+stop),Math.abs(fixedV)):Math.max(Math.abs(basePeakV),Math.abs(start),Math.abs(stop));
   if(peakV>rangeV)throw Error('Pulse base or top exceeds the selected voltage range');
   if(v.loadOhms!==''&&(n('loadOhms')<1||n('loadOhms')>1000000))throw Error('Load must be between 1 Ω and 1 MΩ');
   const rise=n('riseUs'),fall=n('fallUs'),period=n('periodUs'),width=n('widthUs'),delay=n('delayUs');
@@ -220,12 +221,17 @@
   const pulseCount=positiveInt(v.pulseCount,65536,'Pulse count'),rateHz=positiveInt(v.rateHz,200000000,'Sample rate');
   if(rateHz<1000)throw Error('Sample rate is below 1 kSa/s');
   if(v.currentRangeA!==''&&n('currentRangeA')<=0)throw Error('Current range must be positive');
-  const result={points,pulseCount,rateHz,rangeV,peakV,windowS:windowUs*1e-6,loadOhms:v.loadOhms===''?null:n('loadOhms')};
+  if(!['fixed','limited-auto'].includes(v.rangePolicy))throw Error('Invalid current range policy');
+  const pre=n('prePercent'),post=n('postPercent'),duration=rise+width+fall;
+  if(pre<0||pre>1||post<0||post>1)throw Error('Waveform pre/post fraction must be between 0 and 1');
+  if(v.mode==='waveform'&&(pre*duration>delay+1e-9||post*duration>period-delay-duration+1e-9))throw Error('Waveform pre/post capture exceeds available base time');
+  const captureWindowS=v.mode==='waveform'?duration*(1+pre+post)*1e-6:windowUs*1e-6;
+  const result={points,pulseCount,rateHz,rangeV,peakV,basePeakV,captureWindowS,windowS:windowUs*1e-6,loadOhms:v.loadOhms===''?null:n('loadOhms')};
   if(v.secondary!==null){
    if(!v.secondary||typeof v.secondary!=='object'||Array.isArray(v.secondary)||v.secondary.terminal===v.terminal||!['S','D','G'].includes(v.secondary.terminal))throw Error('Select a distinct Psweep terminal');
    const allowed=['terminal','channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA'];
    if(Object.keys(v.secondary).some(k=>!allowed.includes(k))||allowed.some(k=>typeof v.secondary[k]!=='string'))throw Error('Invalid Psweep pulse parameters');
-   const outer=timedSummary('pulse',{...v,...v.secondary,secondary:null,sweep:'amplitude'});
+   const outer=timedSummary('pulse',{...v,...v.secondary,secondary:null,sweep:'amplitude',rangePolicy:'fixed'});
    if(v.mode!=='spot')throw Error('Dual-channel pulse currently requires Spot Mean');
    if(outer.points>1&&points===1)throw Error('Psweep requires a multi-point Xsweep');
    result.secondary=outer;result.totalSweepPoints=points*outer.points;

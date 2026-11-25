@@ -700,8 +700,8 @@
    const withRpm=slot?.rpmChannels?.includes(Number(match?.[3]||values.channel))===true;
    return {resource,match,slot,pmuVerified,withRpm};
   }
-  const captureBudget=(result,rate)=>hardware.getPmuCaptureBudget(result.windowS*(result.totalSweepPoints||result.points)*result.pulseCount,
-   result.windowS,rate,{pulseCount:result.pulseCount,sweepPoints:result.points,stepPoints:result.secondary?.points||1});
+  const captureBudget=(result,rate)=>hardware.getPmuCaptureBudget((result.captureWindowS??result.windowS)*(result.totalSweepPoints||result.points)*result.pulseCount,
+   result.captureWindowS??result.windowS,rate,{pulseCount:result.pulseCount,sweepPoints:result.points,stepPoints:result.secondary?.points||1});
   function pulseCompatibility(values,result,budget=captureBudget(result,result.rateHz)){
    const measured=hardware.getPulseTimingRecommendation(result.rangeV,null,true,'pmu',false,result.peakV);
    const timing=measured.kxciInterfaceTiming;
@@ -770,7 +770,7 @@
      const levels=panel('Xsweep · 脉冲电平','Xsweep · Pulse levels');
      const amplitude=values.sweep==='amplitude';
      select(levels,'sweep',tr('扫描方式','Sweep mode'),[['amplitude',tr('扫描幅值','Amplitude sweep')],['base',tr('扫描基线','Base sweep')]]);
-     if(!amplitude)fields(levels,[['fixedV','固定幅值 (V)','Fixed amplitude (V)']]);
+     if(!amplitude){fields(levels,[['basePeakV','固定峰值 (V)','Fixed peak (V)']]);if(values.basePeakV==='')fields(levels,[['fixedV','旧单点相对幅值 (V)','Legacy single-point relative amplitude (V)']]);}
      fields(levels,[['start','起始 (V)','Start (V)'],['stop','终止 (V)','Stop (V)'],['step','步进 (V)','Step (V)']]);
      const outer=panel('Psweep · 脉冲电平','Psweep · Pulse levels');
      const otherKeys=['S','D','G'].filter(key=>key!==values.terminal);
@@ -806,6 +806,7 @@
      }
      if(amplitude)fields(advanced,[['fixedV','基线电平 (V)','Base Level (V)']]);
      select(advanced,'currentRangeA',tr('量程选择','Range Selection'),pulseRanges());
+     if(values.currentRangeA)select(advanced,'rangePolicy',tr('量程模式','Range mode'),[['fixed',tr('固定','Fixed')],['limited-auto',tr('最低自动量程','Limited auto')]]);
      units.action.create(advanced,{id:'dkts-pulse-auto',label:tr('自动测量设置','Auto measurement settings'),
       variant:'quiet',direct:true,onInvoke:()=>{
        for(const key of ['windowStartUs','windowTimeUs','currentRangeA'])values[key]='';
@@ -824,6 +825,7 @@
     const event=panel('测量事件','Measure event');
     if(pulse){
      select(event,'mode',tr('采样方式','Acquisition'),[['spot',tr('窗内均值（Pulse I–V）','Spot mean (Pulse I–V)')],['waveform',tr('窗内波形','Window waveform')]]);
+     if(values.mode==='waveform')fields(event,[['prePercent','脉冲前采样比例 (0–1)','Pre-data fraction (0–1)'],['postPercent','脉冲后采样比例 (0–1)','Post-data fraction (0–1)']]);
      const presets=['1000','10000','100000','1000000','10000000','50000000','100000000','200000000'];
      let rates=[];
      try{
