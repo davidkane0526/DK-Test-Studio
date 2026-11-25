@@ -402,6 +402,15 @@ function normalizeSegmentArb(settings){
  }
  return Object.freeze({arb:true,segments:Object.freeze(segments),loops,rangeV,rateHz,peakV,minV,maxV,loadOhms,points:measureCount,pulseCount:loops,records,estimatedRecords:measureCount?(v.mode==='spot'?records:budget.sampleCountAtSelectedRate):0,windowS:measureCount?minMeasureTicks/1e8:0,totalMeasureDurationS:measureTicks*loops/1e8,durationS:totalTicks*loops/1e8,durationTicksExact:String(BigInt(totalTicks)*BigInt(loops)),budget});
 }
+function normalizeArbPair(settings){
+ const main=normalizeSegmentArb(settings),partner=settings.arbPartner;
+ if(!partner)return main;
+ if(!partner.arb||partner.terminal===settings.terminal)throw Error('时序端子必须不同');
+ const v={...settings,...partner,arbPartner:null,secondary:null,rateHz:settings.rateHz,testMode:'sequence'};
+ const second=normalizeSegmentArb(v);
+ if(main.durationTicksExact!==second.durationTicksExact)throw Error('双通道总时长必须相等；请设置明确的等待段，不自动补齐');
+ return Object.freeze({...main,partner:second,totalEstimatedRecords:main.estimatedRecords+second.estimatedRecords});
+}
   function getPmuCurrentRanges(rangeV, withRpm = false) {
     const mod = getModuleCapability(withRpm ? 'PMURPM' : 'PMU');
     const ranges = mod.measurement[withRpm ? 'withRpmCurrentRangesA' : 'currentRangesA'][String(Number(rangeV))];
@@ -548,7 +557,7 @@ function normalizeSegmentArb(settings){
     });
   }
   function exportDatabase() { return JSON.parse(JSON.stringify(DATABASE)); }
-  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, normalizeSegmentArb, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
+  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, normalizeSegmentArb, normalizeArbPair, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
   if (typeof window !== 'undefined') {
     window.DKTSHardwareCapabilities = api;
     if (window.DKDSPluginModules) window.DKDSPluginModules.define('com.dkts.keithley-4200', 'dkts-capabilities', api);

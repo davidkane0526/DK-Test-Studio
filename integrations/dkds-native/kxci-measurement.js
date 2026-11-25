@@ -468,8 +468,22 @@ function compileSegmentArb(input,hardware){
  const physicalVerified=inventory?.physicalModelsVerified===true&&inventory?.hardwareLimitsVerified===true;
  return Object.freeze({plan:{kind:'pulse'},pulse,physicalVerified,capabilityVerified:true,requiresInterlock:s.peakV>21,canExecute:physicalVerified&&s.peakV<=21,channels:{[role]:ch},active:[role],totalPoints:s.estimatedRecords,commandMode:'KXCI-PMU-SARB'});
 }
+function compileSegmentArbPair(input,hardware){
+ const summary=hardware.capabilities.normalizeArbPair(input.settings);
+ if(!input.arbPartner||!summary.partner)throw Error('缺少第二端子配置');
+ const a=compileSegmentArb({...input,settings:{...input.settings,arbPartner:null}},hardware),b=compileSegmentArb({...input,...input.arbPartner,settings:{...input.arbPartner.settings,arbPartner:null}},hardware);
+ const x=a.pulse,y=b.pulse;
+ if(x.role===y.role||x.pulseChannel===y.pulseChannel)throw Error('两个时序端子不能共享物理输出');
+ if(x.durationTicksExact!==y.durationTicksExact||x.durationTicksExact!==summary.durationTicksExact)throw Error('时序总时长不一致');
+ const power=hardware.capabilities.calculateChassisPower({inventory:hardware.inventory,activePulseChannels:[x,y].map(z=>({family:'PMU',cardIndex:z.card,rangeV:z.rangeV}))});
+ if(!power.known||!power.withinLimit)throw Error('双通道机箱功耗超限或未核验');
+ const local=z=>z.setup.filter(c=>!['SS','ZE',':PMU:INIT 1'].includes(c)&&!c.startsWith(':PMU:SAMPLE:RATE ')&&!c.startsWith(':PMU:OUTPUT:STATE '));
+ const setup=['SS','ZE',':PMU:INIT 1',...x.setup.filter(c=>c.startsWith(':PMU:SAMPLE:RATE ')),...local(x),...local(y),`:PMU:OUTPUT:STATE ${x.pulseChannel},1`,`:PMU:OUTPUT:STATE ${y.pulseChannel},1`];
+ const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,y.countQuery],cleanup:[x.offCommand,y.offCommand,':PMU:ABORT'],channels:[x,y],resources:[x.resource,y.resource],peak:Math.max(x.peak,y.peak),estimatedRecords:x.estimatedRecords+y.estimatedRecords};
+ return {...a,pulse,channels:{...a.channels,...b.channels},active:[...a.active,...b.active],totalPoints:pulse.estimatedRecords,requiresInterlock:a.requiresInterlock||b.requiresInterlock,canExecute:a.canExecute&&b.canExecute};
+}
   function compileSweep(input,hardware={}){
-    if(input.executionMode==='pulse')return (input.settings?.testMode==='sequence'||input.settings?.testMode===undefined&&input.settings?.arb!=null)?compileSegmentArb(input,hardware):input.secondary?compilePulsePair(input,hardware):compilePulse(input,hardware);
+    if(input.executionMode==='pulse')return (input.settings?.testMode==='sequence'||input.settings?.testMode===undefined&&input.settings?.arb!=null)?(input.settings.arbPartner?compileSegmentArbPair(input,hardware):compileSegmentArb(input,hardware)):input.secondary?compilePulsePair(input,hardware):compilePulse(input,hardware);
     const planner=typeof require==='function'
       ?require('./measurement-plan.js')
       :window.DKDSPluginModules.require('dkts-plan');
@@ -789,7 +803,7 @@ function compileSegmentArb(input,hardware){
     }
     return Object.freeze({start,stop,status:publicState,waitForCompletion,dispose});
   }
-  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,parsePulseBlock,executePulseTask});
+  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,compileSegmentArbPair,parsePulseBlock,executePulseTask});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
     window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci-measurement',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

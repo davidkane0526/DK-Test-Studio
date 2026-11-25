@@ -886,39 +886,55 @@
   }
 
   function renderArbTiming(host,p,values,put,panel,fields,select,pulseRanges){
-   const draft=editorPlan.draft,blocks=values.arb.blocks||[{loops:values.arb.loops,segments:values.arb.segments}];
+   const draft=editorPlan.draft;
+   const partnerActive=Boolean(values.arbPartner&&draft.arbChannel===1),current=()=>partnerActive?values.arbPartner:values,settings=current();
+   const putChannel=(key,value)=>{if(partnerActive)put('arbPartner',{...values.arbPartner,[key]:value});else put(key,value);};
+   const blocks=settings.arb.blocks||[{loops:settings.arb.loops,segments:settings.arb.segments}];
    const selected=Math.max(0,Math.min(blocks.length-1,draft.arbBlock||0)),arb=blocks[selected];
-   const change=(key,value)=>{const current=values.arb.blocks||[values.arb];put('arb',{blocks:current.map((b,i)=>i===selected?{...b,[key]:value}:b)});refresh();};
+   const change=(key,value)=>{const latest=current().arb.blocks||[current().arb];putChannel('arb',{blocks:latest.map((b,i)=>i===selected?{...b,[key]:value}:b)});refresh();};
    const field=(target,label,value,onChange,path)=>scalarField(target,label,String(value),v=>{onChange(String(v));},false,{'data-dkts-parameter-path':path},false,true);
    if(editorSection==='sweep'){
+    const channels=panel('时序端子','Sequence terminals');
+    dcSelect(channels,tr('第二端子','Second terminal'),values.arbPartner?.terminal||'None',[{value:'None',label:'None'},...['S','D','G'].filter(k=>k!==values.terminal).map(k=>({value:k,label:t(logicalNames[k])+' · '+pulsePort(p,{...values,terminal:k}).resource}))],terminal=>{
+     if(terminal==='None'){draft.arbChannel=0;put('arbPartner',null);}
+     else{const old=values.arbPartner;put('arbPartner',old?{...old,terminal}:{terminal,channel:values.channel,rangeV:values.rangeV,loadOhms:values.loadOhms,currentRangeA:values.currentRangeA,mode:values.mode,arb:JSON.parse(JSON.stringify(values.arb))});}
+     draft.arbBlock=0;draft.arbPage=0;render();
+    },{key:'arb-second-terminal'});
+    if(values.arbPartner)dcSelect(channels,tr('编辑端子','Edit terminal'),partnerActive?'1':'0',[{value:'0',label:t(logicalNames[values.terminal])},{value:'1',label:t(logicalNames[values.arbPartner.terminal])}],v=>{draft.arbChannel=Number(v);draft.arbBlock=0;draft.arbPage=0;render();},{key:'arb-edit-terminal'});
     const input=panel('输入设置','Input settings');
-    select(input,'terminal',tr('端子','Terminal'),['S','D','G'].map(key=>[key,t(logicalNames[key])+' · '+pulsePort(p,{...values,terminal:key}).resource]));
-    select(input,'rangeV',tr('电压档','Voltage range'),[['10','10 V'],['40','40 V']]);
-    field(input,tr('负载 (Ω)','Load (Ω)'),values.loadOhms,v=>{put('loadOhms',v);refresh();},'loadOhms');
-    select(input,'currentRangeA',tr('固定电流档','Fixed current range'),pulseRanges().filter(([key])=>key!==''));
+    const choices=['S','D','G'].filter(k=>k!==(partnerActive?values.terminal:values.arbPartner?.terminal));
+    const channelSelect=(target,key,label,options)=>dcSelect(target,label,String(settings[key]),options.map(([value,label])=>({value,label})),value=>{putChannel(key,value);render();},{key:'arb-'+key});
+    channelSelect(input,'terminal',tr('端子','Terminal'),choices.map(key=>[key,t(logicalNames[key])+' · '+pulsePort(p,{...values,...settings,terminal:key}).resource]));
+    const port=pulsePort(p,{...values,...settings});
+    if(!port.match?.[3])channelSelect(input,'channel',tr('卡内通道','Card channel'),[['1','CH1'],['2','CH2']]);
+    channelSelect(input,'rangeV',tr('电压档','Voltage range'),[['10','10 V'],['40','40 V']]);
+    field(input,tr('负载 (Ω)','Load (Ω)'),settings.loadOhms,v=>{putChannel('loadOhms',v);refresh();},'loadOhms');
+    const ranges=port.pmuVerified?hardware.getPmuCurrentRanges(Number(settings.rangeV),port.withRpm):[];
+    channelSelect(input,'currentRangeA',tr('固定电流档','Fixed current range'),ranges.map(r=>[String(r),String(r)+' A']));
     const sequencePanel=panel('序列组合','Sequence list');
     dcSelect(sequencePanel,tr('序列','Sequence'),String(selected),blocks.map((b,i)=>({value:String(i),label:(i+1)+' · '+b.loops+' × '+b.segments.length+' '+tr('段','segments')})),v=>{draft.arbBlock=Number(v);draft.arbPage=0;render();},{key:'arb-block'});
-    if(blocks.length<512&&blocks.reduce((n,b)=>n+b.segments.length,0)<=2045)units.action.create(sequencePanel,{id:'dkts-arb-block-add',label:tr('增加序列','Add sequence'),variant:'quiet',direct:true,onInvoke:()=>{const end=blocks.at(-1).segments.at(-1).stopV;const segment={startV:end,stopV:end,durationUs:'10',measure:false,measureStartUs:'0',measureStopUs:'0'};put('arb',{blocks:[...blocks,{loops:'1',segments:Array.from({length:3},()=>({...segment}))}]});draft.arbBlock=blocks.length;draft.arbPage=0;render();}});
-    if(blocks.length>1)units.action.create(sequencePanel,{id:'dkts-arb-block-remove',label:tr('删除当前序列','Remove sequence'),variant:'quiet',direct:true,onInvoke:()=>{put('arb',{blocks:blocks.filter((_,i)=>i!==selected)});draft.arbBlock=Math.max(0,selected-1);draft.arbPage=0;render();}});
+    if(blocks.length<512&&blocks.reduce((n,b)=>n+b.segments.length,0)<=2045)units.action.create(sequencePanel,{id:'dkts-arb-block-add',label:tr('增加序列','Add sequence'),variant:'quiet',direct:true,onInvoke:()=>{const end=blocks.at(-1).segments.at(-1).stopV;const segment={startV:end,stopV:end,durationUs:'10',measure:false,measureStartUs:'0',measureStopUs:'0'};putChannel('arb',{blocks:[...blocks,{loops:'1',segments:Array.from({length:3},()=>({...segment}))}]});draft.arbBlock=blocks.length;draft.arbPage=0;render();}});
+    if(blocks.length>1)units.action.create(sequencePanel,{id:'dkts-arb-block-remove',label:tr('删除当前序列','Remove sequence'),variant:'quiet',direct:true,onInvoke:()=>{putChannel('arb',{blocks:blocks.filter((_,i)=>i!==selected)});draft.arbBlock=Math.max(0,selected-1);draft.arbPage=0;render();}});
     field(sequencePanel,tr('序列重复次数','Sequence repeats'),arb.loops,v=>change('loops',v),'arb.loops');
     const seq=panel('时序段','Sequence segments');
     const count=arb.segments.length;
     const pageCount=Math.ceil(count/32),pageIndex=Math.max(0,Math.min(pageCount-1,draft.arbPage||0));
     if(pageCount>1)dcSelect(seq,tr('段范围','Segments'),String(pageIndex),Array.from({length:pageCount},(_,i)=>({value:String(i),label:(i*32+1)+'–'+Math.min(count,(i+1)*32)})),v=>{draft.arbPage=Number(v);render();},{key:'arb-page'});
-    const edit=(i,key,val)=>{const current=(values.arb.blocks||[values.arb])[selected];const segments=current.segments.map((s,j)=>j===i?{...s,[key]:val}:s);change('segments',segments);};
+    const edit=(i,key,val)=>{const current=(current().arb.blocks||[current().arb])[selected];const segments=current.segments.map((s,j)=>j===i?{...s,[key]:val}:s);change('segments',segments);};
     for(let i=pageIndex*32;i<Math.min(count,(pageIndex+1)*32);i++){
      const s=arb.segments[i],row=units.panel.create(seq,{variant:'headed',title:tr('段 ','Segment ')+(i+1),sizing:'content',className:'dkts-timing-panel'}).body;
      for(const [key,zh,en] of [['startV','起始电压 (V)','Start (V)'],['stopV','终止电压 (V)','Stop (V)'],['durationUs','时长 (µs)','Duration (µs)']])field(row,tr(zh,en),s[key],v=>edit(i,key,v),'arb.segments.'+i+'.'+key);
      dcSelect(row,tr('测量','Measure'),s.measure?'on':'off',[{value:'off',label:tr('不测量','Off')},{value:'on',label:tr('测量','On')}],v=>{edit(i,'measure',v==='on');render();},{key:'arb-measure-'+i});
      if(s.measure)for(const [key,zh,en] of [['measureStartUs','测量起点 (µs)','Measure start (µs)'],['measureStopUs','测量终点 (µs)','Measure stop (µs)']])field(row,tr(zh,en),s[key],v=>edit(i,key,v),'arb.segments.'+i+'.'+key);
-     if(count>3)units.action.create(row,{id:'dkts-arb-remove-'+i,label:tr('删除','Remove'),variant:'quiet',direct:true,onInvoke:()=>{change('segments',(values.arb.blocks||[values.arb])[selected].segments.filter((_,j)=>i!==j));render();}});
+     if(count>3)units.action.create(row,{id:'dkts-arb-remove-'+i,label:tr('删除','Remove'),variant:'quiet',direct:true,onInvoke:()=>{change('segments',(current().arb.blocks||[current().arb])[selected].segments.filter((_,j)=>i!==j));render();}});
     }
-    if(blocks.reduce((n,b)=>n+b.segments.length,0)<2048)units.action.create(seq,{id:'dkts-arb-add',label:tr('增加时序段','Add segment'),variant:'quiet',direct:true,onInvoke:()=>{const current=(values.arb.blocks||[values.arb])[selected].segments;const last=current.at(-1);change('segments',[...current,{startV:last.stopV,stopV:last.stopV,durationUs:'10',measure:false,measureStartUs:'0',measureStopUs:'0'}]);draft.arbPage=Math.floor(count/32);render();}});
+    if(blocks.reduce((n,b)=>n+b.segments.length,0)<2048)units.action.create(seq,{id:'dkts-arb-add',label:tr('增加时序段','Add segment'),variant:'quiet',direct:true,onInvoke:()=>{const current=(current().arb.blocks||[current().arb])[selected].segments;const last=current.at(-1);change('segments',[...current,{startV:last.stopV,stopV:last.stopV,durationUs:'10',measure:false,measureStartUs:'0',measureStopUs:'0'}]);draft.arbPage=Math.floor(count/32);render();}});
    }else if(editorSection==='target'){
-    const event=panel('测量事件','Measure event');select(event,'mode',tr('采样方式','Acquisition'),[['spot',tr('窗口均值','Spot mean')],['waveform',tr('窗口波形','Waveform')]]);field(event,tr('采样率 (Sa/s)','Sample rate (Sa/s)'),values.rateHz,v=>{put('rateHz',v);refresh();},'rateHz');
+    const event=panel('测量事件','Measure event');
+    for(const [label,config,isPartner] of [[t(logicalNames[values.terminal]),values,false],...(values.arbPartner?[[t(logicalNames[values.arbPartner.terminal]),values.arbPartner,true]]:[])])dcSelect(event,label+' · '+tr('采样方式','Acquisition'),config.mode,[{value:'spot',label:tr('窗口均值','Spot mean')},{value:'waveform',label:tr('窗口波形','Waveform')}],v=>{if(isPartner)put('arbPartner',{...values.arbPartner,mode:v});else put('mode',v);refresh();},{key:'arb-mode-'+label});field(event,tr('采样率 (Sa/s)','Sample rate (Sa/s)'),values.rateHz,v=>{put('rateHz',v);refresh();},'rateHz');
    }else{const strategy=panel('测量策略','Strategy');units.note.create(strategy,{variant:'meta',text:tr('由仪器执行完整序列及重复次数。','The instrument executes the complete sequence and repetitions.')});}
    const summary=panel('方案校验','Plan checks');
-   function refresh(){summary.replaceChildren();try{const s=model.timedSummary('pulse',values);units.note.create(summary,{variant:'meta',text:(s.blocks?s.blocks.length+' '+tr('序列','sequences')+' · ':'')+s.segments.length+' '+tr('段','segments')+(s.blocks?'':' × '+s.loops)+' · '+s.durationS+' s · '+tr('预计记录 ','Estimated records ')+s.estimatedRecords});if(s.loadOhms===null||values.currentRangeA==='')units.note.create(summary,{variant:'warning',text:tr('请选择负载及固定电流档。','Set the load and fixed current range.')});}catch(e){units.note.create(summary,{variant:'warning',text:String(e.message||e)});}}
+   function refresh(){summary.replaceChildren();try{const s=model.timedSummary('pulse',values);units.note.create(summary,{variant:'meta',text:(s.blocks?s.blocks.length+' '+tr('序列','sequences')+' · ':'')+s.segments.length+' '+tr('段','segments')+(s.blocks?'':' × '+s.loops)+' · '+s.durationS+' s · '+tr('预计记录 ','Estimated records ')+ (s.totalEstimatedRecords??s.estimatedRecords)});if(s.loadOhms===null||values.currentRangeA===''||s.partner&&(s.partner.loadOhms===null||values.arbPartner.currentRangeA===''))units.note.create(summary,{variant:'warning',text:tr('请选择负载及固定电流档。','Set the load and fixed current range.')});}catch(e){units.note.create(summary,{variant:'warning',text:String(e.message||e)});}}
    refresh();
   }
   const dcLayout=(host,className)=>units.layout.create(host,{variant:'identity',className});
