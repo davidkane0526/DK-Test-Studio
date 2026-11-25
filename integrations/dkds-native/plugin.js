@@ -73,11 +73,11 @@
       !(update.protocolVerified||update.systemModeProtocolVerified)?tr('测量执行模式待核验','Measurement mode needs verification'):
       !update.executionAdapterAvailable?tr('宿主定时服务不可用','Host timing unavailable'):tr('模块扫描完成','Port scan complete'));
      ctx.status.set(counts+' · '+issue);
-    }else if(update.event==='measurement-started')ctx.status.set('4200A 正在执行真实 KXCI 测量，停止时将依次关闭所有活动 SMU');
+    }else if(update.event==='measurement-started')ctx.status.set('4200A 正在执行测量，停止时将关闭活动输出');
     else if(update.event==='measurement-finished'){
      runPageId=null;
      const run=update.run;
-     if(run.shutdown==='unconfirmed')ctx.status.set('严重警告：SMU 输出关闭未获确认，请立即在仪器现场检查；不要断开连接');
+     if(run.shutdown==='unconfirmed')ctx.status.set('严重警告：仪器输出关闭未获确认，请立即在仪器现场检查；不要断开连接');
      else if(run.state==='failed'){
       ctx.status.set('测量失败：'+(run.error||'未知错误'));
       const trace=(update.commandTrace||[]).slice(-12).map(item=>item.command+' → '+(item.error||item.response||'')+' ['+item.durationMs+' ms]').join('\n');
@@ -747,7 +747,7 @@
    };
    if(editorSection==='sweep'){
     const input=panel('输入设置','Input settings');
-    select(input,'terminal',tr('端子','Terminal'),['S','D','G'].map(key=>[key,t(logicalNames[key])+' · '+
+    select(input,'terminal',tr('端子','Terminal'),['S','D','G'].filter(key=>!pulse||key!==values.secondary?.terminal).map(key=>[key,t(logicalNames[key])+' · '+
      (pulse?pulsePort(p,{...values,terminal:key}).resource:p.terminals.find(term=>term.logical===key)?.resource||'None')]));
     if(pulse){
      select(input,'rangeV',tr('PMU 电压档','PMU voltage range'),[['10','10 V'],['40','40 V']]);
@@ -769,6 +769,7 @@
      if(values.secondary){
       const second=values.secondary,port=pulsePort(p,{...values,...second});
       const setSecond=(key,value)=>{put('secondary',{...values.secondary,[key]:String(value)});refreshTimingSummary();};
+      if(!port.match?.[3])dcSelect(outer,tr('卡内通道','Card channel'),second.channel,[{value:'1',label:'CH1'},{value:'2',label:'CH2'}],value=>{setSecond('channel',value);render();},{key:'psweep-channel',path:'secondary.channel'});
       dcSelect(outer,tr('电压档','Voltage range'),second.rangeV,[{value:'10',label:'10 V'},{value:'40',label:'40 V'}],value=>{setSecond('rangeV',value);render();},{key:'psweep-range',path:'secondary.rangeV'});
       dcSelect(outer,tr('电流档','Current range'),second.currentRangeA,[{value:'',label:tr('自动','Auto')},...(port.pmuVerified?hardware.getPmuCurrentRanges(Number(second.rangeV),port.withRpm):[]).map(x=>({value:String(x),label:String(x)+' A'}))],value=>setSecond('currentRangeA',value),{key:'psweep-current-range',path:'secondary.currentRangeA'});
       for(const [key,zh,en] of [['fixedV','基线 (V)','Base (V)'],['start','起始幅值 (V)','Start amplitude (V)'],['stop','终止幅值 (V)','Stop amplitude (V)'],['step','步进 (V)','Step (V)'],['loadOhms','负载 (Ω)','Load (Ω)'],['widthUs','平顶 (µs)','Flat top (µs)'],['riseUs','上升 (µs)','Rise (µs)'],['fallUs','下降 (µs)','Fall (µs)'],['delayUs','延迟 (µs)','Delay (µs)'],['windowStartUs','测量延迟 (µs)','Measure delay (µs)'],['windowTimeUs','测量时间 (µs)','Measure time (µs)']])

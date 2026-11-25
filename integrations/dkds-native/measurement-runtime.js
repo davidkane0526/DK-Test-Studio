@@ -237,7 +237,7 @@ function pageToBasicProgram(page, model){
   function prepare(page){
    const connection=controller.status(),lastRun=runner.status(0);
    if(lastRun.shutdown==='unconfirmed')return {ready:false,canExecute:false,
-    reason:'上一次测量的 SMU 输出关闭未获确认；必须先在仪器现场确认输出状态，禁止继续启动测量'};
+    reason:'上一次测量的输出关闭未获确认；必须先在仪器现场确认输出状态，禁止继续启动测量'};
    if(connection.phase!=='connected')return {ready:false,canExecute:false,reason:'尚未连接并验证 Keithley 4200A'};
    if(connection.verificationPending)return {ready:false,canExecute:false,reason:'正在重新核验 4200A 连接，请稍候'};
    if(connection.inventoryPending)return {ready:false,canExecute:false,reason:'正在重新读取模块，请等待端口扫描完成'};

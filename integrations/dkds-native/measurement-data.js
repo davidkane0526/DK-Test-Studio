@@ -86,7 +86,8 @@
 function publishRun(ctx,opts){
  const rows=opts.rows;
  if(!rows?.length||rows[0].source!=='4200A-KXCI-PMU')return publishRaw(ctx,opts);
- const groups=new Map();for(const row of rows){
+ const groups=new Map();let sequence=0;for(const row of rows){
+  if(row.sequence!==++sequence)throw Error('PMU run sequence is not contiguous');
   if(row.source!=='4200A-KXCI-PMU')throw Error('Mixed measurement sources');
   if(!groups.has(row.pulseResource))groups.set(row.pulseResource,[]);
   const group=groups.get(row.pulseResource);

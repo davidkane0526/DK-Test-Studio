@@ -384,6 +384,7 @@ async function executePulseTask(p,io){
  const status=async()=>integerReply(await command(p.statusQuery,true),1);
  const verify=async()=>{const s=parseStatusByte(await command('SP',true));if(s.syntaxError)throw Error('仪器指令错误：'+await command(':ERROR:LAST:GET',true));return s};
  let touched=false,started=false,state='completed',error='',shutdown='not-started',sequence=0;
+ const channelWarnings=[];
  const channels=p.channels||[p],closed=new Set();
  const disable=async channel=>{await command(channel.offCommand);await verify();closed.add(channel.pulseChannel)};
  try{
@@ -397,8 +398,9 @@ async function executePulseTask(p,io){
  const busy=await status();await verify();
  if(!busy){started=false;for(const channel of channels)await disable(channel);
  for(const channel of channels){let cursor=0;const count=integerReply(await command(channel.countQuery,true),channel.count);
- while(cursor<count&&!cancelled()){const n=Math.min(128,count-cursor),rows=parsePulseBlock(await command(':PMU:DATA:GET '+channel.pulseChannel+','+cursor+','+n+','+channel.fields,true),channel,cursor);if(!rows.length||rows.length>n)throw Error('PMU 缓冲区计数不一致');onBatch(rows.map(row=>({...row,pulseChannelSequence:row.sequence,sequence:++sequence})));cursor+=rows.length}
- if(!cancelled()&&(cursor===0||channel.expected!==null&&cursor!==channel.expected))throw Error(channel.resource+' 实际点数与计划不一致');}break}
+ while(cursor<count&&!cancelled()){const n=Math.min(128,count-cursor),rows=parsePulseBlock(await command(':PMU:DATA:GET '+channel.pulseChannel+','+cursor+','+n+','+channel.fields,true),channel,cursor);if(!rows.length||rows.length>n)throw Error('PMU 缓冲区计数不一致');onBatch(rows.map(row=>({...row,pulseChannelSequence:row.sequence,sequence:++sequence,measurementCompleteness:channel.expected!==null&&count!==channel.expected?'partial':row.measurementCompleteness})));cursor+=rows.length}
+ if(!cancelled()&&(cursor===0||channel.expected!==null&&cursor!==channel.expected))channelWarnings.push(channel.resource+' 实测 '+cursor+' 点，计划 '+(channel.expected??'非空')+' 点');}
+ if(channelWarnings.length)throw Error(channelWarnings.join('；'));break}
  await wait(100);
  }
  }
