@@ -747,13 +747,14 @@
    };
    if(pulse&&editorSection==='sweep'){
     const modePanel=panel('扫描类型','Sweep type');
-    fsproField(modePanel,{kind:'select',label:tr('测试方式','Test mode'),value:values.arb?'sequence':'sweep',options:[{value:'sweep',label:tr('脉冲扫描','Pulse sweep')},{value:'sequence',label:tr('自定义时序','Custom sequence')}],onChange:event=>{
-     if(event.target.value==='sweep'){put('arb',null);render();return;}
-     values.secondary=null;
-     put('arb',{loops:'1',segments:[{startV:'0',stopV:'1',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'},{startV:'1',stopV:'1',durationUs:'10',measure:true,measureStartUs:'2',measureStopUs:'8'},{startV:'1',stopV:'0',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'}]});render();
+    fsproField(modePanel,{kind:'select',label:tr('测试方式','Test mode'),value:values.testMode==='sequence'?'sequence':'sweep',options:[{value:'sweep',label:tr('脉冲扫描','Pulse sweep')},{value:'sequence',label:tr('自定义时序','Custom sequence')}],onChange:event=>{
+     if(event.target.value==='sweep'){put('testMode','sweep');render();return;}
+     // Preserve mode-specific settings when switching modes.
+     if(!values.arb)values.arb={loops:'1',segments:[{startV:'0',stopV:'1',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'},{startV:'1',stopV:'1',durationUs:'10',measure:true,measureStartUs:'2',measureStopUs:'8'},{startV:'1',stopV:'0',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'}]};
+     put('testMode','sequence');render();
     }});
    }
-   if(pulse&&values.arb){
+   if(pulse&&values.testMode==='sequence'){
     renderArbTiming(host,p,values,put,panel,fields,select,pulseRanges);return;
    }
    if(editorSection==='sweep'){
@@ -989,7 +990,7 @@
      }
    }
    if(page.kind==='pulse'){
-    if(settings.arb){const port=pulsePort(page,settings);if(port.pmuVerified&&settings.currentRangeA&&!hardware.getPmuCurrentRanges(settings.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))throw Object.assign(Error(tr('该电流档与实装 PMU/RPM 不匹配。','This range is incompatible with installed PMU/RPM.')),{field:'currentRangeA'});return result;}
+    if(settings.testMode==='sequence'){const port=pulsePort(page,settings);if(port.pmuVerified&&settings.currentRangeA&&!hardware.getPmuCurrentRanges(settings.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))throw Object.assign(Error(tr('该电流档与实装 PMU/RPM 不匹配。','This range is incompatible with installed PMU/RPM.')),{field:'currentRangeA'});return result;}
     const issue=pulseCompatibility(settings,result);
     if(issue)throw Error(issue);
     if(settings.secondary){const secondary={...settings,...settings.secondary,secondary:null,sweep:'amplitude'},summary={...result.secondary,totalSweepPoints:result.totalSweepPoints};const outerIssue=pulseCompatibility(secondary,summary);if(outerIssue)throw Error('Psweep: '+outerIssue);}

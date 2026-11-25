@@ -20,7 +20,7 @@
   ['pPoint','Psweep 点序','','index']
  ];
  const STRINGS=[
-  ['pulseResource','脉冲通道'],['pulseMode','脉冲采集方式'],['pulseStatusRaw','脉冲原始状态'],
+  ['pulseResource','脉冲通道'],['pulseMode','脉冲采集方式'],['pulseProgram','脉冲任务类型'],['pulseStatusRaw','脉冲原始状态'],
   ['source','采集协议来源'],['measurementStatus','测量状态'],['measurementCompleteness','采样完整性'],
   ['complianceRole','触及限流端口'],['rawKxciResponse','KXCI 原始响应'],
   ['rawKxciResponses','各端口原始响应 JSON'],
@@ -48,7 +48,7 @@
   }
   const pulseRun=rows[0].source==='4200A-KXCI-PMU';
   if(rows.some(row=>(row.source==='4200A-KXCI-PMU')!==pulseRun))throw Error('Mixed SMU and PMU records require separate tables');
-  if(pulseRun&&rows.some(row=>row.pulseResource!==rows[0].pulseResource||row.pulseMode!==rows[0].pulseMode))throw Error('Mixed pulse channels or acquisition modes require separate tables');
+  if(pulseRun&&rows.some(row=>row.pulseResource!==rows[0].pulseResource||row.pulseMode!==rows[0].pulseMode||row.pulseProgram!==rows[0].pulseProgram))throw Error('Mixed pulse channels or acquisition modes require separate tables');
   // Numeric acquisition channels stay in original units. Missing measurements
   // are NaN in the numeric DataTable; their null/status/response information
   // remains preserved verbatim in the raw metadata/text columns.
@@ -69,7 +69,7 @@
    transient:false,
    source:source||{name:'KI4200A '+instrument},
    metadata:{instrument:'KI4200A',instrumentSerial:instrument,
-    rawInstrumentResponse:true,...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
+    rawInstrumentResponse:true,...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode,pulseProgram:rows[0].pulseProgram||'pulse-sweep'}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
     acquisition:{runId:id,timestamp:String(startedAt||''),
      finishedAt:String(finishedAt||''),runState,sequenceIndex:0,
      provenance:'kxci-native-acquisition'},

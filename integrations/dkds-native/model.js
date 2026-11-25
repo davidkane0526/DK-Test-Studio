@@ -59,7 +59,7 @@
   pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',
    start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
    delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
-   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:'',secondary:null,arb:null})
+   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:'',secondary:null,arb:null,testMode:'sweep'})
  });
  // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
  const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});
@@ -160,6 +160,11 @@
     ...segment,currentBias:{...timeTerminalDefaults('0'),...segment.currentBias}
    }));
   }
+  if(kind==='pulse'){
+   if(settings?.testMode===undefined&&settings?.arb!=null)values.testMode='sequence';
+   if(!['sweep','sequence'].includes(values.testMode))throw Error('Invalid pulse test mode');
+   if(values.testMode==='sequence'&&values.arb==null)throw Error('Missing custom sequence');
+  }
   if(kind==='pulse'&&Object.hasOwn(values,'windowStopUs')){
    values.windowTimeUs=String(numeric(values.windowStopUs,'Window stop')-numeric(values.windowStartUs,'Window start'));
    delete values.windowStopUs;
@@ -171,7 +176,7 @@
   if(!defaults)return null;
   const v=timingSettings(kind,settings);
   if(kind==='time')return timeSummary(v);
-  if(kind==='pulse'&&v.arb!=null)return window.DKDSPluginModules.require('dkts-capabilities').normalizeSegmentArb(v);
+  if(kind==='pulse'&&v.testMode==='sequence')return window.DKDSPluginModules.require('dkts-capabilities').normalizeSegmentArb(v);
   if(!['S','D','G'].includes(v.terminal))throw Error('Select a Source, Drain or Gate terminal');
   const n=key=>numeric(v[key],key);
   if(kind==='retention'){

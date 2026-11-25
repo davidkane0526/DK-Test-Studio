@@ -375,7 +375,7 @@ function parsePulseBlock(raw,p,offset){
  return src.split(';').map((record,i)=>{
  const f=record.split(',').map(x=>x.trim());if(f.length!==4||f.some(x=>!x))throw Error('PMU 字段错误');
  const [voltage,current,time]=f.slice(0,3).map(s=>{if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:E[+-]?\d+)?$/i.test(s))throw Error('PMU 数值格式错误');const n=Number(s);if(!Number.isFinite(n)||Math.abs(n)>=9e37)throw Error('PMU 读数无效');return n});if(time<0)throw Error('PMU 时间戳无效');
- return {sequence:offset+i+1,cycle:1,point:offset+i+1,timeS:time,source:'4200A-KXCI-PMU',measurementCompleteness:'complete',measurementStatus:'unknown',pulseStatusRaw:f[3],pulseResource:p.resource,pulseMode:p.waveform?'waveform':'spot',pulseVoltageV:voltage,pulseCurrentA:current,[p.role+'VoltageV']:voltage,[p.role+'CurrentA']:current,rawKxciResponse:record,rawKxciResponses:{[p.resource]:record}};
+ return {sequence:offset+i+1,cycle:1,point:offset+i+1,timeS:time,source:'4200A-KXCI-PMU',measurementCompleteness:'complete',measurementStatus:'unknown',pulseStatusRaw:f[3],pulseResource:p.resource,pulseMode:p.waveform?'waveform':'spot',pulseProgram:p.arb?'segment-arb':'pulse-sweep',pulseVoltageV:voltage,pulseCurrentA:current,[p.role+'VoltageV']:voltage,[p.role+'CurrentA']:current,rawKxciResponse:record,rawKxciResponses:{[p.resource]:record}};
  });
 }
 async function executePulseTask(p,io){
@@ -463,7 +463,7 @@ function compileSegmentArb(input,hardware){
  return Object.freeze({plan:{kind:'pulse'},pulse,physicalVerified,capabilityVerified:true,requiresInterlock:s.peakV>21,canExecute:physicalVerified&&s.peakV<=21,channels:{[role]:ch},active:[role],totalPoints:s.estimatedRecords,commandMode:'KXCI-PMU-SARB'});
 }
   function compileSweep(input,hardware={}){
-    if(input.executionMode==='pulse')return input.settings?.arb!=null?compileSegmentArb(input,hardware):input.secondary?compilePulsePair(input,hardware):compilePulse(input,hardware);
+    if(input.executionMode==='pulse')return (input.settings?.testMode==='sequence'||input.settings?.testMode===undefined&&input.settings?.arb!=null)?compileSegmentArb(input,hardware):input.secondary?compilePulsePair(input,hardware):compilePulse(input,hardware);
     const planner=typeof require==='function'
       ?require('./measurement-plan.js')
       :window.DKDSPluginModules.require('dkts-plan');
@@ -748,6 +748,7 @@ function compileSegmentArb(input,hardware){
         throw Error('4200A 未连接');
       const compiled=compileSweep(input,hardware);
       if(compiled.pulse&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowPulseModeOutput!==true)throw Error('PMU 尚待受控实机验收');
+      if(compiled.pulse?.arb&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowSegmentArbOutput!==true)throw Error('自定义时序尚待受控实机验收');
       if(!compiled.capabilityVerified||!compiled.physicalVerified)
         throw Error('实际模块型号及其理论额定值尚未完整核验');
       if(compiled.requiresInterlock)

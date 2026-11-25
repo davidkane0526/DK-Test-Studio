@@ -249,7 +249,7 @@ function pageToBasicProgram(page, model){
      const v=page.timing,resource=resolvePulsePort(page.terminals.find(t=>t.logical===v.terminal)?.resource,v.channel);
      protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,[]);
      input={executionMode:'pulse',settings:v,summary:model.timedSummary('pulse',v),resource,wiringConfirmed:true};
-     if(v.secondary&&!v.arb){const settings={...v,...v.secondary,secondary:null,sweep:'amplitude'};input.secondary={settings,summary:model.timedSummary('pulse',settings),resource:resolvePulsePort(page.terminals.find(t=>t.logical===settings.terminal)?.resource,settings.channel),wiringConfirmed:true};}
+     if(v.secondary&&v.testMode!=='sequence'){const settings={...v,...v.secondary,secondary:null,sweep:'amplitude'};input.secondary={settings,summary:model.timedSummary('pulse',settings),resource:resolvePulsePort(page.terminals.find(t=>t.logical===settings.terminal)?.resource,settings.channel),wiringConfirmed:true};}
     }else{
      input=pageToSweepProgram(page,model);
      const routes=protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,Object.values(input.sweepProgram.terminals));
@@ -260,7 +260,7 @@ function pageToBasicProgram(page, model){
      inventory:connection.inventory,capabilities:hardwareCapabilities
     });
     const protocolPolicy=hardwareCapabilities.DATABASE?.safetyPolicies?.kxci||{};
-    const protocolVerified=compiled.pulse?protocolPolicy.pmuModeManualVerified===true&&protocolPolicy.allowPulseModeOutput===true:compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true:protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
+    const protocolVerified=compiled.pulse?protocolPolicy.pmuModeManualVerified===true&&protocolPolicy.allowPulseModeOutput===true&&(!compiled.pulse.arb||protocolPolicy.segmentArbManualVerified===true&&protocolPolicy.allowSegmentArbOutput===true):compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true:protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
     let reason='';
     if(!protocolVerified)reason=compiled.pulse?'脉冲方案已转换；等待受控实机验收后开放输出':'Rev F 已取得；当前执行模式尚未取得输出许可';
     else if(!executionAdapterAvailable)reason='当前 DKDS 宿主缺少生命周期管理的查询/停止调度器';
