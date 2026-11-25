@@ -55,3 +55,5 @@
 - Pulse: Psweep baseline steps, independent limited autorange, paired waveform plan (equal-length parallel sweeps/fixed train) compiled. No native nested waveform step implied; physical output unverified.
 
 - Generator: nonlinear/getp() via native list compiler, with original X/P index. Multi-channel list output requires commissioning; no per-point network execution.
+
+- Target H/P: H expression + separate DKDS frame, P source-level filter, full independent computed CSV. Same-frame secondary Y axis requires DKDS renderer support.

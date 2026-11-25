@@ -37,7 +37,6 @@ function pageToBasicProgram(page, model){
   check(['optimized','point-by-point'].includes(dc.preset),'未知 DC 执行模式');
   check(dc.bodyResource==='None'||dc.preset==='optimized','B 端当前使用原生 Optimized 执行');
   check(dc.preset==='optimized'||(info.outputs.length===1&&info.outputs[0]==='Id'),'逐点 DC 仅支持 Outputs=Id');
-  check(!dc.target.h.trim()&&!dc.target.p.trim(),'Target 第二输出轴 H 与 P 值筛选尚未接入；请保留为空');
   const plot=model.dcTargetColumns(page,dc),plotSignals=plot.rawSignals.filter(s=>s!=='Time');
   check(dc.strategy.onLimit==='stop','当前执行器仅支持 Stop on limit');
   const hold=dc.strategy.hold.trim()?n(dc.strategy.hold,'Hold'):0;

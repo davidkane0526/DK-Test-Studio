@@ -63,7 +63,7 @@
  });
  // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
  const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});
- const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw','target']);
+ const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw','target','target-h']);
  const timeBiasKey=mode=>mode==='current'?'currentBias':'bias';
  const timeBias=(settings,segment,terminal)=>segment[timeBiasKey(settings.sourceModes?.[terminal])]?.[terminal];
  function timeGrid(v){
@@ -457,15 +457,23 @@ function dcTargetColumns(page,dc=page.dc){
  const resolve=(name,fallback)=>{const v=String(name||'').trim()||fallback,parts=v.split(':'),expression=parts.length===2?parts[1].trim():v;if(parts.length>2||parts.length===2&&!parts[0].trim())throw Error('Invalid Target alias');const key=expression.toLowerCase(),direct=raw[key],ast=targetExpression(expression,known,deps);return {...(direct||{key:'derived:'+expression,unit:''}),signal:parts.length===2?parts[0].trim():direct?.signal||expression,ast};};
  const x=resolve(dc.target.x,fallbackX),fallbackY=requested.find(v=>mapped.includes(v)&&v!==x.signal)||mapped.find(v=>v!==x.signal),y=resolve(dc.target.y,fallbackY);
  if(x.key===y.key)invalidField('target.y','X and Y must be distinct signals');
+ const h=String(dc.target.h||'').trim()?resolve(dc.target.h,''):null;
+ const outer=dcTerminals(page,dc).find(t=>dc.terminals[t.logical].role==='P'&&t.resource!=='GNDU');
+ const filterText=String(dc.target.p||'').trim();let pFilter=null;
+ if(filterText){if(!outer)invalidField('target.p','P filter requires Psweep');const values=filterText.split(/[,;\s]+/).map(x=>Number(x));if(!values.length||values.some(v=>!Number.isFinite(v))||values.length>4096)invalidField('target.p','P filter requires comma-separated finite source levels');pFilter={key:dc.terminals[outer.logical].mode==='current'?'plannedPCurrentA':'plannedPVoltageV',values:[...new Set(values)]};}
  const inputs=Object.fromEntries([...deps].filter(k=>Object.hasOwn(raw,k)).map(k=>[k,raw[k]]));
  if(!Object.keys(inputs).length)throw Error('Target requires at least one acquired signal');
- return {x,y,signals,inputs,rawSignals:Object.values(inputs).map(v=>v.signal),variables,formulas,polarity:dc.polarity};
+ return {x,y,h,pFilter,signals,inputs,rawSignals:Object.values(inputs).map(v=>v.signal),variables,formulas,polarity:dc.polarity};
 }
+function targetPassesP(target,row){const p=target.pFilter;if(!p)return true;const raw=row[p.key];if(raw==null||raw==='')return false;const value=Number(raw);return Number.isFinite(value)&&p.values.some(z=>Math.abs(value-z)<=Math.max(1e-15,Math.abs(z)*1e-9));}
 function evaluateTargetPoint(target,row){
+ if(!targetPassesP(target,row))return null;
  const env=Object.assign(Object.create(null),target.variables||{});for(const [k,c] of Object.entries(target.inputs||{})){const v=row[c.key];env[k]=v==null||v===''?NaN:Number(v);}
  for(const z of target.formulas||[])env[z.name]=targetValue(z.ast,env,target.polarity);
  const x=targetValue(target.x.ast,env,target.polarity),y=targetValue(target.y.ast,env,target.polarity);return Number.isFinite(x)&&Number.isFinite(y)?{x,y}:null;
 }
+ function targetForAxis(target,axis){if(axis==='target-h'){if(!target.h)throw Error('H expression is empty');return {...target,y:target.h};}return target;}
+ function targetExportRows(target,rows){const out=[];for(const [i,row] of rows.entries()){if(!targetPassesP(target,row))continue;const point=evaluateTargetPoint(target,row),hp=target.h?evaluateTargetPoint(targetForAxis(target,'target-h'),row):null;out.push({sourceRow:row.sequence??i+1,cycle:row.cycle??null,pPoint:row.pPoint??null,plannedPVoltageV:row.plannedPVoltageV??null,plannedPCurrentA:row.plannedPCurrentA??null,computedX:point?.x??hp?.x??null,computedY:point?.y??null,computedH:hp?.y??null,xExpression:target.x.signal,yExpression:target.y.signal,hExpression:target.h?.signal??''});}return out;}
  function dcMethods(role){
   return role==='CONDITION'?['constant','generator']:['step','points','log','list'];
  }
@@ -1186,7 +1194,7 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
    if(!Object.prototype.hasOwnProperty.call(xkeys,axis))throw Error('Unknown graph axis');
    const pulse=cols.some(c=>norm(c)==='pulsevoltagev')&&cols.some(c=>norm(c)==='pulsecurrenta');
    if(pulse&&axis==='transfer')continue;
-   const targetCols=axis==='target'&&target?Object.fromEntries(Object.values(target.inputs).map(v=>[v.key,cols.find(c=>norm(c)===v.key.toLowerCase())])):null;
+   const targetCols=axis==='target'&&target?Object.fromEntries([...new Set([...Object.values(target.inputs).map(v=>v.key),...(target.pFilter?[target.pFilter.key]:[])])].map(key=>[key,cols.find(c=>norm(c)===key.toLowerCase())])):null;
    if(axis==='target'&&(!targetCols||Object.values(targetCols).some(c=>!c)))continue;
    const x=axis==='target'?Object.values(targetCols)[0]:pulse?choose(axis==='iv'?['pulsevoltagev']:xkeys[axis],'x',false):choose(xkeys[axis],'x',axis==='iv');
    const y=axis==='target'?x:pulse?choose(axis==='vt'?['pulsevoltagev']:['pulsecurrenta'],'y',false):axis==='vt'?choose(['drainvoltagev','measuredvoltagev','measuredvoltage','voltagev','voltage','vd'],'y',false):
@@ -1264,6 +1272,6 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,pulseSecondarySettings,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,pulseSecondarySettings,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();
