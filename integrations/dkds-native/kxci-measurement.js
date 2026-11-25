@@ -454,11 +454,17 @@ function compileSegmentArb(input,hardware){
  const setup=['SS','ZE',':PMU:INIT 1'];
  if(rpm)setup.push(cmd('RPM:CONFIGURE',input.resource,0));
  setup.push(cmd('LOAD',ch,s.loadOhms),cmd('SOURCE:RANGE',ch,s.rangeV),cmd('MEASURE:RANGE',ch,2,ir),cmd('SAMPLE:RATE',s.rateHz));
- const arrays=[['STARTV',s.segments.map(x=>systemNumber(x.startV))],['STOPV',s.segments.map(x=>systemNumber(x.stopV))],['TIME',s.segments.map(x=>sec(x.durationTicks))],['MEAS:TYPE',s.segments.map(x=>x.measure?(waveform?'2':'1'):'0')],['MEAS:START',s.segments.map(x=>sec(x.startTicks))],['MEAS:STOP',s.segments.map(x=>sec(x.stopTicks))]];
- for(const [key,values] of arrays)for(let offset=0;offset<values.length;offset+=128)setup.push(':PMU:SARB:SEQ:'+key+(offset?':ADD':'')+' '+ch+',1,'+values.slice(offset,offset+128).join(','));
- setup.push(':PMU:SARB:WFM:SEQ:LIST '+ch+',1,'+String(s.loops),cmd('OUTPUT:STATE',ch,1));
+ const blocks=s.blocks||[s];
+ for(let bi=0;bi<blocks.length;bi++){
+ const seq=bi+1,segments=blocks[bi].segments;
+ const arrays=[['STARTV',segments.map(x=>systemNumber(x.startV))],['STOPV',segments.map(x=>systemNumber(x.stopV))],['TIME',segments.map(x=>sec(x.durationTicks))],['MEAS:TYPE',segments.map(x=>x.measure?(waveform?'2':'1'):'0')],['MEAS:START',segments.map(x=>sec(x.startTicks))],['MEAS:STOP',segments.map(x=>sec(x.stopTicks))]];
+ for(const [key,values] of arrays)for(let offset=0;offset<values.length;offset+=128)setup.push(':PMU:SARB:SEQ:'+key+(offset?':ADD':'')+' '+ch+','+seq+','+values.slice(offset,offset+128).join(','));
+ }
+ const list=blocks.map((b,i)=>String(i+1)+','+String(b.loops));
+ for(let i=0;i<list.length;i+=64)setup.push(':PMU:SARB:WFM:SEQ:LIST'+(i?':ADD':'')+' '+ch+','+list.slice(i,i+64).join(','));
+ setup.push(cmd('OUTPUT:STATE',ch,1));
  const countQuery=cmd('DATA:COUNT?',ch),statusQuery=':PMU:TEST:STATUS?',fields=waveform?'V,I,T,S':'VH,IH,TH,SH',offCommand=cmd('OUTPUT:STATE',ch,0);
- const pulse=Object.freeze({setup,reads:[countQuery,statusQuery],cleanup:[offCommand,':PMU:ABORT'],rdNames:[],count:65536,pulseChannel:ch,fields,countQuery,statusQuery,offCommand,resource:input.resource,role,waveform,expected:s.points?(waveform?null:s.records):0,skipRead:s.points===0,peak:s.peakV,estimatedRecords:s.estimatedRecords,arb:true,sequenceLoops:s.loops,rangeV:s.rangeV,card,segments:s.segments});
+ const pulse=Object.freeze({setup,reads:[countQuery,statusQuery],cleanup:[offCommand,':PMU:ABORT'],rdNames:[],count:65536,pulseChannel:ch,fields,countQuery,statusQuery,offCommand,resource:input.resource,role,waveform,expected:s.points?(waveform?null:s.records):0,skipRead:s.points===0,peak:s.peakV,estimatedRecords:s.estimatedRecords,arb:true,sequenceLoops:s.loops,sequenceCount:blocks.length,sequenceSchedule:blocks.map((b,i)=>({sequence:i+1,loops:b.loops,segments:b.segments.length})),durationTicksExact:s.durationTicksExact,rangeV:s.rangeV,card,segments:s.segments});
  const physicalVerified=inventory?.physicalModelsVerified===true&&inventory?.hardwareLimitsVerified===true;
  return Object.freeze({plan:{kind:'pulse'},pulse,physicalVerified,capabilityVerified:true,requiresInterlock:s.peakV>21,canExecute:physicalVerified&&s.peakV<=21,channels:{[role]:ch},active:[role],totalPoints:s.estimatedRecords,commandMode:'KXCI-PMU-SARB'});
 }

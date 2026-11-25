@@ -345,7 +345,26 @@
     return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.kxciMaxArrayValuesPerCommand || 128, kxciMaxArrayValuesPerCommand: mod.segmentArb.kxciMaxArrayValuesPerCommand || 128, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, kxciMinSegmentS: mod.segmentArb.kxciMinSegmentTimeS?.[String(range)] ?? mod.segmentArb.minSegmentTimeS[String(range)], hardwareMinSegmentNote: mod.segmentArb.hardwareMinSegmentNote || null, kxciMaxSegmentS: mod.segmentArb.kxciMaxSegmentTimeS || 1, kxciLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus, timeResolutionS: mod.segmentArb.timeResolutionS });
   }
 function normalizeSegmentArb(settings){
- const v=settings,arb=v?.arb,check=(x,m)=>{if(!x)throw Error(m)},num=(x,label)=>{check(x!=null&&String(x).trim()!==''&&Number.isFinite(Number(x)),label+' 无效');return Number(x)};
+ const v=settings,arb=v?.arb;
+ if(arb?.blocks!==undefined){
+  if(!Array.isArray(arb.blocks)||arb.blocks.length<1||arb.blocks.length>512)throw Error('序列数量须为 1–512');
+  const limits=getSegmentArbLimits('pmu',Number(v.rangeV));
+  const blocks=arb.blocks.map((block,i)=>{try{return normalizeSegmentArb({...v,arb:{loops:block.loops,segments:block.segments}})}catch(e){throw Error('序列 '+(i+1)+'：'+e.message)}});
+  if(blocks.reduce((n,b)=>n+b.segments.length,0)>limits.maxSegments)throw Error('单通道总定义段数超出 '+limits.maxSegments);
+  for(let i=1;i<blocks.length;i++)if(blocks[i-1].segments.at(-1).stopV!==blocks[i].segments[0].startV)throw Error('序列 '+i+' 与 '+(i+1)+' 的连接电压不连续');
+  let totalTicks=0n,measuredTicks=0,minWindow=Infinity,records=0,points=0;
+  for(const b of blocks){
+   totalTicks+=BigInt(b.segments.reduce((n,s)=>n+s.durationTicks,0))*BigInt(b.loops);
+   measuredTicks+=b.totalMeasureDurationS*1e8;
+   records+=b.records;points+=b.points;
+   if(b.points)minWindow=Math.min(minWindow,b.windowS);
+  }
+  if(!Number.isSafeInteger(records)||records>65536)throw Error('组合序列记录数超出缓冲容量');
+  const rateHz=blocks[0].rateHz,budget=points?getPmuCaptureBudget(measuredTicks/1e8,minWindow,rateHz):null;
+  if(budget&&!budget.kxciCompatible)throw Error('组合序列总采样容量超出 KXCI 边界');
+  return Object.freeze({...blocks[0],blocks:Object.freeze(blocks),segments:Object.freeze(blocks.flatMap(b=>b.segments)),loops:null,points,records,estimatedRecords:points?(v.mode==='spot'?records:budget.sampleCountAtSelectedRate):0,peakV:Math.max(...blocks.map(b=>b.peakV)),minV:Math.min(...blocks.map(b=>b.minV)),maxV:Math.max(...blocks.map(b=>b.maxV)),durationS:Number(totalTicks)/1e8,durationTicksExact:String(totalTicks),totalMeasureDurationS:measuredTicks/1e8,windowS:points?minWindow:0,budget});
+ }
+ const check=(x,m)=>{if(!x)throw Error(m)},num=(x,label)=>{check(x!=null&&String(x).trim()!==''&&Number.isFinite(Number(x)),label+' 无效');return Number(x)};
  check(arb&&typeof arb==='object'&&Array.isArray(arb.segments),'缺少序列段');
  check(v.testMode==='sequence'||v.secondary==null,'任意序列当前仅支持一个端子');
  check(['S','D','G'].includes(v.terminal)&&['1','2'].includes(v.channel)&&['spot','waveform'].includes(v.mode),'端子或测量方式无效');
@@ -381,7 +400,7 @@ function normalizeSegmentArb(settings){
   budget=getPmuCaptureBudget(measureTicks*loops/1e8,minMeasureTicks/1e8,rateHz,{pulseCount:loops,sweepPoints:measureCount});
   check(budget.kxciCompatible,'采样预算超出 KXCI 65536 点边界');
  }
- return Object.freeze({arb:true,segments:Object.freeze(segments),loops,rangeV,rateHz,peakV,minV,maxV,loadOhms,points:measureCount,pulseCount:loops,records,estimatedRecords:measureCount?(v.mode==='spot'?records:budget.sampleCountAtSelectedRate):0,windowS:measureCount?minMeasureTicks/1e8:0,totalMeasureDurationS:measureTicks*loops/1e8,durationS:totalTicks*loops/1e8,budget});
+ return Object.freeze({arb:true,segments:Object.freeze(segments),loops,rangeV,rateHz,peakV,minV,maxV,loadOhms,points:measureCount,pulseCount:loops,records,estimatedRecords:measureCount?(v.mode==='spot'?records:budget.sampleCountAtSelectedRate):0,windowS:measureCount?minMeasureTicks/1e8:0,totalMeasureDurationS:measureTicks*loops/1e8,durationS:totalTicks*loops/1e8,durationTicksExact:String(BigInt(totalTicks)*BigInt(loops)),budget});
 }
   function getPmuCurrentRanges(rangeV, withRpm = false) {
     const mod = getModuleCapability(withRpm ? 'PMURPM' : 'PMU');
