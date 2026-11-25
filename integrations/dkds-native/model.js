@@ -50,7 +50,7 @@
  const TIME_TERMINALS=['D','G','S','B'];
  const timeTerminalDefaults=value=>Object.fromEntries(TIME_TERMINALS.map(key=>[key,value]));
  const TIMED_DEFAULTS=Object.freeze({
-  time:Object.freeze({mode:'linear-step',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),
+  time:Object.freeze({mode:'linear-step',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),voltageLimitsV:Object.freeze(timeTerminalDefaults('')),
    switchStepS:'0.1',sampleStepS:'0.1',cycles:'1',integrationPreset:'instrument',integrationS:'',
    segments:Object.freeze([{durationS:'1',bias:timeTerminalDefaults('0'),currentBias:timeTerminalDefaults('0')}]),
    events:Object.freeze([{terminal:'D',quantity:'Current',startS:'0.1',intervalS:'0.1',averageS:'0.02',points:'9'}])}),
@@ -109,6 +109,7 @@
    const mode=v.sourceModes[key];
    if(!['voltage','current'].includes(mode))invalidField('sourceModes.'+key,'Select voltage or current source mode');
    const current=mode==='current';
+   if(current&&grid.nativeFixed){const limit=atField('voltageLimitsV.'+key,()=>numeric(v.voltageLimitsV?.[key],key+' voltage compliance'));if(limit<=0||limit>210)invalidField('voltageLimitsV.'+key,'Current source requires a positive voltage compliance up to 210 V');}
    for(const [index,segment] of v.segments.entries()){
     const field='segments.'+index+'.'+timeBiasKey(mode)+'.'+key;
     const value=atField(field,()=>numeric(timeBias(v,segment,key),key+' bias'));
@@ -161,6 +162,7 @@
   const values={...clone(TIMED_DEFAULTS[kind]),...settings};
   if(kind==='time'){
    values.sourceModes={...timeTerminalDefaults('voltage'),...values.sourceModes};
+   values.voltageLimitsV={...timeTerminalDefaults(''),...values.voltageLimitsV};
    if(Array.isArray(values.segments))values.segments=values.segments.map(segment=>segment&&({
     ...segment,currentBias:{...timeTerminalDefaults('0'),...segment.currentBias}
    }));

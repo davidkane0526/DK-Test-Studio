@@ -1546,6 +1546,10 @@
      ],value=>{settings.sourceModes[key]=value;redrawDc();},
      {key:'time-source-'+key,path:'sourceModes.'+key});
     }
+    if(native&&smus.some(term=>settings.sourceModes[term.logical]==='current')){
+     const protection=dcLayout(inputs,'dkts-time-source-modes');
+     for(const term of smus.filter(term=>settings.sourceModes[term.logical]==='current'))plannedText(protection,settings.voltageLimitsV,term.logical,term.logical+' · '+tr('电压保护 (V)','Voltage compliance (V)'),term.logical+' · Voltage compliance (V)','voltageLimitsV.'+term.logical);
+    }
     units.note.create(inputs,{variant:'meta',text:tr(
      '持续时间决定该行偏置保持多久。切换步长决定各 SMU 可以更新输出的时间网格。',
      'A row duration holds its bias. Switching Step sets the common grid for SMU output changes.')});

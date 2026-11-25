@@ -100,12 +100,18 @@ function pageToBasicProgram(page, model){
   for(const k of Object.keys(roles)){
    const v=n(t.segments[0].bias[k],k+' 偏置');
    if(!active.includes(k)){check(v===0&&n(t.segments[0].currentBias[k],k+' 电流偏置')===0,'接地或未映射端不得施加偏置');continue;}
-   check(t.sourceModes[k]==='voltage','仅支持电压源：'+k);
-   const r=roles[k],p=ports[k];fixedVoltages[r]=v;
-   portSettings[r]={rangeMode:p.rangeMode==='minimum'?'limited-auto':p.rangeMode,rangeA:p.rangeValue,complianceMode:p.complianceMode||'follow-range',complianceA:n(p.compliance,k+' 限流')};
+   const r=roles[k],p=ports[k],current=t.sourceModes[k]==='current';sourceModes[r]=t.sourceModes[k];
+   if(current){
+    fixedCurrents[r]=n(t.segments[0].currentBias[k],k+' 电流偏置');
+    portSettings[r]={rangeMode:'auto',complianceMode:'custom',complianceV:n(t.voltageLimitsV?.[k],k+' 限压')};
+   }else{
+    fixedVoltages[r]=v;
+    portSettings[r]={rangeMode:p.rangeMode==='minimum'?'limited-auto':p.rangeMode,rangeA:p.rangeValue,complianceMode:p.complianceMode||'follow-range',complianceA:n(p.compliance,k+' 限流')};
+   }
   }
-  const e=t.events[0],count=n(e.points,'点数'),v=fixedVoltages.drain;
-  return {kind:'iv',pageKind:'time',executionMode:'system',requestedOutputs,timeProgram:{durationS:summary.durationS,cycles:summary.cycles,startS:n(e.startS,'起点'),intervalS:n(e.intervalS,'间隔'),windowS:n(e.averageS,'窗口'),count,integration},sweepProgram:{terminals,fixedVoltages,portSettings,loops:summary.cycles,xSweep:axis('drain',[segment(v,v,0)],count),pSweep:disabled}};
+  const e=t.events[0],count=n(e.points,'点数'),current=sourceModes.drain==='current',v=current?fixedCurrents.drain:fixedVoltages.drain;
+  const xSegment=current?{startA:v,stopA:v,stepA:0,rangeA:'auto',delayMs:0}:segment(v,v,0);
+  return {kind:'iv',pageKind:'time',executionMode:'system',requestedOutputs,timeProgram:{durationS:summary.durationS,cycles:summary.cycles,startS:n(e.startS,'起点'),intervalS:n(e.intervalS,'间隔'),windowS:n(e.averageS,'窗口'),count,integration},sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,loops:summary.cycles,xSweep:axis('drain',[xSegment],count),pSweep:disabled}};
  }
  throw Error('测试类型尚未接入');
 }
