@@ -426,21 +426,44 @@
   return dcTerminals(p,settings).filter(t=>t.resource!=='GNDU').flatMap(t=>
    ['I','V'].map(prefix=>prefix+t.logical.toLowerCase()));
  }
+function targetExpression(input,known,deps){
+ const s=String(input).trim();if(!s||s.length>512)throw Error('Target expression length must be 1–512');
+ const re=/\s*([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?\d+)?|\.[0-9]+(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*|[()+*/,^-])/y;
+ const t=[];for(let p=0;p<s.length;p=re.lastIndex){re.lastIndex=p;const a=re.exec(s);if(!a)throw Error('Invalid Target expression');t.push(a[1]);}
+ let i=0;const arity={abs:1,sqrt:1,ln:1,lg:1,sin:1,cos:1,tan:1,asin:1,acos:1,atan:1,sinh:1,cosh:1,tanh:1,sgn:1,pow:2,mod:2,pi:0,e:0,scale:0};
+ function atom(){const a=t[i++];if(a==='('){const n=sum();if(t[i++]!==')')throw Error('Unclosed Target expression');return n;}if(/^[\d.]/.test(a||'')){const n=Number(a);if(!Number.isFinite(n))throw Error('Invalid Target number');return ['n',n];}if(!a||! /^[A-Za-z]/.test(a))throw Error('Expected Target value');
+ const k=a.toLowerCase();if(t[i]==='('){i++;const args=[];if(t[i]!==')'){args.push(sum());while(t[i]===','){i++;args.push(sum());}}if(t[i++]!==')'||!Object.hasOwn(arity,k)||args.length!==arity[k])throw Error('Unsupported Target function: '+a);return ['f',k,args];}if(!known.has(k))throw Error('Unknown Target variable: '+a);deps.add(k);return ['v',k];}
+ function power(){const a=atom();if(t[i]==='^'){i++;return ['^',a,unary()];}return a;}
+ function unary(){if(t[i]==='+'||t[i]==='-'){const op=t[i++];return op==='+'?unary():['neg',unary()];}return power();}
+ function product(){let a=unary();while(t[i]==='*'||t[i]==='/'){const op=t[i++];a=[op,a,unary()];}return a;}
+ function sum(){let a=product();while(t[i]==='+'||t[i]==='-'){const op=t[i++];a=[op,a,product()];}return a;}
+ const ast=sum();if(i!==t.length)throw Error('Unexpected Target token');return ast;
+}
+function targetValue(ast,env,polarity){
+ const [op,a,b]=ast;if(op==='n')return a;if(op==='v')return env[a];if(op==='neg')return -targetValue(a,env,polarity);
+ if(op==='f'){const fn={abs:Math.abs,sqrt:x=>Math.sqrt(Math.abs(x)),ln:Math.log,lg:Math.log10,sin:Math.sin,cos:Math.cos,tan:Math.tan,asin:Math.asin,acos:Math.acos,atan:Math.atan,sinh:Math.sinh,cosh:Math.cosh,tanh:Math.tanh,sgn:Math.sign,pow:Math.pow,mod:(x,y)=>x%y,pi:()=>Math.PI,e:()=>Math.E,scale:()=>polarity==='PMOS'?-1:1}[a];return fn(...b.map(x=>targetValue(x,env,polarity)));}
+ const x=targetValue(a,env,polarity),y=targetValue(b,env,polarity);return op==='+'?x+y:op==='-'?x-y:op==='*'?x*y:op==='/'?x/y:x**y;
+}
 function dcTargetColumns(page,dc=page.dc){
  const mapped=dcOutputs(page,dc),roleNames={d:'drain',g:'gate',s:'source',b:'body'},signals=[...mapped,'Time'];
+ const raw=Object.fromEntries(signals.map(v=>[v.toLowerCase(),{signal:v,key:v==='Time'?'timeS':roleNames[v[1]]+(v[0]==='I'?'CurrentA':'VoltageV'),unit:v==='Time'?'s':v[0]==='I'?'A':'V'}]));
+ const variables=Object.create(null);for(const v of page.variables||[]){const k=String(v.name).toLowerCase();if(Object.hasOwn(raw,k)||Object.hasOwn(variables,k))throw Error('Duplicate Target variable: '+v.name);variables[k]=Number(v.value);}
+ const known=new Set([...Object.keys(raw),...Object.keys(variables)]),deps=new Set(),formulas=[];
+ const formula=String(dc.target.formula||'').trim();if(formula.length>8192)throw Error('Target formula too long');
+ if(formula)for(const line of formula.split(/[;\r\n]+/).map(x=>x.trim()).filter(Boolean)){const match=/^set\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.+)$/i.exec(line);if(!match)throw Error('Target formula requires set name = expression');const k=match[1].toLowerCase();if(known.has(k))throw Error('Duplicate Target assignment: '+match[1]);formulas.push({name:k,ast:targetExpression(match[2],known,deps)});known.add(k);}
  const term=dcTerminals(page,dc).find(t=>dc.terminals[t.logical].role==='X'&&t.resource!=='GNDU');
- const fallbackX=term?(dc.terminals[term.logical].mode==='current'?'I':'V')+term.logical.toLowerCase():'Vd';
- const requested=dc.outputs.trim().split(/[\s,]+/);
- const resolve=(name,field,fallback)=>{
-  const v=String(name||'').trim()||fallback;
-  if(!signals.includes(v))invalidField('target.'+field,'Select an actual measured signal: '+v);
-  return {signal:v,key:v==='Time'?'timeS':roleNames[v[1]]+(v[0]==='I'?'CurrentA':'VoltageV'),unit:v==='Time'?'s':v[0]==='I'?'A':'V'};
- };
- const x=resolve(dc.target.x,'x',fallbackX);
- const fallbackY=requested.find(v=>mapped.includes(v)&&v!==x.signal)||mapped.find(v=>v!==x.signal);
- const y=resolve(dc.target.y,'y',fallbackY);
- if(x.key===y.key)invalidField('target.y','X and Y must be distinct measured signals');
- return {x,y,signals};
+ const fallbackX=term?(dc.terminals[term.logical].mode==='current'?'I':'V')+term.logical.toLowerCase():'Vd',requested=dc.outputs.trim().split(/[\s,]+/);
+ const resolve=(name,fallback)=>{const v=String(name||'').trim()||fallback,parts=v.split(':'),expression=parts.length===2?parts[1].trim():v;if(parts.length>2||parts.length===2&&!parts[0].trim())throw Error('Invalid Target alias');const key=expression.toLowerCase(),direct=raw[key],ast=targetExpression(expression,known,deps);return {...(direct||{key:'derived:'+expression,unit:''}),signal:parts.length===2?parts[0].trim():direct?.signal||expression,ast};};
+ const x=resolve(dc.target.x,fallbackX),fallbackY=requested.find(v=>mapped.includes(v)&&v!==x.signal)||mapped.find(v=>v!==x.signal),y=resolve(dc.target.y,fallbackY);
+ if(x.key===y.key)invalidField('target.y','X and Y must be distinct signals');
+ const inputs=Object.fromEntries([...deps].filter(k=>Object.hasOwn(raw,k)).map(k=>[k,raw[k]]));
+ if(!Object.keys(inputs).length)throw Error('Target requires at least one acquired signal');
+ return {x,y,signals,inputs,rawSignals:Object.values(inputs).map(v=>v.signal),variables,formulas,polarity:dc.polarity};
+}
+function evaluateTargetPoint(target,row){
+ const env=Object.assign(Object.create(null),target.variables||{});for(const [k,c] of Object.entries(target.inputs||{})){const v=row[c.key];env[k]=v==null||v===''?NaN:Number(v);}
+ for(const z of target.formulas||[])env[z.name]=targetValue(z.ast,env,target.polarity);
+ const x=targetValue(target.x.ast,env,target.polarity),y=targetValue(target.y.ast,env,target.polarity);return Number.isFinite(x)&&Number.isFinite(y)?{x,y}:null;
 }
  function dcMethods(role){
   return role==='CONDITION'?['constant','generator']:['step','points','log','list'];
@@ -1160,11 +1183,14 @@ function dcAffine(raw,variables,polarity){
    if(!Object.prototype.hasOwnProperty.call(xkeys,axis))throw Error('Unknown graph axis');
    const pulse=cols.some(c=>norm(c)==='pulsevoltagev')&&cols.some(c=>norm(c)==='pulsecurrenta');
    if(pulse&&axis==='transfer')continue;
-   const x=axis==='target'?target&&cols.find(c=>norm(c)===target.x.key.toLowerCase()):pulse?choose(axis==='iv'?['pulsevoltagev']:xkeys[axis],'x',false):choose(xkeys[axis],'x',axis==='iv');
-   const y=axis==='target'?target&&cols.find(c=>norm(c)===target.y.key.toLowerCase()):pulse?choose(axis==='vt'?['pulsevoltagev']:['pulsecurrenta'],'y',false):axis==='vt'?choose(['drainvoltagev','measuredvoltagev','measuredvoltage','voltagev','voltage','vd'],'y',false):
+   const targetCols=axis==='target'&&target?Object.fromEntries(Object.values(target.inputs).map(v=>[v.key,cols.find(c=>norm(c)===v.key.toLowerCase())])):null;
+   if(axis==='target'&&(!targetCols||Object.values(targetCols).some(c=>!c)))continue;
+   const x=axis==='target'?Object.values(targetCols)[0]:pulse?choose(axis==='iv'?['pulsevoltagev']:xkeys[axis],'x',false):choose(xkeys[axis],'x',axis==='iv');
+   const y=axis==='target'?x:pulse?choose(axis==='vt'?['pulsevoltagev']:['pulsecurrenta'],'y',false):axis==='vt'?choose(['drainvoltagev','measuredvoltagev','measuredvoltage','voltagev','voltage','vd'],'y',false):
     choose(['draincurrenta','id','current','ids','i','draincurrent','y'],'y',axis!=='it');
-      if(!x||!y||x===y)continue;
-   const total=Math.min(Number(x.length)||0,Number(y.length)||0);
+      if(!x||!y||(axis!=='target'&&x===y))continue;
+   const total=Math.min(...(targetCols?Object.values(targetCols):[x,y]).map(c=>Number(c.length)||0));
+   const groupCols=Object.fromEntries(['cycle','pPoint','pRepeat','xRepeat'].map(k=>[k,cols.find(c=>norm(c)===k.toLowerCase()&&Number(c.length)>=total)]).filter(([,c])=>c));
    if(!Number.isSafeInteger(total)||total<=0)continue;
    // Span the entire raw table, not just the first 65536 rows. All accesses
    // use the DKDS Data Center bounded column-read interface; no artifacts.get().
@@ -1184,31 +1210,36 @@ function dcAffine(raw,variables,polarity){
    const sampled=[];
    let readRows=0;
    for(const span of spans){
-    const xc=store.readColumnRange(id,x.id||x.key,span);
-    const yc=store.readColumnRange(id,y.id||y.key,span);
+    const read=c=>store.readColumnRange(id,c.id||c.key,span)?.values;
     const isColumn=v=>Array.isArray(v)||ArrayBuffer.isView(v);
-    if(!isColumn(xc?.values)||!isColumn(yc?.values))continue;
-    const count=Math.min(span.limit,xc.values.length,yc.values.length);
-    readRows+=count;
+    const columns=targetCols?Object.fromEntries(Object.entries(targetCols).map(([k,c])=>[k,read(c)])):{x:read(x),y:read(y)};
+    const values=Object.values(columns);if(values.some(v=>!isColumn(v)))continue;
+    const groups=Object.fromEntries(Object.entries(groupCols).map(([k,c])=>[k,read(c)]).filter(([,v])=>isColumn(v)&&v.length>=Math.min(span.limit,...values.map(x=>x.length))));
+    const count=Math.min(span.limit,...values.map(v=>v.length));readRows+=count;
     for(let j=0;j<count;j++){
-     if(xc.values[j]==null||yc.values[j]==null||xc.values[j]===''||yc.values[j]==='')continue;
-     const vx=Number(xc.values[j]),vy=Number(yc.values[j]);
-     if(Number.isFinite(vx)&&Number.isFinite(vy))
-      sampled.push({index:span.start+j,point:{x:vx,y:vy}});
+     let point;if(targetCols){point=evaluateTargetPoint(target,Object.fromEntries(Object.entries(columns).map(([k,v])=>[k,v[j]])));}else{
+      const vx=columns.x[j],vy=columns.y[j];if(vx==null||vy==null||vx===''||vy==='')continue;point={x:Number(vx),y:Number(vy)};
+     }
+     if(point&&Number.isFinite(point.x)&&Number.isFinite(point.y)){
+      const group=Object.entries(groups).filter(([,v])=>v[j]!=null&&v[j]!==''&&Number.isFinite(Number(v[j]))).map(([k,v])=>k+'='+v[j]).join(' / ');
+      sampled.push({index:span.start+j,point,group});
+     }
     }
    }
    if(!sampled.length)continue;
+   const partitions=new Map();for(const item of sampled){if(!partitions.has(item.group))partitions.set(item.group,[]);partitions.get(item.group).push(item);}
+   for(const [group,series] of partitions){
    const chosen=[],seen=new Set();
    function keep(entry){
     if(entry&&!seen.has(entry.index)){seen.add(entry.index);chosen.push(entry);}
    }
    // Chronological min/max decimation retains local extrema of the rows
    // actually inspected. Unsampled gaps are NEVER represented as full coverage.
-   keep(sampled[0]);
-   const groups=Math.max(1,Math.floor((display-2)/2));
-   const groupStep=Math.max(1,Math.ceil(sampled.length/groups));
-   for(let start=0;start<sampled.length;start+=groupStep){
-    const block=sampled.slice(start,start+groupStep);
+   keep(series[0]);
+   const groups=Math.max(1,Math.floor((Math.max(4,Math.floor(display/partitions.size))-2)/2));
+   const groupStep=Math.max(1,Math.ceil(series.length/groups));
+   for(let start=0;start<series.length;start+=groupStep){
+    const block=series.slice(start,start+groupStep);
     let lo=block[0],hi=block[0];
     for(const point of block){
      if(point.point.y<lo.point.y)lo=point;
@@ -1216,19 +1247,20 @@ function dcAffine(raw,variables,polarity){
     }
     for(const entry of [lo,hi].sort((a,b)=>a.index-b.index))keep(entry);
    }
-   keep(sampled[sampled.length-1]);
+   keep(series[series.length-1]);
    chosen.sort((a,b)=>a.index-b.index);
    const partial=readRows<total;
-   out.push({id,artifactId:id,label:String(ref.name||id)+
+   out.push({id:partitions.size>1?id+':'+group:id,artifactId:id,label:String(ref.name||id)+(partitions.size>1?' · '+group:'')+
      (partial?' (preview '+readRows+'/'+total+')':''),
     points:chosen.map(x=>x.point),...(axis==='target'?{target:{x:target.x,y:target.y}}:{}),
     source:{artifactId:id,kind:'dkds-artifact-bounded-preview',
      totalRows:total,readRows,displayRows:chosen.length,truncated:partial,
      coverage:partial?'stratified-intervals':'all-rows',
      windows:spans.map(x=>({start:x.start,rows:x.limit}))}});
+   }
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,dcSummary,dcExpression,dcAffine,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,dcSummary,dcExpression,dcAffine,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

@@ -1371,7 +1371,7 @@
     {key:'formula',path:'target.formula',kind:'textarea'});
    const bottom=dcLayout(host,'dkts-dc-bottom');
    const plot=dcPanel(bottom,tr('绘图','Plot'),'dkts-dc-plot');
-   for(const key of ['x','y'])dcSelect(plot,key.toUpperCase(),dc.target[key],[{value:'',label:tr('自动','Auto')},...model.dcOutputs(p,dc).concat('Time').map(value=>({value,label:value}))],value=>{dc.target[key]=value;redrawDc();},{key:'plot-'+key,path:'target.'+key});
+   for(const key of ['x','y'])dcInput(plot,key.toUpperCase(),dc.target[key],value=>{dc.target[key]=value;},{key:'plot-'+key,path:'target.'+key});
    for(const key of ['h','p'])dcInput(plot,key.toUpperCase(),dc.target[key],value=>{dc.target[key]=value;},{key:'plot-'+key,path:'target.'+key});
    renderVariablesPanel(bottom,p);
    const quoted=dcPanel(bottom,'Quote Var','dkts-dc-quote');
@@ -1908,10 +1908,10 @@
    plots[index]?.dispose?.();
    const kind=frameKinds[index]||'iv';
    let target=null;if(kind==='target'){try{target=model.dcTargetColumns(active());}catch{}}
-   const title=kind==='target'?(target?target.x.signal+' ('+target.x.unit+')':'X'):['it','vt'].includes(kind)?tr('时间 (s)','Time (s)'):kind==='transfer'?tr('栅极电压 (V)','Gate voltage (V)'):tr('漏极电压 (V)','Drain voltage (V)');
+   const title=kind==='target'?(target?target.x.signal+(target.x.unit?' ('+target.x.unit+')':''):'X'):['it','vt'].includes(kind)?tr('时间 (s)','Time (s)'):kind==='transfer'?tr('栅极电压 (V)','Gate voltage (V)'):tr('漏极电压 (V)','Drain voltage (V)');
    const instance=units.scientificPlot.create(host,{variant:'curve',
     source:'dkts-native-frame-'+(index+1),
-    xTitle:title,yTitle:kind==='target'?(target?target.y.signal+' ('+target.y.unit+')':'Y'):kind==='vt'?tr('电压 (V)','Voltage (V)'):tr('电流 (A)','Current (A)'),
+    xTitle:title,yTitle:kind==='target'?(target?target.y.signal+(target.y.unit?' ('+target.y.unit+')':''):'Y'):kind==='vt'?tr('电压 (V)','Voltage (V)'):tr('电流 (A)','Current (A)'),
     emptyText:()=>tr('暂无可显示的数据','No data to display'),
     getCurves:()=>frameCurves(index),getMarkers:()=>[]});
    plots[index]=instance;
@@ -1928,7 +1928,7 @@
    const scopeMatches=plotScope==='page'?s.activeId===runPageId:plotScope==='routine'?s.pages.some(p=>p.id===runPageId&&p.routineId===s.activeRoutineId):true;
    if(run.running&&scopeMatches&&run.liveRows?.length){
     const groups=new Map();
-    for(const r of run.liveRows){if(r.source==='4200A-KXCI-PMU'&&kind==='transfer')continue;const key=(r.pulseResource?r.pulseResource+' · ':'')+r.cycle+':'+(r.pPoint||1);if(!groups.has(key))groups.set(key,[]);groups.get(key).push({x:kind==='target'?r[target.x.key]:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.pulseVoltageV??r.drainVoltageV,y:kind==='target'?r[target.y.key]:kind==='vt'?(r.pulseVoltageV??r.drainVoltageV):(r.pulseCurrentA??r.drainCurrentA)});}
+    for(const r of run.liveRows){if(r.source==='4200A-KXCI-PMU'&&kind==='transfer')continue;const key=(r.pulseResource?r.pulseResource+' · ':'')+[r.cycle,r.pPoint||1,r.pRepeat||1,r.xRepeat||1].join(':');if(!groups.has(key))groups.set(key,[]);const point=kind==='target'?model.evaluateTargetPoint(target,r):{x:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.pulseVoltageV??r.drainVoltageV,y:kind==='vt'?(r.pulseVoltageV??r.drainVoltageV):(r.pulseCurrentA??r.drainCurrentA)};if(point)groups.get(key).push(point);}
     for(const [key,rows] of groups){const points=rows.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));if(points.length)list.push({id:'dkts-live-'+run.runId+'-'+key,label:'4200A · '+tr('本次测量预览','Live acquisition')+' '+key,points});}
    }
    return list;
