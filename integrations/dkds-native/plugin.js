@@ -310,17 +310,18 @@
    if(!page||!prepared?.canExecute||runConfirmationPending)return;
    runConfirmationPending=true;
    try{
+   const pulse=prepared.compiled.pulse;
    const plan=prepared.compiled.plan;
    const channels=Object.entries(prepared.channels).map(([role,channel])=>role+'=SMU'+channel).join('，');
-   const voltageSegments=[...plan.xSweep.segments,...(plan.pSweep?.segments||[])];
+   const voltageSegments=plan.xSweep?[...plan.xSweep.segments,...(plan.pSweep?.segments||[])]:[];
    const maxVoltage=Math.max(0,...voltageSegments.filter(row=>Number.isFinite(row.startV)).flatMap(row=>[Math.abs(row.startV),Math.abs(row.stopV)]),
-    ...Object.values(plan.fixedVoltages).map(value=>Math.abs(value)),...Object.values(plan.portSettings).map(row=>row.complianceV||0));
+    ...Object.values(plan.fixedVoltages||{}).map(value=>Math.abs(value)),...Object.values(plan.portSettings||{}).map(row=>row.complianceV||0),pulse?.peak||0);
    const currentPeak=Math.max(0,...voltageSegments.filter(row=>Number.isFinite(row.startA)).flatMap(row=>[Math.abs(row.startA),Math.abs(row.stopA)]),...Object.values(plan.fixedCurrents||{}).map(Math.abs));
    const confirmed=await ctx.ui.dialogs.confirm({
     title:'确认 Keithley 4200A 实际输出',tone:'warning',destructive:true,
     message:'仪器 '+current.connection.identity.serial+' 将执行“'+page.name+'”，预计 '+
      prepared.pointCount.toLocaleString()+' 个测量点。',
-    detail:'活动端口：'+channels+'。最大设定电压或限压：'+maxVoltage+' V。'+(Object.values(plan.sourceModes||{}).includes('current')?'最大设定电流：'+currentPeak.toExponential(3)+' A。':'')+(prepared.compiled.system?.rpmRoutes?.length?'本次自动切换：'+prepared.compiled.system.rpmRoutes.map(r=>r.pmu+' → '+r.smu).join('，')+'。请确认接线未变化、所有相连输出均已关闭且无其他测试。':'')+(page.kind==='time'?'读数后等待和采样点数按测试设置执行；实际时长以仪器记录为准。':'')+'请确认实际接线、探针接触、各端口限流及现场安全条件。测量结束、停止或异常时，软件会尝试关闭活动输出。',
+    detail:'活动端口：'+(pulse?pulse.resource:channels)+'。最大设定电压或限压：'+maxVoltage+' V。'+(Object.values(plan.sourceModes||{}).includes('current')?'最大设定电流：'+currentPeak.toExponential(3)+' A。':'')+(prepared.compiled.system?.rpmRoutes?.length?'本次自动切换：'+prepared.compiled.system.rpmRoutes.map(r=>r.pmu+' → '+r.smu).join('，')+'。请确认接线未变化、所有相连输出均已关闭且无其他测试。':'')+(page.kind==='time'?'读数后等待和采样点数按测试设置执行；实际时长以仪器记录为准。':'')+'请确认实际接线、探针接触、各端口限流及现场安全条件。测量结束、停止或异常时，软件会尝试关闭活动输出。',
     confirmLabel:'确认接线并开始输出'
    });
    if(!confirmed)return;
@@ -351,7 +352,7 @@
    if(!page)return;
    const issue=pageParameterIssue(page);
    if(issue){ctx.status.set(issue.message);return;}
-   if(page.kind==='dc'||page.kind==='time'){
+   if(page.kind==='dc'||page.kind==='time'||page.kind==='pulse'){
     const prepared=measurementRuntime.prepare(page);
     if(!prepared.canExecute){
      await ctx.ui.dialogs.alert({title:tr('执行前检查','Execution preflight'),message:prepared.reason||'执行前检查未通过'});
@@ -1790,7 +1791,7 @@
    const scopeMatches=plotScope==='page'?s.activeId===runPageId:plotScope==='routine'?s.pages.some(p=>p.id===runPageId&&p.routineId===s.activeRoutineId):true;
    if(run.running&&scopeMatches&&run.liveRows?.length){
     const groups=new Map();
-    for(const r of run.liveRows){const key=r.cycle+':'+(r.pPoint||1);if(!groups.has(key))groups.set(key,[]);groups.get(key).push({x:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.drainVoltageV,y:kind==='vt'?r.drainVoltageV:r.drainCurrentA});}
+    for(const r of run.liveRows){const key=r.cycle+':'+(r.pPoint||1);if(!groups.has(key))groups.set(key,[]);groups.get(key).push({x:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.pulseVoltageV??r.drainVoltageV,y:kind==='vt'?(r.pulseVoltageV??r.drainVoltageV):(r.pulseCurrentA??r.drainCurrentA)});}
     for(const [key,rows] of groups){const points=rows.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));if(points.length)list.push({id:'dkts-live-'+run.runId+'-'+key,label:'4200A · '+tr('本次测量预览','Live acquisition')+' '+key,points});}
    }
    return list;

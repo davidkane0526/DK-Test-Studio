@@ -133,7 +133,8 @@
     let systemProgram=null;
     function beginSystemProgram(program){
       if(systemProgram)throw Error('已有 System Mode 任务');
-      systemProgram={commands:new Set([...program.setup,...program.reads,...program.cleanup,...(program.rpmRoutes?.length?[':PMU:TEST:STATUS?']:[]),'ME1','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET']),reads:new Set([...program.reads,...(program.rpmRoutes?.length?[':PMU:TEST:STATUS?']:[])]),rdNames:new Set(program.rdNames),count:program.count};
+      systemProgram={commands:new Set([...program.setup,...program.reads,...program.cleanup,...(program.rpmRoutes?.length?[':PMU:TEST:STATUS?']:[]),'ME1','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET']),reads:new Set([...program.reads,...(program.rpmRoutes?.length?[':PMU:TEST:STATUS?']:[])]),rdNames:new Set(program.rdNames),count:program.count,pulseChannel:program.pulseChannel,fields:program.fields};
+      if(program.pulseChannel)systemProgram.commands.add(':PMU:EXECUTE');
     }
     function endSystemProgram(){systemProgram=null;}
     function measurementTrace(){return trace.map(x=>({...x}));}
@@ -145,8 +146,10 @@
         throw Error('仪器及物理模块尚未完成身份核验');
       const cmd=String(text||'');
       const rd=/^RD '([A-Z0-9]+)',([1-9][0-9]*)$/.exec(cmd);
-      const systemAllowed=Boolean(systemProgram&&(systemProgram.commands.has(cmd)||(rd&&systemProgram.rdNames.has(rd[1])&&Number(rd[2])<=systemProgram.count)));
-      const systemRead=Boolean(systemAllowed&&(systemProgram.reads.has(cmd)||rd));
+      const block=/^:PMU:DATA:GET ([1-8]),(0|[1-9][0-9]*),([1-9][0-9]*),([A-Z,]+)$/.exec(cmd);
+      const blockAllowed=Boolean(systemProgram&&block&&Number(block[1])===systemProgram.pulseChannel&&Number(block[3])<=2048&&Number(block[2])+Number(block[3])<=systemProgram.count&&block[4]===systemProgram.fields);
+      const systemAllowed=Boolean(systemProgram&&(systemProgram.commands.has(cmd)||blockAllowed||(rd&&systemProgram.rdNames.has(rd[1])&&Number(rd[2])<=systemProgram.count)));
+      const systemRead=Boolean(systemAllowed&&(systemProgram.reads.has(cmd)||rd||blockAllowed));
       const n='(?:0|[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[Ee][+-]?\\d+)?)';
       const dv=new RegExp('^DV([1-9]),0,('+n+'),('+n+')$').exec(cmd);
       const ri=new RegExp('^RI ([1-9]),('+n+'),('+n+')$').exec(cmd);

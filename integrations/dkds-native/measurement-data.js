@@ -8,6 +8,7 @@
   ['plannedTimeS','计划采样时间','s','raw'],['sampleStartS','主机采样起点','s','raw'],['sampleWindowOverrun','采样窗口超时','','raw'],
   ['plannedXCurrentA','Xsweep 设定电流','A','raw'],['plannedPCurrentA','Psweep 设定电流','A','raw'],['xCurrentA','Xsweep 实测电流','A','raw'],['pCurrentA','Psweep 实测电流','A','raw'],
   ['plannedXVoltageV','Xsweep 设定电压','V','raw'],['plannedPVoltageV','Psweep 设定电压','V','raw'],
+  ['pulseVoltageV','脉冲实测电压','V','x'],['pulseCurrentA','脉冲实测电流','A','y'],
   ['drainVoltageV','漏极电压','V','x'],['drainCurrentA','漏极电流','A','y'],
   ['gateVoltageV','栅极电压','V','group'],['gateCurrentA','栅极电流','A','y'],
   ['sourceVoltageV','源极电压','V','group'],['sourceCurrentA','源极电流','A','y'],
@@ -18,6 +19,7 @@
   ['pPoint','Psweep 点序','','index']
  ];
  const STRINGS=[
+  ['pulseResource','脉冲通道'],['pulseMode','脉冲采集方式'],['pulseStatusRaw','脉冲原始状态'],
   ['source','采集协议来源'],['measurementStatus','测量状态'],['measurementCompleteness','采样完整性'],
   ['complianceRole','触及限流端口'],['rawKxciResponse','KXCI 原始响应'],
   ['rawKxciResponses','各端口原始响应 JSON'],
@@ -37,9 +39,9 @@
    throw Error('No actual KXCI samples to publish');
   for(let i=0;i<rows.length;i++){
    const row=rows[i];
-   if(!['4200A-KXCI-TI','4200A-KXCI-DO','4200A-KXCI-RD'].includes(row?.source)||row.sequence!==i+1||
-      !Number.isFinite(row.timeS)||!Number.isFinite(row.drainVoltageV)||
-      !Number.isFinite(row.drainCurrentA)||!row.rawKxciResponse||
+   const pulse=row?.source==='4200A-KXCI-PMU';
+   if(!['4200A-KXCI-TI','4200A-KXCI-DO','4200A-KXCI-RD','4200A-KXCI-PMU'].includes(row?.source)||row.sequence!==i+1||
+      !Number.isFinite(row.timeS)||!(pulse?Number.isFinite(row.pulseVoltageV)&&Number.isFinite(row.pulseCurrentA):Number.isFinite(row.drainVoltageV)&&Number.isFinite(row.drainCurrentA))||!row.rawKxciResponse||
       !['complete','partial'].includes(row.measurementCompleteness))
     throw Error('Malformed/mixed/synthetic KXCI original record at '+(i+1));
   }

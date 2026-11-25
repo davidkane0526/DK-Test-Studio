@@ -244,17 +244,24 @@ function pageToBasicProgram(page, model){
    if(!connection.inventory||connection.inventoryError)
     return {ready:false,canExecute:false,reason:connection.inventoryError||'尚未完成实际模块识别'};
    try{
-    const input=pageToSweepProgram(page,model);
-    const routes=protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,Object.values(input.sweepProgram.terminals));
-    if(routes.length&&input.executionMode!=='system')throw Error('RPM 自动切换目前仅支持仪器原生 DC 和固定偏置时间测试');
-    input.rpmRoutes=routes;
+    let input;
+    if(page.kind==='pulse'){
+     const v=page.timing,resource=resolvePulsePort(page.terminals.find(t=>t.logical===v.terminal)?.resource,v.channel);
+     protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,[]);
+     input={executionMode:'pulse',settings:v,summary:model.timedSummary('pulse',v),resource,wiringConfirmed:true};
+    }else{
+     input=pageToSweepProgram(page,model);
+     const routes=protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,Object.values(input.sweepProgram.terminals));
+     if(routes.length&&input.executionMode!=='system')throw Error('RPM 自动切换目前仅支持仪器原生 DC 和固定偏置时间测试');
+     input.rpmRoutes=routes;
+    }
     const compiled=measurement.compileSweep(input,{
      inventory:connection.inventory,capabilities:hardwareCapabilities
     });
     const protocolPolicy=hardwareCapabilities.DATABASE?.safetyPolicies?.kxci||{};
-    const protocolVerified=compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true:protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
+    const protocolVerified=compiled.pulse?protocolPolicy.pmuModeManualVerified===true&&protocolPolicy.allowPulseModeOutput===true:compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true:protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
     let reason='';
-    if(!protocolVerified)reason='Rev F 已取得；当前执行模式尚未取得输出许可';
+    if(!protocolVerified)reason=compiled.pulse?'脉冲方案已转换；等待受控实机验收后开放输出':'Rev F 已取得；当前执行模式尚未取得输出许可';
     else if(!executionAdapterAvailable)reason='当前 DKDS 宿主缺少生命周期管理的查询/停止调度器';
     else if(!compiled.physicalVerified)reason='实际模块型号、序列号或附件身份尚未完整核验';
     else if(!compiled.capabilityVerified)reason='一个或多个活动 SMU 的额定值尚未核验';

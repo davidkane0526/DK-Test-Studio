@@ -326,7 +326,86 @@ async function executeSystemTask(program,io){
  }
  return {state,shutdown,error};
 }
+function compilePulse(input,hardware){
+ const {inventory,capabilities:h}=hardware,v=input.settings,s=input.summary;
+ const check=(b,m)=>{if(!b)throw Error(m)},n=k=>{const x=Number(v[k]);check(v[k]!=null&&String(v[k]).trim()!==''&&Number.isFinite(x),'无效参数 '+k);return x};
+ const m=/^PMU([1-9])-([12])$/.exec(input.resource||'');check(m,'请选择独立 PMU 通道');
+ const card=+m[1],sub=+m[2],ch=2*(card-1)+sub;
+ const cards=inventory?.slots?.filter(z=>['PMU','PGU'].includes(z.family))||[],ids=cards.map(z=>z.channel).sort((a,b)=>a-b);
+ check(ids.length<=4&&ids.every((z,i)=>z===i+1)&&ch<=8,'核对 KCon 通道编号');
+ const slot=cards.find(z=>z.family==='PMU'&&z.channel===card);check(slot?.physicalIdentityVerified&&slot.ratingsVerified,'PMU 模块未核验');
+ const rpm=slot.rpmChannels?.includes(sub)===true;check(!rpm||input.wiringConfirmed===true,'请确认 RPM 接线');
+ const role={D:'drain',G:'gate',S:'source'}[v.terminal];check(role,'测量端子无效');
+ const range=n('rangeV'),load=n('loadOhms'),fixed=n('fixedV'),a=n('start'),b=n('stop'),step=n('step'),bursts=n('pulseCount'),rate=n('rateHz'),points=s.points;
+ check(['spot','waveform'].includes(v.mode)&&['amplitude','base'].includes(v.sweep)&&[10,40].includes(range),'脉冲模式无效');
+ check(n('holdUs')===0&&n('baseDelayUs')===0,'保持或基线延迟尚未接入');
+ check(Number.isInteger(points)&&points>=1&&points<=4096&&Number.isInteger(bursts)&&bursts>=1&&bursts<=10000&&Number.isInteger(rate)&&rate>=1000&&rate<=200e6,'点数、脉冲数或采样率越界');
+ check(points===1?a===b&&step===0:Math.abs((b-a)/step-(points-1))<1e-6,'扫描点数不一致');
+ check(v.sweep==='amplitude'||points===1,'多点基线扫与原厂固定峰值语义不同，尚未接入');
+ const base=v.sweep==='amplitude'?fixed:a,topA=v.sweep==='amplitude'?fixed+a:a+fixed,topB=v.sweep==='amplitude'?fixed+b:topA,peak=Math.max(Math.abs(base),Math.abs(topA),Math.abs(topB));
+ const lim=h.getPulseOutputLimits('pmu',range,load);check(peak<=lim.maxVoltageV+1e-12&&Math.max(base,topA,topB)-Math.min(base,topA,topB)<=range,'负载或电压跨度越界');
+ const sec=k=>n(k)*1e-6,period=sec('periodUs'),flat=sec('widthUs'),rise=sec('riseUs'),fall=sec('fallUs'),delay=sec('delayUs'),width=flat+(rise+fall)/2,duration=flat+rise+fall;
+ const timing=h.getPulseTimingRecommendation(range,null,true,'pmu',rpm,peak),t=timing.kxciInterfaceTiming;
+ check(period>=Math.max(t.periodMinS,timing.periodMinS)&&period<=t.periodMaxS&&width>=Math.max(t.pulseWidthMinS,timing.pulseWidthMinS)&&width<=period-1e-8&&width>(rise+fall)/2&&rise<=width&&flat>0,'脉冲宽度或周期无效');
+ check(rise>=Math.max(t.transitionMinS,timing.transitionMinS||0)&&fall>=Math.max(t.transitionMinS,timing.transitionMinS||0)&&rise<=t.transitionMaxS&&fall<=t.transitionMaxS&&delay>=0&&(delay===0||delay>=t.delayStepS)&&period-delay-duration>t.minOffTimeS,'边沿、延迟或关断时间无效');
+ const begin=v.windowStartUs===''?0:sec('windowStartUs'),window=v.windowTimeUs===''?flat-begin:sec('windowTimeUs'),waveform=v.mode==='waveform';
+ check(begin>=0&&window>0&&begin+window<=flat+1e-15,'测量窗口无效');
+ check(!waveform||(begin===0&&Math.abs(window-flat)<1e-15),'波形采集需选择完整脉冲窗口');
+ const dur=waveform?duration:window,budget=h.getPmuCaptureBudget(dur*points*bursts,dur,rate,{pulseCount:bursts,sweepPoints:points});
+ check(budget.kxciBoundaryStatus==='within-published-range','采样容量越界');
+ const expected=waveform?null:points*bursts;check(expected===null||expected<=65536,'记录数越界');
+ const ir=v.currentRangeA===''?null:n('currentRangeA');check(ir===null||h.getPmuCurrentRanges(range,rpm).some(z=>Math.abs(z-ir)<=z*1e-12),'电流量程不受支持');
+ const power=h.calculateChassisPower({inventory,activePulseChannels:[{family:'PMU',cardIndex:card,rangeV:range}]});check(power.known&&power.withinLimit,'机箱功耗未核验');
+ const cmd=(name,...args)=>':PMU:'+name+' '+args.map(z=>typeof z==='number'?systemNumber(z):z).join(',');
+ const setup=['SS','ZE',':PMU:INIT 0'];
+ if(rpm)setup.push(cmd('RPM:CONFIGURE',input.resource,0));
+ setup.push(cmd('LOAD',ch,load),cmd('LLEC:CONFIGURE',ch,0),cmd('SOURCE:RANGE',ch,range),cmd('MEASURE:RANGE',ch,ir===null?0:2,...(ir===null?[]:[ir])),cmd('MEASURE:MODE',waveform?2:1),cmd('SAMPLE:RATE',rate),cmd('PULSE:BURST:COUNT',bursts),points===1?cmd('PULSE:TRAIN',ch,base,topA):cmd('SWEEP:PULSE:AMPLITUDE',ch,topA,topB,step,base,0),cmd('PULSE:TIMES',ch,period,width,rise,fall,delay));
+ if(waveform)setup.push(cmd('TIMES:WAVEFORM',ch,0,0));else setup.push(cmd('MEASURE:PIV',ch,1,0),cmd('TIMES:PIV',ch,begin/flat,(begin+window)/flat));
+ setup.push(cmd('OUTPUT:STATE',ch,1));
+ const countQuery=cmd('DATA:COUNT?',ch),statusQuery=':PMU:TEST:STATUS?',fields=waveform?'V,I,T,S':'VH,IH,TH,SH',offCommand=cmd('OUTPUT:STATE',ch,0);
+ const pulse=Object.freeze({setup,reads:[countQuery,statusQuery],cleanup:[offCommand,':PMU:ABORT'],rdNames:[],count:65536,pulseChannel:ch,fields,countQuery,statusQuery,offCommand,resource:input.resource,role,waveform,expected,points,bursts,rate,peak,base,topA,topB,withRpm:rpm,estimatedRecords:waveform?budget.sampleCountAtSelectedRate:expected});
+ const physicalVerified=inventory?.physicalModelsVerified===true&&inventory?.hardwareLimitsVerified===true;
+ return {plan:{kind:'pulse'},pulse,physicalVerified,capabilityVerified:true,requiresInterlock:peak>21,canExecute:physicalVerified&&peak<=21,channels:{[role]:ch},active:[role],totalPoints:pulse.estimatedRecords,commandMode:'KXCI-PMU'};
+}
+function parsePulseBlock(raw,p,offset){
+ const src=String(raw??'').trim().replace(/;\s*$/,'');if(!src)return [];
+ return src.split(';').map((record,i)=>{
+ const f=record.split(',').map(x=>x.trim());if(f.length!==4||f.some(x=>!x))throw Error('PMU 字段错误');
+ const [voltage,current,time]=f.slice(0,3).map(s=>{if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:E[+-]?\d+)?$/i.test(s))throw Error('PMU 数值格式错误');const n=Number(s);if(!Number.isFinite(n)||Math.abs(n)>=9e37)throw Error('PMU 读数无效');return n});if(time<0)throw Error('PMU 时间戳无效');
+ return {sequence:offset+i+1,cycle:1,point:offset+i+1,timeS:time,source:'4200A-KXCI-PMU',measurementCompleteness:'complete',measurementStatus:'unknown',pulseStatusRaw:f[3],pulseResource:p.resource,pulseMode:p.waveform?'waveform':'spot',pulseVoltageV:voltage,pulseCurrentA:current,[p.role+'VoltageV']:voltage,[p.role+'CurrentA']:current,rawKxciResponse:record,rawKxciResponses:{[p.resource]:record}};
+ });
+}
+async function executePulseTask(p,io){
+ const {command,wait,cancelled,onBatch}=io;
+ const integerReply=(s,max)=>{const raw=String(s).trim().replace(/,\s*$/,'');if(!/^\d+$/.test(raw)||Number(raw)>max)throw Error('PMU 状态或点数无效');return Number(raw)};
+ const status=async()=>integerReply(await command(p.statusQuery,true),1);
+ const verify=async()=>{const s=parseStatusByte(await command('SP',true));if(s.syntaxError)throw Error('仪器指令错误：'+await command(':ERROR:LAST:GET',true));return s};
+ let touched=false,started=false,off=false,cursor=0,state='completed',error='',shutdown='not-started';
+ try{
+ if((await verify()).busy||await status())throw Error('仪器正在执行其他测试');
+ if(cancelled())return {state:'stopped',shutdown,error};
+ await command(':ERROR:LAST:CLEAR');touched=true;
+ for(const c of p.setup){if(cancelled())break;await command(c);if((await verify()).busy)throw Error('配置期间 Busy')}
+ if(!cancelled()){
+ started=true;await command(':PMU:EXECUTE');
+ while(!cancelled()){
+ const busy=await status();await verify();
+ if(!busy){started=false;await command(p.offCommand);await verify();off=true;
+ const count=integerReply(await command(p.countQuery,true),p.count);
+ while(cursor<count&&!cancelled()){const n=Math.min(128,count-cursor),rows=parsePulseBlock(await command(':PMU:DATA:GET '+p.pulseChannel+','+cursor+','+n+','+p.fields,true),p,cursor);if(!rows.length||rows.length>n)throw Error('PMU 缓冲区计数不一致');onBatch(rows);cursor+=rows.length}
+ if(!cancelled()&&(cursor===0||p.expected!==null&&cursor!==p.expected))throw Error('PMU 实际点数与计划不一致');break}
+ await wait(100);
+ }
+ }
+ if(cancelled())state='stopped';
+ }catch(e){state='failed';error=String(e.message||e)}
+ finally{if(touched){let safe=true;if(started){try{await command(':PMU:ABORT');let idle=false;for(let i=0;i<100;i++){if(!await status()){idle=true;break}await wait(100)}if(!idle)throw Error('中止后仍 Busy')}catch(e){safe=false;error+='；'+e.message}}
+ if(!off){try{await command(p.offCommand);await verify()}catch(e){safe=false;error+='；'+e.message}}
+ shutdown=safe?'commands-sent':'unconfirmed';if(!safe)state='failed'}}
+ return {state,shutdown,error};
+}
   function compileSweep(input,hardware={}){
+    if(input.executionMode==='pulse')return compilePulse(input,hardware);
     const planner=typeof require==='function'
       ?require('./measurement-plan.js')
       :window.DKDSPluginModules.require('dkts-plan');
@@ -433,8 +512,9 @@ async function executeSystemTask(program,io){
     }
     async function executeNative(j,lease){
       try{
-        controller.beginSystemProgram(j.compiled.system);
-        const result=await executeSystemTask(j.compiled.system,{command,wait,cancelled:()=>j.cancelled,
+        const program=j.compiled.pulse||j.compiled.system;
+        controller.beginSystemProgram(program);
+        const result=await (j.compiled.pulse?executePulseTask:executeSystemTask)(program,{command,wait,cancelled:()=>j.cancelled,
           onBatch:rows=>{j.rows.push(...rows);try{onProgress(publicState(0));}catch{}},
           onPreview:rows=>{j.previewRows=rows.slice();try{onProgress(publicState(0));}catch{}}});
         Object.assign(j,result);
@@ -443,7 +523,7 @@ async function executeSystemTask(program,io){
       return publicState(0);
     }
     async function execute(j,lease){
-      if(j.compiled.system)return executeNative(j,lease);
+      if(j.compiled.system||j.compiled.pulse)return executeNative(j,lease);
       const plan=j.compiled.plan;
       const lastCommands=Object.create(null);
       let previousP=null,timeOrigin=null;
@@ -609,12 +689,13 @@ async function executeSystemTask(program,io){
       if(controller.status().phase!=='connected')
         throw Error('4200A 未连接');
       const compiled=compileSweep(input,hardware);
+      if(compiled.pulse&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowPulseModeOutput!==true)throw Error('PMU 尚待受控实机验收');
       if(!compiled.capabilityVerified||!compiled.physicalVerified)
         throw Error('实际模块型号及其理论额定值尚未完整核验');
       if(compiled.requiresInterlock)
         throw Error('该方案需要硬件高压互锁，尚未实现互锁状态的可靠读取');
       // No implicit partial plan override and no software-derived measurement.
-      const needsWait=Boolean(compiled.system)||Boolean(compiled.timeProgram)||compiled.plan.xSweep.delayMs>0||
+      const needsWait=Boolean(compiled.pulse)||Boolean(compiled.system)||Boolean(compiled.timeProgram)||compiled.plan.xSweep.delayMs>0||
         compiled.plan.xSweep.segments.some(s=>(s.delayMs||0)>0)||
         Boolean(compiled.plan.pSweep&&(compiled.plan.pSweep.delayMs>0||
           compiled.plan.pSweep.segments.some(s=>(s.delayMs||0)>0)));
@@ -643,7 +724,7 @@ async function executeSystemTask(program,io){
     }
     return Object.freeze({start,stop,status:publicState,waitForCompletion,dispose});
   }
-  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix});
+  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,parsePulseBlock,executePulseTask});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
     window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci-measurement',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
