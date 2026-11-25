@@ -150,7 +150,7 @@
 
   // Multi-segment, nested-parameter DC scan planner. This is a read-only
   // validation/preview contract, NOT an instrument execution implementation.
-  const DC_ROLES=Object.freeze(['source','drain','gate']);
+  const DC_ROLES=Object.freeze(['source','drain','gate','body']);
   const SCIENTIFIC_RANGES=Object.freeze([1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,
     1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1]);
   function formatCurrentRange(value){

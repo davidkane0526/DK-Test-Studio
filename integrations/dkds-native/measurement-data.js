@@ -13,7 +13,7 @@
   ['pulseVoltageV','脉冲实测电压','V','x'],['pulseCurrentA','脉冲实测电流','A','y'],
   ['drainVoltageV','漏极电压','V','x'],['drainCurrentA','漏极电流','A','y'],
   ['gateVoltageV','栅极电压','V','group'],['gateCurrentA','栅极电流','A','y'],
-  ['sourceVoltageV','源极电压','V','group'],['sourceCurrentA','源极电流','A','y'],
+  ['sourceVoltageV','源极电压','V','group'],['sourceCurrentA','源极电流','A','y'],['bodyVoltageV','衬底电压','V','group'],['bodyCurrentA','衬底电流','A','y'],
   ['xVoltageV','Xsweep 电压','V','x'],['pVoltageV','Psweep 电压','V','group'],
   ['cycle','整体循环','','index'],['xRepeat','Xsweep 重复','','index'],
   ['xSegment','Xsweep 扫描段','','index'],['point','Xsweep 点序','','index'],

@@ -3,7 +3,7 @@
   // KXCI Rev. E, section 5: US / DV / TI / RG / RI. Commands are sent as
   // NUL-terminated ASCII. User mode executes each point on the instrument;
   // values returned by TI, not planned voltages, constitute measured data.
-  const ROLES=Object.freeze(['source','drain','gate']);
+  const ROLES=Object.freeze(['source','drain','gate','body']);
   function integer(v,label,min,max){
     const n=Number(v);
     if(!Number.isSafeInteger(n)||n<min||n>max)throw Error(label+' 无效');
@@ -174,8 +174,14 @@ function compileSystemPlan(compiled,input,inventory){
  assert(['IT1','IT2','IT3'].includes(integration),'测量速度无效');
  setup.push('EC 1',integration,'RS 7','SM','DM2');
  if(timing)setup.push('WT '+fmt(timing.startS),'IN '+fmt(timing.intervalS),'NR '+count);
- const signals=active.flatMap(r=>[{name:'V'+channels[r],role:r,quantity:'V'},{name:'I'+channels[r],role:r,quantity:'I'}]);
- assert(signals.length<=6,'LI 最多 6 项测量函数');
+ const available=active.flatMap(r=>[{name:'V'+channels[r],role:r,quantity:'V'},{name:'I'+channels[r],role:r,quantity:'I'}]);
+ const short={source:'s',drain:'d',gate:'g',body:'b'};
+ const requested=[...(input.requestedOutputs||['Id']),...(input.plotSignals||[])];
+ const required=new Set(['Vd','Id',...active.map(r=>(current(r)?'V':'I')+short[r]),...requested]);
+ const key=s=>s.quantity+short[s.role];
+ assert([...required].every(name=>available.some(s=>key(s)===name)),'测量目标未分配实际 SMU');
+ const signals=available.length<=6?available:available.filter(s=>required.has(key(s)));
+ assert(signals.length<=6,'LI 最多 6 项测量函数；保留漏极 V/I、各活动端保护读数及用户所选目标，请减少额外测量信号');
  setup.push('LI '+signals.map(s=>"'"+s.name+"'").join(','),'MD');
  const timestamp='V'+channels.drain+'T';
  const reads=[...signals.map(s=>"DO '"+s.name+"'"),"DO '"+timestamp+"'"];
@@ -541,7 +547,8 @@ async function executeNativeSequence(compiled,io){
     const plan=planner.normalizeSweepProgram(input,hardware);
     const active=ROLES.filter(role=>channelNumber(plan.terminals[role])!==null);
     const channels=Object.fromEntries(active.map(role=>[role,channelNumber(plan.terminals[role])]));
-    if(!channels.drain)throw Error('当前 KXCI 用户模式需要漏极 SMU');
+    if(!channels.drain)throw Error('当前 KXCI 执行需要漏极 SMU');
+    if(channels.body&&input.executionMode!=='system')throw Error('B 端请使用原生 Optimized 执行');
     // KXCI SMU current-mode TI responses map SMU1..SMU8 to A..H.
     // An SMU9 assignment must not be accepted without protocol evidence.
     if(channels.drain>8)throw Error('当前 KXCI TI 电流回读仅核验 SMU1 至 SMU8，不能选择 SMU9 测量');
