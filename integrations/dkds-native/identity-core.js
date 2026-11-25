@@ -161,11 +161,11 @@
       if(rg&&!(Number(rg[2])>0&&Number(rg[2])<=1))
         throw Error('KXCI RG 参数越界');
       if(!systemAllowed&&!['US','DE','EM 1,0','BC','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET'].includes(cmd)&&
-         !/^DV[1-9]$/.test(cmd)&&!/^TI[1-9]$/.test(cmd)&&!/^IT[123]$/.test(cmd)&&!dv&&!ri&&!rg)
+         !/^DV[1-9]$/.test(cmd)&&!/^TI[1-9]$/.test(cmd)&&!/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)&&!/^IT[123]$/.test(cmd)&&!dv&&!ri&&!rg)
         throw Error('禁止非测量白名单 KXCI 指令');
-      if(expectReply&&!(systemRead||/^TI[1-9]$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
+      if(expectReply&&!(systemRead||/^TI[1-9]$/.test(cmd)||/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
         throw Error('此 KXCI 指令没有测量响应');
-      if(!expectReply&&(systemRead||/^TI[1-9]$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
+      if(!expectReply&&(systemRead||/^TI[1-9]$/.test(cmd)||/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
         throw Error('数据查询不能丢弃响应');
       const id=connection.sessionId;
       // Ethernet KXCI returns one NUL-terminated response for every command.

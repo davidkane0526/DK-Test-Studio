@@ -526,6 +526,20 @@ function compileSegmentArbPair(input,hardware){
       commandMode:system?'KXCI-SYSTEM-ME1':'KXCI-US-DV-TI',measurementChannel:channels.drain,
       totalPoints:plan.totalPoints,integration:input.systemIntegration||'IT2',timeProgram:input.timeProgram||null});
   }
+function voltageTrigger(channel){
+ const ids=[1,2,3,4,7,8,9,10];
+ if(!Number.isInteger(channel)||!ids[channel-1])throw Error('Invalid SMU voltage trigger channel');
+ return ids[channel-1];
+}
+function parseTv(raw,channel){
+ const text=String(raw??'').replace(/\0/g,'').trim().replace(/,\s*$/,'');
+ const m=/^([NC])([A-Z])V\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)[Ee][+-]?\d+)$/i.exec(text);
+ if(!m)throw Error('KXCI TV 原始响应无法解析：'+text.slice(0,95));
+ const trigger=voltageTrigger(channel),observed=m[2].toUpperCase().charCodeAt(0)-64;
+ if(observed!==trigger)throw Error('KXCI TV 响应通道无法确认：SMU'+channel+' / '+m[2]);
+ const voltageV=Number(m[3]);if(!Number.isFinite(voltageV)||Math.abs(voltageV)>=9e37)throw Error('TV 读数无效');
+ return Object.freeze({voltageV,status:m[1].toUpperCase(),rawResponse:text,channel:m[2].toUpperCase(),requestedSmU:channel,trigger});
+}
   function parseTi(raw,expectedChannel){
     const text=String(raw??'').replace(/\0/g,'').trim().replace(/,\s*$/,'');
     // 4200A user-mode: status letter, channel letter, I, signed scientific reading.
@@ -692,32 +706,39 @@ function compileSegmentArbPair(input,hardware){
           // or source is within its independent current protection.
           const rolesToRead=['drain',...j.compiled.active.filter(role=>role!=='drain')];
           const readings=Object.create(null);
-          let complianceRole=null;
+          let complianceRole=null,readError=null;
           for(const role of rolesToRead){
             if(j.cancelled)break;
             const channel=j.compiled.channels[role];
-            const raw=await command('TI'+channel,true);
-            const sample=parseTi(raw,channel);
-            readings[role]=sample;
-            if(sample.status==='C'){complianceRole=role;break;}
+            try{
+             const raw=await command('TI'+channel,true),sample=parseTi(raw,channel);
+             readings[role]={...sample,voltageV:null,voltageRaw:null,voltageStatus:null};
+             if(sample.status==='C'){complianceRole=role;break;}
+             if(j.cancelled)break;
+             const voltage=parseTv(await command('TV'+voltageTrigger(channel),true),channel);
+             Object.assign(readings[role],{voltageV:voltage.voltageV,voltageRaw:voltage.rawResponse,voltageStatus:voltage.status});
+             if(voltage.status==='C'){complianceRole=role;break;}
+            }catch(e){readError=e;break;}
           }
           // Keep a partial row if cancellation arrives between channel reads,
           // rather than fabricating values for channels never measured.
           if(readings.drain){
             const now=Date.now();
-            const full=rolesToRead.every(role=>Boolean(readings[role]));
+            const full=rolesToRead.every(role=>Number.isFinite(readings[role]?.voltageV)&&Number.isFinite(readings[role]?.currentA));
             j.rows.push(Object.freeze({
               timeS:(now-(timeOrigin??started))/1000,plannedTimeS:plannedS,
               sampleStartS:timing?(sampleStarted-timeOrigin)/1000:null,
               sampleWindowOverrun:timing?now>deadline+timing.windowS*1000:false,
-              voltageV:point.voltages.drain,
+              voltageV:readings.drain.voltageV,
               currentA:readings.drain.currentA,
               drainCurrentA:readings.drain.currentA,
               gateCurrentA:readings.gate?.currentA??null,
               sourceCurrentA:readings.source?.currentA??null,
-              sourceVoltageV:point.voltages.source,
-              drainVoltageV:point.voltages.drain,gateVoltageV:point.voltages.gate,
-              xVoltageV:point.xVoltageV,pVoltageV:point.pVoltageV,
+              sourceVoltageV:readings.source?.voltageV??null,
+              drainVoltageV:readings.drain.voltageV,gateVoltageV:readings.gate?.voltageV??null,
+              plannedSourceVoltageV:point.voltages.source,plannedDrainVoltageV:point.voltages.drain,plannedGateVoltageV:point.voltages.gate,
+              xVoltageV:readings[plan.xSweep.terminal]?.voltageV??null,pVoltageV:plan.pSweep?readings[plan.pSweep.terminal]?.voltageV??null:null,
+              plannedXVoltageV:point.xVoltageV,plannedPVoltageV:point.pVoltageV,timeOrigin:'host-elapsed',
               sequence:j.rows.length+1,cycle:point.cycle,pRepeat:point.pRepeat,
               pPoint:point.pPoint,pSegment:point.pSegment,
               xRepeat:point.xRepeat,xSegment:point.xSegment,
@@ -726,14 +747,14 @@ function compileSegmentArbPair(input,hardware){
               complianceRole,measurementCompleteness:full?'complete':'partial',
               measurementOrder:[...rolesToRead.filter(role=>Boolean(readings[role]))],
               measurementStatusByRole:Object.fromEntries(
-                Object.entries(readings).map(([role,value])=>[role,value.status])),
-              rawKxciResponses:Object.fromEntries(
-                Object.entries(readings).map(([role,value])=>[role,value.rawResponse])),
+                Object.entries(readings).map(([role,value])=>[role,value.status==='C'||value.voltageStatus==='C'?'C':value.voltageStatus==='N'?'N':'unknown'])),
+              rawKxciResponses:Object.fromEntries(Object.entries(readings).flatMap(([role,value])=>[[role+':I',value.rawResponse],...(value.voltageRaw?[[role+':V',value.voltageRaw]]:[])])),
               rawKxciResponse:readings.drain.rawResponse,source:'4200A-KXCI-TI'
             }));
             try{onProgress(publicState(0));}catch{}
           }
           if(timing&&Date.now()>deadline+timing.windowS*1000&&!j.cancelled)throw Error('I–T 超出采样窗口，已保留真实读数并停止');
+          if(readError)throw readError;
           if(complianceRole)
             throw Error(complianceRole+' SMU 触及电流保护（Compliance），测量已终止');
           if(j.cancelled)break;
@@ -805,7 +826,7 @@ function compileSegmentArbPair(input,hardware){
     }
     return Object.freeze({start,stop,status:publicState,waitForCompletion,dispose});
   }
-  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,compileSegmentArbPair,parsePulseBlock,executePulseTask});
+  const api=Object.freeze({compileSweep,points,parseTi,parseTv,voltageTrigger,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,compileSegmentArbPair,parsePulseBlock,executePulseTask});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
     window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci-measurement',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

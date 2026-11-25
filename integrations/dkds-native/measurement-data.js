@@ -7,6 +7,7 @@
   ['sequence','序号','','index'],['timeS','测量时间','s','x'],
   ['plannedTimeS','计划采样时间','s','raw'],['sampleStartS','主机采样起点','s','raw'],['sampleWindowOverrun','采样窗口超时','','raw'],
   ['plannedXCurrentA','Xsweep 设定电流','A','raw'],['plannedPCurrentA','Psweep 设定电流','A','raw'],['xCurrentA','Xsweep 实测电流','A','raw'],['pCurrentA','Psweep 实测电流','A','raw'],
+  ['plannedSourceVoltageV','源极设定电压','V','raw'],['plannedDrainVoltageV','漏极设定电压','V','raw'],['plannedGateVoltageV','栅极设定电压','V','raw'],
   ['plannedXVoltageV','Xsweep 设定电压','V','raw'],['plannedPVoltageV','Psweep 设定电压','V','raw'],
   ['pulseChannelSequence','通道原始点序','','index'],['pulseRunSequence','任务接收顺序','','index'],
   ['pulseVoltageV','脉冲实测电压','V','x'],['pulseCurrentA','脉冲实测电流','A','y'],
@@ -21,7 +22,7 @@
  ];
  const STRINGS=[
   ['pulseResource','脉冲通道'],['pulseMode','脉冲采集方式'],['pulseProgram','脉冲任务类型'],['pulseStatusRaw','脉冲原始状态'],
-  ['source','采集协议来源'],['measurementStatus','测量状态'],['measurementCompleteness','采样完整性'],
+  ['timeOrigin','时间来源'],['source','采集协议来源'],['measurementStatus','测量状态'],['measurementCompleteness','采样完整性'],
   ['complianceRole','触及限流端口'],['rawKxciResponse','KXCI 原始响应'],
   ['rawKxciResponses','各端口原始响应 JSON'],
   ['measurementStatusByRole','端口状态 JSON'],
@@ -42,7 +43,7 @@
    const row=rows[i];
    const pulse=row?.source==='4200A-KXCI-PMU';
    if(!['4200A-KXCI-TI','4200A-KXCI-DO','4200A-KXCI-RD','4200A-KXCI-PMU'].includes(row?.source)||row.sequence!==i+1||
-      !Number.isFinite(row.timeS)||!(pulse?Number.isFinite(row.pulseVoltageV)&&Number.isFinite(row.pulseCurrentA):Number.isFinite(row.drainVoltageV)&&Number.isFinite(row.drainCurrentA))||!row.rawKxciResponse||
+      !Number.isFinite(row.timeS)||!(pulse?Number.isFinite(row.pulseVoltageV)&&Number.isFinite(row.pulseCurrentA):Number.isFinite(row.drainCurrentA)&&(Number.isFinite(row.drainVoltageV)||row.source==='4200A-KXCI-TI'&&row.measurementCompleteness==='partial'))||!row.rawKxciResponse||
       !['complete','partial'].includes(row.measurementCompleteness))
     throw Error('Malformed/mixed/synthetic KXCI original record at '+(i+1));
   }
@@ -69,7 +70,7 @@
    transient:false,
    source:source||{name:'KI4200A '+instrument},
    metadata:{instrument:'KI4200A',instrumentSerial:instrument,
-    rawInstrumentResponse:true,...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode,pulseProgram:rows[0].pulseProgram||'pulse-sweep'}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
+    rawInstrumentResponse:true,timeOrigin:pulseRun||rows[0].source!=='4200A-KXCI-TI'?'instrument':'host-elapsed',...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode,pulseProgram:rows[0].pulseProgram||'pulse-sweep'}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
     acquisition:{runId:id,timestamp:String(startedAt||''),
      finishedAt:String(finishedAt||''),runState,sequenceIndex:0,
      provenance:'kxci-native-acquisition'},
