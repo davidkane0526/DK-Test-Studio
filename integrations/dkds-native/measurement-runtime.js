@@ -48,7 +48,7 @@ function pageToBasicProgram(page, model){
   const delay=dc.strategy.mode==='local'&&dc.strategy.delay.trim()?n(dc.strategy.delay,'Delay')*1000:0;
   check(dc.reference==='GND'||ports[dc.reference]?.resource==='GNDU','仅支持接地参考');
   const vars=Object.fromEntries(page.variables.map(v=>[v.name,Number(v.value)])),v=x=>model.dcExpression(x,vars,dc.polarity);
-  const axes={};
+  const axes={},generators={};
   for(const k of active){
    const row=dc.terminals[k],r=roles[k];
    const current=row.mode==='current';
@@ -58,7 +58,7 @@ function pageToBasicProgram(page, model){
    check(new Set(row.segments.map(s=>s.range)).size===1,'扫描段间量程切换尚未接入');
    const range=row.segments[0].range;
    portSettings[r]={rangeMode:range==='auto'?'auto':'fixed',rangeA:range==='auto'?'1e-6':range,complianceMode:'custom',...(current?{complianceV:n(row.limitV,k+' 限压')}:{complianceA:n(row.limitI,k+' 限流')})};
-   if(row.role==='CONDITION'){check(row.segments[0].method==='constant','Generator 尚未接入');(current?fixedCurrents:fixedVoltages)[r]=v(row.segments[0].value);continue;}
+   if(row.role==='CONDITION'){const s=row.segments[0];if(s.method==='generator'){check(dc.preset==='optimized'&&!current,'原生 Generator 使用 Optimized 电压源');generators[r]=model.dcAffine(s.formula,vars,dc.polarity);}else{check(s.method==='constant','未知 Condition 模式');(current?fixedCurrents:fixedVoltages)[r]=v(s.value);}continue;}
    const segs=[];
    const make=(a,b,c)=>current?{startA:a,stopA:b,stepA:c,rangeA:range,delayMs:delay}:segment(a,b,c,range,delay);
    for(const s of row.segments){
@@ -85,7 +85,8 @@ function pageToBasicProgram(page, model){
    const ordered=[...levels,...levels.slice(0,-1).reverse()];check(ordered.length<=4096,'往返扫描最多 4096 点');
    axes.X={...x,segments:ordered.map(({value,rangeA,delayMs})=>current?{startA:value,stopA:value,stepA:0,rangeA,delayMs}:segment(value,value,0,rangeA,delayMs))};
   }
-  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,systemIntegration:integration,requestedOutputs:info.outputs,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
+  if(Object.keys(generators).length)check(sourceModes[axes.X.terminal]==='voltage','原生 Generator 需要电压 Xsweep');
+  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,systemIntegration:integration,requestedOutputs:info.outputs,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
  }
  if(page.kind==='time'){
   const t=page.timing,summary=model.timedSummary('time',t);

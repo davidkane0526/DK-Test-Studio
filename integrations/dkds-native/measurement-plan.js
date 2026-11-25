@@ -271,6 +271,14 @@
     }
     const fixedCurrents=Object.fromEntries(DC_ROLES.map(r=>[r,finite(program.fixedCurrents?.[r]??0,r+' 固定电流',-1.05,1.05)]));
     for(const r of DC_ROLES){if(sourceModes[r]==='current'&&!/^SMU[1-9]$/.test(terminalChannels[r]))throw Error('电流源需要 SMU');if(sourceModes[r]==='current'&&fixedVoltages[r]!==0||sourceModes[r]==='voltage'&&fixedCurrents[r]!==0)throw Error('固定偏置单位不匹配');}
+    const generators=Object.create(null);
+    for(const [role,g] of Object.entries(program.generators||{})){
+      if(input.executionMode!=='system'||!DC_ROLES.includes(role)||!/^SMU[1-9]$/.test(terminalChannels[role])||role===x.terminal||role===p?.terminal||sourceModes[role]!=='voltage'||sourceModes[x.terminal]!=='voltage')throw Error('Generator 需要独立电压 SMU 和原生电压 Xsweep');
+      const ratio=finite(g?.ratio,'Generator ratio',-10,10),offset=finite(g?.offset,'Generator offset',-210,210);
+      if(fixedVoltages[role]!==0||fixedCurrents[role]!==0)throw Error('Generator 与固定输出冲突');
+      const segments=x.segments.map(s=>{const a=s.startV*ratio+offset,b=s.stopV*ratio+offset;return {startV:finite(a,'Generator 起点',-210,210),stopV:finite(b,'Generator 终点',-210,210),rangeA:'auto'};});
+      generators[role]=Object.freeze({ratio,offset,segments:Object.freeze(segments.map(Object.freeze))});
+    }
     const caps=capabilityApi(hardware);
     const inventory=hardware.inventory;
     const configured=Array.isArray(inventory?.slots);
@@ -318,8 +326,8 @@
       // Validate independently for each voltage segment. A 2 V / 100 mA
       // segment must not inherit the 200 V / 10.5 mA envelope of a later
       // segment on the same SMU.
-      const segmentRanges=ownAxis?ownAxis.segments:[
-        {startV:fixedVoltages[role],stopV:fixedVoltages[role],rangeA:'auto'}];
+      const segmentRanges=generators[role]?.segments||(ownAxis?ownAxis.segments:[
+        {startV:fixedVoltages[role],stopV:fixedVoltages[role],rangeA:'auto'}]);
       const checkedSegments=[];
       for(const [i,segment] of segmentRanges.entries()){
         const segmentMaxVoltageV=Math.max(Math.abs(segment.startV),
@@ -386,7 +394,7 @@
     const allVerified=configured&&roles.length>0&&roles.every(role=>limitsByRole[role]?.known===true);
     return Object.freeze({
       schema:'dkts.sweep-program.v1',kind,terminals:terminalChannels,
-      fixedVoltages,fixedCurrents,sourceModes,portSettings,xSweep:x,pSweep:p,loops,totalPoints,
+      fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,xSweep:x,pSweep:p,loops,totalPoints,
       hardwareCapabilityStatus:!configured?'not-inspected':allVerified?'identified':'unresolved',
       limitsByRole,powerBudget,hardwareVerified:false,executable:false,
       provenance:'user-configured-plan',

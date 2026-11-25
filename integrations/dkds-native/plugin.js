@@ -317,7 +317,7 @@
    const channels=Object.entries(prepared.channels).map(([role,channel])=>role+'=SMU'+channel).join('，');
    const voltageSegments=plan.xSweep?[...plan.xSweep.segments,...(plan.pSweep?.segments||[])]:[];
    const maxVoltage=Math.max(0,...voltageSegments.filter(row=>Number.isFinite(row.startV)).flatMap(row=>[Math.abs(row.startV),Math.abs(row.stopV)]),
-    ...Object.values(plan.fixedVoltages||{}).map(value=>Math.abs(value)),...Object.values(plan.portSettings||{}).map(row=>row.complianceV||0),pulse?.peak||0);
+    ...Object.values(plan.fixedVoltages||{}).map(value=>Math.abs(value)),...Object.values(plan.generators||{}).flatMap(g=>g.segments.flatMap(s=>[Math.abs(s.startV),Math.abs(s.stopV)])),...Object.values(plan.portSettings||{}).map(row=>row.complianceV||0),pulse?.peak||0);
    const currentPeak=Math.max(0,...voltageSegments.filter(row=>Number.isFinite(row.startA)).flatMap(row=>[Math.abs(row.startA),Math.abs(row.stopA)]),...Object.values(plan.fixedCurrents||{}).map(Math.abs));
    const confirmed=await ctx.ui.dialogs.confirm({
     title:'确认 Keithley 4200A 实际输出',tone:'warning',destructive:true,

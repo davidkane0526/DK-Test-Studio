@@ -432,6 +432,20 @@ function dcTargetColumns(page,dc=page.dc){
  function dcMethods(role){
   return role==='CONDITION'?['constant','generator']:['step','points','log','list'];
  }
+function dcAffine(raw,variables,polarity){
+ const input=String(raw??'').trim();
+ if(!input||input.length>256)throw Error('Generator expression length must be 1–256');
+ const re=/\s*([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?\d+)?|\.[0-9]+(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*|[()+*/-])/y;
+ const tokens=[];for(let p=0;p<input.length;p=re.lastIndex){re.lastIndex=p;const m=re.exec(input);if(!m)throw Error('Invalid Generator expression');tokens.push(m[1]);}
+ let i=0;const constant=b=>[0,b],scale=(a,b)=>a.map(v=>v*b);
+ function atom(){const t=tokens[i++];if(t==='-'||t==='+')return scale(atom(),t==='-'?-1:1);if(t==='('){const v=sum();if(tokens[i++]!==')')throw Error('Unclosed Generator expression');return v;}
+  if(/^(?:[0-9]|\.)/.test(t||''))return constant(Number(t));
+  if(tokens[i]==='('&&tokens[i+1]===')'){i+=2;if(t==='getx')return [1,0];if(t==='scale')return constant(polarity==='PMOS'?-1:1);throw Error('Native Generator supports getx() and scale(), not '+t+'()');}
+  if(Object.hasOwn(variables,t))return constant(Number(variables[t]));throw Error('Unknown Generator variable '+t);}
+ function product(){let a=atom();while(['*','/'].includes(tokens[i])){const op=tokens[i++],b=atom();if(op==='/'){if(b[0]!==0||b[1]===0)throw Error('Native Generator requires a nonzero constant divisor');a=scale(a,1/b[1]);}else{if(a[0]!==0&&b[0]!==0)throw Error('Native Generator must be affine in getx()');a=a[0]===0?scale(b,a[1]):scale(a,b[1]);}}return a;}
+ function sum(){let a=product();while(['+','-'].includes(tokens[i])){const op=tokens[i++],b=scale(product(),op==='-'?-1:1);a=[a[0]+b[0],a[1]+b[1]];}return a;}
+ const [ratio,offset]=sum();if(i!==tokens.length||!Number.isFinite(ratio)||!Number.isFinite(offset))throw Error('Invalid Generator expression');if(Math.abs(ratio)>10||Math.abs(offset)>210)throw Error('Native Generator ratio/offset exceed RT/FS limits');return {ratio,offset};
+}
  function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   const input=String(raw??'').trim();
   if(!input||input.length>256)throw Error('Enter an expression of 1–256 characters');
@@ -1202,6 +1216,6 @@ function dcTargetColumns(page,dc=page.dc){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,dcSummary,dcExpression,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,dcSummary,dcExpression,dcAffine,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

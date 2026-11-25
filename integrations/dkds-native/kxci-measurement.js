@@ -94,7 +94,7 @@ function compileSystemPlan(compiled,input,inventory){
  .map(s=>(s.family==='SMU'?'CH':s.family)+s.channel))];
  assert(active.every(r=>disable.includes('CH'+channels[r])),'活动通道未在实际模块中确认');
  setup.push(...disable);
- const x=plan.xSweep,p=plan.pSweep;
+ const x=plan.xSweep,p=plan.pSweep,generators=plan.generators||{};
  assert(x.repeats===1||timing,'System Mode 暂不支持 Xsweep 重复嵌套，请用整体 Cycles');
  assert(!p||p.repeats===1,'System Mode 暂不支持 Psweep 重复嵌套');
  const current=r=>plan.sourceModes?.[r]==='current';
@@ -110,7 +110,7 @@ function compileSystemPlan(compiled,input,inventory){
  for(const r of active){
   const setting=plan.portSettings[r],axis=x.terminal===r?x:p?.terminal===r?p:null;
   assert(setting.rangeMode!=='fixed'&&(!axis||axis.segments.every(s=>s.rangeA==='auto')),'System Mode 的 RI 不能保证整个 sweep 固定档位；请使用 Auto / 最低自动量程');
-  setup.push("CH"+channels[r]+",'V"+channels[r]+"','I"+channels[r]+"',"+(current(r)?2:1)+","+(timing?3:r===x.terminal?1:r===p?.terminal?2:3));
+  setup.push("CH"+channels[r]+",'V"+channels[r]+"','I"+channels[r]+"',"+(current(r)?2:1)+","+(timing?3:r===x.terminal?1:r===p?.terminal?2:generators[r]?4:3));
  }
  const rpmRoutes=input.rpmRoutes||[];
  for(const route of rpmRoutes){
@@ -127,7 +127,9 @@ function compileSystemPlan(compiled,input,inventory){
  }
  for(const r of active){
   const ch=channels[r],setting=plan.portSettings[r],limit=compliance(r);
-  if(timing||r!==x.terminal&&r!==p?.terminal){
+  if(generators[r]){
+   const g=generators[r];assert(!timing,'Generator 不用于固定偏置');setup.push('RT '+fmt(g.ratio)+','+ch,'FS '+fmt(g.offset)+','+ch,'CM '+fmt(limit)+','+ch);
+  }else if(timing||r!==x.terminal&&r!==p?.terminal){
    setup.push((current(r)?'IC':'VC')+ch+','+fmt(current(r)?plan.fixedCurrents[r]:plan.fixedVoltages[r])+','+fmt(limit));
   }
   setup.push('ST '+ch+',1');
@@ -145,6 +147,7 @@ function compileSystemPlan(compiled,input,inventory){
   setup.push('DT '+fmt(delay),'HT '+fmt(input.systemHoldS||0));
   const seg=x.segments[0],linear=x.segments.length===1&&seg.points>=2&&seg.points<=1024&&Math.abs(levels(x,seg)[2])<=(current(x.terminal)?1.05:210)&&
     (current(x.terminal)||levels(x,seg).every(v=>v===0||Math.abs(v)>=0.001));
+  assert(!Object.keys(generators).length||linear,'原生 Generator 当前核验线性 VAR1；列表或非线性需要另行验收');
   if(linear)setup.push((current(x.terminal)?'IR1,':'VR1,')+[...levels(x,seg),compliance(x.terminal)].map(fmt).join(','));
   else{
    assert(!p,'当前仅核验了单轴 VL 与线性 VAR1/VAR2；非线性嵌套需要独立核验');
@@ -512,7 +515,7 @@ function compileSegmentArbPair(input,hardware){
     for(const role of active){
       const axis=plan.xSweep.terminal===role?plan.xSweep:
         plan.pSweep?.terminal===role?plan.pSweep:null;
-      const volts=plan.sourceModes?.[role]==='current'?[plan.portSettings[role].complianceV]:axis?axis.segments.flatMap(s=>[s.startV,s.stopV]):
+      const volts=plan.generators?.[role]?plan.generators[role].segments.flatMap(s=>[s.startV,s.stopV]):plan.sourceModes?.[role]==='current'?[plan.portSettings[role].complianceV]:axis?axis.segments.flatMap(s=>[s.startV,s.stopV]):
         [plan.fixedVoltages[role]];
       highestV=Math.max(highestV,...volts.map(v=>Math.abs(v)));
     }
