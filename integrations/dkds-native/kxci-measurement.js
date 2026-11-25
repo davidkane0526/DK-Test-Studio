@@ -94,7 +94,7 @@ function compileSystemPlan(compiled,input,inventory){
  .map(s=>(s.family==='SMU'?'CH':s.family)+s.channel))];
  assert(active.every(r=>disable.includes('CH'+channels[r])),'活动通道未在实际模块中确认');
  setup.push(...disable);
- const x=plan.xSweep,p=plan.pSweep,generators=plan.generators||{},followers=plan.listFollowers||{},timeList=input.timeList||null;
+ const x=plan.xSweep,p=plan.pSweep,generators=plan.generators||{},followers=plan.listFollowers||{},timeList=input.timeList||null,dcList=input.dcList||null;
  assert(x.repeats===1||timing,'System Mode 暂不支持 Xsweep 重复嵌套，请用整体 Cycles');
  assert(!p||p.repeats===1,'System Mode 暂不支持 Psweep 重复嵌套');
  const current=r=>plan.sourceModes?.[r]==='current';
@@ -108,7 +108,8 @@ function compileSystemPlan(compiled,input,inventory){
  assert(axisCount(x)<=4096&&(!p||axisCount(p)<=32),'原生单次任务轴长度超过手册限制');
  const xValues=axisValues(x),pValues=p?axisValues(p):[];
  if(timeList){assert(!timing&&!p&&!Object.keys(generators).length&&Array.isArray(timeList.segmentIndices)&&timeList.segmentIndices.length===count&&timeList.segmentIndices.every((v,i,a)=>Number.isSafeInteger(v)&&v>=1&&(i?v===a[i-1]||v===a[i-1]+1:v===1)),'时间列表索引无效');}
- const definitionOrder=timeList?[x.terminal,...active.filter(r=>r!==x.terminal)]:active;
+ if(dcList){assert(!timeList&&!timing&&!p&&Number.isSafeInteger(dcList.xCount)&&dcList.xCount>=1&&count%dcList.xCount===0&&(!dcList.pRole||followers[dcList.pRole]&&dcList.pMode===plan.sourceModes[dcList.pRole]&&dcList.pValues.length===count&&dcList.pValues.every((v,i)=>v===followers[dcList.pRole].values[i])),'Generator 列表索引无效');}
+ const definitionOrder=timeList||dcList?[x.terminal,...active.filter(r=>r!==x.terminal)]:active;
  for(const r of definitionOrder){
   const setting=plan.portSettings[r],axis=x.terminal===r?x:p?.terminal===r?p:null;
   assert(setting.rangeMode!=='fixed'&&(!axis||axis.segments.every(s=>s.rangeA==='auto')),'System Mode 的 RI 不能保证整个 sweep 固定档位；请使用 Auto / 最低自动量程');
@@ -147,7 +148,7 @@ function compileSystemPlan(compiled,input,inventory){
   const delay=[...delays][0]/1000;
   assert(delay>=0&&delay<=6.553,'DT 范围 0–6.553 s');
   setup.push('DT '+fmt(delay),'HT '+fmt(input.systemHoldS||0));
-  const seg=x.segments[0],linear=!timeList&&x.segments.length===1&&seg.points>=2&&seg.points<=1024&&Math.abs(levels(x,seg)[2])<=(current(x.terminal)?1.05:210)&&
+  const seg=x.segments[0],linear=!timeList&&!dcList&&x.segments.length===1&&seg.points>=2&&seg.points<=1024&&Math.abs(levels(x,seg)[2])<=(current(x.terminal)?1.05:210)&&
     (current(x.terminal)||levels(x,seg).every(v=>v===0||Math.abs(v)>=0.001));
   assert(!Object.keys(generators).length||linear,'原生 Generator 当前核验线性 VAR1；列表或非线性需要另行验收');
   if(linear)setup.push((current(x.terminal)?'IR1,':'VR1,')+[...levels(x,seg),compliance(x.terminal)].map(fmt).join(','));
@@ -191,7 +192,7 @@ function compileSystemPlan(compiled,input,inventory){
  const cleanup=['MD','ME4','DE',...active.map(r=>'CH'+channels[r]),...(rpmRoutes.length?['SS','ZE',...rpmRoutes.map(r=>'RP '+r.pmu+', 0')]:[])];
  // Only these exact validated setup/read/stop strings may pass the internal
  // transport lease. RD indices are separately bounded by count.
- return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,rpmRoutes:Object.freeze(rpmRoutes.slice()),xRole:x.terminal,pRole:p?.terminal||null,xMode:current(x.terminal)?'current':'voltage',pMode:p?(current(p.terminal)?'current':'voltage'):null,requestedOutputs:input.requestedOutputs||['Id'],timing,timeList:timeList?Object.freeze({segmentIndices:Object.freeze(timeList.segmentIndices.slice()),multiChannel:Object.keys(followers).length>0}):null,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
+ return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,rpmRoutes:Object.freeze(rpmRoutes.slice()),xRole:x.terminal,pRole:p?.terminal||null,xMode:current(x.terminal)?'current':'voltage',pMode:p?(current(p.terminal)?'current':'voltage'):null,requestedOutputs:input.requestedOutputs||['Id'],timing,dcList:dcList?Object.freeze({...dcList,pValues:Object.freeze(dcList.pValues.slice()),multiChannel:Object.keys(followers).length>0}):null,timeList:timeList?Object.freeze({segmentIndices:Object.freeze(timeList.segmentIndices.slice()),multiChannel:Object.keys(followers).length>0}):null,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
 }
 function parseSystemValues(raw){
  const text=String(raw??'').trim().replace(/,\s*$/,'');
@@ -222,7 +223,7 @@ function systemRows(program,columns,cycle,offset,startIndex=0){
  if(!lengths.length||!lengths[0]||lengths.some(v=>v!==lengths[0])||lengths[0]>program.count)throw Error('KXCI 原始列长度不一致或超过计划点数');
  const rows=[];
  for(let i=0;i<lengths[0];i++){
-  const t=columns[program.timestamp][i],row={sequence:offset+i+1,cycle,timeS:t.value,measurementCompleteness:'complete',source:'4200A-KXCI-DO',rawKxciResponses:{timestamp:t.literal},measurementStatusByRole:{},measurementOrder:program.signals.map(s=>s.name),complianceRole:null,measurementStatus:'unknown',point:program.timing?startIndex+i+1:(startIndex+i)%program.xValues.length+1,pPoint:program.pRole?Math.floor((startIndex+i)/program.xValues.length)+1:1};
+  const t=columns[program.timestamp][i],row={sequence:offset+i+1,cycle,timeS:t.value,measurementCompleteness:'complete',source:'4200A-KXCI-DO',rawKxciResponses:{timestamp:t.literal},measurementStatusByRole:{},measurementOrder:program.signals.map(s=>s.name),complianceRole:null,measurementStatus:'unknown',point:program.timing?startIndex+i+1:(startIndex+i)%(program.dcList?.xCount||program.xValues.length)+1,pPoint:program.dcList?.pRole?Math.floor((startIndex+i)/program.dcList.xCount)+1:program.pRole?Math.floor((startIndex+i)/program.xValues.length)+1:1};
   if(t.value<0||(i&&t.value<columns[program.timestamp][i-1].value))throw Error('仪器时间戳不单调');
   for(const s of program.signals){
    const v=columns[s.name][i];
@@ -235,14 +236,15 @@ function systemRows(program,columns,cycle,offset,startIndex=0){
   row.measurementStatus=row.complianceRole?'C':Object.values(row.measurementStatusByRole).every(s=>s==='N')?'N':'unknown';
   row.rawKxciResponse=row.rawKxciResponses['I'+program.channels.drain];
   row.voltageV=row.drainVoltageV;row.currentA=row.drainCurrentA;
-  row.xVoltageV=row[program.xRole+'VoltageV'];row.pVoltageV=program.pRole?row[program.pRole+'VoltageV']:null;
-  const xv=program.xValues[program.timing?0:(startIndex+i)%program.xValues.length],pv=program.pRole?program.pValues[row.pPoint-1]:null;
+  const pRole=program.dcList?.pRole||program.pRole,pMode=program.dcList?.pMode||program.pMode;
+  row.xVoltageV=row[program.xRole+'VoltageV'];row.pVoltageV=pRole?row[pRole+'VoltageV']:null;
+  const xv=program.xValues[program.timing?0:(startIndex+i)%program.xValues.length],pv=program.dcList?.pRole?program.dcList.pValues[startIndex+i]:program.pRole?program.pValues[row.pPoint-1]:null;
   if(program.timeList)row.timeSegment=program.timeList.segmentIndices[startIndex+i];
   row.plannedXVoltageV=program.xMode==='current'?null:xv;
-  row.plannedPVoltageV=program.pMode==='current'?null:pv;
+  row.plannedPVoltageV=pMode==='current'?null:pv;
   row.plannedXCurrentA=program.xMode==='current'?xv:null;
-  row.plannedPCurrentA=program.pMode==='current'?pv:null;
-  row.xCurrentA=row[program.xRole+'CurrentA'];row.pCurrentA=program.pRole?row[program.pRole+'CurrentA']:null;
+  row.plannedPCurrentA=pMode==='current'?pv:null;
+  row.xCurrentA=row[program.xRole+'CurrentA'];row.pCurrentA=pRole?row[pRole+'CurrentA']:null;
   rows.push(Object.freeze(row));
  }
  return rows;
@@ -404,42 +406,73 @@ async function executePulseTask(p,io){
  const integerReply=(s,max)=>{const raw=String(s).trim().replace(/,\s*$/,'');if(!/^\d+$/.test(raw)||Number(raw)>max)throw Error('PMU 状态或点数无效');return Number(raw)};
  const status=async()=>integerReply(await command(p.statusQuery,true),1);
  const verify=async()=>{const s=parseStatusByte(await command('SP',true));if(s.syntaxError)throw Error('仪器指令错误：'+await command(':ERROR:LAST:GET',true));return s};
- let touched=false,started=false,state='completed',error='',shutdown='not-started',sequence=0;
- const channelWarnings=[];
- const channels=p.channels||[p],closed=new Set();
- const disable=async channel=>{await command(channel.offCommand);await verify();closed.add(channel.pulseChannel)};
+ let touched=false,started=false,acknowledged=false,state='completed',error='',shutdown='not-started',sequence=0;
+ const channels=p.channels||[p],closed=new Set(),cursors=new Map(channels.map(c=>[c.pulseChannel,0])),counts=new Map();
+ const disable=async c=>{await command(c.offCommand);await verify();closed.add(c.pulseChannel)};
+ const appendError=e=>{error+=(error?'；':'')+String(e.message||e)};
+ async function drain(c,live){
+   if(c.skipRead)return;
+   let cursor=cursors.get(c.pulseChannel);
+   const count=integerReply(await command(c.countQuery,true),c.count);
+   if(count<cursor||count<(counts.get(c.pulseChannel)||0))throw Error('PMU 缓冲区点数意外减少');
+   counts.set(c.pulseChannel,count);
+   // Rev F: non-destructive reads; short blocks permitted. Bound live work for cancellation fairness.
+   for(let blocks=0;cursor<count&&(!live||blocks<2);blocks++){
+     if(cancelled()&&live)break;
+     const n=Math.min(128,count-cursor),rows=parsePulseBlock(await command(':PMU:DATA:GET '+c.pulseChannel+','+cursor+','+n+','+c.fields,true),c,cursor);
+     if(rows.length>n||!rows.length){if(live&&!rows.length)break;throw Error('PMU 缓冲区计数不一致')}
+     await verify();
+     onBatch(rows.map(row=>({...row,pulseChannelSequence:row.sequence,sequence:++sequence,measurementCompleteness:!live&&c.expected!==null&&count!==c.expected?'partial':row.measurementCompleteness})));
+     cursor+=rows.length;cursors.set(c.pulseChannel,cursor);
+   }
+ }
  try{
- if((await verify()).busy||await status())throw Error('仪器正在执行其他测试');
- if(cancelled())return {state:'stopped',shutdown,error};
- await command(':ERROR:LAST:CLEAR');touched=true;
- for(const c of p.setup){if(cancelled())break;await command(c);if((await verify()).busy)throw Error('配置期间 Busy')}
- if(!cancelled()){
- started=true;await command(':PMU:EXECUTE');
- while(!cancelled()){
- const busy=await status();await verify();
- if(!busy){started=false;for(const channel of channels)await disable(channel);
- for(const channel of channels){if(channel.skipRead)continue;let cursor=0;const count=integerReply(await command(channel.countQuery,true),channel.count);
- while(cursor<count&&!cancelled()){const n=Math.min(128,count-cursor),rows=parsePulseBlock(await command(':PMU:DATA:GET '+channel.pulseChannel+','+cursor+','+n+','+channel.fields,true),channel,cursor);if(!rows.length||rows.length>n)throw Error('PMU 缓冲区计数不一致');onBatch(rows.map(row=>({...row,pulseChannelSequence:row.sequence,sequence:++sequence,measurementCompleteness:channel.expected!==null&&count!==channel.expected?'partial':row.measurementCompleteness})));cursor+=rows.length}
- if(!cancelled()&&(cursor===0||channel.expected!==null&&cursor!==channel.expected))channelWarnings.push(channel.resource+' 实测 '+cursor+' 点，计划 '+(channel.expected??'非空')+' 点');}
- if(channelWarnings.length)throw Error(channelWarnings.join('；'));break}
- await wait(100);
+   if((await verify()).busy||await status())throw Error('仪器正在执行其他测试');
+   if(cancelled())return {state:'stopped',shutdown,error};
+   await command(':ERROR:LAST:CLEAR');touched=true;
+   for(const c of p.setup){if(cancelled())break;await command(c);if((await verify()).busy)throw Error('配置期间 Busy')}
+   if(!cancelled()){
+     started=true;await command(':PMU:EXECUTE');acknowledged=true;
+     while(!cancelled()){
+       const busy=await status();await verify();
+       if(!busy){started=false;break}
+       for(const c of channels){if(cancelled())break;await drain(c,true)}
+       if(!cancelled())await wait(100);
+     }
+   }
+   if(cancelled())state='stopped';
+ }catch(e){state='failed';appendError(e)}
+ finally{
+   if(touched){
+     let safe=true;
+     if(started){try{await command(':PMU:ABORT');let idle=false;for(let i=0;i<100;i++){if(!await status()){idle=true;break}await wait(100)}if(!idle)throw Error('中止后仍 Busy')}catch(e){safe=false;appendError(e)}}
+     for(const c of channels)if(!closed.has(c.pulseChannel)){try{await disable(c)}catch(e){safe=false;appendError(e)}}
+     shutdown=safe?'commands-sent':'unconfirmed';if(!safe)state='failed';
+     // Never retrieve a previous run's buffer following an ambiguous EXECUTE ACK.
+     if(safe&&acknowledged&&state!=='failed'){
+       try{
+         for(const c of channels)await drain(c,false);
+         if(cancelled())state='stopped';
+         if(state==='completed'){
+           const warnings=channels.filter(c=>!c.skipRead).filter(c=>cursors.get(c.pulseChannel)===0||(c.expected!==null&&cursors.get(c.pulseChannel)!==c.expected)).map(c=>c.resource+' 实测 '+cursors.get(c.pulseChannel)+' 点，计划 '+(c.expected??'非空')+' 点');
+           if(warnings.length)throw Error(warnings.join('；'));
+         }
+       }catch(e){state='failed';appendError(e)}
+     }
+   }
  }
- }
- if(cancelled())state='stopped';
- }catch(e){state='failed';error=String(e.message||e)}
- finally{if(touched){let safe=true;if(started){try{await command(':PMU:ABORT');let idle=false;for(let i=0;i<100;i++){if(!await status()){idle=true;break}await wait(100)}if(!idle)throw Error('中止后仍 Busy')}catch(e){safe=false;error+='；'+e.message}}
- for(const channel of channels)if(!closed.has(channel.pulseChannel)){try{await disable(channel)}catch(e){safe=false;error+='；'+e.message}}
- shutdown=safe?'commands-sent':'unconfirmed';if(!safe)state='failed'}}
  return {state,shutdown,error};
 }
 function compilePulsePair(input,hardware){
  const a=input.settings,b=input.secondary.settings,as=input.summary,bs=input.secondary.summary;
- if(a.mode!=='spot'||b.mode!=='spot')throw Error('双通道脉冲目前支持 Spot Mean，双路波形待核验');
+ if(a.mode!==b.mode||!['spot','waveform'].includes(a.mode))throw Error('两通道须共享采集模式');
+ const waveform=a.mode==='waveform';
+ if(waveform&&bs.points!==1&&bs.points!==as.points)throw Error('双通道波形需要等点数同步扫描或固定伴随脉冲');
  if(a.terminal===b.terminal||input.resource===input.secondary.resource)throw Error('Xsweep 与 Psweep 不能使用同一端子或通道');
  for(const field of ['periodUs','pulseCount','rateHz'])if(Number(a[field])!==Number(b[field]))throw Error('双通道必须共享周期、脉冲数和采样率');
- if(bs.points>1&&as.points===1)throw Error('Psweep 多点步进需要 Xsweep 多点扫描');
- const main=compilePulse({...input,secondary:undefined,pointMultiplier:bs.points},hardware);
- const outer=compilePulse({...input,...input.secondary,secondary:undefined,pointMultiplier:as.points},hardware);
+ if(!waveform&&bs.points>1&&as.points===1)throw Error('Psweep 多点步进需要 Xsweep 多点扫描');
+ const main=compilePulse({...input,secondary:undefined,pointMultiplier:waveform?1:bs.points},hardware);
+ const outer=compilePulse({...input,...input.secondary,secondary:undefined,pointMultiplier:waveform?(bs.points===1?as.points:1):as.points},hardware);
  const x=main.pulse,p=outer.pulse;
  if(x.pulseChannel===p.pulseChannel)throw Error('PMU 通道重复');
  const power=hardware.capabilities.calculateChassisPower({inventory:hardware.inventory,activePulseChannels:[x,p].map(z=>({family:'PMU',cardIndex:z.card,rangeV:z.rangeV}))});
@@ -447,12 +480,12 @@ function compilePulsePair(input,hardware){
  const shared=/^:PMU:(?:INIT |MEASURE:MODE |SAMPLE:RATE |PULSE:BURST:COUNT )/;
  const channelSetup=z=>z.setup.filter(c=>c!=='SS'&&c!=='ZE'&&!shared.test(c)&&!c.startsWith(':PMU:OUTPUT:STATE '));
  const xSetup=channelSetup(x),pSetup=channelSetup(p).map(c=>{
-  if(bs.points>1&&c.startsWith(':PMU:SWEEP:PULSE:AMPLITUDE '))return c.replace(':PMU:SWEEP:',':PMU:STEP:').replace(/,0$/,'');
+  if(!waveform&&bs.points>1&&/^:PMU:SWEEP:PULSE:(AMPLITUDE|BASE) /.test(c))return c.replace(':PMU:SWEEP:',':PMU:STEP:').replace(/,0$/,'');
   return c;
  });
  // Rev F example programs VAR2 before VAR1; both are configured before enabling either output.
  const setup=['SS','ZE',':PMU:INIT 0',...x.setup.filter(c=>shared.test(c)&&!c.startsWith(':PMU:INIT ')),...pSetup,...xSetup,`:PMU:OUTPUT:STATE ${x.pulseChannel},1`,`:PMU:OUTPUT:STATE ${p.pulseChannel},1`];
- const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,p.countQuery],cleanup:[x.offCommand,p.offCommand,':PMU:ABORT'],channels:[x,p],peak:Math.max(x.peak,p.peak),estimatedRecords:x.estimatedRecords+p.estimatedRecords,resources:[x.resource,p.resource],sweepPoints:as.points*bs.points};
+ const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,p.countQuery],cleanup:[x.offCommand,p.offCommand,':PMU:ABORT'],channels:[x,p],peak:Math.max(x.peak,p.peak),estimatedRecords:x.estimatedRecords+p.estimatedRecords,resources:[x.resource,p.resource],sweepPoints:waveform?as.points:as.points*bs.points,pairedMode:waveform?'parallel-waveform':'nested-spot'};
  return {...main,pulse,channels:{...main.channels,...outer.channels},active:[...main.active,...outer.active],totalPoints:pulse.estimatedRecords,requiresInterlock:main.requiresInterlock||outer.requiresInterlock,canExecute:main.canExecute&&outer.canExecute};
 }
 function compileSegmentArb(input,hardware){
@@ -857,7 +890,7 @@ function parseTv(raw,channel){
       if(controller.status().phase!=='connected')
         throw Error('4200A 未连接');
       const compiled=compileSweep(input,hardware);
-      if([compiled,...(compiled.stages||[]).map(s=>s.compiled)].some(c=>c.system?.timeList?.multiChannel)&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowMultiChannelListOutput!==true)throw Error('多通道原生列表尚待实机验收');
+      if([compiled,...(compiled.stages||[]).map(s=>s.compiled)].some(c=>c.system?.timeList?.multiChannel||c.system?.dcList?.multiChannel)&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowMultiChannelListOutput!==true)throw Error('多通道原生列表尚待实机验收');
       if(compiled.stages){const policy=hardware.capabilities?.DATABASE?.safetyPolicies?.kxci||{};for(const s of compiled.stages){const c=s.compiled;if(c.pulse?(policy.allowPulseModeOutput!==true||policy.pmuModeManualVerified!==true||(c.pulse.arb&&(policy.allowSegmentArbOutput!==true||policy.segmentArbManualVerified!==true))):(policy.allowSystemModeOutput!==true||policy.smuSystemModeManualVerified!==true))throw Error('流程阶段 '+s.scope.pageName+' 尚未开放真实输出');}}
       if(compiled.pulse&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowPulseModeOutput!==true)throw Error('PMU 尚待受控实机验收');
       if(compiled.pulse?.arb&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowSegmentArbOutput!==true)throw Error('自定义时序尚待受控实机验收');

@@ -96,15 +96,16 @@
    }
   });
   const PAGE_TABS=[['sweep','Sweep'],['target','Target'],['strategy','Strategy']];
-  const pagePlots={dc:['iv','transfer','target'],iv:['iv','it'],transfer:['transfer','iv'],output:['iv','transfer'],
+  const pagePlots={dc:['iv','transfer','target','target-h'],iv:['iv','it'],transfer:['transfer','iv'],output:['iv','transfer'],
    pulse:['iv','it','vt'],retention:['it','vt'],time:['it','vt'],pund:['it','vt'],
    arb:['vt','it'],endurance:['it','iv'],cv:[]};
-  const plotLabel=kind=>({iv:'I–V',transfer:t('转移特性'),it:'I–t',vt:'V–t',target:tr('自定义目标','Target'),raw:t('数据表')})[kind];
+  const plotLabel=kind=>({iv:'I–V',transfer:t('转移特性'),it:'I–t',vt:'V–t',target:tr('自定义目标','Target'),'target-h':tr('目标 H','Target H'),raw:t('数据表')})[kind];
+  const isTargetPlot=kind=>kind==='target'||kind==='target-h';
   function frameOptions(s){
-   if(plotScope==='project')return model.PLOT_KINDS.filter(k=>k!=='target');
+   if(plotScope==='project')return model.PLOT_KINDS.filter(k=>!isTargetPlot(k));
    const kinds=s.pages.filter(page=>plotScope==='page'?page.id===s.activeId:page.routineId===s.activeRoutineId)
     .flatMap(page=>pagePlots[page.kind]||[]);
-   return [...new Set([...kinds,'raw'])].filter(k=>k!=='target'||plotScope==='page');
+   return [...new Set([...kinds,'raw'])].filter(k=>!isTargetPlot(k)||plotScope==='page'&&(k!=='target-h'||Boolean(s.pages.find(p=>p.id===s.activeId)?.dc?.target?.h?.trim())));
   }
   const TEST_TYPE_LABELS=Object.freeze({DC:'直流',Pulse:'脉冲',Cycle:'循环',Time:'时间',IVT:'I–V–t',CV:'C–V'});
   const testTypeLabel=value=>t(TEST_TYPE_LABELS[value]||String(value||''));
@@ -132,11 +133,11 @@
   // Revision-aware caching prevents full column clones on plot repaints.
   const plotCache=new Map();
   function curves(axis='iv',rows=sources()){
-   let target=null;if(axis==='target'){try{target=model.dcTargetColumns(active());}catch{return [];}}
+   let target=null;if(isTargetPlot(axis)){try{target=model.targetForAxis(model.dcTargetColumns(active()),axis);}catch{return [];}}
    const key=JSON.stringify([axis,target,...rows.map(row=>[row.artifactId,row.name,
     ctx.data.artifacts.artifactRevision?.(row.artifactId)||0])]);
    if(plotCache.has(key))return plotCache.get(key);
-   const next=model.curvesFromArtifacts(rows,ctx.data.artifacts,{axis,target});
+   const next=model.curvesFromArtifacts(rows,ctx.data.artifacts,{axis:isTargetPlot(axis)?'target':axis,target});
    plotCache.set(key,next);
    return next;
   }
@@ -777,7 +778,7 @@
      const otherKeys=['S','D','G'].filter(key=>key!==values.terminal);
      fsproField(outer,{kind:'select',label:tr('端子','Terminal'),value:values.secondary?.terminal||'None',options:[{value:'None',label:'None'},...otherKeys.map(key=>({value:key,label:t(logicalNames[key])+' · '+pulsePort(p,{...values,terminal:key}).resource}))],onChange:event=>{
       const terminal=event.target.value;if(terminal==='None'){put('secondary',null);render();return;}
-      const keys=['channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA'];
+      const keys=['channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA','sweep','basePeakV','rangePolicy','prePercent','postPercent'];
       const secondary=values.secondary?{...values.secondary,terminal}:{...Object.fromEntries(keys.map(k=>[k,String(values[k])])),terminal,stop:String(values.start),step:'0',currentRangeA:''};
       put('secondary',secondary);render();
      }});
@@ -787,8 +788,11 @@
       if(!port.match?.[3])dcSelect(outer,tr('卡内通道','Card channel'),second.channel,[{value:'1',label:'CH1'},{value:'2',label:'CH2'}],value=>{setSecond('channel',value);render();},{key:'psweep-channel',path:'secondary.channel'});
       dcSelect(outer,tr('电压档','Voltage range'),second.rangeV,[{value:'10',label:'10 V'},{value:'40',label:'40 V'}],value=>{setSecond('rangeV',value);render();},{key:'psweep-range',path:'secondary.rangeV'});
       dcSelect(outer,tr('电流档','Current range'),second.currentRangeA,[{value:'',label:tr('自动','Auto')},...(port.pmuVerified?hardware.getPmuCurrentRanges(Number(second.rangeV),port.withRpm):[]).map(x=>({value:String(x),label:String(x)+' A'}))],value=>setSecond('currentRangeA',value),{key:'psweep-current-range',path:'secondary.currentRangeA'});
-      for(const [key,zh,en] of [['fixedV','基线 (V)','Base (V)'],['start','起始幅值 (V)','Start amplitude (V)'],['stop','终止幅值 (V)','Stop amplitude (V)'],['step','步进 (V)','Step (V)'],['loadOhms','负载 (Ω)','Load (Ω)'],['widthUs','平顶 (µs)','Flat top (µs)'],['riseUs','上升 (µs)','Rise (µs)'],['fallUs','下降 (µs)','Fall (µs)'],['delayUs','延迟 (µs)','Delay (µs)'],['windowStartUs','测量延迟 (µs)','Measure delay (µs)'],['windowTimeUs','测量时间 (µs)','Measure time (µs)']])
-       scalarField(outer,tr(zh,en),second[key],value=>setSecond(key,value),false,{'data-dkts-parameter-path':'secondary.'+key},false,true);
+      dcSelect(outer,tr('扫描方式','Sweep mode'),second.sweep||'amplitude',[{value:'amplitude',label:tr('扫描幅值','Amplitude sweep')},{value:'base',label:tr('扫描基线','Base sweep')}],value=>{setSecond('sweep',value);render();},{key:'psweep-mode',path:'secondary.sweep'});
+      if(second.currentRangeA)dcSelect(outer,tr('量程模式','Range mode'),second.rangePolicy||'fixed',[{value:'fixed',label:tr('固定','Fixed')},{value:'limited-auto',label:tr('最低自动量程','Limited auto')}],value=>setSecond('rangePolicy',value),{key:'psweep-range-policy',path:'secondary.rangePolicy'});
+      const secondaryBase=second.sweep==='base';
+      for(const [key,zh,en] of [[secondaryBase?'basePeakV':'fixedV',secondaryBase?'固定峰值 (V)':'基线 (V)',secondaryBase?'Fixed peak (V)':'Base (V)'],['start','起始 (V)','Start (V)'],['stop','终止 (V)','Stop (V)'],['step','步进 (V)','Step (V)'],['loadOhms','负载 (Ω)','Load (Ω)'],['widthUs','平顶 (µs)','Flat top (µs)'],['riseUs','上升 (µs)','Rise (µs)'],['fallUs','下降 (µs)','Fall (µs)'],['delayUs','延迟 (µs)','Delay (µs)'],['windowStartUs','测量延迟 (µs)','Measure delay (µs)'],['windowTimeUs','测量时间 (µs)','Measure time (µs)']])
+       scalarField(outer,tr(zh,en),second[key]??'',value=>setSecond(key,value),false,{'data-dkts-parameter-path':'secondary.'+key},false,true);
      }
      const basic=panel('脉冲设置 · 基本','Pulse Settings · Basic');
      fields(basic,[['periodUs','脉冲周期 (µs)','Pulse Period (µs)'],['widthUs','计划平顶时长 (µs)','Planned flat top (µs)']]);
@@ -1051,7 +1055,7 @@
     if(settings.testMode==='sequence'){const port=pulsePort(page,settings);if(port.pmuVerified&&settings.currentRangeA&&!hardware.getPmuCurrentRanges(settings.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))throw Object.assign(Error(tr('该电流档与实装 PMU/RPM 不匹配。','This range is incompatible with installed PMU/RPM.')),{field:'currentRangeA'});return result;}
     const issue=pulseCompatibility(settings,result);
     if(issue)throw Error(issue);
-    if(settings.secondary){const secondary={...settings,...settings.secondary,secondary:null,sweep:'amplitude'},summary={...result.secondary,totalSweepPoints:result.totalSweepPoints};const outerIssue=pulseCompatibility(secondary,summary);if(outerIssue)throw Error('Psweep: '+outerIssue);}
+    if(settings.secondary){const secondary=model.pulseSecondarySettings(settings),summary={...result.secondary,totalSweepPoints:result.totalSweepPoints};const outerIssue=pulseCompatibility(secondary,summary);if(outerIssue)throw Error('Psweep: '+outerIssue);}
     const port=pulsePort(page,settings);
     if(port.pmuVerified&&settings.currentRangeA&&
        !hardware.getPmuCurrentRanges(settings.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))
@@ -1372,7 +1376,7 @@
    const bottom=dcLayout(host,'dkts-dc-bottom');
    const plot=dcPanel(bottom,tr('绘图','Plot'),'dkts-dc-plot');
    for(const key of ['x','y'])dcInput(plot,key.toUpperCase(),dc.target[key],value=>{dc.target[key]=value;},{key:'plot-'+key,path:'target.'+key});
-   for(const key of ['h','p'])dcInput(plot,key.toUpperCase(),dc.target[key],value=>{dc.target[key]=value;},{key:'plot-'+key,path:'target.'+key});
+   for(const key of ['h','p'])dcInput(plot,key.toUpperCase(),dc.target[key],value=>{dc.target[key]=value;},{key:'plot-'+key,path:'target.'+key,help:key==='p'?tr('Psweep 设定值，以逗号分隔','Comma-separated Psweep source levels'):tr('第二输出表达式，在独立 Target H 图窗显示','Secondary expression shown in a Target H plot frame')});
    renderVariablesPanel(bottom,p);
    const quoted=dcPanel(bottom,'Quote Var','dkts-dc-quote');
    for(const signal of dc.outputs.trim().split(/[\s,]+/).filter(Boolean))
@@ -1902,20 +1906,20 @@
    if(selected)return all.find(item=>item.artifactId===selected)||null;
    return all.length===1?all[0]:null;
   }
-  function targetPlotKey(page){try{return JSON.stringify(model.dcTargetColumns(page));}catch{return 'null';}}
+  function targetPlotKey(page,kind){try{return JSON.stringify(model.targetForAxis(model.dcTargetColumns(page),kind));}catch{return 'null';}}
   function createFramePlot(index){
    const host=framePlotHosts[index];if(!host)return null;
    plots[index]?.dispose?.();
    const kind=frameKinds[index]||'iv';
-   let target=null;if(kind==='target'){try{target=model.dcTargetColumns(active());}catch{}}
-   const title=kind==='target'?(target?target.x.signal+(target.x.unit?' ('+target.x.unit+')':''):'X'):['it','vt'].includes(kind)?tr('时间 (s)','Time (s)'):kind==='transfer'?tr('栅极电压 (V)','Gate voltage (V)'):tr('漏极电压 (V)','Drain voltage (V)');
+   let target=null;if(isTargetPlot(kind)){try{target=model.targetForAxis(model.dcTargetColumns(active()),kind);}catch{}}
+   const title=isTargetPlot(kind)?(target?target.x.signal+(target.x.unit?' ('+target.x.unit+')':''):'X'):['it','vt'].includes(kind)?tr('时间 (s)','Time (s)'):kind==='transfer'?tr('栅极电压 (V)','Gate voltage (V)'):tr('漏极电压 (V)','Drain voltage (V)');
    const instance=units.scientificPlot.create(host,{variant:'curve',
     source:'dkts-native-frame-'+(index+1),
-    xTitle:title,yTitle:kind==='target'?(target?target.y.signal+(target.y.unit?' ('+target.y.unit+')':''):'Y'):kind==='vt'?tr('电压 (V)','Voltage (V)'):tr('电流 (A)','Current (A)'),
+    xTitle:title,yTitle:isTargetPlot(kind)?(target?target.y.signal+(target.y.unit?' ('+target.y.unit+')':''):'Y'):kind==='vt'?tr('电压 (V)','Voltage (V)'):tr('电流 (A)','Current (A)'),
     emptyText:()=>tr('暂无可显示的数据','No data to display'),
     getCurves:()=>frameCurves(index),getMarkers:()=>[]});
    plots[index]=instance;
-   targetPlotKeys[index]=kind==='target'?JSON.stringify(target):null;
+   targetPlotKeys[index]=isTargetPlot(kind)?JSON.stringify(target):null;
    return instance;
   }
   function frameCurves(index){
@@ -1924,11 +1928,11 @@
    const list=curves(kind,available).slice();
    if(selected)return list.filter(curve=>curve.artifactId===selected);
    const run=measurementRuntime.status().run,s=state();
-   let target=null;if(kind==='target'){try{target=model.dcTargetColumns(active());}catch{return list;}}
+   let target=null;if(isTargetPlot(kind)){try{target=model.targetForAxis(model.dcTargetColumns(active()),kind);}catch{return list;}}
    const scopeMatches=plotScope==='page'?s.activeId===runPageId:plotScope==='routine'?s.pages.some(p=>p.id===runPageId&&p.routineId===s.activeRoutineId):true;
    if(run.running&&scopeMatches&&run.liveRows?.length){
     const groups=new Map();
-    for(const r of run.liveRows){if(r.source==='4200A-KXCI-PMU'&&kind==='transfer')continue;const key=(r.pulseResource?r.pulseResource+' · ':'')+[r.cycle,r.pPoint||1,r.pRepeat||1,r.xRepeat||1].join(':');if(!groups.has(key))groups.set(key,[]);const point=kind==='target'?model.evaluateTargetPoint(target,r):{x:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.pulseVoltageV??r.drainVoltageV,y:kind==='vt'?(r.pulseVoltageV??r.drainVoltageV):(r.pulseCurrentA??r.drainCurrentA)};if(point)groups.get(key).push(point);}
+    for(const r of run.liveRows){if(r.source==='4200A-KXCI-PMU'&&kind==='transfer')continue;const key=(r.pulseResource?r.pulseResource+' · ':'')+[r.cycle,r.pPoint||1,r.pRepeat||1,r.xRepeat||1].join(':');if(!groups.has(key))groups.set(key,[]);const point=isTargetPlot(kind)?model.evaluateTargetPoint(target,r):{x:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.pulseVoltageV??r.drainVoltageV,y:kind==='vt'?(r.pulseVoltageV??r.drainVoltageV):(r.pulseCurrentA??r.drainCurrentA)};if(point)groups.get(key).push(point);}
     for(const [key,rows] of groups){const points=rows.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));if(points.length)list.push({id:'dkts-live-'+run.runId+'-'+key,label:'4200A · '+tr('本次测量预览','Live acquisition')+' '+key,points});}
    }
    return list;
@@ -1987,10 +1991,19 @@
      label:(selected===ref.artifactId?'✓ ':'')+String(ref.name||ref.artifactId),
      onInvoke:()=>saveGraphSetting(index,'source',String(ref.artifactId))
     })),
+    ...(isTargetPlot(frameKinds[index])?[{id:'export-target',label:tr('导出完整 Target 计算 CSV','Export full computed Target CSV'),onInvoke:()=>exportTargetCsv(index).catch(error=>ctx.status.set(String(error.message||error)))}]:[]),
     {id:'export-original',label:t('导出完整原始 CSV'),
      onInvoke:()=>exportOriginalCsv(index).catch(error=>
       ctx.status.set('导出失败：'+String(error.message||error)))}
    ];
+  }
+  async function exportTargetCsv(index){
+   const ref=scopedSource(index);if(!ref)throw Error(tr('请先选择一个具体数据源','Select one data source first'));
+   const target=model.dcTargetColumns(active()),id=ref.artifactId,rev=ctx.data.artifacts.artifactRevision(id),table=ctx.data.artifacts.get(id);
+   if(!Number.isInteger(rev)||table?.kind!=='data.table'||!Number.isSafeInteger(table.rowCount)||table.rowCount>250000)throw Error('Target 导出需要可验证的完整 DataTable（最多 250000 行）');
+   const rows=ctx.data.model.rows(table);if(!Array.isArray(rows)||rows.length!==table.rowCount)throw Error('原始数据行数不匹配');
+   const output=model.targetExportRows(target,rows);if(!output.length)throw Error('P 筛选后没有可导出记录');if(ctx.data.artifacts.artifactRevision(id)!==rev)throw Error('数据源发生变化，请重试');
+   const name=String(ref.name||'Measurement').replace(/[^a-zA-Z0-9._-]+/g,'_').slice(0,64);await ctx.io.saveCsv(output,'DKTS_Target_'+name+'.csv');ctx.status.set(tr('已导出独立计算结果，原始数据未修改','Computed Target exported; raw data unchanged'));
   }
   async function exportOriginalCsv(index){
    // Full-resolution export belongs to canonical Data Center Artifact + DKDS IO.
@@ -2115,7 +2128,7 @@
    const previousKinds=frameKinds;
    syncGraphSettings(s);applyFrameLayout();
    for(const [index,kind] of frameKinds.entries())
-    if(previousKinds[index]!==kind||kind==='target'&&targetPlotKeys[index]!==targetPlotKey(p))createFramePlot(index);
+    if(previousKinds[index]!==kind||isTargetPlot(kind)&&targetPlotKeys[index]!==targetPlotKey(p,kind))createFramePlot(index);
    syncInstrumentButtons();
    updateGraphLanguage();
    refreshRawTables();

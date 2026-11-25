@@ -941,3 +941,10 @@ Rev F 7-59–61：保留单序列旧工程，新增有序序列列表，每个�
 ### P0 Target 与曲线分组
 - 接入 `set name=expression` 的逐点数学子集、别名及 X/Y 表达式，原始数据不修改；依赖信号参与采集校验。历史和实时绘图使用同一解析器，缺失/非有限结果不画点。H 第二输出轴、P 筛选、向量函数及派生 CSV 尚未验收。
 - 历史曲线按实际 cycle/pPoint/pRepeat/xRepeat 分组，避免跨循环连线。完成 14 项源码断言；未进行整包构建或真实仪器测试。
+
+- P0 Pulse Psweep: Rev F 7-29 native STEP:PULSE:BASE, independent absolute peak and range policy. Rev F 7-31/33 permits equal point counts for multi-channel sweeps; waveform mode compiles paired same-length sweeps or a companion train, never a waveform STEP:PULSE:BASE. Shared acquisition clock parameters, independent timings and raw channels. 10 assertions passed in source harness; existing PMU output gate remains closed until controlled hardware acceptance.
+- P0 Generator: safe AST evaluation of nonlinear scalar functions and getx()/getp() using precomputed native master/subordinate VL/IL lists; affine linear VAR1' preserved. Nested scan flattened P-major, actual rows retain original X/P point index and planned P value. Limit checks on every generated output. 4096-point native list boundary, multi-channel output gate retained. 10 source assertions.
+- P0 Target：H 表达式参与采集依赖检查，保留独立 Target H 图窗及完整计算导出；当前 DKDS ScientificPlot 单 Y 轴限制，不修改 DKDS，不声称同图双 Y 轴。P 输入采用逗号分隔设定值（不是按实测噪声值筛选），应用到实时/历史/计算导出，原始表不变。9 源码断言。
+
+### P0: PMU live buffered acquisition
+Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive reading. Per-channel cursors, bounded live drain, short reads, final drain after outputs off; cancellation aborts before output-off/final reads; ambiguous EXECUTE ACK never reads stale buffers. 19 source-harness assertions; no live instrument acceptance or safety gate change.

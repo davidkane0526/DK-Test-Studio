@@ -51,3 +51,9 @@
 2026-11-25：Time 原生多段偏置列表（每段读数+共同稳定等待），实际仪器时间戳；多变化端主从列表编译待实机门禁，绝对独立事件时钟未完成。
 
 - Target: `set` 逐点运算、X/Y 表达式与别名已接入；H/P、向量函数及派生导出待完成。历史曲线按采集循环/外层扫描点分组。
+
+- Pulse: Psweep baseline steps, independent limited autorange, paired waveform plan (equal-length parallel sweeps/fixed train) compiled. No native nested waveform step implied; physical output unverified.
+
+- Generator: nonlinear/getp() via native list compiler, with original X/P index. Multi-channel list output requires commissioning; no per-point network execution.
+
+- Target H/P: H expression + separate DKDS frame, P source-level filter, full independent computed CSV. Same-frame secondary Y axis requires DKDS renderer support.

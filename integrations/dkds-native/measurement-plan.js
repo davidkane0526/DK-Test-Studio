@@ -281,7 +281,7 @@
     }
     const listFollowers=Object.create(null);
     for(const [role,values] of Object.entries(program.listFollowers||{})){
-      if(!input.timeList||input.executionMode!=='system'||!DC_ROLES.includes(role)||!/^SMU[1-9]$/.test(terminalChannels[role])||role===x.terminal||p||generators[role]||!Array.isArray(values)||values.length!==x.points||x.points>4096||fixedVoltages[role]!==0||fixedCurrents[role]!==0)throw Error('从属列表与主列表或端口冲突');
+      if((!input.timeList&&!input.dcList)||input.executionMode!=='system'||!DC_ROLES.includes(role)||!/^SMU[1-9]$/.test(terminalChannels[role])||role===x.terminal||p||generators[role]||!Array.isArray(values)||values.length!==x.points||x.points>4096||fixedVoltages[role]!==0||fixedCurrents[role]!==0)throw Error('从属列表与主列表或端口冲突');
       const current=sourceModes[role]==='current',max=current?1.05:210;
       const numbers=values.map(v=>finite(v,role+' 从属列表电平',-max,max));
       listFollowers[role]=Object.freeze({values:Object.freeze(numbers),segments:Object.freeze(numbers.map(v=>Object.freeze(current?{startA:v,stopA:v,rangeA:'auto'}:{startV:v,stopV:v,rangeA:'auto'})))});
