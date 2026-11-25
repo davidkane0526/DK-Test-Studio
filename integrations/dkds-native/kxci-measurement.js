@@ -406,32 +406,61 @@ async function executePulseTask(p,io){
  const integerReply=(s,max)=>{const raw=String(s).trim().replace(/,\s*$/,'');if(!/^\d+$/.test(raw)||Number(raw)>max)throw Error('PMU 状态或点数无效');return Number(raw)};
  const status=async()=>integerReply(await command(p.statusQuery,true),1);
  const verify=async()=>{const s=parseStatusByte(await command('SP',true));if(s.syntaxError)throw Error('仪器指令错误：'+await command(':ERROR:LAST:GET',true));return s};
- let touched=false,started=false,state='completed',error='',shutdown='not-started',sequence=0;
- const channelWarnings=[];
- const channels=p.channels||[p],closed=new Set();
- const disable=async channel=>{await command(channel.offCommand);await verify();closed.add(channel.pulseChannel)};
+ let touched=false,started=false,acknowledged=false,state='completed',error='',shutdown='not-started',sequence=0;
+ const channels=p.channels||[p],closed=new Set(),cursors=new Map(channels.map(c=>[c.pulseChannel,0])),counts=new Map();
+ const disable=async c=>{await command(c.offCommand);await verify();closed.add(c.pulseChannel)};
+ const appendError=e=>{error+=(error?'；':'')+String(e.message||e)};
+ async function drain(c,live){
+   if(c.skipRead)return;
+   let cursor=cursors.get(c.pulseChannel);
+   const count=integerReply(await command(c.countQuery,true),c.count);
+   if(count<cursor||count<(counts.get(c.pulseChannel)||0))throw Error('PMU 缓冲区点数意外减少');
+   counts.set(c.pulseChannel,count);
+   // Rev F: non-destructive reads; short blocks permitted. Bound live work for cancellation fairness.
+   for(let blocks=0;cursor<count&&(!live||blocks<2);blocks++){
+     if(cancelled()&&live)break;
+     const n=Math.min(128,count-cursor),rows=parsePulseBlock(await command(':PMU:DATA:GET '+c.pulseChannel+','+cursor+','+n+','+c.fields,true),c,cursor);
+     if(rows.length>n||!rows.length){if(live&&!rows.length)break;throw Error('PMU 缓冲区计数不一致')}
+     await verify();
+     onBatch(rows.map(row=>({...row,pulseChannelSequence:row.sequence,sequence:++sequence,measurementCompleteness:!live&&c.expected!==null&&count!==c.expected?'partial':row.measurementCompleteness})));
+     cursor+=rows.length;cursors.set(c.pulseChannel,cursor);
+   }
+ }
  try{
- if((await verify()).busy||await status())throw Error('仪器正在执行其他测试');
- if(cancelled())return {state:'stopped',shutdown,error};
- await command(':ERROR:LAST:CLEAR');touched=true;
- for(const c of p.setup){if(cancelled())break;await command(c);if((await verify()).busy)throw Error('配置期间 Busy')}
- if(!cancelled()){
- started=true;await command(':PMU:EXECUTE');
- while(!cancelled()){
- const busy=await status();await verify();
- if(!busy){started=false;for(const channel of channels)await disable(channel);
- for(const channel of channels){if(channel.skipRead)continue;let cursor=0;const count=integerReply(await command(channel.countQuery,true),channel.count);
- while(cursor<count&&!cancelled()){const n=Math.min(128,count-cursor),rows=parsePulseBlock(await command(':PMU:DATA:GET '+channel.pulseChannel+','+cursor+','+n+','+channel.fields,true),channel,cursor);if(!rows.length||rows.length>n)throw Error('PMU 缓冲区计数不一致');onBatch(rows.map(row=>({...row,pulseChannelSequence:row.sequence,sequence:++sequence,measurementCompleteness:channel.expected!==null&&count!==channel.expected?'partial':row.measurementCompleteness})));cursor+=rows.length}
- if(!cancelled()&&(cursor===0||channel.expected!==null&&cursor!==channel.expected))channelWarnings.push(channel.resource+' 实测 '+cursor+' 点，计划 '+(channel.expected??'非空')+' 点');}
- if(channelWarnings.length)throw Error(channelWarnings.join('；'));break}
- await wait(100);
+   if((await verify()).busy||await status())throw Error('仪器正在执行其他测试');
+   if(cancelled())return {state:'stopped',shutdown,error};
+   await command(':ERROR:LAST:CLEAR');touched=true;
+   for(const c of p.setup){if(cancelled())break;await command(c);if((await verify()).busy)throw Error('配置期间 Busy')}
+   if(!cancelled()){
+     started=true;await command(':PMU:EXECUTE');acknowledged=true;
+     while(!cancelled()){
+       const busy=await status();await verify();
+       if(!busy){started=false;break}
+       for(const c of channels){if(cancelled())break;await drain(c,true)}
+       if(!cancelled())await wait(100);
+     }
+   }
+   if(cancelled())state='stopped';
+ }catch(e){state='failed';appendError(e)}
+ finally{
+   if(touched){
+     let safe=true;
+     if(started){try{await command(':PMU:ABORT');let idle=false;for(let i=0;i<100;i++){if(!await status()){idle=true;break}await wait(100)}if(!idle)throw Error('中止后仍 Busy')}catch(e){safe=false;appendError(e)}}
+     for(const c of channels)if(!closed.has(c.pulseChannel)){try{await disable(c)}catch(e){safe=false;appendError(e)}}
+     shutdown=safe?'commands-sent':'unconfirmed';if(!safe)state='failed';
+     // Never retrieve a previous run's buffer following an ambiguous EXECUTE ACK.
+     if(safe&&acknowledged&&state!=='failed'){
+       try{
+         for(const c of channels)await drain(c,false);
+         if(cancelled())state='stopped';
+         if(state==='completed'){
+           const warnings=channels.filter(c=>!c.skipRead).filter(c=>cursors.get(c.pulseChannel)===0||(c.expected!==null&&cursors.get(c.pulseChannel)!==c.expected)).map(c=>c.resource+' 实测 '+cursors.get(c.pulseChannel)+' 点，计划 '+(c.expected??'非空')+' 点');
+           if(warnings.length)throw Error(warnings.join('；'));
+         }
+       }catch(e){state='failed';appendError(e)}
+     }
+   }
  }
- }
- if(cancelled())state='stopped';
- }catch(e){state='failed';error=String(e.message||e)}
- finally{if(touched){let safe=true;if(started){try{await command(':PMU:ABORT');let idle=false;for(let i=0;i<100;i++){if(!await status()){idle=true;break}await wait(100)}if(!idle)throw Error('中止后仍 Busy')}catch(e){safe=false;error+='；'+e.message}}
- for(const channel of channels)if(!closed.has(channel.pulseChannel)){try{await disable(channel)}catch(e){safe=false;error+='；'+e.message}}
- shutdown=safe?'commands-sent':'unconfirmed';if(!safe)state='failed'}}
  return {state,shutdown,error};
 }
 function compilePulsePair(input,hardware){
