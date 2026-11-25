@@ -948,3 +948,9 @@ Rev F 7-59–61：保留单序列旧工程，新增有序序列列表，每个�
 
 ### P0: PMU live buffered acquisition
 Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive reading. Per-channel cursors, bounded live drain, short reads, final drain after outputs off; cancellation aborts before output-off/final reads; ambiguous EXECUTE ACK never reads stale buffers. 19 source-harness assertions; no live instrument acceptance or safety gate change.
+
+
+## 2026-11-26 · P0 Target 向量计算接入（恢复分支）
+- 基线 a707b2d，完整 b7530e1 已恢复；仅 recovery/p0-20261125 开发，不修改 main/DKDS、不编译。依据 LabExpress §8.3.2.1–4 将既有 Target AST 扩展为 linsweep/linrange/logsweep/range、sum、正反一至三阶差分和累积梯形积分；Generator 不开放向量函数。按实际循环、Psweep、重复、通道及序号连续性分组；不跨缺失点/重复自变量或方向拐点求导。向量结果须与实际组长度一致，原始数据不修改。沿用 P 筛选、H 独立图窗及派生 CSV。
+- 历史图通过 Data Center 有界连续分块读取完整记录后再计算和降采样；250000 行为当前 JS 计算预算而非仪器限制。短读或缺列不以抽稀点计算，已知失败/停止采集不进入向量计算；实时预览不计算全组函数。尚未实现 linefit、vth、查询和其他原厂算法及同窗双轴。
+- 实际修改后的 model 运行 18 项源码断言通过（依赖、导数、积分、分组、缺失、广播、完整历史和短读、标量回归），model/plugin 语法解析通过；新增 Node 回归测试文件。完整仓库 DNS 不通，未执行 npm test / SDK / UI / 4200A 实机。

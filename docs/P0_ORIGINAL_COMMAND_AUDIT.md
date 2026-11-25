@@ -16,7 +16,7 @@ Scope: existing FS-Pro-style DC / Time / Pulse / Segment Arb / Routine and data 
 | Generator | affine VAR1 prime; nonlinear getx/getp compiled as native VL/IL lists with original point provenance, 4096 list limit | Multi-channel list commissioning, further function coverage |
 | Pulse | amplitude/base including outer base step; two-channel equal-length waveform/fixed companion plan | Actual firmware and topology acceptance, nested waveform not inferred |
 | PMU acquisition | live per-channel cursor, bounded reads, final drain, abort/off sequencing, raw channel provenance | Firmware response framing and count semantics under actual operation |
-| Target | H separate frame, P filter by planned source values, scalar formula, derived full-resolution CSV | Vector/group functions and same-frame second axis |
+| Target | H separate frame, P filter by planned source values, scalar formula, derived full-resolution CSV | Core vector generation, sum, derivatives and integral now integrated on recovery branch; remaining linefit/threshold/query/smoothing algorithms and same-frame second axis |
 | SMU range | Auto and limited-auto, immediate RI path | Persistent range lock via instrument LPT user module, not by relabeling RI |
 | Time | multi-segment native lists, shared clock | Independent event clocks need instrument-side scheduling; preserve actual sample timestamps |
 | Mixed SMU/PMU | sequential routine | Compatible auxiliary SMU DC-bias UTM and real instrument deployment; no simultaneous RPM path claim |

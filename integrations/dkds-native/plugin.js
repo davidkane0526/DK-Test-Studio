@@ -137,7 +137,8 @@
    const key=JSON.stringify([axis,target,...rows.map(row=>[row.artifactId,row.name,
     ctx.data.artifacts.artifactRevision?.(row.artifactId)||0])]);
    if(plotCache.has(key))return plotCache.get(key);
-   const next=model.curvesFromArtifacts(rows,ctx.data.artifacts,{axis:isTargetPlot(axis)?'target':axis,target});
+   const available=target?.needsVector?rows.filter(row=>{const state=acquisition(artifactMetadata(row.artifactId))?.runState;return !state||state==='completed';}):rows;
+   const next=model.curvesFromArtifacts(available,ctx.data.artifacts,{axis:isTargetPlot(axis)?'target':axis,target});
    plotCache.set(key,next);
    return next;
   }
@@ -1930,7 +1931,7 @@
    const run=measurementRuntime.status().run,s=state();
    let target=null;if(isTargetPlot(kind)){try{target=model.targetForAxis(model.dcTargetColumns(active()),kind);}catch{return list;}}
    const scopeMatches=plotScope==='page'?s.activeId===runPageId:plotScope==='routine'?s.pages.some(p=>p.id===runPageId&&p.routineId===s.activeRoutineId):true;
-   if(run.running&&scopeMatches&&run.liveRows?.length){
+   if(run.running&&scopeMatches&&run.liveRows?.length&&!target?.needsVector){
     const groups=new Map();
     for(const r of run.liveRows){if(r.source==='4200A-KXCI-PMU'&&kind==='transfer')continue;const key=(r.pulseResource?r.pulseResource+' · ':'')+[r.cycle,r.pPoint||1,r.pRepeat||1,r.xRepeat||1].join(':');if(!groups.has(key))groups.set(key,[]);const point=isTargetPlot(kind)?model.evaluateTargetPoint(target,r):{x:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.pulseVoltageV??r.drainVoltageV,y:kind==='vt'?(r.pulseVoltageV??r.drainVoltageV):(r.pulseCurrentA??r.drainCurrentA)};if(point)groups.get(key).push(point);}
     for(const [key,rows] of groups){const points=rows.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));if(points.length)list.push({id:'dkts-live-'+run.runId+'-'+key,label:'4200A · '+tr('本次测量预览','Live acquisition')+' '+key,points});}
@@ -2002,6 +2003,7 @@
    const target=model.dcTargetColumns(active()),id=ref.artifactId,rev=ctx.data.artifacts.artifactRevision(id),table=ctx.data.artifacts.get(id);
    if(!Number.isInteger(rev)||table?.kind!=='data.table'||!Number.isSafeInteger(table.rowCount)||table.rowCount>250000)throw Error('Target 导出需要可验证的完整 DataTable（最多 250000 行）');
    const rows=ctx.data.model.rows(table);if(!Array.isArray(rows)||rows.length!==table.rowCount)throw Error('原始数据行数不匹配');
+   if(target.needsVector){const state=acquisition(artifactMetadata(id))?.runState;if(state&&state!=='completed')throw Error(tr('向量计算需要完整采集记录','Vector Target requires a completed acquisition'));}
    const output=model.targetExportRows(target,rows);if(!output.length)throw Error('P 筛选后没有可导出记录');if(ctx.data.artifacts.artifactRevision(id)!==rev)throw Error('数据源发生变化，请重试');
    const name=String(ref.name||'Measurement').replace(/[^a-zA-Z0-9._-]+/g,'_').slice(0,64);await ctx.io.saveCsv(output,'DKTS_Target_'+name+'.csv');ctx.status.set(tr('已导出独立计算结果，原始数据未修改','Computed Target exported; raw data unchanged'));
   }
