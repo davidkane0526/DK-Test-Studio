@@ -185,6 +185,7 @@
   }
   return values;
  }
+ function pulseSecondarySettings(v){return {...v,...v.secondary,secondary:null,sweep:v.secondary?.sweep??'amplitude',basePeakV:v.secondary?.basePeakV??'',rangePolicy:v.secondary?.rangePolicy??'fixed',prePercent:v.secondary?.prePercent??v.prePercent??'0',postPercent:v.secondary?.postPercent??v.postPercent??'0'};}
  function timedSummary(kind,settings){
   const defaults=TIMED_DEFAULTS[kind];
   if(!defaults)return null;
@@ -236,12 +237,12 @@
   const result={points,pulseCount,rateHz,rangeV,peakV,basePeakV,captureWindowS,windowS:windowUs*1e-6,loadOhms:v.loadOhms===''?null:n('loadOhms')};
   if(v.secondary!==null){
    if(!v.secondary||typeof v.secondary!=='object'||Array.isArray(v.secondary)||v.secondary.terminal===v.terminal||!['S','D','G'].includes(v.secondary.terminal))throw Error('Select a distinct Psweep terminal');
-   const allowed=['terminal','channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA'];
-   if(Object.keys(v.secondary).some(k=>!allowed.includes(k))||allowed.some(k=>typeof v.secondary[k]!=='string'))throw Error('Invalid Psweep pulse parameters');
-   const outer=timedSummary('pulse',{...v,...v.secondary,secondary:null,sweep:'amplitude',rangePolicy:'fixed'});
-   if(v.mode!=='spot')throw Error('Dual-channel pulse currently requires Spot Mean');
-   if(outer.points>1&&points===1)throw Error('Psweep requires a multi-point Xsweep');
-   result.secondary=outer;result.totalSweepPoints=points*outer.points;
+   const required=['terminal','channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA'],optional=['sweep','basePeakV','rangePolicy','prePercent','postPercent'];
+   if(Object.keys(v.secondary).some(k=>![...required,...optional].includes(k)||typeof v.secondary[k]!=='string')||required.some(k=>typeof v.secondary[k]!=='string'))throw Error('Invalid Psweep pulse parameters');
+   const outer=timedSummary('pulse',pulseSecondarySettings(v));
+   if(v.mode==='waveform'&&outer.points!==1&&outer.points!==points)throw Error('Dual waveform requires equal-length simultaneous sweeps or a fixed companion pulse train');
+   if(v.mode==='spot'&&outer.points>1&&points===1)throw Error('Psweep requires a multi-point Xsweep');
+   result.secondary=outer;result.totalSweepPoints=v.mode==='waveform'?points:points*outer.points;
   }
   return result;
  }
@@ -1261,6 +1262,6 @@ function dcAffine(raw,variables,polarity){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,dcSummary,dcExpression,dcAffine,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,dcSummary,dcExpression,dcAffine,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,pulseSecondarySettings,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

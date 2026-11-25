@@ -434,12 +434,14 @@ async function executePulseTask(p,io){
 }
 function compilePulsePair(input,hardware){
  const a=input.settings,b=input.secondary.settings,as=input.summary,bs=input.secondary.summary;
- if(a.mode!=='spot'||b.mode!=='spot')throw Error('双通道脉冲目前支持 Spot Mean，双路波形待核验');
+ if(a.mode!==b.mode||!['spot','waveform'].includes(a.mode))throw Error('两通道须共享采集模式');
+ const waveform=a.mode==='waveform';
+ if(waveform&&bs.points!==1&&bs.points!==as.points)throw Error('双通道波形需要等点数同步扫描或固定伴随脉冲');
  if(a.terminal===b.terminal||input.resource===input.secondary.resource)throw Error('Xsweep 与 Psweep 不能使用同一端子或通道');
  for(const field of ['periodUs','pulseCount','rateHz'])if(Number(a[field])!==Number(b[field]))throw Error('双通道必须共享周期、脉冲数和采样率');
- if(bs.points>1&&as.points===1)throw Error('Psweep 多点步进需要 Xsweep 多点扫描');
- const main=compilePulse({...input,secondary:undefined,pointMultiplier:bs.points},hardware);
- const outer=compilePulse({...input,...input.secondary,secondary:undefined,pointMultiplier:as.points},hardware);
+ if(!waveform&&bs.points>1&&as.points===1)throw Error('Psweep 多点步进需要 Xsweep 多点扫描');
+ const main=compilePulse({...input,secondary:undefined,pointMultiplier:waveform?1:bs.points},hardware);
+ const outer=compilePulse({...input,...input.secondary,secondary:undefined,pointMultiplier:waveform?(bs.points===1?as.points:1):as.points},hardware);
  const x=main.pulse,p=outer.pulse;
  if(x.pulseChannel===p.pulseChannel)throw Error('PMU 通道重复');
  const power=hardware.capabilities.calculateChassisPower({inventory:hardware.inventory,activePulseChannels:[x,p].map(z=>({family:'PMU',cardIndex:z.card,rangeV:z.rangeV}))});
@@ -447,12 +449,12 @@ function compilePulsePair(input,hardware){
  const shared=/^:PMU:(?:INIT |MEASURE:MODE |SAMPLE:RATE |PULSE:BURST:COUNT )/;
  const channelSetup=z=>z.setup.filter(c=>c!=='SS'&&c!=='ZE'&&!shared.test(c)&&!c.startsWith(':PMU:OUTPUT:STATE '));
  const xSetup=channelSetup(x),pSetup=channelSetup(p).map(c=>{
-  if(bs.points>1&&c.startsWith(':PMU:SWEEP:PULSE:AMPLITUDE '))return c.replace(':PMU:SWEEP:',':PMU:STEP:').replace(/,0$/,'');
+  if(!waveform&&bs.points>1&&/^:PMU:SWEEP:PULSE:(AMPLITUDE|BASE) /.test(c))return c.replace(':PMU:SWEEP:',':PMU:STEP:').replace(/,0$/,'');
   return c;
  });
  // Rev F example programs VAR2 before VAR1; both are configured before enabling either output.
  const setup=['SS','ZE',':PMU:INIT 0',...x.setup.filter(c=>shared.test(c)&&!c.startsWith(':PMU:INIT ')),...pSetup,...xSetup,`:PMU:OUTPUT:STATE ${x.pulseChannel},1`,`:PMU:OUTPUT:STATE ${p.pulseChannel},1`];
- const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,p.countQuery],cleanup:[x.offCommand,p.offCommand,':PMU:ABORT'],channels:[x,p],peak:Math.max(x.peak,p.peak),estimatedRecords:x.estimatedRecords+p.estimatedRecords,resources:[x.resource,p.resource],sweepPoints:as.points*bs.points};
+ const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,p.countQuery],cleanup:[x.offCommand,p.offCommand,':PMU:ABORT'],channels:[x,p],peak:Math.max(x.peak,p.peak),estimatedRecords:x.estimatedRecords+p.estimatedRecords,resources:[x.resource,p.resource],sweepPoints:waveform?as.points:as.points*bs.points,pairedMode:waveform?'parallel-waveform':'nested-spot'};
  return {...main,pulse,channels:{...main.channels,...outer.channels},active:[...main.active,...outer.active],totalPoints:pulse.estimatedRecords,requiresInterlock:main.requiresInterlock||outer.requiresInterlock,canExecute:main.canExecute&&outer.canExecute};
 }
 function compileSegmentArb(input,hardware){

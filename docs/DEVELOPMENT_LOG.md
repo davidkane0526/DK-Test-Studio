@@ -941,3 +941,5 @@ Rev F 7-59–61：保留单序列旧工程，新增有序序列列表，每个�
 ### P0 Target 与曲线分组
 - 接入 `set name=expression` 的逐点数学子集、别名及 X/Y 表达式，原始数据不修改；依赖信号参与采集校验。历史和实时绘图使用同一解析器，缺失/非有限结果不画点。H 第二输出轴、P 筛选、向量函数及派生 CSV 尚未验收。
 - 历史曲线按实际 cycle/pPoint/pRepeat/xRepeat 分组，避免跨循环连线。完成 14 项源码断言；未进行整包构建或真实仪器测试。
+
+- P0 Pulse Psweep: Rev F 7-29 native STEP:PULSE:BASE, independent absolute peak and range policy. Rev F 7-31/33 permits equal point counts for multi-channel sweeps; waveform mode compiles paired same-length sweeps or a companion train, never a waveform STEP:PULSE:BASE. Shared acquisition clock parameters, independent timings and raw channels. 10 assertions passed in source harness; existing PMU output gate remains closed until controlled hardware acceptance.

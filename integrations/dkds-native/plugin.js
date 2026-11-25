@@ -777,7 +777,7 @@
      const otherKeys=['S','D','G'].filter(key=>key!==values.terminal);
      fsproField(outer,{kind:'select',label:tr('端子','Terminal'),value:values.secondary?.terminal||'None',options:[{value:'None',label:'None'},...otherKeys.map(key=>({value:key,label:t(logicalNames[key])+' · '+pulsePort(p,{...values,terminal:key}).resource}))],onChange:event=>{
       const terminal=event.target.value;if(terminal==='None'){put('secondary',null);render();return;}
-      const keys=['channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA'];
+      const keys=['channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA','sweep','basePeakV','rangePolicy','prePercent','postPercent'];
       const secondary=values.secondary?{...values.secondary,terminal}:{...Object.fromEntries(keys.map(k=>[k,String(values[k])])),terminal,stop:String(values.start),step:'0',currentRangeA:''};
       put('secondary',secondary);render();
      }});
@@ -787,8 +787,11 @@
       if(!port.match?.[3])dcSelect(outer,tr('卡内通道','Card channel'),second.channel,[{value:'1',label:'CH1'},{value:'2',label:'CH2'}],value=>{setSecond('channel',value);render();},{key:'psweep-channel',path:'secondary.channel'});
       dcSelect(outer,tr('电压档','Voltage range'),second.rangeV,[{value:'10',label:'10 V'},{value:'40',label:'40 V'}],value=>{setSecond('rangeV',value);render();},{key:'psweep-range',path:'secondary.rangeV'});
       dcSelect(outer,tr('电流档','Current range'),second.currentRangeA,[{value:'',label:tr('自动','Auto')},...(port.pmuVerified?hardware.getPmuCurrentRanges(Number(second.rangeV),port.withRpm):[]).map(x=>({value:String(x),label:String(x)+' A'}))],value=>setSecond('currentRangeA',value),{key:'psweep-current-range',path:'secondary.currentRangeA'});
-      for(const [key,zh,en] of [['fixedV','基线 (V)','Base (V)'],['start','起始幅值 (V)','Start amplitude (V)'],['stop','终止幅值 (V)','Stop amplitude (V)'],['step','步进 (V)','Step (V)'],['loadOhms','负载 (Ω)','Load (Ω)'],['widthUs','平顶 (µs)','Flat top (µs)'],['riseUs','上升 (µs)','Rise (µs)'],['fallUs','下降 (µs)','Fall (µs)'],['delayUs','延迟 (µs)','Delay (µs)'],['windowStartUs','测量延迟 (µs)','Measure delay (µs)'],['windowTimeUs','测量时间 (µs)','Measure time (µs)']])
-       scalarField(outer,tr(zh,en),second[key],value=>setSecond(key,value),false,{'data-dkts-parameter-path':'secondary.'+key},false,true);
+      dcSelect(outer,tr('扫描方式','Sweep mode'),second.sweep||'amplitude',[{value:'amplitude',label:tr('扫描幅值','Amplitude sweep')},{value:'base',label:tr('扫描基线','Base sweep')}],value=>{setSecond('sweep',value);render();},{key:'psweep-mode',path:'secondary.sweep'});
+      if(second.currentRangeA)dcSelect(outer,tr('量程模式','Range mode'),second.rangePolicy||'fixed',[{value:'fixed',label:tr('固定','Fixed')},{value:'limited-auto',label:tr('最低自动量程','Limited auto')}],value=>setSecond('rangePolicy',value),{key:'psweep-range-policy',path:'secondary.rangePolicy'});
+      const secondaryBase=second.sweep==='base';
+      for(const [key,zh,en] of [[secondaryBase?'basePeakV':'fixedV',secondaryBase?'固定峰值 (V)':'基线 (V)',secondaryBase?'Fixed peak (V)':'Base (V)'],['start','起始 (V)','Start (V)'],['stop','终止 (V)','Stop (V)'],['step','步进 (V)','Step (V)'],['loadOhms','负载 (Ω)','Load (Ω)'],['widthUs','平顶 (µs)','Flat top (µs)'],['riseUs','上升 (µs)','Rise (µs)'],['fallUs','下降 (µs)','Fall (µs)'],['delayUs','延迟 (µs)','Delay (µs)'],['windowStartUs','测量延迟 (µs)','Measure delay (µs)'],['windowTimeUs','测量时间 (µs)','Measure time (µs)']])
+       scalarField(outer,tr(zh,en),second[key]??'',value=>setSecond(key,value),false,{'data-dkts-parameter-path':'secondary.'+key},false,true);
      }
      const basic=panel('脉冲设置 · 基本','Pulse Settings · Basic');
      fields(basic,[['periodUs','脉冲周期 (µs)','Pulse Period (µs)'],['widthUs','计划平顶时长 (µs)','Planned flat top (µs)']]);
@@ -1051,7 +1054,7 @@
     if(settings.testMode==='sequence'){const port=pulsePort(page,settings);if(port.pmuVerified&&settings.currentRangeA&&!hardware.getPmuCurrentRanges(settings.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))throw Object.assign(Error(tr('该电流档与实装 PMU/RPM 不匹配。','This range is incompatible with installed PMU/RPM.')),{field:'currentRangeA'});return result;}
     const issue=pulseCompatibility(settings,result);
     if(issue)throw Error(issue);
-    if(settings.secondary){const secondary={...settings,...settings.secondary,secondary:null,sweep:'amplitude'},summary={...result.secondary,totalSweepPoints:result.totalSweepPoints};const outerIssue=pulseCompatibility(secondary,summary);if(outerIssue)throw Error('Psweep: '+outerIssue);}
+    if(settings.secondary){const secondary=model.pulseSecondarySettings(settings),summary={...result.secondary,totalSweepPoints:result.totalSweepPoints};const outerIssue=pulseCompatibility(secondary,summary);if(outerIssue)throw Error('Psweep: '+outerIssue);}
     const port=pulsePort(page,settings);
     if(port.pmuVerified&&settings.currentRangeA&&
        !hardware.getPmuCurrentRanges(settings.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))
