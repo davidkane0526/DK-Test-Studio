@@ -51,7 +51,7 @@
  const timeTerminalDefaults=value=>Object.fromEntries(TIME_TERMINALS.map(key=>[key,value]));
  const TIMED_DEFAULTS=Object.freeze({
   time:Object.freeze({mode:'linear-step',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),voltageLimitsV:Object.freeze(timeTerminalDefaults('')),
-   switchStepS:'0.1',sampleStepS:'0.1',cycles:'1',integrationPreset:'instrument',integrationS:'',
+   switchStepS:'0.1',sampleStepS:'0.1',listDelayS:'0.1',cycles:'1',integrationPreset:'instrument',integrationS:'',
    segments:Object.freeze([{durationS:'1',bias:timeTerminalDefaults('0'),currentBias:timeTerminalDefaults('0')}]),
    events:Object.freeze([{terminal:'D',quantity:'Current',startS:'0.1',intervalS:'0.1',averageS:'0.02',points:'9'}])}),
   retention:Object.freeze({terminal:'D',conditionV:'0',conditionS:'0',holdV:'0',readV:'0.1',
@@ -67,7 +67,14 @@
  const timeBiasKey=mode=>mode==='current'?'currentBias':'bias';
  const timeBias=(settings,segment,terminal)=>segment[timeBiasKey(settings.sourceModes?.[terminal])]?.[terminal];
  function timeGrid(v){
-  if(v.mode!==undefined&&!['linear-step','native-fixed'].includes(v.mode))invalidField('mode','Select a supported time sweep mode');
+  if(v.mode!==undefined&&!['linear-step','native-fixed','native-list'].includes(v.mode))invalidField('mode','Select a supported time sweep mode');
+  if(v.mode==='native-list'){
+   if(!Array.isArray(v.segments)||!v.segments.length||v.segments.length>64)throw Error('Use 1–64 bias segments');
+   if(!Array.isArray(v.events)||v.events.length<1||v.events.length>6)throw Error('Use 1–6 measured signals');
+   const delay=atField('listDelayS',()=>numeric(v.listDelayS,'Native list settling delay'));if(delay<0||delay>6.553)invalidField('listDelayS','DT must be between 0 and 6.553 s');
+   let count=0;const starts=v.segments.map((s,i)=>{const start=count;count+=atField('segments.'+i+'.listPoints',()=>positiveInt(s.listPoints,4096,'Segment readings'));if(count>4096)invalidField('segments.'+i+'.listPoints','Native list supports up to 4096 readings per cycle');return start;});
+   return {starts,durationS:null,segmentCount:v.segments.length,samplePoints:count,sampleStep:null,settlingDelayS:delay,nativeList:true};
+  }
   if(v.mode==='native-fixed'){
    if(!Array.isArray(v.segments)||v.segments.length!==1)invalidField('mode','Native fixed bias requires one bias segment');
    if(!Array.isArray(v.events)||v.events.length<1||v.events.length>6)invalidField('mode','Native fixed bias requires 1–6 measurement signals');
@@ -109,7 +116,7 @@
    const mode=v.sourceModes[key];
    if(!['voltage','current'].includes(mode))invalidField('sourceModes.'+key,'Select voltage or current source mode');
    const current=mode==='current';
-   if(current&&grid.nativeFixed){const limit=atField('voltageLimitsV.'+key,()=>numeric(v.voltageLimitsV?.[key],key+' voltage compliance'));if(limit<=0||limit>210)invalidField('voltageLimitsV.'+key,'Current source requires a positive voltage compliance up to 210 V');}
+   if(current&&(grid.nativeFixed||grid.nativeList)){const limit=atField('voltageLimitsV.'+key,()=>numeric(v.voltageLimitsV?.[key],key+' voltage compliance'));if(limit<=0||limit>210)invalidField('voltageLimitsV.'+key,'Current source requires a positive voltage compliance up to 210 V');}
    for(const [index,segment] of v.segments.entries()){
     const field='segments.'+index+'.'+timeBiasKey(mode)+'.'+key;
     const value=atField(field,()=>numeric(timeBias(v,segment,key),key+' bias'));
@@ -119,14 +126,14 @@
   const cycles=atField('cycles',()=>positiveInt(v.cycles,10000,'Cycles'));
   if(!Object.hasOwn(SMU_INTEGRATION_PLC,v.integrationPreset))
    invalidField('integrationPreset','Select a supported SMU integration preset');
-  if(grid.nativeFixed){
+  if(grid.nativeFixed||grid.nativeList){
    if(v.integrationS!=='')invalidField('integrationPreset','Select an instrument integration preset');
    const event=v.events[0],signals=new Set();
    for(const [i,e] of v.events.entries()){
     if(!['D','G','S'].includes(e.terminal)||!['Current','Voltage'].includes(e.quantity))invalidField('events.'+i+'.terminal','Select a valid SMU measurement signal');
     const key=e.terminal+':'+e.quantity;
     if(signals.has(key))invalidField('events.'+i+'.quantity','Select each measurement signal only once');signals.add(key);
-    for(const field of ['startS','intervalS','points'])if(Number(e[field])!==Number(event[field]))invalidField('events.'+i+'.'+field,'Native fixed bias signals share start, wait and reading count');
+    if(grid.nativeFixed)for(const field of ['startS','intervalS','points'])if(Number(e[field])!==Number(event[field]))invalidField('events.'+i+'.'+field,'Native fixed bias signals share start, wait and reading count');
    }
    if(!Number.isSafeInteger(grid.samplePoints*cycles))invalidField('cycles','Total readings exceed safe integer');
    return {...grid,cycles,points:grid.samplePoints*cycles,signalCount:signals.size};
@@ -164,7 +171,7 @@
    values.sourceModes={...timeTerminalDefaults('voltage'),...values.sourceModes};
    values.voltageLimitsV={...timeTerminalDefaults(''),...values.voltageLimitsV};
    if(Array.isArray(values.segments))values.segments=values.segments.map(segment=>segment&&({
-    ...segment,currentBias:{...timeTerminalDefaults('0'),...segment.currentBias}
+    ...segment,listPoints:segment.listPoints??'1',currentBias:{...timeTerminalDefaults('0'),...segment.currentBias}
    }));
   }
   if(kind==='pulse'){

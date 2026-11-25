@@ -94,7 +94,7 @@ function compileSystemPlan(compiled,input,inventory){
  .map(s=>(s.family==='SMU'?'CH':s.family)+s.channel))];
  assert(active.every(r=>disable.includes('CH'+channels[r])),'活动通道未在实际模块中确认');
  setup.push(...disable);
- const x=plan.xSweep,p=plan.pSweep,generators=plan.generators||{};
+ const x=plan.xSweep,p=plan.pSweep,generators=plan.generators||{},followers=plan.listFollowers||{},timeList=input.timeList||null;
  assert(x.repeats===1||timing,'System Mode 暂不支持 Xsweep 重复嵌套，请用整体 Cycles');
  assert(!p||p.repeats===1,'System Mode 暂不支持 Psweep 重复嵌套');
  const current=r=>plan.sourceModes?.[r]==='current';
@@ -107,10 +107,12 @@ function compileSystemPlan(compiled,input,inventory){
  assert(plan.loops>=1&&Number.isSafeInteger(plan.loops),'循环数无效');
  assert(axisCount(x)<=4096&&(!p||axisCount(p)<=32),'原生单次任务轴长度超过手册限制');
  const xValues=axisValues(x),pValues=p?axisValues(p):[];
- for(const r of active){
+ if(timeList){assert(!timing&&!p&&!Object.keys(generators).length&&Array.isArray(timeList.segmentIndices)&&timeList.segmentIndices.length===count&&timeList.segmentIndices.every((v,i,a)=>Number.isSafeInteger(v)&&v>=1&&(i?v===a[i-1]||v===a[i-1]+1:v===1)),'时间列表索引无效');}
+ const definitionOrder=timeList?[x.terminal,...active.filter(r=>r!==x.terminal)]:active;
+ for(const r of definitionOrder){
   const setting=plan.portSettings[r],axis=x.terminal===r?x:p?.terminal===r?p:null;
   assert(setting.rangeMode!=='fixed'&&(!axis||axis.segments.every(s=>s.rangeA==='auto')),'System Mode 的 RI 不能保证整个 sweep 固定档位；请使用 Auto / 最低自动量程');
-  setup.push("CH"+channels[r]+",'V"+channels[r]+"','I"+channels[r]+"',"+(current(r)?2:1)+","+(timing?3:r===x.terminal?1:r===p?.terminal?2:generators[r]?4:3));
+  setup.push("CH"+channels[r]+",'V"+channels[r]+"','I"+channels[r]+"',"+(current(r)?2:1)+","+(timing?3:r===x.terminal||followers[r]?1:r===p?.terminal?2:generators[r]?4:3));
  }
  const rpmRoutes=input.rpmRoutes||[];
  for(const route of rpmRoutes){
@@ -129,7 +131,7 @@ function compileSystemPlan(compiled,input,inventory){
   const ch=channels[r],setting=plan.portSettings[r],limit=compliance(r);
   if(generators[r]){
    const g=generators[r];assert(!timing,'Generator 不用于固定偏置');setup.push('RT '+fmt(g.ratio)+','+ch,'FS '+fmt(g.offset)+','+ch,'CM '+fmt(limit)+','+ch);
-  }else if(timing||r!==x.terminal&&r!==p?.terminal){
+  }else if(timing||r!==x.terminal&&r!==p?.terminal&&!followers[r]){
    setup.push((current(r)?'IC':'VC')+ch+','+fmt(current(r)?plan.fixedCurrents[r]:plan.fixedVoltages[r])+','+fmt(limit));
   }
   setup.push('ST '+ch+',1');
@@ -145,13 +147,14 @@ function compileSystemPlan(compiled,input,inventory){
   const delay=[...delays][0]/1000;
   assert(delay>=0&&delay<=6.553,'DT 范围 0–6.553 s');
   setup.push('DT '+fmt(delay),'HT '+fmt(input.systemHoldS||0));
-  const seg=x.segments[0],linear=x.segments.length===1&&seg.points>=2&&seg.points<=1024&&Math.abs(levels(x,seg)[2])<=(current(x.terminal)?1.05:210)&&
+  const seg=x.segments[0],linear=!timeList&&x.segments.length===1&&seg.points>=2&&seg.points<=1024&&Math.abs(levels(x,seg)[2])<=(current(x.terminal)?1.05:210)&&
     (current(x.terminal)||levels(x,seg).every(v=>v===0||Math.abs(v)>=0.001));
   assert(!Object.keys(generators).length||linear,'原生 Generator 当前核验线性 VAR1；列表或非线性需要另行验收');
   if(linear)setup.push((current(x.terminal)?'IR1,':'VR1,')+[...levels(x,seg),compliance(x.terminal)].map(fmt).join(','));
   else{
    assert(!p,'当前仅核验了单轴 VL 与线性 VAR1/VAR2；非线性嵌套需要独立核验');
    setup.push((current(x.terminal)?'IL':'VL')+channels[x.terminal]+',1,'+fmt(compliance(x.terminal))+','+xValues.map(fmt).join(','));
+   for(const [role,follower] of Object.entries(followers))setup.push((current(role)?'IL':'VL')+channels[role]+',0,'+fmt(compliance(role))+','+follower.values.map(fmt).join(','));
   }
   if(p){
    assert(p.segments.length===1&&pValues.length<=32,'VAR2 单次最多 32 个线性步进');
@@ -188,7 +191,7 @@ function compileSystemPlan(compiled,input,inventory){
  const cleanup=['MD','ME4','DE',...active.map(r=>'CH'+channels[r]),...(rpmRoutes.length?['SS','ZE',...rpmRoutes.map(r=>'RP '+r.pmu+', 0')]:[])];
  // Only these exact validated setup/read/stop strings may pass the internal
  // transport lease. RD indices are separately bounded by count.
- return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,rpmRoutes:Object.freeze(rpmRoutes.slice()),xRole:x.terminal,pRole:p?.terminal||null,xMode:current(x.terminal)?'current':'voltage',pMode:p?(current(p.terminal)?'current':'voltage'):null,requestedOutputs:input.requestedOutputs||['Id'],timing,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
+ return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,rpmRoutes:Object.freeze(rpmRoutes.slice()),xRole:x.terminal,pRole:p?.terminal||null,xMode:current(x.terminal)?'current':'voltage',pMode:p?(current(p.terminal)?'current':'voltage'):null,requestedOutputs:input.requestedOutputs||['Id'],timing,timeList:timeList?Object.freeze({segmentIndices:Object.freeze(timeList.segmentIndices.slice()),multiChannel:Object.keys(followers).length>0}):null,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
 }
 function parseSystemValues(raw){
  const text=String(raw??'').trim().replace(/,\s*$/,'');
@@ -234,6 +237,7 @@ function systemRows(program,columns,cycle,offset,startIndex=0){
   row.voltageV=row.drainVoltageV;row.currentA=row.drainCurrentA;
   row.xVoltageV=row[program.xRole+'VoltageV'];row.pVoltageV=program.pRole?row[program.pRole+'VoltageV']:null;
   const xv=program.xValues[program.timing?0:(startIndex+i)%program.xValues.length],pv=program.pRole?program.pValues[row.pPoint-1]:null;
+  if(program.timeList)row.timeSegment=program.timeList.segmentIndices[startIndex+i];
   row.plannedXVoltageV=program.xMode==='current'?null:xv;
   row.plannedPVoltageV=program.pMode==='current'?null:pv;
   row.plannedXCurrentA=program.xMode==='current'?xv:null;
@@ -568,7 +572,7 @@ async function executeNativeSequence(compiled,io){
     for(const role of active){
       const axis=plan.xSweep.terminal===role?plan.xSweep:
         plan.pSweep?.terminal===role?plan.pSweep:null;
-      const volts=plan.generators?.[role]?plan.generators[role].segments.flatMap(s=>[s.startV,s.stopV]):plan.sourceModes?.[role]==='current'?[plan.portSettings[role].complianceV]:axis?axis.segments.flatMap(s=>[s.startV,s.stopV]):
+      const volts=plan.listFollowers?.[role]&&plan.sourceModes?.[role]!=='current'?plan.listFollowers[role].values:plan.generators?.[role]?plan.generators[role].segments.flatMap(s=>[s.startV,s.stopV]):plan.sourceModes?.[role]==='current'?[plan.portSettings[role].complianceV]:axis?axis.segments.flatMap(s=>[s.startV,s.stopV]):
         [plan.fixedVoltages[role]];
       highestV=Math.max(highestV,...volts.map(v=>Math.abs(v)));
     }
@@ -853,6 +857,7 @@ function parseTv(raw,channel){
       if(controller.status().phase!=='connected')
         throw Error('4200A 未连接');
       const compiled=compileSweep(input,hardware);
+      if([compiled,...(compiled.stages||[]).map(s=>s.compiled)].some(c=>c.system?.timeList?.multiChannel)&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowMultiChannelListOutput!==true)throw Error('多通道原生列表尚待实机验收');
       if(compiled.stages){const policy=hardware.capabilities?.DATABASE?.safetyPolicies?.kxci||{};for(const s of compiled.stages){const c=s.compiled;if(c.pulse?(policy.allowPulseModeOutput!==true||policy.pmuModeManualVerified!==true||(c.pulse.arb&&(policy.allowSegmentArbOutput!==true||policy.segmentArbManualVerified!==true))):(policy.allowSystemModeOutput!==true||policy.smuSystemModeManualVerified!==true))throw Error('流程阶段 '+s.scope.pageName+' 尚未开放真实输出');}}
       if(compiled.pulse&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowPulseModeOutput!==true)throw Error('PMU 尚待受控实机验收');
       if(compiled.pulse?.arb&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowSegmentArbOutput!==true)throw Error('自定义时序尚待受控实机验收');

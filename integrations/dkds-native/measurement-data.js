@@ -4,7 +4,7 @@
  // DKDS DataTable. No planned/simulated values can cross this write boundary.
  const OWNER='com.dkts.keithley-4200';
  const FIELDS=[
-  ['sequence','序号','','index'],['routineSequence','流程接收顺序','','index'],['routineCycle','流程循环','','index'],['stageIndex','流程阶段','','index'],['timeS','测量时间','s','x'],
+  ['sequence','序号','','index'],['routineSequence','流程接收顺序','','index'],['routineCycle','流程循环','','index'],['stageIndex','流程阶段','','index'],['timeSegment','时间偏置段','','index'],['timeS','测量时间','s','x'],
   ['plannedTimeS','计划采样时间','s','raw'],['sampleStartS','主机采样起点','s','raw'],['sampleWindowOverrun','采样窗口超时','','raw'],
   ['plannedXCurrentA','Xsweep 设定电流','A','raw'],['plannedPCurrentA','Psweep 设定电流','A','raw'],['xCurrentA','Xsweep 实测电流','A','raw'],['pCurrentA','Psweep 实测电流','A','raw'],
   ['plannedSourceVoltageV','源极设定电压','V','raw'],['plannedDrainVoltageV','漏极设定电压','V','raw'],['plannedGateVoltageV','栅极设定电压','V','raw'],

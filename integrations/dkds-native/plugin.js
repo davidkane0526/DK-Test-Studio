@@ -318,8 +318,8 @@
    const channels=Object.entries(prepared.channels).map(([role,channel])=>role+'=SMU'+channel).join('，');
    const voltageSegments=plan.xSweep?[...plan.xSweep.segments,...(plan.pSweep?.segments||[])]:[];
    const maxVoltage=Math.max(0,...voltageSegments.filter(row=>Number.isFinite(row.startV)).flatMap(row=>[Math.abs(row.startV),Math.abs(row.stopV)]),
-    ...Object.values(plan.fixedVoltages||{}).map(value=>Math.abs(value)),...Object.values(plan.generators||{}).flatMap(g=>g.segments.flatMap(s=>[Math.abs(s.startV),Math.abs(s.stopV)])),...Object.values(plan.portSettings||{}).map(row=>row.complianceV||0),pulse?.peak||0);
-   const currentPeak=Math.max(0,...voltageSegments.filter(row=>Number.isFinite(row.startA)).flatMap(row=>[Math.abs(row.startA),Math.abs(row.stopA)]),...Object.values(plan.fixedCurrents||{}).map(Math.abs));
+    ...Object.values(plan.fixedVoltages||{}).map(value=>Math.abs(value)),...Object.values(plan.generators||{}).flatMap(g=>g.segments.flatMap(s=>[Math.abs(s.startV),Math.abs(s.stopV)])),...Object.values(plan.listFollowers||{}).flatMap(g=>g.segments.filter(s=>Number.isFinite(s.startV)).map(s=>Math.abs(s.startV))),...Object.values(plan.portSettings||{}).map(row=>row.complianceV||0),pulse?.peak||0);
+   const currentPeak=Math.max(0,...voltageSegments.filter(row=>Number.isFinite(row.startA)).flatMap(row=>[Math.abs(row.startA),Math.abs(row.stopA)]),...Object.values(plan.fixedCurrents||{}).map(Math.abs),...Object.values(plan.listFollowers||{}).flatMap(g=>g.segments.filter(s=>Number.isFinite(s.startA)).map(s=>Math.abs(s.startA))));
    const confirmed=await ctx.ui.dialogs.confirm({
     title:'确认 Keithley 4200A 实际输出',tone:'warning',destructive:true,
     message:'仪器 '+current.connection.identity.serial+' 将执行“'+page.name+'”，预计 '+
@@ -1425,7 +1425,7 @@
    if(!timeDrafts.has(p.id))timeDrafts.set(p.id,{settings:JSON.parse(JSON.stringify(p.timing))});
    return timeDrafts.get(p.id);
   }
-  function paintTimePreview(canvas,settings,terminals,gridPlan,showEvents){
+  function paintTimePreview(canvas,settings,terminals,gridPlan,showEvents,axisUnit='s'){
    const g=canvas?.getContext?.('2d');
    const width=canvas?.clientWidth;
    if(!g||!width)return;
@@ -1459,7 +1459,7 @@
     line(px,15,px,axis);
     if(tick!==3||width>380){
      g.textAlign=tick===4?'right':tick===0?'left':'center';
-     g.fillText(format(time)+(tick===4?' s':''),px,axis+18);
+     g.fillText(format(time)+(tick===4?' '+axisUnit:''),px,axis+18);
     }
    }
    for(const [index,term] of terminals.entries()){
@@ -1507,7 +1507,7 @@
   }
   const timeOutputs=events=>[...new Set(events.map(event=>(event.quantity==='Voltage'?'V':'I')+event.terminal.toLowerCase()))].join(', ');
   function renderTime(host,p){
-   const draft=editorPlan.draft,settings=draft.settings,native=settings.mode==='native-fixed';
+   const draft=editorPlan.draft,settings=draft.settings,list=settings.mode==='native-list',native=settings.mode==='native-fixed';
    const surface=dcLayout(host,'dkts-dc-editor dkts-time-editor');
    surface?.setAttribute?.('data-dkts-time-editor',editorSection);
    const smus=p.terminals.filter(isSmu);
@@ -1528,12 +1528,12 @@
     if(segmentCount)segmentCount.value=String(grid?.segmentCount??'—');
     if(samplePoints)samplePoints.value=String(grid?.samplePoints??'—');
     if(status){
-     status.textContent=plan&&mapped?(native?tr('仪器执行 · ','Instrument execution · '):tr('单循环 ','Per cycle ')+timeValue(plan.durationS)+' s · ')+plan.cycles+
+     status.textContent=plan&&mapped?(native||list?tr('仪器执行 · ','Instrument execution · '):tr('单循环 ','Per cycle ')+timeValue(plan.durationS)+' s · ')+plan.cycles+
       tr(' 循环 · ',' cycles · ')+plan.points+tr(' 次计划读数',' planned event readings'):'';
      status.setAttribute('data-dkts-time-valid',String(Boolean(plan&&mapped)));
      status.hidden=!(plan&&mapped);
     }
-    paintTimePreview(canvas,settings,legend,grid,Boolean(plan&&mapped&&!native));
+    paintTimePreview(canvas,settings,legend,list&&grid?{...grid,durationS:grid.samplePoints}:grid,Boolean(plan&&mapped&&!native&&!list),list?tr('点','points'):'s');
    }
    const plannedText=(parent,row,key,zh,en,path=key,changed)=>scalarField(parent,tr(zh,en),row[key],value=>{
     row[key]=value;
@@ -1546,9 +1546,10 @@
     const input=dcLayout(surface,'dkts-time-setup');
     const oneCycle=dcPanel(input,tr('Time Xsweep · 单周期','Time Xsweep · One Cycle'),'dkts-time-panel dkts-time-settings');
     const controls=dcLayout(oneCycle,'dkts-time-grid-fields');
-    dcSelect(controls,tr('方式','Mode'),settings.mode,[{value:'native-fixed',label:tr('固定偏置 · 仪器执行','Native Fixed Bias')},{value:'linear-step',label:tr('线性步进 · 计划','Linear Step Plan')}],
+    dcSelect(controls,tr('方式','Mode'),settings.mode,[{value:'native-fixed',label:tr('固定偏置 · 仪器执行','Native Fixed Bias')},{value:'native-list',label:tr('多段偏置 · 仪器列表','Native Bias List')},{value:'linear-step',label:tr('线性步进 · 计划','Linear Step Plan')}],
      value=>{settings.mode=value;redrawDc();},{key:'time-mode',path:'mode'});
-    if(!native){
+    if(list){plannedText(controls,settings,'listDelayS','每点稳定等待 (s)','Settling delay per point (s)');}
+    else if(!native){
     stop=dcInput(controls,tr('终止时间 (s)','Stop (s)'),timeValue(totalDuration()),null,{
      readOnly:true,key:'time-stop',help:tr('由下方各时段的持续时间相加。','Sum of the durations in the table below.')}).control;
     plannedText(controls,settings,'switchStepS','切换步长 (s)','Switching Step (s)');
@@ -1581,32 +1582,33 @@
      ],value=>{settings.sourceModes[key]=value;redrawDc();},
      {key:'time-source-'+key,path:'sourceModes.'+key});
     }
-    if(native&&smus.some(term=>settings.sourceModes[term.logical]==='current')){
+    if((native||list)&&smus.some(term=>settings.sourceModes[term.logical]==='current')){
      const protection=dcLayout(inputs,'dkts-time-source-modes');
      for(const term of smus.filter(term=>settings.sourceModes[term.logical]==='current'))plannedText(protection,settings.voltageLimitsV,term.logical,term.logical+' · '+tr('电压保护 (V)','Voltage compliance (V)'),term.logical+' · Voltage compliance (V)','voltageLimitsV.'+term.logical);
     }
-    units.note.create(inputs,{variant:'meta',text:tr(
+    units.note.create(inputs,{variant:'meta',text:list?tr('每段指定采样点数。每点稳定等待不含采集耗时；实际时间来自仪器。','Set readings per segment. Settling delay excludes acquisition time; actual times come from the instrument.'):tr(
      '持续时间决定该行偏置保持多久。切换步长决定各 SMU 可以更新输出的时间网格。',
      'A row duration holds its bias. Switching Step sets the common grid for SMU output changes.')});
     const table=dcLayout(inputs,'dkts-time-table');
     if(!smus.length)units.note.create(table,{variant:'warning',text:tr('请在工程顶栏分配 SMU 端子。','Assign an SMU terminal in the project toolbar.')});
     const head=dcLayout(table,'dkts-time-segment dkts-time-column-head');
-    for(const label of [tr('段','Index'),tr('起始 (s)','Start (s)'),tr('持续时间 (s)','Duration (s)'),...smus.map(term=>
+    for(const label of [tr('段','Index'),list?tr('首点','First point'):tr('起始 (s)','Start (s)'),list?tr('点数','Readings'):tr('持续时间 (s)','Duration (s)'),...smus.map(term=>
      term.logical+' · '+t(logicalNames[term.logical])+' ('+unitFor(term.logical)+')')])units.note.create(head,{variant:'meta',text:label});
     const starts=[];
     function refreshStarts(){
      let start=0;
      for(const [index,segment] of settings.segments.entries()){
-      if(starts[index])starts[index].value=Number.isFinite(start)?String(Number(start.toPrecision(12))):'—';
-      start=String(segment.durationS).trim()&&Number(segment.durationS)>0?start+Number(segment.durationS):NaN;
+      if(starts[index])starts[index].value=Number.isFinite(start)?String(Number(start.toPrecision(12))+(list?1:0)):'—';
+      const amount=list?segment.listPoints:segment.durationS;start=String(amount).trim()&&Number(amount)>0?start+Number(amount):NaN;
      }
     }
     for(const [index,segment] of settings.segments.entries()){
      const line=dcLayout(table,'dkts-time-segment');
      line?.setAttribute?.('data-dkts-time-segment',String(index+1));
      units.note.create(line,{variant:'meta',text:String(index+1)});
-     starts.push(dcInput(line,tr('起始 (s)','Start (s)'),'0',null,{readOnly:true,key:'time-start'}).control);
-     if(native)dcInput(line,tr('持续时间','Duration'),tr('仪器决定','Instrument'),null,{readOnly:true,key:'time-native-duration'});
+     starts.push(dcInput(line,list?tr('首点','First point'):tr('起始 (s)','Start (s)'),'0',null,{readOnly:true,key:'time-start'}).control);
+     if(list)plannedText(line,segment,'listPoints','点数','Readings','segments.'+index+'.listPoints',refreshStarts);
+     else if(native)dcInput(line,tr('持续时间','Duration'),tr('仪器决定','Instrument'),null,{readOnly:true,key:'time-native-duration'});
      else plannedText(line,segment,'durationS','持续时间 (s)','Duration (s)','segments.'+index+'.durationS',refreshStarts);
      for(const terminal of smus){
       const key=terminal.logical,unit=unitFor(key),bank=unit==='A'?'currentBias':'bias';
@@ -1630,7 +1632,7 @@
     canvas=units.layout.create(preview,{variant:'identity',className:'dkts-time-waveform',tagName:'canvas'});
     canvas?.setAttribute?.('role','img');
     canvas?.setAttribute?.('aria-label',tr('单循环计划偏置和各端子的测量窗口时间线','One-cycle timeline of planned terminal biases and acquisition windows'));
-    units.note.create(preview,{variant:'meta',text:native?tr('偏置示意；实际采样时间与总时长由仪器时间戳确定。','Bias illustration; actual times come from the instrument.'):tr('折线为设定偏置，短条为测量窗口。时间轴显示单个循环。','Steps show planned biases. Bars show acquisition windows for one cycle.')});
+    units.note.create(preview,{variant:'meta',text:list?tr('按采样点序预览，不代表实际时间。','Preview by reading index, not actual time.'):native?tr('偏置示意；实际采样时间与总时长由仪器时间戳确定。','Bias illustration; actual times come from the instrument.'):tr('折线为设定偏置，短条为测量窗口。时间轴显示单个循环。','Steps show planned biases. Bars show acquisition windows for one cycle.')});
     if(canvas?.nodeType===1){
      const observer=typeof window.ResizeObserver==='function'?new window.ResizeObserver(refreshPlan):null;
      observer?.observe(canvas);
@@ -1639,6 +1641,7 @@
     }
    }else if(editorSection==='target'){
     const target=dcPanel(surface,tr('测量事件','Measure Event'),'dkts-time-panel');
+    if(list)units.note.create(target,{variant:'meta',text:tr('每个列表点采集所选信号。点数与延迟在扫描页设置。','Selected signals are read at each list point; count and delay are set in Sweep.')});
     if(native)units.note.create(target,{variant:'meta',text:tr('所有测量信号共用起始等待、读数后等待及点数；原始数据保留各通道测量值。','All signals share start delay, post-reading wait and reading count; original readings are preserved per channel.')});
     for(const [index,event] of settings.events.entries()){
      const row=dcLayout(target,'dkts-time-event');
@@ -1649,7 +1652,7 @@
      dcSelect(row,tr('测量量','Quantity'),event.quantity,[{value:'Current',label:tr('电流','Current')},
       {value:'Voltage',label:tr('电压','Voltage')}],value=>{event.quantity=value;refreshPlan();},
       {key:'time-quantity',path:path('quantity')});
-     if(!native||index===0){
+     if(!list&&(!native||index===0)){
       const sync=key=>()=>{if(native)for(const e of settings.events)e[key]=event[key];};
       plannedText(row,event,'startS','起始时间 (s)','Start Time (s)',path('startS'),sync('startS'));
       plannedText(row,event,'intervalS',native?'读数后等待 (s)':'事件间隔 (s)',native?'Post-reading wait (s)':'Interval Time (s)',path('intervalS'),sync('intervalS'));
@@ -1659,8 +1662,8 @@
      action(row,'remove-time-event-'+index,'−',tr('删除测量事件','Remove measure event'),settings.events.length>1,
       ()=>{settings.events.splice(index,1);redrawDc();});
     }
-    action(target,'add-time-event','＋ '+tr('新增测量事件','Add measure event'),tr('追加测量事件','Append measure event'),settings.events.length<(native?smus.length*2:16),
-     ()=>{if(native){const candidates=smus.flatMap(term=>['Current','Voltage'].map(quantity=>({terminal:term.logical,quantity})));const next=candidates.find(c=>!settings.events.some(e=>e.terminal===c.terminal&&e.quantity===c.quantity));if(!next)return;settings.events.push({...settings.events[0],...next});}else settings.events.push({...settings.events.at(-1)});redrawDc();});
+    action(target,'add-time-event','＋ '+tr('新增测量事件','Add measure event'),tr('追加测量事件','Append measure event'),settings.events.length<((native||list)?smus.length*2:16),
+     ()=>{if(native||list){const candidates=smus.flatMap(term=>['Current','Voltage'].map(quantity=>({terminal:term.logical,quantity})));const next=candidates.find(c=>!settings.events.some(e=>e.terminal===c.terminal&&e.quantity===c.quantity));if(!next)return;settings.events.push({...settings.events[0],...next});}else settings.events.push({...settings.events.at(-1)});redrawDc();});
    }else{
     const strategy=dcPanel(surface,tr('测试策略','Measurement strategy'),'dkts-time-panel');
     const controls=dcLayout(strategy,'dkts-dc-strategy-fields');

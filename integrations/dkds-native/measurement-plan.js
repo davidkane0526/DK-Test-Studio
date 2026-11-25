@@ -279,6 +279,13 @@
       const segments=x.segments.map(s=>{const a=s.startV*ratio+offset,b=s.stopV*ratio+offset;return {startV:finite(a,'Generator 起点',-210,210),stopV:finite(b,'Generator 终点',-210,210),rangeA:'auto'};});
       generators[role]=Object.freeze({ratio,offset,segments:Object.freeze(segments.map(Object.freeze))});
     }
+    const listFollowers=Object.create(null);
+    for(const [role,values] of Object.entries(program.listFollowers||{})){
+      if(!input.timeList||input.executionMode!=='system'||!DC_ROLES.includes(role)||!/^SMU[1-9]$/.test(terminalChannels[role])||role===x.terminal||p||generators[role]||!Array.isArray(values)||values.length!==x.points||x.points>4096||fixedVoltages[role]!==0||fixedCurrents[role]!==0)throw Error('从属列表与主列表或端口冲突');
+      const current=sourceModes[role]==='current',max=current?1.05:210;
+      const numbers=values.map(v=>finite(v,role+' 从属列表电平',-max,max));
+      listFollowers[role]=Object.freeze({values:Object.freeze(numbers),segments:Object.freeze(numbers.map(v=>Object.freeze(current?{startA:v,stopA:v,rangeA:'auto'}:{startV:v,stopV:v,rangeA:'auto'})))});
+    }
     const caps=capabilityApi(hardware);
     const inventory=hardware.inventory;
     const configured=Array.isArray(inventory?.slots);
@@ -314,7 +321,7 @@
       if(!configured||!slot)continue;
       const ownAxis=x.terminal===role?x:p?.terminal===role?p:null;
       if(current){
-       const segments=ownAxis?ownAxis.segments:[{startA:fixedCurrents[role],stopA:fixedCurrents[role],rangeA:'auto'}];
+       const segments=listFollowers[role]?.segments||(ownAxis?ownAxis.segments:[{startA:fixedCurrents[role],stopA:fixedCurrents[role],rangeA:'auto'}]);
        if(segments.some(s=>s.rangeA!=='auto'))throw Error('电流源暂不支持固定电压测量档');
        const lim=caps?.getSourceLimits?.(slot,complianceV);
        if(lim?.known!==true){limitsByRole[role]={known:false};continue;}
@@ -326,7 +333,7 @@
       // Validate independently for each voltage segment. A 2 V / 100 mA
       // segment must not inherit the 200 V / 10.5 mA envelope of a later
       // segment on the same SMU.
-      const segmentRanges=generators[role]?.segments||(ownAxis?ownAxis.segments:[
+      const segmentRanges=listFollowers[role]?.segments||generators[role]?.segments||(ownAxis?ownAxis.segments:[
         {startV:fixedVoltages[role],stopV:fixedVoltages[role],rangeA:'auto'}]);
       const checkedSegments=[];
       for(const [i,segment] of segmentRanges.entries()){
@@ -394,7 +401,7 @@
     const allVerified=configured&&roles.length>0&&roles.every(role=>limitsByRole[role]?.known===true);
     return Object.freeze({
       schema:'dkts.sweep-program.v1',kind,terminals:terminalChannels,
-      fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,xSweep:x,pSweep:p,loops,totalPoints,
+      fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,listFollowers,xSweep:x,pSweep:p,loops,totalPoints,
       hardwareCapabilityStatus:!configured?'not-inspected':allVerified?'identified':'unresolved',
       limitsByRole,powerBudget,hardwareVerified:false,executable:false,
       provenance:'user-configured-plan',

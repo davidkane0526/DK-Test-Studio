@@ -91,9 +91,9 @@ function pageToBasicProgram(page, model){
  }
  if(page.kind==='time'){
   const t=page.timing,summary=model.timedSummary('time',t);
-  check(t.mode==='native-fixed','请选择时间测试的 Native Fixed Bias（仪器执行）模式；旧线性时序计划不自动转换为 IN');
+  check(['native-fixed','native-list'].includes(t.mode),'请选择仪器固定偏置或偏置列表；旧线性时间计划不自动改变时钟语义');
   check(ports.B?.resource==='None','B 端尚未接入');
-  check(t.segments.length===1,'仅支持单段固定偏置；多段切换待接入');
+  const list=t.mode==='native-list';check(list||t.segments.length===1,'固定偏置要求单段');
   check(t.events.every(e=>active.includes(e.terminal)),'测量事件必须对应实装 SMU');
   const requestedOutputs=t.events.map(e=>(e.quantity==='Current'?'I':'V')+e.terminal.toLowerCase());
   check(!t.integrationS,'旧积分秒数尚未映射 PLC');
@@ -101,7 +101,7 @@ function pageToBasicProgram(page, model){
   check(integration!==undefined,'积分预设无效');
   for(const k of Object.keys(roles)){
    const v=n(t.segments[0].bias[k],k+' 偏置');
-   if(!active.includes(k)){check(v===0&&n(t.segments[0].currentBias[k],k+' 电流偏置')===0,'接地或未映射端不得施加偏置');continue;}
+   if(!active.includes(k)){check(t.segments.every(s=>n(s.bias[k],k+' 偏置')===0&&n(s.currentBias[k],k+' 电流偏置')===0),'接地或未映射端不得施加偏置');continue;}
    const r=roles[k],p=ports[k],current=t.sourceModes[k]==='current';sourceModes[r]=t.sourceModes[k];
    if(current){
     fixedCurrents[r]=n(t.segments[0].currentBias[k],k+' 电流偏置');
@@ -110,6 +110,15 @@ function pageToBasicProgram(page, model){
     fixedVoltages[r]=v;
     portSettings[r]={rangeMode:p.rangeMode==='minimum'?'limited-auto':p.rangeMode,rangeA:p.rangeValue,complianceMode:p.complianceMode||'follow-range',complianceA:n(p.compliance,k+' 限流')};
    }
+  }
+  if(list){
+   const levels=Object.fromEntries(active.map(key=>[roles[key],t.segments.flatMap(s=>Array.from({length:n(s.listPoints,'段点数')},()=>n((t.sourceModes[key]==='current'?s.currentBias:s.bias)[key],key+' 偏置')))]));
+   const variable=Object.keys(levels).filter(r=>levels[r].some(v=>v!==levels[r][0])),master=variable[0]||'drain',followers={};
+   for(const r of [master,...variable.filter(r=>r!==master)]){delete fixedVoltages[r];delete fixedCurrents[r];if(r!==master)followers[r]=levels[r];}
+   const cur=sourceModes[master]==='current',delay=summary.settlingDelayS*1000;
+   const segments=levels[master].map(v=>cur?{startA:v,stopA:v,stepA:0,rangeA:'auto',delayMs:delay}:segment(v,v,0,'auto',delay));
+   const segmentIndices=t.segments.flatMap((s,i)=>Array.from({length:n(s.listPoints,'段点数')},()=>i+1));
+   return {kind:'iv',pageKind:'time',executionMode:'system',requestedOutputs,systemIntegration:integration,timeList:{segmentIndices},sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,listFollowers:followers,loops:summary.cycles,xSweep:axis(master,segments),pSweep:disabled}};
   }
   const e=t.events[0],count=n(e.points,'点数'),current=sourceModes.drain==='current',v=current?fixedCurrents.drain:fixedVoltages.drain;
   const xSegment=current?{startA:v,stopA:v,stepA:0,rangeA:'auto',delayMs:0}:segment(v,v,0);
@@ -279,7 +288,7 @@ function pageToBasicProgram(page, model){
      inventory:connection.inventory,capabilities:hardwareCapabilities
     });
     const protocolPolicy=hardwareCapabilities.DATABASE?.safetyPolicies?.kxci||{};
-    const protocolVerified=compiled.pulse?protocolPolicy.pmuModeManualVerified===true&&protocolPolicy.allowPulseModeOutput===true&&(!compiled.pulse.arb||protocolPolicy.segmentArbManualVerified===true&&protocolPolicy.allowSegmentArbOutput===true):compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true:protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
+    const protocolVerified=compiled.pulse?protocolPolicy.pmuModeManualVerified===true&&protocolPolicy.allowPulseModeOutput===true&&(!compiled.pulse.arb||protocolPolicy.segmentArbManualVerified===true&&protocolPolicy.allowSegmentArbOutput===true):compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true&&(!compiled.system.timeList?.multiChannel||protocolPolicy.allowMultiChannelListOutput===true):protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
     let reason='';
     if(!protocolVerified)reason=compiled.pulse?'脉冲方案已转换；等待受控实机验收后开放输出':'Rev F 已取得；当前执行模式尚未取得输出许可';
     else if(!executionAdapterAvailable)reason='当前 DKDS 宿主缺少生命周期管理的查询/停止调度器';
