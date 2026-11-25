@@ -292,6 +292,12 @@ function pageToBasicProgram(page, model){
    }catch(error){return Object.freeze({ready:false,canExecute:false,
     reason:String(error?.message||error)});}
   }
+  function prepareRoutine(pages,repeat){
+   if(!Array.isArray(pages)||!pages.length||runner.status(0).running)return {ready:false,canExecute:false,reason:'流程为空或仪器正在执行'};
+   try{const stages=pages.map(page=>{const p=prepare(page);if(!p.canExecute)throw Error(page.name+'：'+(p.reason||'执行前检查失败'));if(!p.compiled.system&&!p.compiled.pulse)throw Error(page.name+'：流程当前仅支持仪器原生执行');return {input:p.input,scope:{pageId:page.id,routineId:page.routineId,pageName:page.name}};});
+    const input={executionMode:'routine',repeat,stages},c=controller.status(),compiled=measurement.compileSweep(input,{inventory:c.inventory,capabilities:hardwareCapabilities});return {ready:true,canExecute:compiled.canExecute,pointCount:compiled.totalPoints,input,compiled};
+   }catch(e){return {ready:false,canExecute:false,reason:String(e.message||e)};}
+  }
   function collectRows(){
    const rows=[];let cursor=0;
    for(let page=0;page<100000;page++){
@@ -311,12 +317,13 @@ function pageToBasicProgram(page, model){
     if(rows.length){
      try{
       const connection=controller.status();
-      published=measurementData.publishRun(ctx,{
-       runId,rows,serial,startedAt:current.startedAt,
+      published=(scope?.routineSequence?measurementData.publishSequence:measurementData.publishRun)(ctx,{
+       runId,rows,serial,stageResults:current.stageResults,startedAt:current.startedAt,
        finishedAt:current.finishedAt,runState:current.state,scope,
        source:{name:'KI4200A '+serial,model:'KI4200A',serial,
         firmware:connection.identity?.version||'',transport:'KXCI TCP',route}
       });
+      if(published?.errors?.length)publishError=published.errors.join('；');
      }catch(error){publishError=String(error?.message||error);}
     }
     notify('measurement-finished',{rows:rows.length,published,publishError,commandTrace:controller.measurementTrace()});
@@ -373,6 +380,13 @@ function pageToBasicProgram(page, model){
    return Object.freeze({...initial,runId,prepared:{pointCount:prepared.pointCount,
     channels:prepared.channels,active:prepared.active}});
   }
+  function startRoutine(pages,repeat,confirmed){
+   if(disposed||confirmed!==true)throw Error('必须确认流程接线及实际输出');
+   const p=prepareRoutine(pages,repeat);if(!p.canExecute)throw Error(p.reason||'流程校验失败');
+   const c=controller.status(),runId='dkts-routine-'+Date.now()+'-'+(++runSequence);controller.clearMeasurementTrace();
+   const initial=runner.start(p.input,{inventory:c.inventory,capabilities:hardwareCapabilities},'CONFIRM_WIRING_AND_OUTPUT');
+   monitorTask=monitor(runId,c.identity.serial,c.route,{routineSequence:true,routineId:pages[0].routineId});notify('measurement-started');return {...initial,runId};
+  }
   function stop(){
    const result=runner.stop();notify('measurement-stopping');return result;
   }
@@ -397,7 +411,7 @@ function pageToBasicProgram(page, model){
   }
   return Object.freeze({connect,inspectModules,connectAndInspect,checkConnection,disconnect,
    currentTcp:()=>hasShared()?shared('current'):null,
-   prepare,start,stop,status,waitForCompletion,dispose,setTopologyProfile,confirmWiring,resolvePulsePort,
+   prepare,prepareRoutine,start,startRoutine,stop,status,waitForCompletion,dispose,setTopologyProfile,confirmWiring,resolvePulsePort,
    currentRanges:(resource,voltagePeaks)=>hardwareCapabilities.verifiedCurrentRanges(
     controller.status(),resource,voltagePeaks)});
  }

@@ -4,7 +4,7 @@
  // DKDS DataTable. No planned/simulated values can cross this write boundary.
  const OWNER='com.dkts.keithley-4200';
  const FIELDS=[
-  ['sequence','序号','','index'],['timeS','测量时间','s','x'],
+  ['sequence','序号','','index'],['routineSequence','流程接收顺序','','index'],['routineCycle','流程循环','','index'],['stageIndex','流程阶段','','index'],['timeS','测量时间','s','x'],
   ['plannedTimeS','计划采样时间','s','raw'],['sampleStartS','主机采样起点','s','raw'],['sampleWindowOverrun','采样窗口超时','','raw'],
   ['plannedXCurrentA','Xsweep 设定电流','A','raw'],['plannedPCurrentA','Psweep 设定电流','A','raw'],['xCurrentA','Xsweep 实测电流','A','raw'],['pCurrentA','Psweep 实测电流','A','raw'],
   ['plannedSourceVoltageV','源极设定电压','V','raw'],['plannedDrainVoltageV','漏极设定电压','V','raw'],['plannedGateVoltageV','栅极设定电压','V','raw'],
@@ -98,6 +98,26 @@ function publishRun(ctx,opts){
  const artifacts=[];for(const [resource,group] of groups)artifacts.push(publishRaw(ctx,{...opts,runId:groups.size>1?opts.runId+'-'+resource:opts.runId,rows:group}));
  return {...artifacts[0],rows:rows.length,artifacts,canonical:true,unprocessed:true};
 }
- const api=Object.freeze({publishRaw,publishRun,owner:OWNER,fields:FIELDS.map(x=>x[0])});
+function publishSequence(ctx,opts){
+ const groups=new Map(),stageResults=opts.stageResults||[];
+ for(const [i,row] of opts.rows.entries()){
+  if(row.sequence!==i+1||!Number.isSafeInteger(row.routineCycle)||!Number.isSafeInteger(row.stageIndex)||!row.pageId)throw Error('Invalid native routine provenance');
+  const key=row.routineCycle+':'+row.stageIndex;
+  if(!groups.has(key))groups.set(key,[]);
+  const rows=groups.get(key);
+  if(row.stageSequence!==rows.length+1||rows[0]&&row.pageId!==rows[0].pageId)throw Error('Routine stage row sequence mismatch');
+  rows.push({...row,routineSequence:row.sequence,sequence:row.stageSequence});
+ }
+ const artifacts=[],errors=[];
+ for(const [key,rows] of groups){
+  const stage=stageResults.find(s=>s.routineCycle===rows[0].routineCycle&&s.stageIndex===rows[0].stageIndex);
+  if(!stage||stage.pageId!==rows[0].pageId){errors.push('Stage '+key+' status missing');continue;}
+  const scope={pageId:stage.pageId,routineId:stage.routineId,pageName:stage.pageName,routineCycle:stage.routineCycle,stageIndex:stage.stageIndex,routineRunId:opts.runId};
+  try{const p=publishRun(ctx,{...opts,scope,runId:opts.runId+'-c'+stage.routineCycle+'-s'+stage.stageIndex,runState:stage.state,rows});artifacts.push(...(p.artifacts||[p]));}
+  catch(e){errors.push('Stage '+key+': '+String(e.message||e));}
+ }
+ return {rows:opts.rows.length,artifacts,errors,canonical:true,unprocessed:true};
+}
+ const api=Object.freeze({publishRaw,publishRun,publishSequence,owner:OWNER,fields:FIELDS.map(x=>x[0])});
  window.DKDSPluginModules.define(OWNER,'measurementData',api,{replace:true});
 })();

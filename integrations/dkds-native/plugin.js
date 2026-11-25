@@ -58,6 +58,7 @@
   const measurementRuntime=measurementRuntimeModule.createRuntime(ctx,{
    onChange:update=>{
     if(update.event==='measurement-progress'){
+     if(update.run.currentStage&&runPageId!==update.run.currentStage.pageId){runPageId=update.run.currentStage.pageId;render();}
      const received=Math.max(update.run.totalRows,update.run.liveRows?.at(-1)?.sequence||0);
      ctx.status.set('4200A 测量执行中：已接收 '+received+' / '+update.run.totalPoints+' 点');
      for(const item of plots)item?.requestRender?.('measurement-batch');
@@ -2200,6 +2201,18 @@
     label:t(kind.label),variant:'quiet',direct:true,onInvoke:()=>openTestType(kind.id)});
    renderEditor(p,s);
   }
+  async function executeRoutineFromTree(routine){
+   if(measurementRuntime.status().run.running){if(measurementRuntime.status().run.currentStage?.routineId===routine.id)measurementRuntime.stop();return;}
+   if(runConfirmationPending)return;runConfirmationPending=true;
+   try{const snapshot=state(),pages=snapshot.pages.filter(p=>p.routineId===routine.id),current=snapshot.routines.find(r=>r.id===routine.id);
+    const issue=pages.find(page=>pageParameterIssue(page));if(issue)throw Error(issue.name+'：'+pageParameterIssue(issue).message);
+    const prepared=measurementRuntime.prepareRoutine(pages,current.loops);if(!prepared.canExecute)throw Error(prepared.reason);
+    const accepted=await ctx.ui.dialogs.confirm({title:tr('执行测试流程','Run routine'),tone:'warning',destructive:true,message:current.name+' · '+pages.length+' × '+current.loops,detail:pages.map((p,i)=>(i+1)+'. '+p.name).join('\n')+'\n'+tr('按顺序执行。每阶段关闭输出后再进入下一阶段，不保证跨阶段偏置连续或硬件同步。请确认所有接线与保护条件。','Stages run sequentially with outputs closed between stages; no continuous bias or hardware synchronization is implied. Verify all wiring and protection.'),confirmLabel:tr('确认接线并开始输出','Confirm wiring and run')});if(!accepted)return;
+    const latest=state();if(JSON.stringify(latest.pages.filter(p=>p.routineId===routine.id))!==JSON.stringify(pages)||latest.routines.find(r=>r.id===routine.id)?.loops!==current.loops||pages.some(p=>pageParameterIssue(p)))throw Error('流程参数已变化，请重新确认');
+    runPageId=pages[0].id;measurementRuntime.startRoutine(pages,current.loops,true);render();
+   }catch(e){if(!measurementRuntime.status().run.running)runPageId=null;await ctx.ui.dialogs.alert({title:tr('流程执行检查','Routine preflight'),message:String(e.message||e)});}
+   finally{runConfirmationPending=false;}
+  }
   function renderRoutine(treeHost,routine,s){
    const routinePages=s.pages.filter(page=>page.routineId===routine.id);
    const routineHost=units.layout.create(treeHost,{variant:'identity',className:'dkts-tree-routine'});
@@ -2210,6 +2223,7 @@
     onInvoke:()=>showRoutine(routine.id)});
    routineItem?.setAttribute?.('data-dkts-routine-item','true');
    const openMenu=addTreeMenu(routineRow,()=>[
+    {id:'routine-execute',label:measurementRuntime.status().run.currentStage?.routineId===routine.id&&measurementRuntime.status().run.running?tr('停止流程','Stop routine'):tr('执行流程','Run routine'),onInvoke:()=>executeRoutineFromTree(routine)},
     {id:'routine-loops',label:tr('循环次数','Loop count')+' · '+routine.loops,onInvoke:()=>editRoutineLoops(routine)},
     {id:'show-plots',label:t('绘图区'),onInvoke:()=>showRoutine(routine.id)},
     ...model.KINDS.map(kind=>({id:'add-'+kind.id,label:tr('新增 ','Add ')+t(kind.label),

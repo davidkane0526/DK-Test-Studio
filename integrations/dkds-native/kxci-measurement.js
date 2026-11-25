@@ -493,7 +493,47 @@ function compileSegmentArbPair(input,hardware){
  const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,y.countQuery],cleanup:[x.offCommand,y.offCommand,':PMU:ABORT'],channels:[x,y],resources:[x.resource,y.resource],peak:Math.max(x.peak,y.peak),estimatedRecords:x.estimatedRecords+y.estimatedRecords};
  return {...a,pulse,channels:{...a.channels,...b.channels},active:[...a.active,...b.active],totalPoints:pulse.estimatedRecords,requiresInterlock:a.requiresInterlock||b.requiresInterlock,canExecute:a.canExecute&&b.canExecute};
 }
+function compileNativeSequence(input,hardware){
+ const repeat=Number(input.repeat),entries=input.stages;
+ if(!Number.isSafeInteger(repeat)||repeat<1||repeat>10000||!Array.isArray(entries)||!entries.length)throw Error('流程循环或测试页无效');
+ const seen=new Set(),stages=entries.map((entry,i)=>{
+  if(!entry?.scope?.pageId||!entry.scope.routineId||seen.has(entry.scope.pageId)||!['system','pulse'].includes(entry.input?.executionMode))throw Error('流程仅包含独立原生测试页');
+  seen.add(entry.scope.pageId);
+  const compiled=compileSweep(entry.input,hardware);
+  return Object.freeze({index:i+1,scope:Object.freeze({...entry.scope}),compiled});
+ });
+ if(new Set(stages.map(s=>s.scope.routineId)).size!==1)throw Error('流程包含其他工程的测试页');
+ const totalPoints=repeat*stages.reduce((n,s)=>n+s.compiled.totalPoints,0);
+ if(!Number.isSafeInteger(totalPoints)||totalPoints<0)throw Error('流程记录数超出软件可表示范围');
+ const physicalVerified=stages.every(s=>s.compiled.physicalVerified),capabilityVerified=stages.every(s=>s.compiled.capabilityVerified),requiresInterlock=stages.some(s=>s.compiled.requiresInterlock);
+ return Object.freeze({plan:{kind:'routine'},stages:Object.freeze(stages),repeat,totalPoints,physicalVerified,capabilityVerified,requiresInterlock,canExecute:physicalVerified&&capabilityVerified&&!requiresInterlock,commandMode:'KXCI-NATIVE-ROUTINE',channels:{},active:[]});
+}
+async function executeNativeSequence(compiled,io){
+ const results=[];let sequence=0,lastShutdown='not-started',state='completed',error='';
+ for(let cycle=1;cycle<=compiled.repeat&&!io.cancelled();cycle++){
+  for(const stage of compiled.stages){
+   if(io.cancelled())break;
+   const stageInfo={routineCycle:cycle,stageIndex:stage.index,...stage.scope};
+   let local=0,result,entered=false;
+   try{
+    io.onStage?.(stageInfo);
+    const program=stage.compiled.pulse||stage.compiled.system;
+    io.beginProgram(program);entered=true;
+    result=await (stage.compiled.pulse?executePulseTask:executeSystemTask)(program,{command:io.command,wait:io.wait,cancelled:io.cancelled,
+     onBatch:rows=>io.onBatch(rows.map(row=>({...row,...stageInfo,stageSequence:++local,sequence:++sequence}))),
+     onPreview:rows=>io.onPreview(rows.map((row,i)=>({...row,...stageInfo,stageSequence:local+i+1,sequence:sequence+i+1})))});
+   }catch(e){result={state:'failed',shutdown:'unconfirmed',error:String(e.message||e)};}
+   finally{if(entered)try{io.endProgram();}catch(e){result={state:'failed',shutdown:'unconfirmed',error:String(e.message||e)};}io.onPreview([]);}
+   lastShutdown=result.shutdown;
+   const record={...stageInfo,state:result.state,shutdown:result.shutdown,error:result.error,rows:local};results.push(record);io.onStageResult?.(record);
+   if(result.state!=='completed'||result.shutdown!=='commands-sent'){state=result.state==='stopped'&&result.shutdown!=='unconfirmed'?'stopped':'failed';error=result.error|| (state==='failed'?'流程阶段未确认安全关闭':'');return {state,shutdown:lastShutdown,error,stageResults:results};}
+  }
+ }
+ if(io.cancelled())state='stopped';
+ return {state,shutdown:lastShutdown,error,stageResults:results};
+}
   function compileSweep(input,hardware={}){
+    if(input.executionMode==='routine')return compileNativeSequence(input,hardware);
     if(input.executionMode==='pulse')return (input.settings?.testMode==='sequence'||input.settings?.testMode===undefined&&input.settings?.arb!=null)?(input.settings.arbPartner?compileSegmentArbPair(input,hardware):compileSegmentArb(input,hardware)):input.secondary?compilePulsePair(input,hardware):compilePulse(input,hardware);
     const planner=typeof require==='function'
       ?require('./measurement-plan.js')
@@ -587,7 +627,7 @@ function parseTv(raw,channel){
       const rows=j.rows.slice(from,Math.min(from+250,j.rows.length));
       return {runId:j.id,state:j.state,running:j.state==='running'||j.state==='stopping',
         totalPoints:j.compiled.totalPoints,totalRows:j.rows.length,
-        nextCursor:from+rows.length,rows,liveRows:j.state==='running'?[...j.rows.slice(-4096),...(j.previewRows||[])].slice(-4096):[],error:j.error,
+        nextCursor:from+rows.length,rows,liveRows:j.state==='running'?[...j.rows.slice(-4096).filter(r=>!j.currentStage||(r.stageIndex===j.currentStage.stageIndex&&r.routineCycle===j.currentStage.routineCycle)),...(j.previewRows||[])].slice(-4096):[],currentStage:j.currentStage||null,stageResults:j.stageResults?.slice()||[],error:j.error,
         shutdown:j.shutdown,startedAt:j.startedAt,finishedAt:j.finishedAt};
     }
     async function command(cmd,reply=false){
@@ -625,7 +665,14 @@ function parseTv(raw,channel){
       finally{controller.endSystemProgram();j.previewRows=[];j.finishedAt=new Date().toISOString();lease.end();}
       return publicState(0);
     }
+    async function executeRoutine(j,lease){
+     try{const progress=()=>{try{onProgress(publicState(0));}catch{}};j.stageResults=[];
+      const result=await executeNativeSequence(j.compiled,{command,wait,cancelled:()=>j.cancelled,beginProgram:p=>controller.beginSystemProgram(p),endProgram:()=>controller.endSystemProgram(),onStage:s=>{j.currentStage=s;progress();},onStageResult:r=>{j.stageResults.push(r);progress();},onBatch:rows=>{j.rows.push(...rows);progress();},onPreview:rows=>{j.previewRows=rows;progress();}});Object.assign(j,result);
+     }catch(e){j.state='failed';j.error=String(e.message||e);j.shutdown='unconfirmed';}
+     finally{j.previewRows=[];j.finishedAt=new Date().toISOString();lease.end();}return publicState(0);
+    }
     async function execute(j,lease){
+      if(j.compiled.stages)return executeRoutine(j,lease);
       if(j.compiled.system||j.compiled.pulse)return executeNative(j,lease);
       const plan=j.compiled.plan;
       const lastCommands=Object.create(null);
@@ -799,6 +846,7 @@ function parseTv(raw,channel){
       if(controller.status().phase!=='connected')
         throw Error('4200A 未连接');
       const compiled=compileSweep(input,hardware);
+      if(compiled.stages){const policy=hardware.capabilities?.DATABASE?.safetyPolicies?.kxci||{};for(const s of compiled.stages){const c=s.compiled;if(c.pulse?(policy.allowPulseModeOutput!==true||policy.pmuModeManualVerified!==true||(c.pulse.arb&&(policy.allowSegmentArbOutput!==true||policy.segmentArbManualVerified!==true))):(policy.allowSystemModeOutput!==true||policy.smuSystemModeManualVerified!==true))throw Error('流程阶段 '+s.scope.pageName+' 尚未开放真实输出');}}
       if(compiled.pulse&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowPulseModeOutput!==true)throw Error('PMU 尚待受控实机验收');
       if(compiled.pulse?.arb&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowSegmentArbOutput!==true)throw Error('自定义时序尚待受控实机验收');
       if(!compiled.capabilityVerified||!compiled.physicalVerified)
@@ -806,7 +854,7 @@ function parseTv(raw,channel){
       if(compiled.requiresInterlock)
         throw Error('该方案需要硬件高压互锁，尚未实现互锁状态的可靠读取');
       // No implicit partial plan override and no software-derived measurement.
-      const needsWait=Boolean(compiled.pulse)||Boolean(compiled.system)||Boolean(compiled.timeProgram)||compiled.plan.xSweep.delayMs>0||
+      const needsWait=Boolean(compiled.stages)||Boolean(compiled.pulse)||Boolean(compiled.system)||Boolean(compiled.timeProgram)||compiled.plan.xSweep.delayMs>0||
         compiled.plan.xSweep.segments.some(s=>(s.delayMs||0)>0)||
         Boolean(compiled.plan.pSweep&&(compiled.plan.pSweep.delayMs>0||
           compiled.plan.pSweep.segments.some(s=>(s.delayMs||0)>0)));
@@ -835,7 +883,7 @@ function parseTv(raw,channel){
     }
     return Object.freeze({start,stop,status:publicState,waitForCompletion,dispose});
   }
-  const api=Object.freeze({compileSweep,points,parseTi,parseTv,voltageTrigger,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,compileSegmentArbPair,parsePulseBlock,executePulseTask});
+  const api=Object.freeze({compileSweep,compileNativeSequence,executeNativeSequence,points,parseTi,parseTv,voltageTrigger,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,compileSegmentArbPair,parsePulseBlock,executePulseTask});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
     window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci-measurement',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
