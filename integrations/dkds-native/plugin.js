@@ -1367,6 +1367,8 @@
      {value:'stop',label:tr('停止本测试','Stop this test')},
      {value:'skip',label:tr('跳过该点','Skip this point')}
     ],value=>{settings.onLimit=value;},{key:'onLimit',path:'onLimit'});
+   }
+   {
     dcSelect(row,tr('扫描方向','Sweep direction'),settings.direction,[
      {value:'forward',label:tr('正向','Forward')},
      {value:'forward-reverse',label:tr('正向 / 反向','Forward / Reverse')}
@@ -1596,6 +1598,7 @@
     }
    }else if(editorSection==='target'){
     const target=dcPanel(surface,tr('测量事件','Measure Event'),'dkts-time-panel');
+    if(native)units.note.create(target,{variant:'meta',text:tr('所有测量信号共用起始等待、读数后等待及点数；原始数据保留各通道测量值。','All signals share start delay, post-reading wait and reading count; original readings are preserved per channel.')});
     for(const [index,event] of settings.events.entries()){
      const row=dcLayout(target,'dkts-time-event');
      row?.setAttribute?.('data-dkts-time-event',String(index+1));
@@ -1605,15 +1608,18 @@
      dcSelect(row,tr('测量量','Quantity'),event.quantity,[{value:'Current',label:tr('电流','Current')},
       {value:'Voltage',label:tr('电压','Voltage')}],value=>{event.quantity=value;refreshPlan();},
       {key:'time-quantity',path:path('quantity')});
-     plannedText(row,event,'startS','起始时间 (s)','Start Time (s)',path('startS'));
-     plannedText(row,event,'intervalS',native?'读数后等待 (s)':'事件间隔 (s)',native?'Post-reading wait (s)':'Interval Time (s)',path('intervalS'));
-     if(!native)plannedText(row,event,'averageS','平均窗口 (s)','Average Time (s)',path('averageS'));
-     plannedText(row,event,'points','点数','Points',path('points'));
+     if(!native||index===0){
+      const sync=key=>()=>{if(native)for(const e of settings.events)e[key]=event[key];};
+      plannedText(row,event,'startS','起始时间 (s)','Start Time (s)',path('startS'),sync('startS'));
+      plannedText(row,event,'intervalS',native?'读数后等待 (s)':'事件间隔 (s)',native?'Post-reading wait (s)':'Interval Time (s)',path('intervalS'),sync('intervalS'));
+      if(!native)plannedText(row,event,'averageS','平均窗口 (s)','Average Time (s)',path('averageS'));
+      plannedText(row,event,'points','点数','Points',path('points'),sync('points'));
+     }
      action(row,'remove-time-event-'+index,'−',tr('删除测量事件','Remove measure event'),settings.events.length>1,
       ()=>{settings.events.splice(index,1);redrawDc();});
     }
-    action(target,'add-time-event','＋ '+tr('新增测量事件','Add measure event'),tr('追加测量事件','Append measure event'),!native&&settings.events.length<16,
-     ()=>{settings.events.push({...settings.events.at(-1)});redrawDc();});
+    action(target,'add-time-event','＋ '+tr('新增测量事件','Add measure event'),tr('追加测量事件','Append measure event'),settings.events.length<(native?smus.length*2:16),
+     ()=>{if(native){const candidates=smus.flatMap(term=>['Current','Voltage'].map(quantity=>({terminal:term.logical,quantity})));const next=candidates.find(c=>!settings.events.some(e=>e.terminal===c.terminal&&e.quantity===c.quantity));if(!next)return;settings.events.push({...settings.events[0],...next});}else settings.events.push({...settings.events.at(-1)});redrawDc();});
    }else{
     const strategy=dcPanel(surface,tr('测试策略','Measurement strategy'),'dkts-time-panel');
     const controls=dcLayout(strategy,'dkts-dc-strategy-fields');

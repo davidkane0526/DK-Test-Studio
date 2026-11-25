@@ -70,7 +70,7 @@
   if(v.mode!==undefined&&!['linear-step','native-fixed'].includes(v.mode))invalidField('mode','Select a supported time sweep mode');
   if(v.mode==='native-fixed'){
    if(!Array.isArray(v.segments)||v.segments.length!==1)invalidField('mode','Native fixed bias requires one bias segment');
-   if(!Array.isArray(v.events)||v.events.length!==1)invalidField('mode','Native fixed bias requires one measurement event');
+   if(!Array.isArray(v.events)||v.events.length<1||v.events.length>6)invalidField('mode','Native fixed bias requires 1–6 measurement signals');
    const event=v.events[0];
    const count=atField('events.0.points',()=>positiveInt(event.points,4096,'Native NR'));
    const start=atField('events.0.startS',()=>numeric(event.startS,'Native WT'));
@@ -120,10 +120,15 @@
    invalidField('integrationPreset','Select a supported SMU integration preset');
   if(grid.nativeFixed){
    if(v.integrationS!=='')invalidField('integrationPreset','Select an instrument integration preset');
-   const event=v.events[0];
-   if(event.terminal!=='D'||event.quantity!=='Current')invalidField('events.0.terminal','Native fixed bias currently captures drain current');
+   const event=v.events[0],signals=new Set();
+   for(const [i,e] of v.events.entries()){
+    if(!['D','G','S'].includes(e.terminal)||!['Current','Voltage'].includes(e.quantity))invalidField('events.'+i+'.terminal','Select a valid SMU measurement signal');
+    const key=e.terminal+':'+e.quantity;
+    if(signals.has(key))invalidField('events.'+i+'.quantity','Select each measurement signal only once');signals.add(key);
+    for(const field of ['startS','intervalS','points'])if(Number(e[field])!==Number(event[field]))invalidField('events.'+i+'.'+field,'Native fixed bias signals share start, wait and reading count');
+   }
    if(!Number.isSafeInteger(grid.samplePoints*cycles))invalidField('cycles','Total readings exceed safe integer');
-   return {...grid,cycles,points:grid.samplePoints*cycles};
+   return {...grid,cycles,points:grid.samplePoints*cycles,signalCount:signals.size};
   }
   const legacyIntegration=v.integrationS!==''?atField('integrationPreset',()=>numeric(v.integrationS,'Legacy integration time')):null;
   // Even at 60 Hz, a PLC preset has this minimum conversion time.

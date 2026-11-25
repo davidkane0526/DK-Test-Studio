@@ -37,7 +37,7 @@ function pageToBasicProgram(page, model){
   check(dc.bodyResource==='None','B 端尚未接入');
   check(dc.preset==='optimized'||(info.outputs.length===1&&info.outputs[0]==='Id'),'逐点 DC 仅支持 Outputs=Id');
   check(!dc.target.formula.trim(),'Target 公式尚未接入');
-  check(dc.strategy.direction==='forward'&&dc.strategy.onLimit==='stop','仅支持 Forward 和 Stop on limit');
+  check(dc.strategy.onLimit==='stop','当前执行器仅支持 Stop on limit');
   const hold=dc.strategy.hold.trim()?n(dc.strategy.hold,'Hold'):0;
   check(hold>=0&&hold<=655.3,'HT 允许 0–655.3 s');
   check(dc.preset==='optimized'||hold===0,'逐点模式 Hold 尚未接入');
@@ -76,6 +76,14 @@ function pageToBasicProgram(page, model){
    axes[row.role]=axis(r,dc.preset==='optimized'&&row.role==='P'?segs.map(s=>({...s,delayMs:0})):segs);
   }
   check(axes.X,'缺少 Xsweep');
+  if(dc.strategy.direction==='forward-reverse'){
+   check(!axes.P||dc.preset==='point-by-point','Optimized 双向扫描暂仅支持单轴；嵌套扫描需独立核验');
+   const x=axes.X,r=x.terminal,current=sourceModes[r]==='current',levels=[];
+   for(const seg of x.segments){const a=current?seg.startA:seg.startV,b=current?seg.stopA:seg.stopV,d=current?seg.stepA:seg.stepV;const count=a===b?1:Math.round((b-a)/d)+1;check(Number.isSafeInteger(count)&&count>=1&&count<=4096&&(count===1||Math.abs(a+(count-1)*d-b)<=Math.max(1e-15,Math.abs(d)*1e-8)),'双向扫描起止值与步长不匹配');for(let i=0;i<count;i++)levels.push({...seg,value:i===count-1?b:a+i*d});check(levels.length<=4096,'扫描点数超出单轴容量');}
+   // Turning point is measured once. Other repeated points are preserved.
+   const ordered=[...levels,...levels.slice(0,-1).reverse()];check(ordered.length<=4096,'往返扫描最多 4096 点');
+   axes.X={...x,segments:ordered.map(({value,rangeA,delayMs})=>current?{startA:value,stopA:value,stepA:0,rangeA,delayMs}:segment(value,value,0,rangeA,delayMs))};
+  }
   return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,systemIntegration:integration,requestedOutputs:info.outputs,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
  }
  if(page.kind==='time'){
@@ -83,7 +91,8 @@ function pageToBasicProgram(page, model){
   check(t.mode==='native-fixed','请选择时间测试的 Native Fixed Bias（仪器执行）模式；旧线性时序计划不自动转换为 IN');
   check(ports.B?.resource==='None','B 端尚未接入');
   check(t.segments.length===1,'仅支持单段固定偏置；多段切换待接入');
-  check(t.events.length===1&&t.events[0].terminal==='D'&&t.events[0].quantity==='Current','仅支持一个漏极电流采样事件');
+  check(t.events.every(e=>active.includes(e.terminal)),'测量事件必须对应实装 SMU');
+  const requestedOutputs=t.events.map(e=>(e.quantity==='Current'?'I':'V')+e.terminal.toLowerCase());
   check(!t.integrationS,'旧积分秒数尚未映射 PLC');
   const integration={instrument:'IT2',short:'IT1',medium:'IT2',long:'IT3'}[t.integrationPreset];
   check(integration!==undefined,'积分预设无效');
@@ -95,7 +104,7 @@ function pageToBasicProgram(page, model){
    portSettings[r]={rangeMode:p.rangeMode==='minimum'?'limited-auto':p.rangeMode,rangeA:p.rangeValue,complianceMode:p.complianceMode||'follow-range',complianceA:n(p.compliance,k+' 限流')};
   }
   const e=t.events[0],count=n(e.points,'点数'),v=fixedVoltages.drain;
-  return {kind:'iv',pageKind:'time',executionMode:'system',timeProgram:{durationS:summary.durationS,cycles:summary.cycles,startS:n(e.startS,'起点'),intervalS:n(e.intervalS,'间隔'),windowS:n(e.averageS,'窗口'),count,integration},sweepProgram:{terminals,fixedVoltages,portSettings,loops:summary.cycles,xSweep:axis('drain',[segment(v,v,0)],count),pSweep:disabled}};
+  return {kind:'iv',pageKind:'time',executionMode:'system',requestedOutputs,timeProgram:{durationS:summary.durationS,cycles:summary.cycles,startS:n(e.startS,'起点'),intervalS:n(e.intervalS,'间隔'),windowS:n(e.averageS,'窗口'),count,integration},sweepProgram:{terminals,fixedVoltages,portSettings,loops:summary.cycles,xSweep:axis('drain',[segment(v,v,0)],count),pSweep:disabled}};
  }
  throw Error('测试类型尚未接入');
 }

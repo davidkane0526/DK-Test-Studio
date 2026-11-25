@@ -271,14 +271,16 @@ async function executeSystemTask(program,io){
      // is ambiguous; never invent a data point. Final DO is authoritative.
      for(let k=0;k<8&&cursor<=program.count&&!cancelled();k++){
       const raw=String(await command("RD '"+program.rdNames.at(-1)+"',"+cursor,true)).trim();
-      if(raw==='0'||/^UNAVAILABLE$/i.test(raw))break;
+      if(!raw||raw==='0'||/^UNAVAILABLE$/i.test(raw))break;
       const time=parseSystemValues(raw);
       if(time.length!==1||time[0].value<=0)break;
       const columns={[program.timestamp]:time};
-      for(const s of program.signals)columns[s.name]=parseSystemValues(await command("RD '"+s.name+"',"+cursor,true));
+      let missing=false;
+      for(const s of program.signals){const raw=String(await command("RD '"+s.name+"',"+cursor,true)).trim();if(!raw||/^UNAVAILABLE$/i.test(raw)){missing=true;break;}columns[s.name]=parseSystemValues(raw);}
+      if(missing)break;
       if(Object.values(columns).some(v=>v.length!==1))throw Error('RD returned multiple points');
       const row=systemRows(program,columns,cycle,offset+cursor-1,cursor-1)[0];
-      preview.push({...row,source:'4200A-KXCI-RD'});
+      preview.push({...row,source:'4200A-KXCI-RD',measurementCompleteness:'partial'});
       cursor++;
      }
      if(preview.length)onPreview(preview);
