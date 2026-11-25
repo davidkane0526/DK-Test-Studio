@@ -887,6 +887,29 @@
    refreshTimingSummary();
   }
 
+  function paintArbPreview(canvas,preview){
+   const g=canvas?.getContext?.('2d'),width=canvas?.clientWidth;
+   if(!g||!width)return;
+   const height=132,dpr=window.devicePixelRatio||1;
+   canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);
+   g.scale(dpr,dpr);
+   const style=window.getComputedStyle(canvas),ink=style.getPropertyValue('--text-secondary').trim()||style.color,grid=style.getPropertyValue('--border-strong').trim()||ink;
+   g.fillStyle=ink;g.strokeStyle=grid;g.font='11px '+style.fontFamily;
+   if(!preview||width<120){g.textAlign='center';g.fillText(tr('无可预览的时序','No valid sequence to preview'),width/2,height/2);return;}
+   const left=54,right=width-12,top=16,bottom=91,axis=105;
+   const span=Math.max(Math.abs(preview.maxV-preview.minV),1e-15);
+   const x=t=>left+(right-left)*t/preview.durationTicks;
+   const y=v=>preview.minV===preview.maxV?(top+bottom)/2:bottom-(bottom-top)*(v-preview.minV)/span;
+   const format=v=>Number(v.toPrecision(5)).toString();
+   g.globalAlpha=.45;
+   for(let i=0;i<=4;i++){const t=preview.durationTicks*i/4;g.beginPath();g.moveTo(x(t),top);g.lineTo(x(t),axis);g.stroke();g.textAlign=i===0?'left':i===4?'right':'center';if(width>280||i%2===0)g.fillText(format(t/100)+(i===4?' µs':''),x(t),axis+17);}
+   g.globalAlpha=1;g.textAlign='right';g.fillText(format(preview.maxV)+' V',left-5,top+4);if(preview.minV!==preview.maxV)g.fillText(format(preview.minV)+' V',left-5,bottom+3);
+   g.fillStyle=style.getPropertyValue('--accent').trim()||ink;g.globalAlpha=.18;
+   for(const segment of preview.segments)if(segment.window)g.fillRect(x(segment.window.startTicks),top,Math.max(1,x(segment.window.endTicks)-x(segment.window.startTicks)),bottom-top);
+   g.globalAlpha=1;g.strokeStyle=style.getPropertyValue('--accent').trim()||ink;g.lineWidth=1.8;g.beginPath();
+   for(const [i,s] of preview.segments.entries()){if(i===0)g.moveTo(x(s.startTicks),y(s.startV));else g.lineTo(x(s.startTicks),y(s.startV));g.lineTo(x(s.endTicks),y(s.stopV));}
+   g.stroke();
+  }
   function renderArbTiming(host,p,values,put,panel,fields,select,pulseRanges){
    const draft=editorPlan.draft;
    const partnerActive=Boolean(values.arbPartner&&draft.arbChannel===1),current=()=>partnerActive?values.arbPartner:values,settings=current();
@@ -922,7 +945,7 @@
     const count=arb.segments.length;
     const pageCount=Math.ceil(count/32),pageIndex=Math.max(0,Math.min(pageCount-1,draft.arbPage||0));
     if(pageCount>1)dcSelect(seq,tr('段范围','Segments'),String(pageIndex),Array.from({length:pageCount},(_,i)=>({value:String(i),label:(i*32+1)+'–'+Math.min(count,(i+1)*32)})),v=>{draft.arbPage=Number(v);render();},{key:'arb-page'});
-    const edit=(i,key,val)=>{const current=(current().arb.blocks||[current().arb])[selected];const segments=current.segments.map((s,j)=>j===i?{...s,[key]:val}:s);change('segments',segments);};
+    const edit=(i,key,val)=>{const selectedBlock=(current().arb.blocks||[current().arb])[selected];const segments=selectedBlock.segments.map((s,j)=>j===i?{...s,[key]:val}:s);change('segments',segments);};
     for(let i=pageIndex*32;i<Math.min(count,(pageIndex+1)*32);i++){
      const s=arb.segments[i],row=units.panel.create(seq,{variant:'headed',title:tr('段 ','Segment ')+(i+1),sizing:'content',className:'dkts-timing-panel'}).body;
      for(const [key,zh,en] of [['startV','起始电压 (V)','Start (V)'],['stopV','终止电压 (V)','Stop (V)'],['durationUs','时长 (µs)','Duration (µs)']])field(row,tr(zh,en),s[key],v=>edit(i,key,v),'arb.segments.'+i+'.'+key);
@@ -930,13 +953,22 @@
      if(s.measure)for(const [key,zh,en] of [['measureStartUs','测量起点 (µs)','Measure start (µs)'],['measureStopUs','测量终点 (µs)','Measure stop (µs)']])field(row,tr(zh,en),s[key],v=>edit(i,key,v),'arb.segments.'+i+'.'+key);
      if(count>3)units.action.create(row,{id:'dkts-arb-remove-'+i,label:tr('删除','Remove'),variant:'quiet',direct:true,onInvoke:()=>{change('segments',(current().arb.blocks||[current().arb])[selected].segments.filter((_,j)=>i!==j));render();}});
     }
-    if(blocks.reduce((n,b)=>n+b.segments.length,0)<2048)units.action.create(seq,{id:'dkts-arb-add',label:tr('增加时序段','Add segment'),variant:'quiet',direct:true,onInvoke:()=>{const current=(current().arb.blocks||[current().arb])[selected].segments;const last=current.at(-1);change('segments',[...current,{startV:last.stopV,stopV:last.stopV,durationUs:'10',measure:false,measureStartUs:'0',measureStopUs:'0'}]);draft.arbPage=Math.floor(count/32);render();}});
+    if(blocks.reduce((n,b)=>n+b.segments.length,0)<2048)units.action.create(seq,{id:'dkts-arb-add',label:tr('增加时序段','Add segment'),variant:'quiet',direct:true,onInvoke:()=>{const selectedSegments=(current().arb.blocks||[current().arb])[selected].segments;const last=selectedSegments.at(-1);change('segments',[...selectedSegments,{startV:last.stopV,stopV:last.stopV,durationUs:'10',measure:false,measureStartUs:'0',measureStopUs:'0'}]);draft.arbPage=Math.floor(count/32);render();}});
    }else if(editorSection==='target'){
     const event=panel('测量事件','Measure event');
     for(const [label,config,isPartner] of [[t(logicalNames[values.terminal]),values,false],...(values.arbPartner?[[t(logicalNames[values.arbPartner.terminal]),values.arbPartner,true]]:[])])dcSelect(event,label+' · '+tr('采样方式','Acquisition'),config.mode,[{value:'spot',label:tr('窗口均值','Spot mean')},{value:'waveform',label:tr('窗口波形','Waveform')}],v=>{if(isPartner)put('arbPartner',{...values.arbPartner,mode:v});else put('mode',v);refresh();},{key:'arb-mode-'+label});field(event,tr('采样率 (Sa/s)','Sample rate (Sa/s)'),values.rateHz,v=>{put('rateHz',v);refresh();},'rateHz');
    }else{const strategy=panel('测量策略','Strategy');units.note.create(strategy,{variant:'meta',text:tr('由仪器执行完整序列及重复次数。','The instrument executes the complete sequence and repetitions.')});}
+   let canvas=null;
+   if(editorSection==='sweep'){
+    const preview=panel('时序预览','Sequence preview');
+    canvas=units.layout.create(preview,{variant:'identity',className:'dkts-time-waveform',tagName:'canvas'});
+    canvas?.setAttribute?.('role','img');canvas?.setAttribute?.('aria-label',tr('当前序列一次循环的计划电压及测量窗口','Planned voltage and measure windows for one selected sequence repeat'));
+    units.note.create(preview,{variant:'meta',text:tr('当前端子、当前序列的一次循环；阴影为测量窗口。','One repeat of the selected terminal and sequence; shading marks measurement windows.')});
+   }
+   function draw(){if(!canvas)return;let data=null;try{data=hardware.segmentArbPreview({...values,...current(),testMode:'sequence'},selected);}catch{}paintArbPreview(canvas,data);}
+   if(canvas?.nodeType===1){const observer=typeof window.ResizeObserver==='function'?new window.ResizeObserver(draw):null;observer?.observe(canvas);const offTheme=window.DKDSTheme?.subscribeRevision?.(manifest.id+'.arb-preview',draw,{consumer:'raster'});disposeTimePreview=()=>{observer?.disconnect();offTheme?.();};}
    const summary=panel('方案校验','Plan checks');
-   function refresh(){summary.replaceChildren();try{const s=model.timedSummary('pulse',values);units.note.create(summary,{variant:'meta',text:(s.blocks?s.blocks.length+' '+tr('序列','sequences')+' · ':'')+s.segments.length+' '+tr('段','segments')+(s.blocks?'':' × '+s.loops)+' · '+s.durationS+' s · '+tr('预计记录 ','Estimated records ')+ (s.totalEstimatedRecords??s.estimatedRecords)});if(s.loadOhms===null||values.currentRangeA===''||s.partner&&(s.partner.loadOhms===null||values.arbPartner.currentRangeA===''))units.note.create(summary,{variant:'warning',text:tr('请选择负载及固定电流档。','Set the load and fixed current range.')});}catch(e){units.note.create(summary,{variant:'warning',text:String(e.message||e)});}}
+   function refresh(){draw();summary.replaceChildren();try{const s=model.timedSummary('pulse',values);units.note.create(summary,{variant:'meta',text:(s.blocks?s.blocks.length+' '+tr('序列','sequences')+' · ':'')+s.segments.length+' '+tr('段','segments')+(s.blocks?'':' × '+s.loops)+' · '+s.durationS+' s · '+tr('预计记录 ','Estimated records ')+ (s.totalEstimatedRecords??s.estimatedRecords)});if(s.loadOhms===null||values.currentRangeA===''||s.partner&&(s.partner.loadOhms===null||values.arbPartner.currentRangeA===''))units.note.create(summary,{variant:'warning',text:tr('请选择负载及固定电流档。','Set the load and fixed current range.')});}catch(e){units.note.create(summary,{variant:'warning',text:String(e.message||e)});}}
    refresh();
   }
   const dcLayout=(host,className)=>units.layout.create(host,{variant:'identity',className});

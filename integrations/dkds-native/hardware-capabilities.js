@@ -411,6 +411,18 @@ function normalizeArbPair(settings){
  if(main.durationTicksExact!==second.durationTicksExact)throw Error('双通道总时长必须相等；请设置明确的等待段，不自动补齐');
  return Object.freeze({...main,partner:second,totalEstimatedRecords:main.estimatedRecords+second.estimatedRecords});
 }
+function segmentArbPreview(settings,blockIndex=0){
+ // A single repeat of the selected block. This is planned output, not acquisition data.
+ const arb=settings?.arb,blocks=arb?.blocks||[arb];
+ if(!Number.isInteger(blockIndex)||blockIndex<0||blockIndex>=blocks.length)throw Error('时序序列不存在');
+ const b=blocks[blockIndex],summary=normalizeSegmentArb({...settings,arbPartner:null,secondary:null,arb:{loops:b.loops,segments:b.segments}});
+ let elapsed=0;
+ const segments=summary.segments.map((s,index)=>{
+  const startTicks=elapsed,endTicks=startTicks+s.durationTicks;elapsed=endTicks;
+  return Object.freeze({index:index+1,startTicks,endTicks,startV:s.startV,stopV:s.stopV,window:s.measure?Object.freeze({startTicks:startTicks+s.startTicks,endTicks:startTicks+s.stopTicks}):null});
+ });
+ return Object.freeze({source:'user-configured-plan',blockIndex,loops:summary.loops,durationTicks:elapsed,durationS:elapsed/1e8,minV:summary.minV,maxV:summary.maxV,segments:Object.freeze(segments)});
+}
   function getPmuCurrentRanges(rangeV, withRpm = false) {
     const mod = getModuleCapability(withRpm ? 'PMURPM' : 'PMU');
     const ranges = mod.measurement[withRpm ? 'withRpmCurrentRangesA' : 'currentRangesA'][String(Number(rangeV))];
@@ -557,7 +569,7 @@ function normalizeArbPair(settings){
     });
   }
   function exportDatabase() { return JSON.parse(JSON.stringify(DATABASE)); }
-  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, normalizeSegmentArb, normalizeArbPair, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
+  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, normalizeSegmentArb, normalizeArbPair, segmentArbPreview, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
   if (typeof window !== 'undefined') {
     window.DKTSHardwareCapabilities = api;
     if (window.DKDSPluginModules) window.DKDSPluginModules.define('com.dkts.keithley-4200', 'dkts-capabilities', api);
