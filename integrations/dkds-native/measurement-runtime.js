@@ -36,7 +36,8 @@ function pageToBasicProgram(page, model){
   check(['optimized','point-by-point'].includes(dc.preset),'未知 DC 执行模式');
   check(dc.bodyResource==='None','B 端尚未接入');
   check(dc.preset==='optimized'||(info.outputs.length===1&&info.outputs[0]==='Id'),'逐点 DC 仅支持 Outputs=Id');
-  check(!dc.target.formula.trim(),'Target 公式尚未接入');
+  check(!dc.target.formula.trim()&&!dc.target.h.trim()&&!dc.target.p.trim(),'Target 公式及 H/P 分组尚未接入；请保留为空');
+  model.dcTargetColumns(page,dc);
   check(dc.strategy.onLimit==='stop','当前执行器仅支持 Stop on limit');
   const hold=dc.strategy.hold.trim()?n(dc.strategy.hold,'Hold'):0;
   check(hold>=0&&hold<=655.3,'HT 允许 0–655.3 s');

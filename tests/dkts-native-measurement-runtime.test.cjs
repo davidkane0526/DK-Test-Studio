@@ -76,6 +76,7 @@ function makeInstrumentContext(modules,options={}){
     if(command==='GN result\0')return reply(lastQuery==='instrument'?instrumentInfo+'\0':lastQuery==='system'?'serialno:1498377,swver:4200A-852-1.0,platformver:4200A-300-1,clariusver:V1.14\0':remoteInfo+'\0');
     if(command==='TI1\0')return reply('NAI+1.0000E-09\0');
     if(command==='TI2\0')return reply('NBI+0.0000E+00\0');
+    if(/^TV[12]\0$/.test(command)){const ch=Number(command[2]);const last=commands.filter(r=>r.command.startsWith('DV'+ch+',')).at(-1);const v=last?Number(last.command.split(',')[2]):0;return reply('N'+(ch===1?'A':'B')+'V'+v.toExponential(4)+'\0');}
     if(command==='SP\0'){
       if(systemRun){systemRun=false;return reply('1\0');}
       if(options.busyAtStart&&!measurementStarted)return reply('16\0');

@@ -63,7 +63,7 @@
  });
  // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
  const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});
- const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw']);
+ const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw','target']);
  const timeBiasKey=mode=>mode==='current'?'currentBias':'bias';
  const timeBias=(settings,segment,terminal)=>segment[timeBiasKey(settings.sourceModes?.[terminal])]?.[terminal];
  function timeGrid(v){
@@ -411,6 +411,22 @@
   return dcTerminals(p,settings).filter(t=>t.resource!=='GNDU').flatMap(t=>
    ['I','V'].map(prefix=>prefix+t.logical.toLowerCase()));
  }
+function dcTargetColumns(page,dc=page.dc){
+ const mapped=dcOutputs(page,dc),roleNames={d:'drain',g:'gate',s:'source',b:'body'},signals=[...mapped,'Time'];
+ const term=dcTerminals(page,dc).find(t=>dc.terminals[t.logical].role==='X'&&t.resource!=='GNDU');
+ const fallbackX=term?(dc.terminals[term.logical].mode==='current'?'I':'V')+term.logical.toLowerCase():'Vd';
+ const requested=dc.outputs.trim().split(/[\s,]+/);
+ const resolve=(name,field,fallback)=>{
+  const v=String(name||'').trim()||fallback;
+  if(!signals.includes(v))invalidField('target.'+field,'Select an actual measured signal: '+v);
+  return {signal:v,key:v==='Time'?'timeS':roleNames[v[1]]+(v[0]==='I'?'CurrentA':'VoltageV'),unit:v==='Time'?'s':v[0]==='I'?'A':'V'};
+ };
+ const x=resolve(dc.target.x,'x',fallbackX);
+ const fallbackY=requested.find(v=>mapped.includes(v)&&v!==x.signal)||mapped.find(v=>v!==x.signal);
+ const y=resolve(dc.target.y,'y',fallbackY);
+ if(x.key===y.key)invalidField('target.y','X and Y must be distinct measured signals');
+ return {x,y,signals};
+}
  function dcMethods(role){
   return role==='CONDITION'?['constant','generator']:['step','points','log','list'];
  }
@@ -1094,7 +1110,7 @@
  // Core owns the canonical DataTable buffer and the drawing engine.
  // A curve reads bounded, immutable column slices instead of copying a whole
  // Artifact with artifacts.get(). Display decimation never changes raw data.
- function curvesFromArtifacts(refs,store,{maxRead=65536,maxDisplay=8192,axis='iv'}={}){
+ function curvesFromArtifacts(refs,store,{maxRead=65536,maxDisplay=8192,axis='iv',target=null}={}){
   const out=[];
   if(!Array.isArray(refs)||!store?.columnMetadata||!store?.readColumnRange)return out;
   const budget=Math.max(1,Math.min(65536,Math.floor(Number(maxRead)||65536)));
@@ -1110,13 +1126,13 @@
     iv:['drainvoltagev','vdset','vd','voltage','vds','drainvoltage','x'],
     transfer:['gatevoltagev','vg','vgs','gatevoltage'],
     it:['times','time','elapsedseconds','seconds','t'],
-    vt:['times','time','elapsedseconds','seconds','t']
+    vt:['times','time','elapsedseconds','seconds','t'],target:[]
    };
    if(!Object.prototype.hasOwnProperty.call(xkeys,axis))throw Error('Unknown graph axis');
    const pulse=cols.some(c=>norm(c)==='pulsevoltagev')&&cols.some(c=>norm(c)==='pulsecurrenta');
    if(pulse&&axis==='transfer')continue;
-   const x=pulse?choose(axis==='iv'?['pulsevoltagev']:xkeys[axis],'x',false):choose(xkeys[axis],'x',axis==='iv');
-   const y=pulse?choose(axis==='vt'?['pulsevoltagev']:['pulsecurrenta'],'y',false):axis==='vt'?choose(['drainvoltagev','measuredvoltagev','measuredvoltage','voltagev','voltage','vd'],'y',false):
+   const x=axis==='target'?target&&cols.find(c=>norm(c)===target.x.key.toLowerCase()):pulse?choose(axis==='iv'?['pulsevoltagev']:xkeys[axis],'x',false):choose(xkeys[axis],'x',axis==='iv');
+   const y=axis==='target'?target&&cols.find(c=>norm(c)===target.y.key.toLowerCase()):pulse?choose(axis==='vt'?['pulsevoltagev']:['pulsecurrenta'],'y',false):axis==='vt'?choose(['drainvoltagev','measuredvoltagev','measuredvoltage','voltagev','voltage','vd'],'y',false):
     choose(['draincurrenta','id','current','ids','i','draincurrent','y'],'y',axis!=='it');
       if(!x||!y||x===y)continue;
    const total=Math.min(Number(x.length)||0,Number(y.length)||0);
@@ -1146,6 +1162,7 @@
     const count=Math.min(span.limit,xc.values.length,yc.values.length);
     readRows+=count;
     for(let j=0;j<count;j++){
+     if(xc.values[j]==null||yc.values[j]==null||xc.values[j]===''||yc.values[j]==='')continue;
      const vx=Number(xc.values[j]),vy=Number(yc.values[j]);
      if(Number.isFinite(vx)&&Number.isFinite(vy))
       sampled.push({index:span.start+j,point:{x:vx,y:vy}});
@@ -1175,7 +1192,7 @@
    const partial=readRows<total;
    out.push({id,artifactId:id,label:String(ref.name||id)+
      (partial?' (preview '+readRows+'/'+total+')':''),
-    points:chosen.map(x=>x.point),
+    points:chosen.map(x=>x.point),...(axis==='target'?{target:{x:target.x,y:target.y}}:{}),
     source:{artifactId:id,kind:'dkds-artifact-bounded-preview',
      totalRows:total,readRows,displayRows:chosen.length,truncated:partial,
      coverage:partial?'stratified-intervals':'all-rows',
@@ -1183,6 +1200,6 @@
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcSummary,dcExpression,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,dcSummary,dcExpression,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

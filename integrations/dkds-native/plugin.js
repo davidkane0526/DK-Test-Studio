@@ -21,6 +21,7 @@
 
 
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
+  const targetPlotKeys=[];
   let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSelections=['','','',''],frameKinds=['iv','transfer','it','raw'],frameGroup=null,frameTableHosts=[],framePlotHosts=[],frameTables=[],frameLayout='4',nav=null,parameters=null,dataNote=null,pad=null,portPopover=null,editorTabs=null,editorHeading=null,terminalRegion=null;
   let editorSection='sweep',editorOpen=false,plotScope='project',workRegion=null,editorRegion=null,plotRegion=null,projectSurface=null;
   let instrumentBusy=false,connectionDialogOpen=false;
@@ -94,15 +95,15 @@
    }
   });
   const PAGE_TABS=[['sweep','Sweep'],['target','Target'],['strategy','Strategy']];
-  const pagePlots={dc:['iv','transfer'],iv:['iv','it'],transfer:['transfer','iv'],output:['iv','transfer'],
+  const pagePlots={dc:['iv','transfer','target'],iv:['iv','it'],transfer:['transfer','iv'],output:['iv','transfer'],
    pulse:['iv','it','vt'],retention:['it','vt'],time:['it','vt'],pund:['it','vt'],
    arb:['vt','it'],endurance:['it','iv'],cv:[]};
-  const plotLabel=kind=>({iv:'I–V',transfer:t('转移特性'),it:'I–t',vt:'V–t',raw:t('数据表')})[kind];
+  const plotLabel=kind=>({iv:'I–V',transfer:t('转移特性'),it:'I–t',vt:'V–t',target:tr('自定义目标','Target'),raw:t('数据表')})[kind];
   function frameOptions(s){
-   if(plotScope==='project')return model.PLOT_KINDS;
+   if(plotScope==='project')return model.PLOT_KINDS.filter(k=>k!=='target');
    const kinds=s.pages.filter(page=>plotScope==='page'?page.id===s.activeId:page.routineId===s.activeRoutineId)
     .flatMap(page=>pagePlots[page.kind]||[]);
-   return [...new Set([...kinds,'raw'])];
+   return [...new Set([...kinds,'raw'])].filter(k=>k!=='target'||plotScope==='page');
   }
   const TEST_TYPE_LABELS=Object.freeze({DC:'直流',Pulse:'脉冲',Cycle:'循环',Time:'时间',IVT:'I–V–t',CV:'C–V'});
   const testTypeLabel=value=>t(TEST_TYPE_LABELS[value]||String(value||''));
@@ -130,10 +131,11 @@
   // Revision-aware caching prevents full column clones on plot repaints.
   const plotCache=new Map();
   function curves(axis='iv',rows=sources()){
-   const key=JSON.stringify([axis,...rows.map(row=>[row.artifactId,row.name,
+   let target=null;if(axis==='target'){try{target=model.dcTargetColumns(active());}catch{return [];}}
+   const key=JSON.stringify([axis,target,...rows.map(row=>[row.artifactId,row.name,
     ctx.data.artifacts.artifactRevision?.(row.artifactId)||0])]);
    if(plotCache.has(key))return plotCache.get(key);
-   const next=model.curvesFromArtifacts(rows,ctx.data.artifacts,{axis});
+   const next=model.curvesFromArtifacts(rows,ctx.data.artifacts,{axis,target});
    plotCache.set(key,next);
    return next;
   }
@@ -1334,8 +1336,8 @@
     {key:'formula',path:'target.formula',kind:'textarea'});
    const bottom=dcLayout(host,'dkts-dc-bottom');
    const plot=dcPanel(bottom,tr('绘图','Plot'),'dkts-dc-plot');
-   for(const key of ['x','y','h','p'])
-    dcInput(plot,key.toUpperCase(),dc.target[key],value=>{dc.target[key]=value;},{key:'plot-'+key,path:'target.'+key});
+   for(const key of ['x','y'])dcSelect(plot,key.toUpperCase(),dc.target[key],[{value:'',label:tr('自动','Auto')},...model.dcOutputs(p,dc).concat('Time').map(value=>({value,label:value}))],value=>{dc.target[key]=value;redrawDc();},{key:'plot-'+key,path:'target.'+key});
+   for(const key of ['h','p'])dcInput(plot,key.toUpperCase(),dc.target[key],value=>{dc.target[key]=value;},{key:'plot-'+key,path:'target.'+key});
    renderVariablesPanel(bottom,p);
    const quoted=dcPanel(bottom,'Quote Var','dkts-dc-quote');
    for(const signal of dc.outputs.trim().split(/[\s,]+/).filter(Boolean))
@@ -1858,17 +1860,20 @@
    if(selected)return all.find(item=>item.artifactId===selected)||null;
    return all.length===1?all[0]:null;
   }
+  function targetPlotKey(page){try{return JSON.stringify(model.dcTargetColumns(page));}catch{return 'null';}}
   function createFramePlot(index){
    const host=framePlotHosts[index];if(!host)return null;
    plots[index]?.dispose?.();
    const kind=frameKinds[index]||'iv';
-   const title=['it','vt'].includes(kind)?tr('时间 (s)','Time (s)'):kind==='transfer'?tr('栅极电压 (V)','Gate voltage (V)'):tr('漏极电压 (V)','Drain voltage (V)');
+   let target=null;if(kind==='target'){try{target=model.dcTargetColumns(active());}catch{}}
+   const title=kind==='target'?(target?target.x.signal+' ('+target.x.unit+')':'X'):['it','vt'].includes(kind)?tr('时间 (s)','Time (s)'):kind==='transfer'?tr('栅极电压 (V)','Gate voltage (V)'):tr('漏极电压 (V)','Drain voltage (V)');
    const instance=units.scientificPlot.create(host,{variant:'curve',
     source:'dkts-native-frame-'+(index+1),
-    xTitle:title,yTitle:kind==='vt'?tr('漏极电压 (V)','Drain voltage (V)'):tr('漏极电流 (A)','Drain current (A)'),
+    xTitle:title,yTitle:kind==='target'?(target?target.y.signal+' ('+target.y.unit+')':'Y'):kind==='vt'?tr('电压 (V)','Voltage (V)'):tr('电流 (A)','Current (A)'),
     emptyText:()=>tr('暂无可显示的数据','No data to display'),
     getCurves:()=>frameCurves(index),getMarkers:()=>[]});
    plots[index]=instance;
+   targetPlotKeys[index]=kind==='target'?JSON.stringify(target):null;
    return instance;
   }
   function frameCurves(index){
@@ -1877,10 +1882,11 @@
    const list=curves(kind,available).slice();
    if(selected)return list.filter(curve=>curve.artifactId===selected);
    const run=measurementRuntime.status().run,s=state();
+   let target=null;if(kind==='target'){try{target=model.dcTargetColumns(active());}catch{return list;}}
    const scopeMatches=plotScope==='page'?s.activeId===runPageId:plotScope==='routine'?s.pages.some(p=>p.id===runPageId&&p.routineId===s.activeRoutineId):true;
    if(run.running&&scopeMatches&&run.liveRows?.length){
     const groups=new Map();
-    for(const r of run.liveRows){if(r.source==='4200A-KXCI-PMU'&&kind==='transfer')continue;const key=(r.pulseResource?r.pulseResource+' · ':'')+r.cycle+':'+(r.pPoint||1);if(!groups.has(key))groups.set(key,[]);groups.get(key).push({x:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.pulseVoltageV??r.drainVoltageV,y:kind==='vt'?(r.pulseVoltageV??r.drainVoltageV):(r.pulseCurrentA??r.drainCurrentA)});}
+    for(const r of run.liveRows){if(r.source==='4200A-KXCI-PMU'&&kind==='transfer')continue;const key=(r.pulseResource?r.pulseResource+' · ':'')+r.cycle+':'+(r.pPoint||1);if(!groups.has(key))groups.set(key,[]);groups.get(key).push({x:kind==='target'?r[target.x.key]:kind==='it'||kind==='vt'?r.timeS:kind==='transfer'?r.gateVoltageV:r.pulseVoltageV??r.drainVoltageV,y:kind==='target'?r[target.y.key]:kind==='vt'?(r.pulseVoltageV??r.drainVoltageV):(r.pulseCurrentA??r.drainCurrentA)});}
     for(const [key,rows] of groups){const points=rows.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));if(points.length)list.push({id:'dkts-live-'+run.runId+'-'+key,label:'4200A · '+tr('本次测量预览','Live acquisition')+' '+key,points});}
    }
    return list;
@@ -2067,7 +2073,7 @@
    const previousKinds=frameKinds;
    syncGraphSettings(s);applyFrameLayout();
    for(const [index,kind] of frameKinds.entries())
-    if(previousKinds[index]!==kind)createFramePlot(index);
+    if(previousKinds[index]!==kind||kind==='target'&&targetPlotKeys[index]!==targetPlotKey(p))createFramePlot(index);
    syncInstrumentButtons();
    updateGraphLanguage();
    refreshRawTables();
