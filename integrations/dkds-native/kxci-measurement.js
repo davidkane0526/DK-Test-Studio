@@ -397,7 +397,7 @@ async function executePulseTask(p,io){
  while(!cancelled()){
  const busy=await status();await verify();
  if(!busy){started=false;for(const channel of channels)await disable(channel);
- for(const channel of channels){let cursor=0;const count=integerReply(await command(channel.countQuery,true),channel.count);
+ for(const channel of channels){if(channel.skipRead)continue;let cursor=0;const count=integerReply(await command(channel.countQuery,true),channel.count);
  while(cursor<count&&!cancelled()){const n=Math.min(128,count-cursor),rows=parsePulseBlock(await command(':PMU:DATA:GET '+channel.pulseChannel+','+cursor+','+n+','+channel.fields,true),channel,cursor);if(!rows.length||rows.length>n)throw Error('PMU 缓冲区计数不一致');onBatch(rows.map(row=>({...row,pulseChannelSequence:row.sequence,sequence:++sequence,measurementCompleteness:channel.expected!==null&&count!==channel.expected?'partial':row.measurementCompleteness})));cursor+=rows.length}
  if(!cancelled()&&(cursor===0||channel.expected!==null&&cursor!==channel.expected))channelWarnings.push(channel.resource+' 实测 '+cursor+' 点，计划 '+(channel.expected??'非空')+' 点');}
  if(channelWarnings.length)throw Error(channelWarnings.join('；'));break}
@@ -434,8 +434,36 @@ function compilePulsePair(input,hardware){
  const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,p.countQuery],cleanup:[x.offCommand,p.offCommand,':PMU:ABORT'],channels:[x,p],peak:Math.max(x.peak,p.peak),estimatedRecords:x.estimatedRecords+p.estimatedRecords,resources:[x.resource,p.resource],sweepPoints:as.points*bs.points};
  return {...main,pulse,channels:{...main.channels,...outer.channels},active:[...main.active,...outer.active],totalPoints:pulse.estimatedRecords,requiresInterlock:main.requiresInterlock||outer.requiresInterlock,canExecute:main.canExecute&&outer.canExecute};
 }
+function compileSegmentArb(input,hardware){
+ const {inventory,capabilities:h}=hardware,v=input.settings,s=h.normalizeSegmentArb(v),check=(b,m)=>{if(!b)throw Error(m)};
+ const m=/^PMU([1-9])-([12])$/.exec(input.resource||'');check(m,'请选择独立 PMU 通道');
+ const card=Number(m[1]),sub=Number(m[2]),ch=2*(card-1)+sub;
+ const cards=inventory?.slots?.filter(z=>['PMU','PGU'].includes(z.family))||[],ids=cards.map(z=>z.channel).sort((a,b)=>a-b);
+ check(ids.length<=4&&ids.every((z,i)=>z===i+1)&&ch<=8,'核对 KCon 通道编号');
+ const slot=cards.find(z=>z.family==='PMU'&&z.channel===card);check(slot?.physicalIdentityVerified&&slot.ratingsVerified,'PMU 模块未核验');
+ const rpm=slot.rpmChannels?.includes(sub)===true;check(!rpm||input.wiringConfirmed===true,'请确认 RPM 接线');
+ check(s.loadOhms!==null,'请填写负载');
+ const output=h.getPulseOutputLimits('pmu',s.rangeV,s.loadOhms);
+ check(s.peakV<=output.maxVoltageV+1e-12,'峰值超过负载对应的输出能力');
+ const ir=Number(v.currentRangeA);check(v.currentRangeA!==''&&h.getPmuCurrentRanges(s.rangeV,rpm).some(x=>Math.abs(x-ir)<=x*1e-12),'任意序列必须选择实际支持的固定电流档');
+ const power=h.calculateChassisPower({inventory,activePulseChannels:[{family:'PMU',cardIndex:card,rangeV:s.rangeV}]});
+ check(power.known&&power.withinLimit,'机箱功耗未核验或超限');
+ const role={D:'drain',G:'gate',S:'source'}[v.terminal],waveform=v.mode==='waveform',cmd=(name,...args)=>':PMU:'+name+' '+args.map(x=>typeof x==='number'?systemNumber(x):x).join(',');
+ // Exact decimal representation of 10 ns ticks, including long-duration values.
+ const sec=t=>{const whole=Math.floor(t/1e8),frac=String(t%1e8).padStart(8,'0').replace(/0+$/,'');return String(whole)+(frac?'.'+frac:'')};
+ const setup=['SS','ZE',':PMU:INIT 1'];
+ if(rpm)setup.push(cmd('RPM:CONFIGURE',input.resource,0));
+ setup.push(cmd('LOAD',ch,s.loadOhms),cmd('SOURCE:RANGE',ch,s.rangeV),cmd('MEASURE:RANGE',ch,2,ir),cmd('SAMPLE:RATE',s.rateHz));
+ const arrays=[['STARTV',s.segments.map(x=>systemNumber(x.startV))],['STOPV',s.segments.map(x=>systemNumber(x.stopV))],['TIME',s.segments.map(x=>sec(x.durationTicks))],['MEAS:TYPE',s.segments.map(x=>x.measure?(waveform?'2':'1'):'0')],['MEAS:START',s.segments.map(x=>sec(x.startTicks))],['MEAS:STOP',s.segments.map(x=>sec(x.stopTicks))]];
+ for(const [key,values] of arrays)for(let offset=0;offset<values.length;offset+=128)setup.push(':PMU:SARB:SEQ:'+key+(offset?':ADD':'')+' '+ch+',1,'+values.slice(offset,offset+128).join(','));
+ setup.push(':PMU:SARB:WFM:SEQ:LIST '+ch+',1,'+String(s.loops),cmd('OUTPUT:STATE',ch,1));
+ const countQuery=cmd('DATA:COUNT?',ch),statusQuery=':PMU:TEST:STATUS?',fields=waveform?'V,I,T,S':'VH,IH,TH,SH',offCommand=cmd('OUTPUT:STATE',ch,0);
+ const pulse=Object.freeze({setup,reads:[countQuery,statusQuery],cleanup:[offCommand,':PMU:ABORT'],rdNames:[],count:65536,pulseChannel:ch,fields,countQuery,statusQuery,offCommand,resource:input.resource,role,waveform,expected:s.points?(waveform?null:s.records):0,skipRead:s.points===0,peak:s.peakV,estimatedRecords:s.estimatedRecords,arb:true,sequenceLoops:s.loops,rangeV:s.rangeV,card,segments:s.segments});
+ const physicalVerified=inventory?.physicalModelsVerified===true&&inventory?.hardwareLimitsVerified===true;
+ return Object.freeze({plan:{kind:'pulse'},pulse,physicalVerified,capabilityVerified:true,requiresInterlock:s.peakV>21,canExecute:physicalVerified&&s.peakV<=21,channels:{[role]:ch},active:[role],totalPoints:s.estimatedRecords,commandMode:'KXCI-PMU-SARB'});
+}
   function compileSweep(input,hardware={}){
-    if(input.executionMode==='pulse')return input.secondary?compilePulsePair(input,hardware):compilePulse(input,hardware);
+    if(input.executionMode==='pulse')return input.settings?.arb!=null?compileSegmentArb(input,hardware):input.secondary?compilePulsePair(input,hardware):compilePulse(input,hardware);
     const planner=typeof require==='function'
       ?require('./measurement-plan.js')
       :window.DKDSPluginModules.require('dkts-plan');
@@ -754,7 +782,7 @@ function compilePulsePair(input,hardware){
     }
     return Object.freeze({start,stop,status:publicState,waitForCompletion,dispose});
   }
-  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,parsePulseBlock,executePulseTask});
+  const api=Object.freeze({compileSweep,points,parseTi,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,parsePulseBlock,executePulseTask});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
     window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci-measurement',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

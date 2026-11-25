@@ -745,6 +745,17 @@
      options.push([values.currentRangeA,values.currentRangeA+' A · '+tr('待核验','Unverified')]);
     return options;
    };
+   if(pulse&&editorSection==='sweep'){
+    const modePanel=panel('扫描类型','Sweep type');
+    fsproField(modePanel,{kind:'select',label:tr('测试方式','Test mode'),value:values.arb?'sequence':'sweep',options:[{value:'sweep',label:tr('脉冲扫描','Pulse sweep')},{value:'sequence',label:tr('自定义时序','Custom sequence')}],onChange:event=>{
+     if(event.target.value==='sweep'){put('arb',null);render();return;}
+     values.secondary=null;
+     put('arb',{loops:'1',segments:[{startV:'0',stopV:'1',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'},{startV:'1',stopV:'1',durationUs:'10',measure:true,measureStartUs:'2',measureStopUs:'8'},{startV:'1',stopV:'0',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'}]});render();
+    }});
+   }
+   if(pulse&&values.arb){
+    renderArbTiming(host,p,values,put,panel,fields,select,pulseRanges);return;
+   }
    if(editorSection==='sweep'){
     const input=panel('输入设置','Input settings');
     select(input,'terminal',tr('端子','Terminal'),['S','D','G'].filter(key=>!pulse||key!==values.secondary?.terminal).map(key=>[key,t(logicalNames[key])+' · '+
@@ -873,6 +884,37 @@
    refreshTimingSummary();
   }
 
+  function renderArbTiming(host,p,values,put,panel,fields,select,pulseRanges){
+   const arb=values.arb;
+   const change=(key,value)=>{put('arb',{...values.arb,[key]:value});refresh();};
+   const field=(target,label,value,onChange,path)=>scalarField(target,label,String(value),v=>{onChange(String(v));},false,{'data-dkts-parameter-path':path},false,true);
+   if(editorSection==='sweep'){
+    const input=panel('输入设置','Input settings');
+    select(input,'terminal',tr('端子','Terminal'),['S','D','G'].map(key=>[key,t(logicalNames[key])+' · '+pulsePort(p,{...values,terminal:key}).resource]));
+    select(input,'rangeV',tr('电压档','Voltage range'),[['10','10 V'],['40','40 V']]);
+    field(input,tr('负载 (Ω)','Load (Ω)'),values.loadOhms,v=>{put('loadOhms',v);refresh();},'loadOhms');
+    select(input,'currentRangeA',tr('固定电流档','Fixed current range'),pulseRanges().filter(([key])=>key!==''));
+    field(input,tr('序列重复次数','Sequence repeats'),arb.loops,v=>change('loops',v),'arb.loops');
+    const seq=panel('时序段','Sequence segments');
+    const count=arb.segments.length,draft=editorPlan.draft;
+    const pageCount=Math.ceil(count/32),pageIndex=Math.max(0,Math.min(pageCount-1,draft.arbPage||0));
+    if(pageCount>1)dcSelect(seq,tr('段范围','Segments'),String(pageIndex),Array.from({length:pageCount},(_,i)=>({value:String(i),label:(i*32+1)+'–'+Math.min(count,(i+1)*32)})),v=>{draft.arbPage=Number(v);render();},{key:'arb-page'});
+    const edit=(i,key,val)=>{const segments=values.arb.segments.map((s,j)=>j===i?{...s,[key]:val}:s);change('segments',segments);};
+    for(let i=pageIndex*32;i<Math.min(count,(pageIndex+1)*32);i++){
+     const s=arb.segments[i],row=units.panel.create(seq,{variant:'headed',title:tr('段 ','Segment ')+(i+1),sizing:'content',className:'dkts-timing-panel'}).body;
+     for(const [key,zh,en] of [['startV','起始电压 (V)','Start (V)'],['stopV','终止电压 (V)','Stop (V)'],['durationUs','时长 (µs)','Duration (µs)']])field(row,tr(zh,en),s[key],v=>edit(i,key,v),'arb.segments.'+i+'.'+key);
+     dcSelect(row,tr('测量','Measure'),s.measure?'on':'off',[{value:'off',label:tr('不测量','Off')},{value:'on',label:tr('测量','On')}],v=>{edit(i,'measure',v==='on');render();},{key:'arb-measure-'+i});
+     if(s.measure)for(const [key,zh,en] of [['measureStartUs','测量起点 (µs)','Measure start (µs)'],['measureStopUs','测量终点 (µs)','Measure stop (µs)']])field(row,tr(zh,en),s[key],v=>edit(i,key,v),'arb.segments.'+i+'.'+key);
+     if(count>3)units.action.create(row,{id:'dkts-arb-remove-'+i,label:tr('删除','Remove'),variant:'quiet',direct:true,onInvoke:()=>{change('segments',values.arb.segments.filter((_,j)=>i!==j));render();}});
+    }
+    if(count<2048)units.action.create(seq,{id:'dkts-arb-add',label:tr('增加时序段','Add segment'),variant:'quiet',direct:true,onInvoke:()=>{const last=values.arb.segments.at(-1);change('segments',[...values.arb.segments,{startV:last.stopV,stopV:last.stopV,durationUs:'10',measure:false,measureStartUs:'0',measureStopUs:'0'}]);draft.arbPage=Math.floor(count/32);render();}});
+   }else if(editorSection==='target'){
+    const event=panel('测量事件','Measure event');select(event,'mode',tr('采样方式','Acquisition'),[['spot',tr('窗口均值','Spot mean')],['waveform',tr('窗口波形','Waveform')]]);field(event,tr('采样率 (Sa/s)','Sample rate (Sa/s)'),values.rateHz,v=>{put('rateHz',v);refresh();},'rateHz');
+   }else{const strategy=panel('测量策略','Strategy');units.note.create(strategy,{variant:'meta',text:tr('由仪器执行完整序列及重复次数。','The instrument executes the complete sequence and repetitions.')});}
+   const summary=panel('方案校验','Plan checks');
+   function refresh(){summary.replaceChildren();try{const s=model.timedSummary('pulse',values);units.note.create(summary,{variant:'meta',text:s.segments.length+' '+tr('段','segments')+' × '+s.loops+' · '+s.durationS+' s · '+tr('预计记录 ','Estimated records ')+s.estimatedRecords});if(s.loadOhms===null||values.currentRangeA==='')units.note.create(summary,{variant:'warning',text:tr('请选择负载及固定电流档。','Set the load and fixed current range.')});}catch(e){units.note.create(summary,{variant:'warning',text:String(e.message||e)});}}
+   refresh();
+  }
   const dcLayout=(host,className)=>units.layout.create(host,{variant:'identity',className});
   const dcPanel=(host,title,className,{actions,sizing='content'}={})=>units.panel.create(host,{
    variant:'headed',title,sizing,className,actions
@@ -947,6 +989,7 @@
      }
    }
    if(page.kind==='pulse'){
+    if(settings.arb){const port=pulsePort(page,settings);if(port.pmuVerified&&settings.currentRangeA&&!hardware.getPmuCurrentRanges(settings.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))throw Object.assign(Error(tr('该电流档与实装 PMU/RPM 不匹配。','This range is incompatible with installed PMU/RPM.')),{field:'currentRangeA'});return result;}
     const issue=pulseCompatibility(settings,result);
     if(issue)throw Error(issue);
     if(settings.secondary){const secondary={...settings,...settings.secondary,secondary:null,sweep:'amplitude'},summary={...result.secondary,totalSweepPoints:result.totalSweepPoints};const outerIssue=pulseCompatibility(secondary,summary);if(outerIssue)throw Error('Psweep: '+outerIssue);}
