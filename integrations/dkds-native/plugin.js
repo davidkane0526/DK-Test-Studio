@@ -2592,8 +2592,8 @@
      },event,value);
     }});
    }
-   units.note.create(form,{variant:'meta',text:tr('用于直流和时间扫描的 SMU 读数。较长的积分时间可降低噪声，也会增加采样耗时。',
-    'Applies to SMU readings in DC and time sweeps. Longer integration reduces noise and increases acquisition time.')});
+   units.note.create(form,{variant:'meta',text:tr('较长的积分时间可降低噪声，也会增加采样耗时。',
+    'Longer integration reduces noise and increases acquisition time.')});
   }
   const instrumentCommands=[
    {id:'dkts-workspace-connect',order:8,label:connectionLabel,
