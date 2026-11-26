@@ -51,7 +51,7 @@
  const TIME_TERMINALS=['D','G','S','B'];
  const timeTerminalDefaults=value=>Object.fromEntries(TIME_TERMINALS.map(key=>[key,value]));
  const TIMED_DEFAULTS=Object.freeze({
-  time:Object.freeze({mode:'linear-step',pmu:null,reference:'',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),voltageLimitsV:Object.freeze(timeTerminalDefaults('')),
+  time:Object.freeze({mode:'linear-step',smuMode:'',pmu:null,reference:'',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),voltageLimitsV:Object.freeze(timeTerminalDefaults('')),
    switchStepS:'0.1',sampleStepS:'0.1',listDelayS:'0.1',cycles:'1',integrationPreset:'instrument',integrationS:'',
    segments:Object.freeze([{durationS:'1',bias:timeTerminalDefaults('0'),currentBias:timeTerminalDefaults('0')}]),
    events:Object.freeze([{terminal:'D',quantity:'Current',startS:'0.1',intervalS:'0.1',averageS:'0.02',points:'9'}])}),
@@ -68,7 +68,7 @@
   }))};
  }
  function defaultPmuTimeSettings(){
-  return {...clone(TIMED_DEFAULTS.pulse),testMode:'bias-steps',biasSteps:defaultBiasSteps()};
+  return {...clone(TIMED_DEFAULTS.pulse),testMode:'bias-steps',rangeV:'auto',biasSteps:defaultBiasSteps()};
  }
  // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
  const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});

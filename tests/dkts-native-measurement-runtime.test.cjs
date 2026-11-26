@@ -515,5 +515,15 @@ test('PMU time keeps legacy profiles and selects auto edges for the installed ha
  const levels=pmu.biasSteps.segments.map((segment,i)=>({...segment,biasV:['0','1','12'][i],measure:false}));
  assert.deepEqual(Array.from(t({rangeV:'40',biasSteps:{...pmu.biasSteps,segments:levels}}).transitionUs),[0.05,0.1]);
  assert.equal(t({sampleStepUs:'2.5'}).rateHz,400000);
+ const highBias={...pmu.biasSteps,segments:pmu.biasSteps.segments.map((row,i)=>i===1?{...row,biasV:'8'}:row)};
+ assert.equal(t({biasSteps:highBias}).rangeV,10);
+ const loaded={...pmu,biasSteps:highBias,loadOhms:'100',currentRangeA:'0.01'};
+ assert.equal(t(loaded).rangeV,40);
+ const compiled=modules.get('dkts-kxci-measurement').compileSweep(
+  {executionMode:'pulse',settings:loaded,resource:'PMU1-1',wiringConfirmed:true},{capabilities,inventory}
+ ).pulse;
+ assert.ok(compiled.setup.includes(':PMU:SOURCE:RANGE 1,40'));
+ assert.equal(compiled.durationTicksExact,String(capabilities.segmentArbPreview(loaded,0,{withRpm:true}).durationTicks));
+ assert.throws(()=>t({...loaded,loadOhms:'1'}),/输出能力/);
  assert.throws(()=>t({sampleStepUs:'0.001'}),/采样步长/);
 });

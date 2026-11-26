@@ -288,7 +288,7 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
     let input;
     const pmuTime=page.kind==='time'&&page.timing.mode===model.TIME_PMU_MODE;
     if(page.kind==='pulse'||pmuTime){
-     const v=pmuTime?page.timing.pmu:page.timing,resource=resolvePulsePort(page.terminals.find(t=>t.logical===v.terminal)?.resource,v.channel);
+     const v=pmuTime?{...page.timing.pmu,rangeV:'auto'}:page.timing,resource=resolvePulsePort(page.terminals.find(t=>t.logical===v.terminal)?.resource,v.channel);
      protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,[]);
      input={executionMode:'pulse',settings:v,summary:pmuTime?null:model.timedSummary('pulse',v),resource,wiringConfirmed:true};
      if(v.testMode==='sequence'&&v.arbPartner){const settings={...v,...v.arbPartner,rateHz:v.rateHz,arbPartner:null,secondary:null};input.arbPartner={settings,resource:resolvePulsePort(page.terminals.find(t=>t.logical===settings.terminal)?.resource,settings.channel),wiringConfirmed:true};}

@@ -351,6 +351,23 @@ function segmentArbSampleRate(settings){
   throw Object.assign(Error('PMU 采样步长须为 0.005–1000 µs'),{field:'sampleStepUs'});
  return Math.round(1e6/step);
 }
+function segmentArbVoltageRange(settings){
+ if(settings.rangeV!=='auto')return Number(settings.rangeV);
+ const rows=settings.biasSteps?.segments||[];
+ const voltages=rows.map((row,index)=>{
+  const bias=Number(row?.biasV);
+  if(!String(row?.biasV??'').trim()||!Number.isFinite(bias))
+   throw Object.assign(Error('第 '+(index+1)+' 行偏置电压无效'),{field:'biasSteps.segments.'+index+'.biasV'});
+  return Math.abs(bias);
+ });
+ const peak=Math.max(0,...voltages),load=settings.loadOhms;
+ for(const range of getModuleCapability('PMU').output.rangesV){
+  const max=load===''?range:getPulseOutputLimits('pmu',range,load).maxVoltageV;
+  if(peak<=max+1e-12)return range;
+ }
+ const index=voltages.indexOf(peak);
+ throw Object.assign(Error('偏置超过 PMU 在当前负载下的输出能力'),{field:'biasSteps.segments.'+index+'.biasV'});
+}
 function expandBiasSteps(settings,{withRpm=false}={}){
  const plan=settings.biasSteps;
  if(!Array.isArray(plan?.segments)||plan.segments.length<1||plan.segments.length>2048)
@@ -393,8 +410,9 @@ function expandBiasSteps(settings,{withRpm=false}={}){
 }
 function normalizeSegmentArb(settings,context){
  if(settings?.testMode==='bias-steps'){
-  const arb=expandBiasSteps(settings,context),rateHz=segmentArbSampleRate(settings);
-  const summary=normalizeSegmentArb({...settings,testMode:'sequence',rateHz,arb});
+  const rangeV=segmentArbVoltageRange(settings),rateHz=segmentArbSampleRate(settings);
+  const arb=expandBiasSteps({...settings,rangeV},context);
+  const summary=normalizeSegmentArb({...settings,testMode:'sequence',rangeV,rateHz,arb});
   return Object.freeze({...summary,transitionUs:Object.freeze(arb.transitionUs)});
  }
  const v=settings,arb=v?.arb;
@@ -623,7 +641,7 @@ function segmentArbPreview(settings,blockIndex=0,context){
     });
   }
   function exportDatabase() { return JSON.parse(JSON.stringify(DATABASE)); }
-  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, normalizeSegmentArb, normalizeArbPair, segmentArbPreview, segmentArbSampleRate, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
+  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, normalizeSegmentArb, normalizeArbPair, segmentArbPreview, segmentArbSampleRate, segmentArbVoltageRange, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
   if (typeof window !== 'undefined') {
     window.DKTSHardwareCapabilities = api;
     if (window.DKDSPluginModules) window.DKDSPluginModules.define('com.dkts.keithley-4200', 'dkts-capabilities', api);
