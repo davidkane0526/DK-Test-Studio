@@ -547,3 +547,27 @@ test('SMU time preview uses inclusive indices and estimates programmed waits onl
  assert.deepEqual({...listTimes.readings[60]},{at:15.25,segment:1});
  assert.equal(model.timePreviewGrid({...list,listDelayS:'0'},'time').durationS,0);
 });
+
+test('test and routine duplication preserve settings and order with fresh project identities',()=>{
+ const {modules}=loadModules(),model=modules.get('model');
+ const base=model.validate(model.initial());
+ const copied=model.duplicateSetup(base,'test','page-1','2');
+ assert.deepEqual(Array.from(copied.pages,row=>row.id),['page-1','page-3','page-4','page-2']);
+ assert.deepEqual(copied.pages[1].dc,copied.pages[0].dc);
+ assert.equal(copied.pages[1].routineId,'routine-1');
+ assert.equal(base.pages.length,2);
+ const cloned=model.duplicateSetup(copied,'routine','routine-1','2');
+ assert.equal(cloned.routines.length,3);
+ assert.deepEqual(Array.from(cloned.pages.filter(row=>row.routineId==='routine-2'),row=>row.kind),['dc','dc','dc','time']);
+ assert.equal(new Set(cloned.pages.map(row=>row.id)).size,cloned.pages.length);
+ const order=['page-2','page-1','page-3','page-4'];
+ assert.deepEqual(Array.from(model.reorderTests(cloned,'routine-1',order).pages.slice(0,4),row=>row.id),order);
+ assert.throws(()=>model.reorderTests(cloned,'routine-1',order.slice(1)),/已变化/);
+ assert.throws(()=>model.duplicateSetup(base,'test','page-1','128'),/工程容量/);
+ const template=model.templateSnapshot(copied,'routine','routine-1');
+ assert.equal(template.pages[0].id,undefined);
+ assert.equal(template.pages[0].routineId,undefined);
+ const restored=model.insertSetup(base,{...template,name:'工作模板'});
+ assert.equal(restored.routines.at(-1).name,'工作模板');
+ assert.deepEqual(Array.from(restored.pages.slice(2),row=>row.kind),['dc','dc','dc','time']);
+});

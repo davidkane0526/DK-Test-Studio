@@ -321,7 +321,7 @@ const ctx={
  assert.equal(JSON.stringify(state.pages[0]),oldIv);
  const beforeTime=record.fields.length;
  record.actions.findLast(row=>row.id==='library-time').onInvoke();
- assert.ok(record.layoutSpecs.some(spec=>spec.tagName==='canvas'&&spec.className==='dkts-time-waveform'));
+ assert.ok(record.plotViews.some(view=>view.id.startsWith('dkts-plan-')&&view.spec.images));
  const timeMode=record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-mode');
  assert.equal(timeMode.spec.kind,'select');
  assert.equal(timeMode.control.value,'smu-bias');

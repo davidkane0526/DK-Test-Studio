@@ -389,8 +389,17 @@
  flex:0 0 min(var(--dkds-unit-template-height,258px),75%);min-height:0;box-sizing:border-box;overflow:auto
 }
 #dktsKeithley4200Page .dkts-library-section[data-dkts-library-collapsed=true]{flex-basis:auto;overflow:visible}
-#dktsKeithley4200Page .dkts-library-section[data-dkts-library-collapsed=true] .dkts-test-library,
+#dktsKeithley4200Page .dkts-library-section[data-dkts-library-collapsed=true] .dkts-template-groups,
 #dktsKeithley4200Page .dkts-template-handle[hidden]{display:none}
+#dktsKeithley4200Page .dkts-template-group{display:flex;flex-direction:column;min-width:0}
+#dktsKeithley4200Page .dkts-template-toggle{align-self:flex-start;text-align:start;justify-content:flex-start}
+#dktsKeithley4200Page .dkts-template-toggle::before{content:"▸";margin-inline-end:6px}
+#dktsKeithley4200Page .dkts-template-toggle[aria-expanded=true]::before{content:"▾"}
+#dktsKeithley4200Page .dkts-template-group>.dkts-test-library[hidden]{display:none}
+.dkts-routine-settings{z-index:var(--dkds-layer-global-float,2400);inline-size:min(390px,calc(100vw - 16px));max-block-size:calc(100dvh - 16px);overflow:auto}
+.dkts-routine-settings [data-dkds-unit-popover-body]{padding:10px;display:grid;gap:8px}
+.dkts-routine-sort-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:6px}
+.dkts-routine-sort-actions{display:flex;justify-content:space-between;gap:6px}
 #dktsKeithley4200Page .dkts-library-heading{white-space:nowrap}
 #dktsKeithley4200Page [data-dkts-resize]{
  --dkds-split-grip-length:24px;--dkds-split-grip-inset:2px
@@ -444,7 +453,6 @@
 #dktsKeithley4200Page .dkts-bias-step-layout{
  display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:8px
 }
-#dktsKeithley4200Page .dkts-bias-step-layout .dkts-timing-fields:has(>.dkts-time-waveform){grid-template-columns:minmax(0,1fr)}
 #dktsKeithley4200Page .dkts-pmu-time-settings,
 #dktsKeithley4200Page .dkts-time-grid-fields{
  grid-template-columns:repeat(auto-fit,minmax(min(100%,112px),1fr));gap:8px;align-items:end
@@ -478,6 +486,7 @@
 .dkts-smu-timing-popover{
  z-index:var(--dkds-layer-global-float,2400);inline-size:min(410px,calc(100vw - 16px));pointer-events:none
 }
+.dkts-short-time-tip{inline-size:min(270px,calc(100vw - 16px));padding:8px 10px}
 .dkts-smu-timing-popover [data-dkds-unit-popover-body]{padding:10px;display:grid;gap:8px}
 .dkts-smu-timing-diagram{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
 .dkts-smu-timing-phase{
@@ -695,13 +704,12 @@
 #dktsKeithley4200Page .dkts-time-event{grid-template-columns:repeat(6,minmax(0,1fr)) 32px}
 #dktsKeithley4200Page .dkts-time-event.dkts-time-signal{grid-template-columns:repeat(2,minmax(0,180px)) 32px}
 #dktsKeithley4200Page :is(.dkts-time-segment,.dkts-time-event)>:last-child{justify-self:start}
-#dktsKeithley4200Page .dkts-time-preview-toolbar{
- display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 10px
-}
-#dktsKeithley4200Page .dkts-time-preview-axis{inline-size:min(136px,100%);margin-inline-start:auto}
-#dktsKeithley4200Page .dkts-time-preview-key{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
-#dktsKeithley4200Page .dkts-time-preview-terminal{display:inline-flex;align-items:center;gap:5px}
-#dktsKeithley4200Page .dkts-time-waveform{display:block;width:100%;height:auto;min-width:0}
+#dktsKeithley4200Page .dkts-plan-summary,
+#dktsKeithley4200Page .dkts-timing-fields>.dkts-parameter-issue{grid-column:1/-1}
+#dktsKeithley4200Page .dkts-plan-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#dktsKeithley4200Page .dkts-plan-plot-card{min-width:0}
+#dktsKeithley4200Page .dkts-plan-plot{min-width:0;min-height:240px}
+#dktsKeithley4200Page .dkts-plan-plot-card .dkts-frame-actions{flex-wrap:wrap}
 @container (max-width:900px){
  #dktsKeithley4200Page .dkts-time-workspace{grid-template-columns:minmax(0,1fr)}
 }

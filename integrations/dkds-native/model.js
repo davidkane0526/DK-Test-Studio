@@ -1022,6 +1022,89 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   s.sequence++;s.pages.push(page(kind,id,target));
   s.activeId=id;s.activeRoutineId=target;return validate(s);
  }
+ function templateSnapshot(state,kind,id){
+  const s=validate(state);
+  if(kind==='test'){
+   const page=s.pages.find(row=>row.id===id);
+   if(!page)throw Error('测试已不存在');
+   return {kind,name:page.name,pages:[templatePage(page)]};
+  }
+  const routine=s.routines.find(row=>row.id===id);
+  const pages=s.pages.filter(row=>row.routineId===id);
+  if(kind!=='routine'||!routine||!pages.length)throw Error('流程需要至少一个测试');
+  return {kind,name:routine.name,loops:routine.loops,pages:pages.map(templatePage)};
+ }
+ function templatePage(page){
+  const {kind,name,testType,note,terminals,sweep,dc,timing,target,targets,variables}=clone(page);
+  if(dc){dc.specIds=[];dc.bodyResource='None';}
+  return {kind,name,testType,note,terminals,sweep,dc,timing,target,targets,variables};
+ }
+ function numberedCopy(name,n){
+  const suffix=' ('+n+')';
+  return name.slice(0,64-suffix.length)+suffix;
+ }
+ function insertSetup(state,setup,{after=null,count='1',copy=false}={}){
+  const s=validate(state),n=positiveInt(count,128,'复制次数');
+  const routineMode=setup?.kind==='routine';
+  if(!['test','routine'].includes(setup?.kind)||!Array.isArray(setup.pages)||!setup.pages.length||
+     !routineMode&&setup.pages.length!==1)throw Error('测试模板无效');
+  if(s.pages.length+n*setup.pages.length>128||routineMode&&s.routines.length+n>100)
+   throw Error('超过工程容量：最多 128 个测试、100 个流程');
+  const existingRoutine=[...s.routines].find(row=>row.id===(routineMode?after:s.activeRoutineId));
+  const sourcePage=!routineMode&&after?s.pages.find(row=>row.id===after):null;
+  if(after&&(routineMode?!existingRoutine:!sourcePage))throw Error('复制来源已不存在');
+  const deviceId=existingRoutine?.deviceId||s.activeDeviceId;
+  const routineId=sourcePage?.routineId||s.activeRoutineId;
+  let pageIndex=sourcePage?s.pages.indexOf(sourcePage)+1:s.pages.length;
+  if(routineMode&&after){
+   const last=s.pages.findLastIndex(row=>row.routineId===after);
+   if(last>=0)pageIndex=last+1;
+  }
+  if(!routineMode&&!sourcePage)pageIndex=s.pages.findLastIndex(row=>row.routineId===routineId)+1;
+  const newPages=[],newRoutines=[];
+  const usedRows=routineMode?s.routines.filter(row=>row.deviceId===deviceId):s.pages.filter(row=>row.routineId===routineId);
+  const names=new Set(usedRows.map(row=>row.name)),usedIds=new Set(s.routines.map(row=>row.id));
+  for(let i=0;i<n;i++){
+   let name=setup.name;
+   for(let j=2;names.has(name)||(copy&&j===2);j++)name=numberedCopy(setup.name,j);
+   names.add(name);
+   let target=routineId;
+   if(routineMode){
+    let next=s.routines.length+newRoutines.length+1;
+    while(usedIds.has('routine-'+next))next++;
+    target='routine-'+next;
+    usedIds.add(target);
+    newRoutines.push({id:target,deviceId,name,loops:setup.loops});
+   }
+   for(const original of setup.pages){
+    const page=copy?clone(original):templatePage(original);
+    const {kind,testType,note,terminals,sweep,dc,timing,target:measurementTarget,targets,variables,associateSpecId}=page;
+    const pageId='page-'+(++s.sequence);
+    newPages.push({id:pageId,routineId:target,name:routineMode?page.name:name,kind,testType,note,terminals,sweep,dc,timing,
+     target:measurementTarget,targets,variables,associateSpecId:copy?associateSpecId:null});
+   }
+  }
+  const afterRoutineIndex=after?s.routines.indexOf(existingRoutine)+1:s.routines.length;
+  s.routines.splice(afterRoutineIndex,0,...newRoutines);
+  s.pages.splice(pageIndex,0,...newPages);
+  s.activeId=newPages[0].id;
+  return validate(s);
+ }
+ function duplicateSetup(state,kind,id,count){
+  const s=validate(state);
+  const setup=templateSnapshot(s,kind,id);
+  setup.pages=s.pages.filter(row=>kind==='test'?row.id===id:row.routineId===id);
+  return insertSetup(s,setup,{after:id,count,copy:true});
+ }
+ function reorderTests(state,routineId,order){
+  const s=validate(state);
+  const pages=new Map(s.pages.filter(row=>row.routineId===routineId).map(row=>[row.id,row]));
+  if(!Array.isArray(order)||order.length!==pages.size||new Set(order).size!==order.length||order.some(id=>!pages.has(id)))
+   throw Error('流程测试已变化，请重新打开设置');
+  let index=0;
+  s.pages=s.pages.map(row=>row.routineId===routineId?pages.get(order[index++]):row);
+  return s;
+ }
  function editSmuIntegration(s,preset){
   return validate({...s,smuIntegration:preset});
  }
@@ -1428,6 +1511,6 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,TIME_PMU_MODE,defaultPmuTimeSettings,pulseSecondarySettings,timeGrid,timePreviewGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,TIME_PMU_MODE,defaultPmuTimeSettings,templateSnapshot,insertSetup,duplicateSetup,reorderTests,pulseSecondarySettings,timeGrid,timePreviewGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();
