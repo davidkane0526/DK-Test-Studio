@@ -489,13 +489,14 @@ function compilePulsePair(input,hardware){
  return {...main,pulse,channels:{...main.channels,...outer.channels},active:[...main.active,...outer.active],totalPoints:pulse.estimatedRecords,requiresInterlock:main.requiresInterlock||outer.requiresInterlock,canExecute:main.canExecute&&outer.canExecute};
 }
 function compileSegmentArb(input,hardware){
- const {inventory,capabilities:h}=hardware,v=input.settings,s=h.normalizeSegmentArb(v),check=(b,m)=>{if(!b)throw Error(m)};
+ const {inventory,capabilities:h}=hardware,v=input.settings,check=(b,m)=>{if(!b)throw Error(m)};
  const m=/^PMU([1-9])-([12])$/.exec(input.resource||'');check(m,'请选择独立 PMU 通道');
  const card=Number(m[1]),sub=Number(m[2]),ch=2*(card-1)+sub;
  const cards=inventory?.slots?.filter(z=>['PMU','PGU'].includes(z.family))||[],ids=cards.map(z=>z.channel).sort((a,b)=>a-b);
  check(ids.length<=4&&ids.every((z,i)=>z===i+1)&&ch<=8,'核对 KCon 通道编号');
  const slot=cards.find(z=>z.family==='PMU'&&z.channel===card);check(slot?.physicalIdentityVerified&&slot.ratingsVerified,'PMU 模块未核验');
  const rpm=slot.rpmChannels?.includes(sub)===true;check(!rpm||input.wiringConfirmed===true,'请确认 RPM 接线');
+ const s=h.normalizeSegmentArb(v,{withRpm:rpm});
  check(s.loadOhms!==null,'请填写负载');
  const output=h.getPulseOutputLimits('pmu',s.rangeV,s.loadOhms);
  check(s.peakV<=output.maxVoltageV+1e-12,'峰值超过负载对应的输出能力');

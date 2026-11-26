@@ -1,13 +1,13 @@
 # DKTS Cloud Workspace snapshot
 
-- **Application version:** `V0.3.48`
-- **Development identity:** `a221` (provisional; based on GitHub `main` `534728d7d26ca0dec8060782e90b5735df4e6f6d`)
+- **Application version:** `V0.3.49`
+- **Development identity:** `a222` (provisional; based on GitHub `main` `40ee41feabf6e71fd5587ef92c4d4f124d11b471`)
 - **Previous UI source ZIP:** `DK-Test-Studio-V0.3.44-a212-source.zip`
 - **Previous UI source ZIP SHA-256:** `1d419c99922a00868ebd877486768a61b57d2274f2c69fb5f67c2379adf8c077`
 - **Pinned read-only DKDS source:** `20f056851a61d2144e9524c3ed568628d4b8557c`
 - **Pinned DKDS ZIP SHA-256:** `ebf283772098f0de6182c7472c9360dec88ec40de13248bd930cc2b54af73225`
-- **DKTS native plugin:** `0.8.34` (Plugin API 1.19; not the DKTS application version)
-- **Provisional staged Android versionCode:** `100221` (real final number is workflow-assigned)
+- **DKTS native plugin:** `0.8.35` (Plugin API 1.19; not the DKTS application version)
+- **Provisional staged Android versionCode:** `100222` (real final number is workflow-assigned)
 
 ## This round (2026-11-14)
 

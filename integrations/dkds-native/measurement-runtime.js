@@ -286,10 +286,11 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
     return {ready:false,canExecute:false,reason:connection.inventoryError||'尚未完成实际模块识别'};
    try{
     let input;
-    if(page.kind==='pulse'){
-     const v=page.timing,resource=resolvePulsePort(page.terminals.find(t=>t.logical===v.terminal)?.resource,v.channel);
+    const pmuTime=page.kind==='time'&&page.timing.mode===model.TIME_PMU_MODE;
+    if(page.kind==='pulse'||pmuTime){
+     const v=pmuTime?page.timing.pmu:page.timing,resource=resolvePulsePort(page.terminals.find(t=>t.logical===v.terminal)?.resource,v.channel);
      protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,[]);
-     input={executionMode:'pulse',settings:v,summary:model.timedSummary('pulse',v),resource,wiringConfirmed:true};
+     input={executionMode:'pulse',settings:v,summary:pmuTime?null:model.timedSummary('pulse',v),resource,wiringConfirmed:true};
      if(v.testMode==='sequence'&&v.arbPartner){const settings={...v,...v.arbPartner,rateHz:v.rateHz,arbPartner:null,secondary:null};input.arbPartner={settings,resource:resolvePulsePort(page.terminals.find(t=>t.logical===settings.terminal)?.resource,settings.channel),wiringConfirmed:true};}
      if(v.secondary&&v.testMode==='sweep'){const settings=model.pulseSecondarySettings(v);input.secondary={settings,summary:model.timedSummary('pulse',settings),resource:resolvePulsePort(page.terminals.find(t=>t.logical===settings.terminal)?.resource,settings.channel),wiringConfirmed:true};}
     }else{

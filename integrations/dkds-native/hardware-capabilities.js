@@ -344,15 +344,40 @@
     if (!mod.output.rangesV.includes(range)) throw Error('PMU/PGU 输出量程只能选择 10 V 或 40 V');
     return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.kxciMaxArrayValuesPerCommand || 128, kxciMaxArrayValuesPerCommand: mod.segmentArb.kxciMaxArrayValuesPerCommand || 128, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, kxciMinSegmentS: mod.segmentArb.kxciMinSegmentTimeS?.[String(range)] ?? mod.segmentArb.minSegmentTimeS[String(range)], hardwareMinSegmentNote: mod.segmentArb.hardwareMinSegmentNote || null, kxciMaxSegmentS: mod.segmentArb.kxciMaxSegmentTimeS || 1, kxciLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus, timeResolutionS: mod.segmentArb.timeResolutionS });
   }
-function expandBiasSteps(plan){
+function segmentArbSampleRate(settings){
+ if(settings.testMode!=='bias-steps'||settings.sampleStepUs==null||settings.sampleStepUs==='')return Number(settings.rateHz);
+ const step=Number(settings.sampleStepUs);
+ if(!Number.isFinite(step)||step<0.005||step>1000)
+  throw Object.assign(Error('PMU 采样步长须为 0.005–1000 µs'),{field:'sampleStepUs'});
+ return Math.round(1e6/step);
+}
+function expandBiasSteps(settings,{withRpm=false}={}){
+ const plan=settings.biasSteps;
  if(!Array.isArray(plan?.segments)||plan.segments.length<1||plan.segments.length>2048)
   throw Error('请设置 1–2048 行偏置');
- if(!String(plan.edgeUs??'').trim()||!Number.isFinite(Number(plan.edgeUs))||Number(plan.edgeUs)<=0)
+ const auto=plan.edgeUs==null||plan.edgeUs==='';
+ if(!auto&&(!String(plan.edgeUs).trim()||!Number.isFinite(Number(plan.edgeUs))||Number(plan.edgeUs)<=0))
   throw Object.assign(Error('偏置过渡时间必须大于 0'),{field:'biasSteps.edgeUs'});
- const segments=[];
+ const limits=getSegmentArbLimits('pmu',settings.rangeV);
+ const measured=plan.segments.some(row=>row?.measure===true);
+ const current=Number(settings.currentRangeA);
+ const currentRange=measured&&getPmuCurrentRanges(settings.rangeV,withRpm).includes(current)?current:null;
+ const segments=[],transitionTimes=new Set();
  let previous=0;
  const transitionTo=bias=>{
-  if(bias!==previous)segments.push({startV:previous,stopV:bias,durationUs:plan.edgeUs,measure:false});
+  if(bias===previous)return;
+  let durationUs=Number(plan.edgeUs);
+  if(auto){
+   const peak=Math.max(Math.abs(previous),Math.abs(bias),Math.abs(bias-previous));
+   const timing=getPulseTimingRecommendation(settings.rangeV,currentRange,measured,'pmu',measured&&withRpm,peak);
+   // At the unspecified 10 V boundary in the 40 V source-only spec, use the longer edge.
+   const hardwareMinimum=timing.transitionMinS??timing.transitionMinSAbove10V;
+   const recommended=timing.publishedTypicalTiming?.recommendedMinTransitionS??0;
+   const ticks=Math.ceil(Math.max(limits.kxciMinSegmentS,hardwareMinimum,recommended)/limits.timeResolutionS-1e-9);
+   durationUs=ticks/100;
+  }
+  transitionTimes.add(durationUs);
+  segments.push({startV:previous,stopV:bias,durationUs,measure:false});
   previous=bias;
  };
  for(const [index,row] of plan.segments.entries()){
@@ -364,11 +389,14 @@ function expandBiasSteps(plan){
    measureStartUs:row.measureStartUs??'0',measureStopUs:row.measureStopUs==null||row.measureStopUs===''?row.durationUs:row.measureStopUs});
  }
  transitionTo(0);
- return {segments,loops:plan.loops};
+ return {segments,loops:plan.loops,transitionUs:[...transitionTimes].sort((a,b)=>a-b)};
 }
-function normalizeSegmentArb(settings){
- if(settings?.testMode==='bias-steps')
-  return normalizeSegmentArb({...settings,testMode:'sequence',arb:expandBiasSteps(settings.biasSteps)});
+function normalizeSegmentArb(settings,context){
+ if(settings?.testMode==='bias-steps'){
+  const arb=expandBiasSteps(settings,context),rateHz=segmentArbSampleRate(settings);
+  const summary=normalizeSegmentArb({...settings,testMode:'sequence',rateHz,arb});
+  return Object.freeze({...summary,transitionUs:Object.freeze(arb.transitionUs)});
+ }
  const v=settings,arb=v?.arb;
  if(arb?.blocks!==undefined){
   if(!Array.isArray(arb.blocks)||arb.blocks.length<1||arb.blocks.length>512)throw Error('序列数量须为 1–512');
@@ -435,13 +463,13 @@ function normalizeArbPair(settings){
  if(main.durationTicksExact!==second.durationTicksExact)throw Error('双通道总时长必须相等；请设置明确的等待段，不自动补齐');
  return Object.freeze({...main,partner:second,totalEstimatedRecords:main.estimatedRecords+second.estimatedRecords});
 }
-function segmentArbPreview(settings,blockIndex=0){
+function segmentArbPreview(settings,blockIndex=0,context){
  // A single repeat of the selected block. This is planned output, not acquisition data.
  const biasSteps=settings?.testMode==='bias-steps';
- const arb=biasSteps?expandBiasSteps(settings.biasSteps):settings?.arb,blocks=arb?.blocks||[arb];
+ const arb=settings?.arb,blocks=biasSteps?[settings.biasSteps]:arb?.blocks||[arb];
  if(!Number.isInteger(blockIndex)||blockIndex<0||blockIndex>=blocks.length)throw Error('时序序列不存在');
- const b=blocks[blockIndex],summary=normalizeSegmentArb({...settings,testMode:biasSteps?'sequence':settings.testMode,
-  arbPartner:null,secondary:null,arb:{loops:b.loops,segments:b.segments}});
+ const b=blocks[blockIndex],summary=biasSteps?normalizeSegmentArb(settings,context):
+  normalizeSegmentArb({...settings,arbPartner:null,secondary:null,arb:{loops:b.loops,segments:b.segments}});
  let elapsed=0;
  const segments=summary.segments.map((s,index)=>{
   const startTicks=elapsed,endTicks=startTicks+s.durationTicks;elapsed=endTicks;
@@ -595,7 +623,7 @@ function segmentArbPreview(settings,blockIndex=0){
     });
   }
   function exportDatabase() { return JSON.parse(JSON.stringify(DATABASE)); }
-  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, normalizeSegmentArb, normalizeArbPair, segmentArbPreview, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
+  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, normalizeSegmentArb, normalizeArbPair, segmentArbPreview, segmentArbSampleRate, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
   if (typeof window !== 'undefined') {
     window.DKTSHardwareCapabilities = api;
     if (window.DKDSPluginModules) window.DKDSPluginModules.define('com.dkts.keithley-4200', 'dkts-capabilities', api);

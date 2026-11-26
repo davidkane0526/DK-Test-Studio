@@ -65,7 +65,7 @@ function makeInstrumentContext(modules,options={}){
      }
      if(command===':PMU:DATA:COUNT? 1\0')return reply('2\0');
      if(command===':PMU:DATA:GET 1,0,2,VH,IH,TH,SH\0'){
-      return reply(pulseReadCount++===0?'\0':'0.75,1E-6,0.00003,0;0.76,1.1E-6,0.000068,0\0');
+      return reply(pulseReadCount++===0?'\0':'0.75,1E-6,0.00003,0;0.76,1.1E-6,0.000061,0\0');
      }
      if(command==='ZE\0'||/^:PMU:(?:INIT |LOAD |SOURCE:RANGE |MEASURE:RANGE |SAMPLE:RATE |SARB:|OUTPUT:STATE |ABORT\0)/.test(command))return reply('ACK\0');
     }
@@ -425,22 +425,24 @@ test('Rev F scoped System Mode can run independently of the old User Mode gate',
 
 test('segmented pulse uses the verified PMU port, exact hold profile and original readback',async()=>{
  const {modules}=loadModules(),model=modules.get('model'),runtimeModule=modules.get('measurementRuntime');
- let project=model.add(model.initial(),'arb');
+ const seeded=model.validate(model.initial()),timePage=seeded.pages.find(p=>p.kind==='time');
+ let project=model.select(seeded,timePage.id);
+ project=model.editTiming(project,{mode:model.TIME_PMU_MODE});
  project=model.edit(project,'D',{resource:'PMU1-1'});
- const page=project.pages.at(-1);
- assert.equal(page.kind,'pulse');
- assert.equal(page.timing.testMode,'bias-steps');
- const steps={...page.timing.biasSteps,loops:'2',edgeUs:'2',segments:[
-  {...page.timing.biasSteps.segments[0],durationUs:'5'},
-  {...page.timing.biasSteps.segments[1],biasV:'0.8',durationUs:'25',measureStartUs:'3'},
-  {...page.timing.biasSteps.segments[2],durationUs:'4'}
+ const page=project.pages.find(p=>p.id===timePage.id),pmu=page.timing.pmu;
+ assert.equal(page.kind,'time');
+ assert.equal(page.timing.mode,model.TIME_PMU_MODE);
+ const steps={...pmu.biasSteps,loops:'2',segments:[
+  {...pmu.biasSteps.segments[0],durationUs:'5'},
+  {...pmu.biasSteps.segments[1],biasV:'0.8',durationUs:'25',measureStartUs:'3'},
+  {...pmu.biasSteps.segments[2],durationUs:'4'}
  ]};
- Object.assign(page.timing,{biasSteps:steps,loadOhms:'1000000',currentRangeA:'0.01'});
+ Object.assign(pmu,{biasSteps:steps,loadOhms:'1000000',currentRangeA:'0.01',sampleStepUs:'0.5'});
  const capabilities=modules.get('dkts-capabilities');
- const preview=capabilities.segmentArbPreview(page.timing);
- assert.equal(preview.durationTicks,3800);
+ const preview=capabilities.segmentArbPreview(pmu);
+ assert.equal(preview.durationTicks,3404);
  assert.deepEqual(Array.from(preview.segments,s=>[s.startV,s.stopV]),[[0,0],[0,.8],[.8,.8],[.8,0],[0,0]]);
- assert.deepEqual({...preview.segments[2].window},{startTicks:1000,endTicks:3200});
+ assert.deepEqual({...preview.segments[2].window},{startTicks:802,endTicks:3002});
  const hardware=modules.get('dkts-kxci-measurement');
  const fake=makeInstrumentContext(modules,{pmu:true});
  const blocked=runtimeModule.createRuntime(fake.ctx,{wait:async()=>{}});
@@ -464,12 +466,13 @@ test('segmented pulse uses the verified PMU port, exact hold profile and origina
   const prepared=runtime.prepare(page);
   assert.equal(prepared.canExecute,true,prepared.reason);
   const {pulse}=prepared.compiled;
-  assert.equal(pulse.durationTicksExact,'7600');
+  assert.equal(pulse.durationTicksExact,'6808');
   assert.equal(pulse.expected,2);
-  assert.ok(pulse.setup.includes(':PMU:SARB:SEQ:TIME 1,1,0.000005,0.000002,0.000025,0.000002,0.000004'));
+  assert.ok(pulse.setup.includes(':PMU:SARB:SEQ:TIME 1,1,0.000005,0.00000002,0.000025,0.00000002,0.000004'));
+  assert.ok(pulse.setup.includes(':PMU:SAMPLE:RATE 2000000'));
   assert.ok(pulse.setup.includes(':PMU:SARB:SEQ:MEAS:START 1,1,0,0,0.000003,0,0'));
   assert.ok(pulse.setup.includes(':PMU:SARB:SEQ:MEAS:STOP 1,1,0,0,0.000025,0,0'));
-  const invalidWindow={...page.timing,biasSteps:{...steps,segments:steps.segments.map((s,i)=>i===1?{...s,measureStopUs:'26'}:s)}};
+  const invalidWindow={...pmu,biasSteps:{...steps,segments:steps.segments.map((s,i)=>i===1?{...s,measureStopUs:'26'}:s)}};
   assert.throws(()=>hardware.compileSweep({...prepared.input,settings:invalidWindow},{inventory:prepared.inventory,capabilities}),/窗口/);
   runtime.start(page,true);
   const result=await runtime.waitForCompletion();
@@ -477,11 +480,40 @@ test('segmented pulse uses the verified PMU port, exact hold profile and origina
   assert.equal(result.run.shutdown,'commands-sent');
   assert.equal(result.rows,2);
   assert.deepEqual(Array.from(result.run.rows,r=>[r.timeS,r.pulseVoltageV,r.rawKxciResponse]),[
-   [0.00003,0.75,'0.75,1E-6,0.00003,0'],[0.000068,0.76,'0.76,1.1E-6,0.000068,0']
+   [0.00003,0.75,'0.75,1E-6,0.00003,0'],[0.000061,0.76,'0.76,1.1E-6,0.000061,0']
   ]);
   assert.equal(result.published.canonical,true);
   const commands=commissioned.commands.map(row=>row.command);
   assert.equal(commands.filter(c=>c===':PMU:EXECUTE\0').length,1);
   assert.ok(commands.indexOf(':PMU:OUTPUT:STATE 1,0\0')<commands.lastIndexOf(':PMU:DATA:GET 1,0,2,VH,IH,TH,SH\0'));
  }finally{await runtime.dispose();}
+});
+
+test('PMU time keeps legacy profiles and selects auto edges for the installed hardware and voltages',()=>{
+ const {modules}=loadModules(),model=modules.get('model'),capabilities=modules.get('dkts-capabilities');
+ const seed=model.validate(model.initial()),legacy=seed.pages.find(page=>page.kind==='time');
+ const pmu=model.defaultPmuTimeSettings();
+ Object.assign(legacy,{kind:'pulse',testType:'Pulse',name:'用户命名',timing:{...pmu,biasSteps:{...pmu.biasSteps,edgeUs:'1'}}});
+ const migrated=model.validate(seed).pages.find(page=>page.id===legacy.id);
+ assert.equal(migrated.kind,'time');
+ assert.equal(migrated.name,'用户命名');
+ assert.equal(migrated.timing.pmu.biasSteps.edgeUs,'1');
+ const t=options=>capabilities.normalizeSegmentArb({...pmu,...options});
+ assert.deepEqual(Array.from(t({}).transitionUs),[0.02]);
+ assert.deepEqual(Array.from(t({rangeV:'40',currentRangeA:'0.01'}).transitionUs),[0.1]);
+ const rpmSettings={...pmu,loadOhms:'1000000',currentRangeA:'0.0000001'};
+ const rpmPreview=capabilities.segmentArbPreview(rpmSettings,0,{withRpm:true});
+ const inventory={physicalModelsVerified:true,hardwareLimitsVerified:true,slots:[
+  {family:'PMU',channel:1,type:'PMURPM',rpmCount:2,rpmChannels:[1,2],physicalIdentityVerified:true,ratingsVerified:true}
+ ]};
+ const rpmProgram=modules.get('dkts-kxci-measurement').compileSweep(
+  {executionMode:'pulse',settings:rpmSettings,resource:'PMU1-1',wiringConfirmed:true},{capabilities,inventory}
+ ).pulse;
+ assert.equal(rpmProgram.durationTicksExact,String(rpmPreview.durationTicks));
+ assert.ok(rpmProgram.setup.includes(':PMU:SARB:SEQ:TIME 1,1,0.00001,0.000001,0.00001,0.000001,0.00001'));
+ assert.ok(rpmProgram.setup.includes(':PMU:RPM:CONFIGURE PMU1-1,0'));
+ const levels=pmu.biasSteps.segments.map((segment,i)=>({...segment,biasV:['0','1','12'][i],measure:false}));
+ assert.deepEqual(Array.from(t({rangeV:'40',biasSteps:{...pmu.biasSteps,segments:levels}}).transitionUs),[0.05,0.1]);
+ assert.equal(t({sampleStepUs:'2.5'}).rateHz,400000);
+ assert.throws(()=>t({sampleStepUs:'0.001'}),/采样步长/);
 });

@@ -47,10 +47,11 @@
  function invalidField(field,message){
   throw Object.assign(Error(message),{field});
  }
+ const TIME_PMU_MODE='pmu-segmented';
  const TIME_TERMINALS=['D','G','S','B'];
  const timeTerminalDefaults=value=>Object.fromEntries(TIME_TERMINALS.map(key=>[key,value]));
  const TIMED_DEFAULTS=Object.freeze({
-  time:Object.freeze({mode:'linear-step',reference:'',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),voltageLimitsV:Object.freeze(timeTerminalDefaults('')),
+  time:Object.freeze({mode:'linear-step',pmu:null,reference:'',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),voltageLimitsV:Object.freeze(timeTerminalDefaults('')),
    switchStepS:'0.1',sampleStepS:'0.1',listDelayS:'0.1',cycles:'1',integrationPreset:'instrument',integrationS:'',
    segments:Object.freeze([{durationS:'1',bias:timeTerminalDefaults('0'),currentBias:timeTerminalDefaults('0')}]),
    events:Object.freeze([{terminal:'D',quantity:'Current',startS:'0.1',intervalS:'0.1',averageS:'0.02',points:'9'}])}),
@@ -59,12 +60,15 @@
   pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',basePeakV:'',
    start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
    delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
-   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',secondary:null,arb:null,arbPartner:null,biasSteps:null,testMode:'sweep'})
+   pulseCount:'1',mode:'spot',rateHz:'1000000',sampleStepUs:'',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',secondary:null,arb:null,arbPartner:null,biasSteps:null,testMode:'sweep'})
  });
  function defaultBiasSteps(){
-  return {edgeUs:'1',loops:'1',segments:['0','1','0'].map((biasV,index)=>({
+  return {edgeUs:'',loops:'1',segments:['0','1','0'].map((biasV,index)=>({
    biasV,durationUs:'10',measure:index===1,measureStartUs:'0',measureStopUs:''
   }))};
+ }
+ function defaultPmuTimeSettings(){
+  return {...clone(TIMED_DEFAULTS.pulse),testMode:'bias-steps',biasSteps:defaultBiasSteps()};
  }
  // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
  const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});
@@ -181,6 +185,9 @@
  function timingSettings(kind,settings){
   const values={...clone(TIMED_DEFAULTS[kind]),...settings};
   if(kind==='time'){
+   if(values.mode===TIME_PMU_MODE||values.pmu!=null){
+    values.pmu=timingSettings('pulse',{...defaultPmuTimeSettings(),...values.pmu,testMode:'bias-steps'});
+   }
    values.sourceModes={...timeTerminalDefaults('voltage'),...values.sourceModes};
    values.voltageLimitsV={...timeTerminalDefaults(''),...values.voltageLimitsV};
    if(Array.isArray(values.segments))values.segments=values.segments.map(segment=>segment&&({
@@ -199,14 +206,14 @@
   return values;
  }
  function pulseSecondarySettings(v){return {...v,...v.secondary,secondary:null,sweep:v.secondary?.sweep??'amplitude',basePeakV:v.secondary?.basePeakV??'',rangePolicy:v.secondary?.rangePolicy??'fixed',prePercent:v.secondary?.prePercent??v.prePercent??'0',postPercent:v.secondary?.postPercent??v.postPercent??'0'};}
- function timedSummary(kind,settings){
+ function timedSummary(kind,settings,pmuContext){
   const defaults=TIMED_DEFAULTS[kind];
   if(!defaults)return null;
   const v=timingSettings(kind,settings);
-  if(kind==='time')return timeSummary(v);
+  if(kind==='time')return v.mode===TIME_PMU_MODE?timedSummary('pulse',v.pmu,pmuContext):timeSummary(v);
   if(kind==='pulse'&&['sequence','bias-steps'].includes(v.testMode)){
    const capabilities=window.DKDSPluginModules.require('com.dkts.keithley-4200','dkts-capabilities');
-   return v.testMode==='sequence'?capabilities.normalizeArbPair(v):capabilities.normalizeSegmentArb(v);
+   return v.testMode==='sequence'?capabilities.normalizeArbPair(v):capabilities.normalizeSegmentArb(v,pmuContext);
   }
   if(!['S','D','G'].includes(v.terminal))throw Error('Select a Source, Drain or Gate terminal');
   const n=key=>numeric(v[key],key);
@@ -412,7 +419,7 @@
  };
 
  const DC_PRESETS=Object.freeze(['optimized','point-by-point']);
- const ROUTINE_DEFAULTS=Object.freeze(['dc']);
+ const ROUTINE_DEFAULTS=Object.freeze(['dc','time']);
  const DC_METHODS=Object.freeze({
   constant:'Constant',step:'Linear Step',points:'Linear Points',log:'Log Points',list:'List',generator:'Generator'
  });
@@ -955,6 +962,11 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
     p.timing={...p.timing,testMode:p.timing?.testMode??(p.timing?.arb?'sequence':'bias-steps'),
      biasSteps:p.timing?.biasSteps??defaultBiasSteps()};
    }
+   if(p.kind==='pulse'&&p.timing?.testMode==='bias-steps'){
+    p.kind='time';
+    p.testType='IVT';
+    p.timing={mode:TIME_PMU_MODE,pmu:p.timing};
+   }
    if(TIMED_DEFAULTS[p.kind]){
     p.timing=timingSettings(p.kind,p.timing);
     timedSummary(p.kind,p.timing);
@@ -1402,6 +1414,6 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,defaultBiasSteps,pulseSecondarySettings,timeGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,TIME_PMU_MODE,defaultPmuTimeSettings,pulseSecondarySettings,timeGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

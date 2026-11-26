@@ -138,7 +138,7 @@ const artifactStore={
 const ctx={
  modules:{require:name=>registry.get('com.dkts.keithley-4200:'+name)},
  state:{create:(init,options)=>{assert.equal(options.projectSlice,'settings');
-  assert.deepEqual(Array.from(init.pages,page=>page.kind),['dc']);
+  assert.deepEqual(Array.from(init.pages,page=>page.kind),['dc','time']);
   state=ctx.modules.require('model').editPage(init,{kind:'iv'});
   return {get:()=>state,patch:delta=>{state={...state,...delta};}}}},
  project:{capture:()=>record.captures++},
