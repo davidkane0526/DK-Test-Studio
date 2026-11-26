@@ -643,6 +643,11 @@
  #dktsKeithley4200Page [data-dkts-dc-ports] [data-dkts-port-mobile]:not([hidden]){display:inline-flex!important}
 }
 #dktsKeithley4200Page .dkts-dc-port-popover{z-index:22}
+.dkts-smu-integration-popover{
+ z-index:var(--dkds-layer-global-float,2400);inline-size:min(320px,calc(100vw - 16px));
+ max-block-size:calc(100dvh - 16px);overflow-y:auto
+}
+.dkts-smu-integration-popover>[data-dkds-unit-popover-body]{padding:10px 12px}
 
 #dktsKeithley4200Page .dkts-time-setup{
  display:grid;grid-template-columns:minmax(0,1fr) minmax(118px,.2fr);gap:8px

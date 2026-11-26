@@ -338,7 +338,10 @@ const ctx={
  reference.spec.onChange({target:{value:'GND'}});
  assert.equal(currentTime().reference,'GND');
  const integration=record.toolbar.find(row=>row.spec.id==='dkts-workspace-smu-integration');
+ assert.equal(integration.button.textContent,'积分');
  integration.spec.onClick({currentTarget:integration.button});
+ assert.equal(record.popovers.at(-1).className,'dkts-smu-integration-popover');
+ assert.equal(record.popovers.at(-1).anchor,integration.button);
  record.fields.findLast(row=>row.spec.label==='工程默认').spec.onChange({target:{value:'long'}});
  assert.equal(state.smuIntegration,'long');
  integration.spec.onClick({currentTarget:integration.button});
@@ -356,7 +359,10 @@ const ctx={
  const beforeLinearPlan=record.fields.length;
  fieldAt('mode').spec.onChange({target:{value:'linear-step'}});
  assert.ok(record.fields.slice(beforeLinearPlan).some(isSwitchStep));
- assert.ok(record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-stop').spec.readOnly);
+ assert.ok(!record.fields.slice(beforeLinearPlan).some(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-stop'));
+ const timeField=key=>record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']===key);
+ assert.equal(timeField('time-segments').control.value,'10');
+ assert.equal(timeField('time-points').control.value,'10');
  record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-source-D').spec.onChange({target:{value:'current'}});
  record.fields.findLast(row=>row.spec.attributes?.['data-dkts-parameter-path']==='segments.0.currentBias.D').spec.onInput({target:{value:'0.001'}});
  record.actions.findLast(row=>row.id==='add-time-segment').onInvoke();
@@ -364,6 +370,10 @@ const ctx={
  assert.equal(plan.sourceModes.D,'current');
  assert.equal(plan.segments[1].currentBias.D,'0.001');
  assert.equal(plan.segments[1].bias.D,'0');
+ assert.equal(timeField('time-segments').control.value,'20');
+ fieldAt('segments.1.durationS').spec.onInput({target:{value:'2'}});
+ assert.equal(timeField('time-segments').control.value,'30');
+ assert.equal(timeField('time-points').control.value,'30');
  assert.ok(!record.actions.some(row=>/^dkts-save-(dc|time|timing)$/.test(row.id)));
  instance.deactivate();
  assert.ok(record.disposals>=1);

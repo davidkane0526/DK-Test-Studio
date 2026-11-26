@@ -1539,19 +1539,13 @@
    surface?.setAttribute?.('data-dkts-time-editor',editorSection);
    const smus=p.terminals.filter(term=>isSmu(term)&&(!(native||list)||term.logical!=='B'));
    surface?.style?.setProperty?.('--dkts-time-segment-fields',String(2+smus.length));
-   let canvas=null,legend=[],status=null,segmentCount=null,samplePoints=null,stop=null;
+   let canvas=null,legend=[],status=null,segmentCount=null,samplePoints=null;
    const timeValue=value=>Number.isFinite(value)?String(Number(value.toPrecision(12))):'—';
-   const totalDuration=()=>settings.segments.reduce((total,segment)=>{
-    const text=String(segment.durationS).trim();
-    const duration=Number(text);
-    return text&&duration>0?total+duration:NaN;
-   },0);
    function refreshPlan(){
     let plan=null,grid=null;
     try{grid=model.timeGrid(settings);}catch{}
     try{plan=model.timedSummary('time',settings);}catch{}
     const mapped=settings.events.every(event=>smus.some(term=>term.logical===event.terminal));
-    if(stop)stop.value=timeValue(totalDuration());
     if(segmentCount)segmentCount.value=String(grid?.segmentCount??'—');
     if(samplePoints)samplePoints.value=String(grid?.samplePoints??'—');
     if(status){
@@ -1589,12 +1583,10 @@
       'Set 1–4096 samples per cycle. Each point records all Target signals. Actual duration includes settling, integration and readout. Use the instrument timestamps.')});
     }else if(list){plannedText(controls,settings,'listDelayS','每点稳定等待 (s)','Settling delay per point (s)');}
     else{
-    stop=dcInput(controls,tr('终止时间 (s)','Stop (s)'),timeValue(totalDuration()),null,{
-     readOnly:true,key:'time-stop',help:tr('由下方各时段的持续时间相加。','Sum of the durations in the table below.')}).control;
     plannedText(controls,settings,'switchStepS','切换步长 (s)','Switching Step (s)');
     segmentCount=dcInput(controls,tr('切换步数','Segments'),'—',null,{readOnly:true,key:'time-segments',
-     help:tr('终止时间 ÷ 切换步长。各时段持续时间必须是切换步长的整数倍。',
-      'Stop time divided by Switching Step. Each row duration must be a whole number of switching steps.')}).control;
+     help:tr('单周期总时长 ÷ 切换步长。各时段持续时间必须是切换步长的整数倍。',
+      'Cycle duration divided by Switching Step. Each row duration must be a whole number of switching steps.')}).control;
     const sampleSteps=['0.01','0.02','0.05','0.1','0.2','0.5','1','2','5','10'];
     const preset=sampleSteps.find(value=>Number(value)===Number(settings.sampleStepS));
     const customSampling=draft.customSampling||!preset;
@@ -1626,8 +1618,8 @@
      for(const term of smus.filter(term=>settings.sourceModes[term.logical]==='current'))plannedText(protection,settings.voltageLimitsV,term.logical,term.logical+' · '+tr('电压保护 (V)','Voltage compliance (V)'),term.logical+' · Voltage compliance (V)','voltageLimitsV.'+term.logical);
     }
     if(!native)units.note.create(inputs,{variant:'meta',text:list?tr('每段指定采样点数。每点稳定等待不含采集耗时；实际时间来自仪器。','Set readings per segment. Settling delay excludes acquisition time; actual times come from the instrument.'):tr(
-     '持续时间决定该行偏置保持多久。切换步长决定各 SMU 可以更新输出的时间网格。',
-     'A row duration holds its bias. Switching Step sets the common grid for SMU output changes.')});
+     '各段持续时间相加得到单周期总时长。切换步长决定各 SMU 可以更新输出的时间网格。',
+     'Row durations add up to the cycle duration. Switching Step sets the common grid for SMU output changes.')});
     const table=dcLayout(inputs,'dkts-time-table');
     if(!smus.length)units.note.create(table,{variant:'warning',text:tr('请在工程顶栏分配 SMU 端子。','Assign an SMU terminal in the project toolbar.')});
     if(!native){
@@ -2570,7 +2562,7 @@
    if(!instrumentIdle())return;
    smuIntegrationPopover?.close?.();
    const title=tr('SMU 积分档','SMU integration'),s=state(),p=s.pages.find(row=>row.id===s.activeId);
-   const pop=units.popover.create(null,{variant:'picker',title,role:'dialog',ariaLabel:title,anchor,placement:'bottom-start',
+   const pop=units.popover.create(null,{variant:'picker',className:'dkts-smu-integration-popover',title,role:'dialog',ariaLabel:title,anchor,placement:'bottom-start',
     dismissOnOutside:true,offset:4,onClose:()=>{if(smuIntegrationPopover===pop)smuIntegrationPopover=null;}});
    smuIntegrationPopover=pop;
    const form=units.layout.create(pop.body,{variant:'stack-compact'});
@@ -2613,7 +2605,7 @@
      if(measurementRuntime.status().connection.phase==='connected')void updateInstrument();
      else void connectFromToolbar();
     }},
-   {id:'dkts-workspace-smu-integration',order:10,label:()=>tr('SMU 积分','SMU Integration'),enabled:instrumentIdle,
+   {id:'dkts-workspace-smu-integration',order:10,label:()=>tr('积分','Integration'),title:()=>tr('SMU 积分档','SMU integration'),enabled:instrumentIdle,
     onInvoke:({button}={})=>openSmuIntegration(button)},
    {id:'dkts-workspace-language',order:11,label:()=>tr('EN','中文'),title:languageTitle,onInvoke:toggleLanguage}
   ].map(action=>({...action,variant:'quiet'}));
