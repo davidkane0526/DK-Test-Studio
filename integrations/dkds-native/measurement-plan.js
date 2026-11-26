@@ -150,7 +150,7 @@
 
   // Multi-segment, nested-parameter DC scan planner. This is a read-only
   // validation/preview contract, NOT an instrument execution implementation.
-  const DC_ROLES=Object.freeze(['source','drain','gate']);
+  const DC_ROLES=Object.freeze(['source','drain','gate','body']);
   const SCIENTIFIC_RANGES=Object.freeze([1e-12,1e-11,1e-10,1e-9,1e-8,1e-7,
     1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1]);
   function formatCurrentRange(value){
@@ -168,12 +168,14 @@
       throw Error(label+' 的子通道编号只适用于 PMU/PGU');
     return {name:raw,family:match[1],number:Number(match[2]),subchannel:match[3]?Number(match[3]):null};
   }
-  function sweepSegment(input,index,axisName){
+  function sweepSegment(input,index,axisName,mode='voltage'){
     if(!input||typeof input!=='object')throw Error(axisName+' 第 '+index+' 段参数无效');
     const label=axisName+' 第 '+index+' 段';
-    const startV=finite(input.startV,label+' 起点',-210,210);
-    const stopV=finite(input.stopV,label+' 终点',-210,210);
-    const stepV=finite(input.stepV,label+' 步长',-420,420);
+    const current=mode==='current',max=current?1.05:210;
+    const startV=finite(current?input.startA:input.startV,label+' 起点',-max,max);
+    const stopV=finite(current?input.stopA:input.stopV,label+' 终点',-max,max);
+    const stepV=finite(current?input.stepA:input.stepV,label+' 步长',-2*max,2*max);
+    const quantities=current?{startA:startV,stopA:stopV,stepA:stepV}:{startV,stopV,stepV};
     const rangeA=String(input.rangeA??'auto').toLowerCase();
     if(rangeA!=='auto'&&!SCIENTIFIC_RANGES.some(v=>
       Math.abs(v-Number(rangeA))<=v*1e-12))
@@ -181,7 +183,7 @@
     const delta=stopV-startV;
     if(delta===0){
       if(stepV!==0)throw Error(label+' 起止相同必须使用 0 步长');
-      return Object.freeze({startV,stopV,stepV,points:1,
+      return Object.freeze({...quantities,points:1,
         rangeA,
         delayMs:input.delayMs==null||input.delayMs===''?null:
           finite(input.delayMs,label+' 点间延迟',0,6553)});
@@ -194,23 +196,24 @@
       throw Error(label+' 步长不能准确到达终点，请修改起点、终点或步长');
     // Per-command KXCI list capacity, not a guessed hardware voltage limit.
     if(nearest+1>4096)throw Error(label+' 超过 KXCI 单段 4096 点，请拆分扫描段');
-    return Object.freeze({startV,stopV,stepV,points:nearest+1,
+    return Object.freeze({...quantities,points:nearest+1,
       rangeA,
       delayMs:input.delayMs==null||input.delayMs===''?null:
         finite(input.delayMs,label+' 点间延迟',0,6553)});
   }
-  function sweepAxis(input,name,defaultRole){
+  function sweepAxis(input,name,defaultRole,sourceModes={}){
     if(!input||typeof input!=='object')throw Error(name+' 设置缺失');
     const terminal=String(input.terminal||defaultRole).toLowerCase();
     if(!DC_ROLES.includes(terminal))throw Error(name+' 必须指定源极、漏极或栅极');
     const delayMs=finite(input.delayMs??20,name+' 点间延迟',0,6553);
     const repeats=count(input.repeats??1,name+' 重复次数',1,10000);
-    if(!Array.isArray(input.segments)||input.segments.length<1||input.segments.length>256)
-      throw Error(name+' 需要 1–256 个连续扫描段');
-    const segments=input.segments.map((row,i)=>sweepSegment(row,i+1,name));
+    if(!Array.isArray(input.segments)||input.segments.length<1||input.segments.length>4096)
+      throw Error(name+' 需要 1–4096 个扫描段');
+    const sourceMode=sourceModes[terminal]||'voltage';
+    const segments=input.segments.map((row,i)=>sweepSegment(row,i+1,name,sourceMode));
     const points=segments.reduce((sum,row)=>sum+row.points,0);
     if(!Number.isSafeInteger(points))throw Error(name+' 点数超出安全整数范围');
-    return Object.freeze({terminal,delayMs,repeats,segments,points});
+    return Object.freeze({terminal,sourceMode,delayMs,repeats,segments,points});
   }
   function pointOnAxis(axis,index){
     let offset=index;
@@ -239,10 +242,13 @@
       }
       terminalChannels[role]=channel.name;
     }
-    const x=sweepAxis(program.xSweep,'Xsweep',kind==='transfer'?'gate':'drain');
+    const sourceModes=Object.fromEntries(DC_ROLES.map(r=>[r,program.sourceModes?.[r]||'voltage']));
+    if(Object.values(sourceModes).some(m=>!['voltage','current'].includes(m)))throw Error('源模式无效');
+    if(Object.values(sourceModes).includes('current')&&input.executionMode!=='system')throw Error('电流源目前仅支持 Optimized 原生扫描');
+    const x=sweepAxis(program.xSweep,'Xsweep',kind==='transfer'?'gate':'drain',sourceModes);
     const pEnabled=program.pSweep?.enabled===true;
     const p=pEnabled?sweepAxis(program.pSweep,'Psweep',
-      x.terminal==='gate'?'drain':'gate'):null;
+      x.terminal==='gate'?'drain':'gate',sourceModes):null;
     if(p&&p.terminal===x.terminal)
       throw Error('Psweep 和 Xsweep 不能扫描同一个电极');
     if(['None','GNDU'].includes(terminalChannels[x.terminal])||
@@ -263,6 +269,23 @@
       if(['None','GNDU'].includes(terminalChannels[role])&&fixedVoltages[role]!==0)
         throw Error(role+' 未分配源通道或为 GNDU，不能施加非零偏置');
     }
+    const fixedCurrents=Object.fromEntries(DC_ROLES.map(r=>[r,finite(program.fixedCurrents?.[r]??0,r+' 固定电流',-1.05,1.05)]));
+    for(const r of DC_ROLES){if(sourceModes[r]==='current'&&!/^SMU[1-9]$/.test(terminalChannels[r]))throw Error('电流源需要 SMU');if(sourceModes[r]==='current'&&fixedVoltages[r]!==0||sourceModes[r]==='voltage'&&fixedCurrents[r]!==0)throw Error('固定偏置单位不匹配');}
+    const generators=Object.create(null);
+    for(const [role,g] of Object.entries(program.generators||{})){
+      if(input.executionMode!=='system'||!DC_ROLES.includes(role)||!/^SMU[1-9]$/.test(terminalChannels[role])||role===x.terminal||role===p?.terminal||sourceModes[role]!=='voltage'||sourceModes[x.terminal]!=='voltage')throw Error('Generator 需要独立电压 SMU 和原生电压 Xsweep');
+      const ratio=finite(g?.ratio,'Generator ratio',-10,10),offset=finite(g?.offset,'Generator offset',-210,210);
+      if(fixedVoltages[role]!==0||fixedCurrents[role]!==0)throw Error('Generator 与固定输出冲突');
+      const segments=x.segments.map(s=>{const a=s.startV*ratio+offset,b=s.stopV*ratio+offset;return {startV:finite(a,'Generator 起点',-210,210),stopV:finite(b,'Generator 终点',-210,210),rangeA:'auto'};});
+      generators[role]=Object.freeze({ratio,offset,segments:Object.freeze(segments.map(Object.freeze))});
+    }
+    const listFollowers=Object.create(null);
+    for(const [role,values] of Object.entries(program.listFollowers||{})){
+      if((!input.timeList&&!input.dcList)||input.executionMode!=='system'||!DC_ROLES.includes(role)||!/^SMU[1-9]$/.test(terminalChannels[role])||role===x.terminal||p||generators[role]||!Array.isArray(values)||values.length!==x.points||x.points>4096||fixedVoltages[role]!==0||fixedCurrents[role]!==0)throw Error('从属列表与主列表或端口冲突');
+      const current=sourceModes[role]==='current',max=current?1.05:210;
+      const numbers=values.map(v=>finite(v,role+' 从属列表电平',-max,max));
+      listFollowers[role]=Object.freeze({values:Object.freeze(numbers),segments:Object.freeze(numbers.map(v=>Object.freeze(current?{startA:v,stopA:v,rangeA:'auto'}:{startV:v,stopV:v,rangeA:'auto'})))});
+    }
     const caps=capabilityApi(hardware);
     const inventory=hardware.inventory;
     const configured=Array.isArray(inventory?.slots);
@@ -280,12 +303,15 @@
       if(!['follow-range','custom'].includes(complianceMode))
         throw Error(role+' 的电流保护模式无效');
       const rangeA=String(entry.rangeA??'1e-6').toLowerCase();
-      const complianceA=positive(entry.complianceA??1e-4,role+' 电流保护值');
+      const current=sourceModes[role]==='current';
+      const complianceV=current?positive(entry.complianceV,role+' 电压保护值'):null;
+      if(current&&(complianceV>210||rangeMode!=='auto'))throw Error('电流源仅支持自动测量量程及不超过 210 V 的电压保护');
+      const complianceA=current?null:positive(entry.complianceA??1e-4,role+' 电流保护值');
       if(complianceA>1.05+1e-15)
         throw Error(role+' 电流保护值超过 4200A 高功率 SMU 的理论上限 1.05 A');
       if(rangeMode!=='auto'&&!SCIENTIFIC_RANGES.some(v=>String(v)===String(Number(rangeA))))
         throw Error(role+' 固定量程/自动量程下限必须为原厂支持的离散档位');
-      portSettings[role]=Object.freeze({rangeMode,complianceMode,rangeA,complianceA});
+      portSettings[role]=Object.freeze({rangeMode,complianceMode,rangeA,complianceA,complianceV});
       if(channel.family==='none'||channel.family==='GNDU')continue;
       const slot=inventory?.slots?.find(item=>item&&item.channel===channel.number&&
         (item.family===channel.family||
@@ -294,11 +320,21 @@
       slotForRole[role]=slot;
       if(!configured||!slot)continue;
       const ownAxis=x.terminal===role?x:p?.terminal===role?p:null;
+      if(current){
+       const segments=listFollowers[role]?.segments||(ownAxis?ownAxis.segments:[{startA:fixedCurrents[role],stopA:fixedCurrents[role],rangeA:'auto'}]);
+       if(segments.some(s=>s.rangeA!=='auto'))throw Error('电流源暂不支持固定电压测量档');
+       const lim=caps?.getSourceLimits?.(slot,complianceV);
+       if(lim?.known!==true){limitsByRole[role]={known:false};continue;}
+       const electrical=caps.DATABASE.modules[lim.moduleType].electrical;
+       const maxA=Math.min(electrical.overrangeMaxCurrentA,lim.maxComplianceA);
+       const segmentLimits=segments.map((s,i)=>{const peak=Math.max(Math.abs(s.startA),Math.abs(s.stopA));if(peak>maxA+1e-15)throw Error(role+' 第 '+(i+1)+' 段电流超过实装模块及电压保护对应的额定值');return {known:true,segment:i+1,sourceMode:'current',maxSourceCurrentA:maxA,requestedVoltageLimitV:complianceV,requiresInterlock:lim.requiresInterlock};});
+       limitsByRole[role]=Object.freeze({known:true,moduleType:lim.moduleType,segmentLimits});continue;
+      }
       // Validate independently for each voltage segment. A 2 V / 100 mA
       // segment must not inherit the 200 V / 10.5 mA envelope of a later
       // segment on the same SMU.
-      const segmentRanges=ownAxis?ownAxis.segments:[
-        {startV:fixedVoltages[role],stopV:fixedVoltages[role],rangeA:'auto'}];
+      const segmentRanges=listFollowers[role]?.segments||generators[role]?.segments||(ownAxis?ownAxis.segments:[
+        {startV:fixedVoltages[role],stopV:fixedVoltages[role],rangeA:'auto'}]);
       const checkedSegments=[];
       for(const [i,segment] of segmentRanges.entries()){
         const segmentMaxVoltageV=Math.max(Math.abs(segment.startV),
@@ -365,7 +401,7 @@
     const allVerified=configured&&roles.length>0&&roles.every(role=>limitsByRole[role]?.known===true);
     return Object.freeze({
       schema:'dkts.sweep-program.v1',kind,terminals:terminalChannels,
-      fixedVoltages,portSettings,xSweep:x,pSweep:p,loops,totalPoints,
+      fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,listFollowers,xSweep:x,pSweep:p,loops,totalPoints,
       hardwareCapabilityStatus:!configured?'not-inspected':allVerified?'identified':'unresolved',
       limitsByRole,powerBudget,hardwareVerified:false,executable:false,
       provenance:'user-configured-plan',
@@ -375,6 +411,7 @@
   function previewSweepProgram(input,limit=300,hardware={}){
     const plan=normalizeSweepProgram(input,hardware);
     const x=plan.xSweep,p=plan.pSweep;
+    if(Object.values(plan.sourceModes||{}).includes('current'))throw Error('电流源使用原生任务预览，不生成电压逐点计划');
     const firstPoints=[];
     const max=Math.min(plan.totalPoints,Math.max(1,Math.trunc(limit)));
     const inner=x.points*x.repeats;

@@ -831,3 +831,133 @@
 
 - R-20261124-009。用户授权编译 V0.3.45。以已验收的 `a4a82f27cb54348dc13e0869edbc5f3e44fa29ce` 为源码基线，发布提交只补本次交付记录。
 - 继承 Node 227/227、DKDS SDK 校验及浏览器模拟网关验收。使用现有最终授权触发规则生成同一提交的 Windows Portable、固定签名 Android APK、源码和 Pages。分别核对 Actions、Pages `preview.json`、发布 `PROVENANCE.txt` 与 SHA-256。真实 4200A 验收单独进行。
+
+
+## 2026-11-24 · DC/I–T 基础执行适配（待审查）
+
+- R-20261124-010。基线 49f952903020ccff7d69239be449f8cf98a78579。接通 DC 逐点电压源（Linear Step、Linear Points、List）与固定偏置 I–T 单事件主机计时，明确不支持 Optimized、Log、Generator、电流源、B 端、多段时间和多目标。IT1/2/3 映射；采样超窗停止，保留原始读数，不声称多样本平均。NUL 帧、ACK、错误查询及最近 256 条收发跟踪。Rev E 第 2/4/5 节；Rev F 无法读取，保持生产门禁。
+- 执行 7 个适配函数独立断言（模型替身）。未运行全量 Node、SDK、TCP 回归或实机测试。未移动 main，未合并、编译；版本待获批准后统一递增。
+
+
+## 2026-11-24 · KXCI 帧接收与状态检查（第二次待审查提交）
+
+- 延续 c06ec851。固定 DKDS 上游仍为 20f056851；只在 DKTS stage 副本加入 Windows/Android 可选 NUL 帧接收，完整帧立即返回，不再强制等待 30/120 ms idle。半帧、同块额外字节、超时失败，不改变普通 TCP 模式。KXCI 身份、模块、测量请求携带 responseTerminator:nul，解析端再次验证帧。
+- Rev E 第 2-10、3-3/4、4-2/3、4-6、5-39/40、5-45：启动前 SP 检查 Busy，EM 1,0 仅本会话切换 4200A 命令集，US/BC 后检查语法错误位，失败时取详细错误；每次关闭输出后复核 SP；未尝试输出的运行不冒充已关断，亦不关闭外部测试。GET 无错误返回格式未获实机确认；记录未知格式而非猜测。Rev F 官网当前 403，旧档案记录曾取到但未保存 PDF。生产输出门禁保持关闭。
+- 实际运行 7 项基于固定上游完整源码的补丁锚点/结构断言；补充真实 TCP loopback 测试文件，尚未执行全量 Node、Kotlin 或实机验收。未合并、未移动 main、未编译。版本暂留 V0.3.45，待获授权合入后统一递增。
+
+
+## 2026-11-24 · TCP 回环实测与 SMU 执行顺序复核（待审查）
+
+- 将固定 DKDS 20f0568 的 Desktop exchange 函数原样取出，使用 363a5f8 的实际补丁函数，在 Node.js 22 独立 TCP loopback 环境实测：8/8 通过。旧路径 ACK 146.82 ms，新 NUL 路径 1.70 ms；分段响应跨 20 ms idle、重复帧、半帧超时、EOF、通用 TCP、空 NUL 帧和错误请求均通过。此处只测试提取的 exchange 函数，不代表完整 Electron 或 Android 工程通过。未连接真实仪器。
+- 每次 DV/RI/RG 后立即查 SP，避免一次错误后继续输出其他端口；DV 改变后重新设置所选量程。默认积分显式 IT2，防止继承上一次 IT1/IT3。补充实际 DC 与 I–T 模型接入模拟仪器、Busy 不干扰外部测试及语法错误停止的集成回归用例。完整仓库无法拉取到本地（DNS 失败），新增集成用例尚未运行。Rev F 仍未恢复，生产输出门禁未解除。未合并、未编译、未创建分支。
+
+
+## 2026-11-24 · 4200A 原生 System Mode 执行草案（R-20261124-011）
+
+- 根据用户上传 Rev F 原件第 5-7/10/20–30/34/45–49/54–57 页，实现 Optimized DC 与单段固定偏置 I–T 原生任务：一次配置 DE/CH/SS/VR1 或 VL/VP/VC/ST/EC/SM/LI/MD；ME1 启动；SP 只用于状态查询，RD 有界预览，DO 最终列对齐及仪器时间戳。每周期单独 ME1。DC 线性 VAR1/VAR2 及单轴列表；固定偏置 I–T 用 WT/IN/NR。IN 是读数后等待，平均窗口非独立多次平均，不能保证原计划绝对周期或总时间，执行确认必须明确。点数 4096、VAR1 1024、VAR2 32、LI 6 依据手册。纯数字状态 unknown，不虚构 N；RD 时间戳零不冒充已采，最终 DO 可接受实际 0。原始设定值与实测列分开，真实输出仍需现场确认。加入现有 DKDS PlotView 的临时预览曲线，不建立历史伪数据。
+- 关闭未使用的实际 KCon SMU/VM/VS 默认通道，ST1 自动 standby，EC1 限流退出，停止 ME4 后核对 Busy 并逐通道 CH 关闭。原生指令内部使用本次已校验任务的精确白名单。修复 SMU 数字最大 12 字符。未删除旧用户模式。Rev F 子集已核对；生产输出门禁仍未解除，不能称真实仪器可运行。独立执行实际编译/解析/模拟任务函数 11 项断言通过；未完成实际项目集成和真实 TCP/仪器、UI、Android 验收。未合并、未编译、不动 main 或 DKDS 上游。
+
+
+## 2026-11-24 · 原生任务边界与旧时序兼容补充（review only）
+
+- 新建 Time 使用 Native Fixed Bias：明确 IN 是读数后等待（含 0），WT/NR 由仪器执行；旧 Linear Step Plan 保留原语义，不自动将绝对采样间隔重解释为 IN。原生模式隐藏无硬件语义的平均窗口与规划步长；时间图仅示意偏置，最终用实际仪器时间戳。DC Optimized 的共享 Delay 只配置 DT，不凭空再添加 VAR2 独立延迟。4096 单次点数、32 VAR2、1024 VR 等手册限制独立于显示刷新。
+- 处理 DO 列的空单元、末尾分隔符，保存已确认 RD 前缀作为中断原始数据；预览按循环和外层扫描分组，避免污染 DKDS 曲线缓存。新增集成 mock 更新及回归用例（本会话未实际运行完整仓库）。
+- 将已核对的 SMU System Mode 子集的文档门禁与其他执行模式分离：仅此草案允许进入现有实际模块型号、额定值、互锁、独占租约、用户现场确认后的受控调试路径；不授权实际部署，不声明真实硬件已验收。其他旧模式和未核验高级功能门禁维持。未合并、未编译；完整 Node/SDK/Android 和实机必须在合入/发布前或受控调试版本中验收。
+
+
+## 2026-11-24 · 实际源码级模拟集成验证
+
+- 直接从 615d7f9 Git 树读取 8 个实际模块（hardware-capabilities、kxci-protocol、identity-core、measurement-plan、kxci-measurement、model、measurement-data、measurement-runtime），在独立 JS 运行环境装载原始源码，以模拟 KXCI TCP capability、DKDS DataTable/Artifact facade 和计时服务完成两种实际页面模型的完整调用链。20/20 断言通过。两种测试均通过实际模块识别、Scoped System Mode 预检，分别发送一次 ME1，RD 预览、DO V/I/仪器时间戳、Data Center canonical publish、CH 关断；没有 DV/TI 逐点输出。Time 测试 IN=0。此为真实源码的模拟集成，不是实机测试或完整 Node/SDK/Electron/Kotlin 构建。
+- 补充零时间戳尾部截断和中间缺口拒绝逻辑，保留限流及真正的零值；对最终提交中的实际解析函数另执行 5 项断言通过。更新集成 mock 的第二 SMU 原始列和 scoped gate 回归。GitHub main 不变；无分支、合并、构建、发布。PDF 原件未上传至仓库。
+
+
+## 2026-11-25 · 独立端口与 RPM 接线公共能力（待审查）
+
+- Rev F 4-5、4-18、7-17、7-24、7-34、7-72：新增独立 PMU 双通道目录、systeminfo 查询和模块/附件校准日期展示；KCon 接线确认按仪器序列号、模块/附件标识绑定，拒绝重复 SMU、缺少 RPM、签名过期；不冒充物理接线或继电器状态可自动读取。保持 FS-Pro 原布局、共享端口映射，旧 PMU 卡级选项标为未检测到，不自动映射。接线保存不触发硬件切换。
+- System Mode DC/固定偏置时间测试在 ME1 前检查 PMU 空闲，关闭对应 PMU 输出，ZE 后按已确认 RPM 路径切换 SMU；结束后关断 SMU、ZE，再恢复 Pulse。内部白名单限定任务指令。PMU 原生执行器和 AC/连接补偿的实际操作尚未实现。保留现有额定值和安全门禁；不得称实体继电器已读回确认。无合并/编译/发布，DKDS 上游不变。
+
+- 本会话实际执行 13 项源码独立断言：端口目录、双路/单路、错误与更换设备后的失效、系统信息、指令顺序、双 RPM 模拟执行、PMU Busy 不触发输出；另对五个修改 JS 文件进行语法解析。未执行完整 UI/SDK、真实仪器或全量回归。
+
+- 保持工程共享端口逻辑：Pulse 页面根据一次确认的 SMU↔RPM 接线自动解析为对应 PMU1-1/1-2，DC/Time 原 SMU 映射不变；显式 PMU 通道优先，旧卡级带独立 CH 值兼容。此为脉冲规划，不等于已实现脉冲输出。修复通用 PMURPM 返回的双 RPM 识别（以实际附件记录为准），接线配置必须具有真实附件序列号。将测试确认、时间参数标签改为测试语义而非 KXCI 指令名称。实际执行 7/7 条别名及附件身份检查，5 个修改 JS 文件通过语法解析。
+
+
+## 2026-11-25 · DC 源模式与扫描方式扩展（待审查）
+
+- 依据 Rev F 5-10、5-20–25，Optimized DC 使用 CH 电流源模式、IC/IR/IP/IL，保留独立电流设定值及电压保护，实装 SMU 额定值、功率包络及高压互锁校验；电流源固定电压档未接入。Log Points 按用户设定点数预生成列表，不改变仪器自主执行模式；支持单轴，非线性嵌套仍待核验。允许已映射 SMU 的多个 Outputs，实际仍回收全部活动通道 V/I，Target 自定义图轴/公式尚未实现。原始数据增加设定/实测电流列，UI 确认对话框不混淆电流和电压。
+- 直接加载修改后的实际 model/plan/runtime/runner/capabilities/data，执行 11 项编译及数据单位断言；含 IR/IC/IP/IL、对数点数、中功率 SMU 越限、限压互锁。未执行实体仪器、完整 UI、宿主或全量回归。不合并、不编译。
+
+- DC Strategy 复用原位置：Local Setting 用 Fast/Normal/Quiet 对应 IT1/IT2/IT3（Rev F 5-47），既有秒数作为 legacy 值保存，不静默换算；原生首点保持 HT 可配置；RS7 内部指定完整数据分辨率，不额外增加数字位数控件。RI/RV 仅证实立即选档，不冒充原生全程固定量程。实际源码 10 条断言通过，覆盖默认电压扫描、三档速度、Hold、旧值拒绝、原生电流任务模拟执行/数据单位、单 ME1；4 个修改 JS 模块语法解析通过。未运行完整 UI/真实仪器。
+
+
+## 2026-11-25 · PMU 单通道原生任务（review only）
+Rev F 7-7–10、7-14–26、7-31–39：单通道脉冲列/幅值扫描、Spot Mean 高电平、完整波形编译与执行。相对幅值转换绝对峰值；基线多点扫不静默改变语义。PMU 自主执行，完成关断后 128 点索引分块读取，保存 V/I/T/S 及实际电极；PMU Busy 拒绝、中止及输出关闭。连接管理、原生执行器、数据入库及 Pulse 预检接入。真实输出门禁关闭；多通道、同步 SMU、部分波形窗口、校准补偿未完成。实际源码 14 项断言和 6 文件语法检查；未全量回归、UI、实体仪器、编译或合并。
+
+- PMU Data Center 原始列与历史 I–V/I–t/V–t 曲线适配，按脉冲实际通道保存，拒绝混合通道、不会冒充 transfer 或漏极列；保留现有 SMU 图。实际源码 9 项断言通过，使用 mock DKDS facade 而非宿主/真实 UI。运行前确认明确其他 SMU 输出关闭；真实 PMU 输出仍禁止。
+
+
+## 2026-11-25 · 双通道 PMU / Pulse Xsweep-Psweep
+
+- Rev F 7-28、7-37–38：在既有 Pulse Sweep 中增加可选 Psweep 端子（默认 None），支持独立幅值、基线、负载、电流档、电压档及边沿/窗口，周期、采样率、burst 全局共用。主通道 SWEEP、外层 STEP，单次 INIT/EXECUTE；独立采样预算和双通道机箱功耗。当前仅双路 Spot Mean；不假设波形同步索引、未实现多点基线或任意多通道。所有输出关闭后回收各通道，分别发布原始表，保留每通道原始点序与任务接收顺序。源代码 15 项断言、六 JS 文件语法解析；模拟两通道各12条，检查重复资源、共享周期、停止及原始表。真实输出门禁仍关闭；UI未渲染、宿主全量测试与真实仪器均未完成。
+
+- 双通道异常回收修正：单通道实际点数不匹配不丢弃另一通道，保留已收原始记录并标记 partial，整体任务 failed；每通道关断失败独立处理，所有可用通道仍尝试关断。UI 主副端子互斥，旧卡级端口可独立选通道，状态文案不再限定 SMU。6 项实际源码断言通过（包括模拟 10+12 条记录及输出关断失败）。未进行实机/完整UI测试。
+
+
+## 2026-11-25 · Segment Arb 单序列原生编译
+
+- Rev F 7-41–61：Pulse 增加可选 Custom sequence，默认原有扫描不变。独立时序段起止电压、持续时间、测量窗口、重复次数、固定量程；3–2048 段，10 ns 分辨率，10 V 最短 20 ns、40 V 最短 50 ns；TIME 首数组 40 s，TIME:ADD 文档 1 s，分开处理；数组按128项分块，精确小数时间，不静默舍入。支持单序列硬件重复至 1e12、纯写入（无测量不造数据）、同一采集模式的可选测量段。确认 RPM、负载、功耗、实装量程；复用 PMU 原生启动/停止/分块读取/数据中心。当前单端子、单序列，不支持多序列列表/双通道/混合测量模式/HEOR 切换；Spot Mean 的 SARB 明确字段返回仍需 V1.14 实机核验，真实输出禁用。界面未实际渲染。15项真实源码断言（含原生循环、写入、时间网格、连续性、128项追加、采样边界），五 JS 语法解析。未合并/编译/发布。
+
+- 修复测试方式切换：使用持久化 testMode 区分普通扫描与自定义时序，保留非活动模式的序列及 Psweep 参数，兼容初版 arb 配置；SARB 单独输出许可（默认关闭）；原始表增加 pulseProgram，区分脉冲扫描和任意时序。9 项源码断言（状态切换、普通编译、旧值兼容、原始来源、独立输出门禁）通过，六 JS 文件语法解析。未做实际 UI 验收。
+
+
+## 2026-11-25 · Segment Arb 多序列组合
+Rev F 7-59–61：保留单序列旧工程，新增有序序列列表，每个块独立循环；先定义全部序列再发列表（64对/批追加），只触发一次硬件执行。检查序列之间/内部连续性、单通道总段数、512序列、累计采样容量；精确 BigInt tick 总时长字符串。Pulse 自定义时序页面复用段编辑器、增加序列选择/增删，不改变主布局。12项实际源码断言通过，含写100次/等待/读5次、65序列追加、累计容量与旧工程；尚无实机/UI 渲染。未开放真实输出、未编译/合并。
+
+- 双通道 Segment Arb 原生编译：各通道独立序列列表、循环、采样窗口、采集模式和量程，共用采样率；精确 tick 总时长一致才允许组任务，不自动填充等待；统一 INIT/EXECUTE，独立关断、回收和实际通道标记。可选第二端子及编辑端子选择沿用时序段编辑器。10项实际源码断言通过（包括 10 ns 时长不匹配、纯写入第二通道、双路数据）。同步物理精度、混合采集模式及完整 UI 未实机验收，输出许可仍关闭。
+
+
+## 2026-11-25 · P0 基础扫描与采样
+- DC Forward/Reverse 按原厂 VL/IL 列表执行，转折点仅测一次，单轴 4096 点限制，逐点模式亦可使用同一扫描序列；Optimized 嵌套双向仍不声称支持。原有 Strategy 控件用于两模式。
+- Native Fixed Bias 支持 1–6 个不同测量信号，共用 WT/IN/NR，新增/删除信号，公共时间只编辑一次；保留全活动通道的原始 V/I。当前仍需要漏极 SMU、单段电压偏置。独立时钟、多段、电流偏置待完成。
+- RD 预览显式不可用不打断最终 DO 回收；停止时 RD 前缀标记 partial，不冒充最终数据。9 项实际源码断言、4 个文件语法检查通过，未实机/UI/编译。用户要求优先 P0、暂缓派生模板已记录。
+
+- P0 逐点原始数据：依据 Rev F 5-41/42，增加 TV 触发 ID 映射与严格返回解析，设定电压和实测电压分列；部分 TV 回读失败仍保存实际 TI 数据并标记 partial。逐点时钟明确为主机经过时间，不冒充仪器时间戳。SMU5–8 返回字母约定仍需旧固件实测，User Mode 真实输出门禁维持关闭。7项源码断言和3文件语法检查通过；未运行全套测试、UI或实体仪器。
+
+- DC Target X/Y 直接映射实测列，新增页面专属 Target 图窗（沿用已有绘图引擎/图窗菜单），自动识别电压/电流源横轴，显式自定义信号可用，历史和实时同一映射，缺列不回退、空值不造零；轴单位与当前信号同步。公式/H/P 仍须留空且执行前提示，不冒充支持。8 项源码断言与 4 文件语法检查；TV 模拟回读 fixture 已更新，但未运行整个 Node 测试套件、UI 实际渲染或实机。
+
+- Native Fixed Bias Time 现支持混合固定电压/电流源，每个电流源显式独立限压，映射 IC；当前电压测量自动档，原有电压源限流/档位语义不变。电流偏置列与原始电压读数区分，实际模块功率和互锁校验复用 DC。8项实际源码断言及3文件语法检查通过；多段/独立事件仍未执行，UI/实机未验收。
+
+- Segment Arb 波形预览：使用同一时序校验器的精确 tick，按当前端子/序列单次循环绘制电压及采样窗口，不展开 1e12 次循环，也不冒充实测图；沿用已有 canvas 与主题/ResizeObserver 生命周期。修复旧双通道时序段编辑函数 current 变量遮蔽导致的编辑/新增异常。6 项源码断言，2文件语法检查；实际 UI 渲染尚未验收。
+
+- P0 DC Generator：Rev F 5-10/13/14/18 的 VAR1'、RT、FS、CM 原生线性同步输出，安全解析仿射表达式（变量、scale()、getx()），不 eval；实际生成电平经 SMU 功率/保护/互锁检查，确认窗口含 Generator 峰值。当前只核验电压线性 Xsweep；任意非线性/getp()/列表/双向组合明确拒绝，不静默转换。9 项源码断言、5 文件语法检查，未实机验收。
+
+- P0 Pulse：Rev F 7-33 原生多点基线扫描（固定绝对峰值），旧单点相对幅值保留语义，多点旧方案须明确峰值；检查全基线/峰值的负载及电压跨度。7-16 主通道固定/最低自动/Auto 电流量程，7-36 波形前后采样比例及完整采样预算。第二通道仍固定/Auto，双路波形和外层基线尚未开放。9 项源码断言及4文件语法检查；无实机验收。
+
+- P0 通用 Routine 原生顺序联合任务：执行前整流程预检及逐阶段许可、同一独占租约、全部阶段按工程顺序/流程循环执行；原生任务之间关断，失败/取消不继续；每阶段独立原始表、流程循环/阶段/全局点序及原本 PMU 通道元数据。现有 Routine 菜单加入执行/停止入口，不建派生页面。明确不保证跨阶段偏置连续或同步。9项源码模拟断言、4文件语法检查，含 SMU+PMU 两轮、关断失败禁止下一任务及实际 PMU 门禁。未实机/UI/全套回归。
+
+- DC B 端接入原生 Optimized，完整四端资源互斥、实际模块能力与功耗校验、B 源与目标原始值。原厂 LI 最多六个测量函数：三活动 SMU 全部 V/I；四活动 SMU 优先保留漏极 V/I、各活动源保护相关读数及用户 Outputs/Target X/Y，超六项明确拒绝，未采集的列留空。逐点 B 及 Time B 未开放。8项源码断言、4 文件语法检查，未实机。
+
+- P0 Time 增加 Native Bias List：每段独立偏置及读数数量、共同稳定等待 DT（不是准确采样周期）、每点实测信号与仪器时间戳，保留旧绝对时间计划不静默转换。Rev F 5-14/21 主/从列表（VL/IL，最大 4096 点），检查全部各端电平、保护与互锁；数据保留 timeSegment，预览按点序而非伪时间。单变动端原生列表，多个变动端生成主从列表但单独门禁关闭，待实机验收。独立事件时钟仍未实现。10项实际源码断言和7文件语法检查，未渲染/实机/全量回归。
+
+### P0 Target 与曲线分组
+- 接入 `set name=expression` 的逐点数学子集、别名及 X/Y 表达式，原始数据不修改；依赖信号参与采集校验。历史和实时绘图使用同一解析器，缺失/非有限结果不画点。H 第二输出轴、P 筛选、向量函数及派生 CSV 尚未验收。
+- 历史曲线按实际 cycle/pPoint/pRepeat/xRepeat 分组，避免跨循环连线。完成 14 项源码断言；未进行整包构建或真实仪器测试。
+
+- P0 Pulse Psweep: Rev F 7-29 native STEP:PULSE:BASE, independent absolute peak and range policy. Rev F 7-31/33 permits equal point counts for multi-channel sweeps; waveform mode compiles paired same-length sweeps or a companion train, never a waveform STEP:PULSE:BASE. Shared acquisition clock parameters, independent timings and raw channels. 10 assertions passed in source harness; existing PMU output gate remains closed until controlled hardware acceptance.
+- P0 Generator: safe AST evaluation of nonlinear scalar functions and getx()/getp() using precomputed native master/subordinate VL/IL lists; affine linear VAR1' preserved. Nested scan flattened P-major, actual rows retain original X/P point index and planned P value. Limit checks on every generated output. 4096-point native list boundary, multi-channel output gate retained. 10 source assertions.
+- P0 Target：H 表达式参与采集依赖检查，保留独立 Target H 图窗及完整计算导出；当前 DKDS ScientificPlot 单 Y 轴限制，不修改 DKDS，不声称同图双 Y 轴。P 输入采用逗号分隔设定值（不是按实测噪声值筛选），应用到实时/历史/计算导出，原始表不变。9 源码断言。
+
+### P0: PMU live buffered acquisition
+Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive reading. Per-channel cursors, bounded live drain, short reads, final drain after outputs off; cancellation aborts before output-off/final reads; ambiguous EXECUTE ACK never reads stale buffers. 19 source-harness assertions; no live instrument acceptance or safety gate change.
+
+
+## 2026-11-26 · P0 Target 向量计算接入（恢复分支）
+- 基线 a707b2d，完整 b7530e1 已恢复；仅 recovery/p0-20261125 开发，不修改 main/DKDS、不编译。依据 LabExpress §8.3.2.1–4 将既有 Target AST 扩展为 linsweep/linrange/logsweep/range、sum、正反一至三阶差分和累积梯形积分；Generator 不开放向量函数。按实际循环、Psweep、重复、通道及序号连续性分组；不跨缺失点/重复自变量或方向拐点求导。向量结果须与实际组长度一致，原始数据不修改。沿用 P 筛选、H 独立图窗及派生 CSV。
+- 历史图通过 Data Center 有界连续分块读取完整记录后再计算和降采样；250000 行为当前 JS 计算预算而非仪器限制。短读或缺列不以抽稀点计算，已知失败/停止采集不进入向量计算；实时预览不计算全组函数。尚未实现 linefit、vth、查询和其他原厂算法及同窗双轴。
+- 实际修改后的 model 运行 18 项源码断言通过（依赖、导数、积分、分组、缺失、广播、完整历史和短读、标量回归），model/plugin 语法解析通过；新增 Node 回归测试文件。完整仓库 DNS 不通，未执行 npm test / SDK / UI / 4200A 实机。
+
+## 2026-11-26 · P0 恢复分支验证与合并
+
+- R-20261126-001。以 GitHub `main` 的 `3ad5589` 和恢复分支头 `d989ff2` 为父提交，保留恢复提交历史，并同步复核和修复。
+- 原生 SMU System Mode 使用角色到通道的映射。仅在 PMU 任务中建立脉冲通道白名单，修复原生 DC 与固定偏置 Time 在发送 ME1 前异常退出的问题。同步修正原生插件、宿主、帧补丁、Target 曲线、分支治理的测试断言和夹具。保留已移除的无条件分支删除工作流的现状。
+- Node 271/271 通过，含真实本机 TCP 回环和固定 DKDS Android 模板检查。原生插件、模拟宿主、固定 DKDS 暂存更新器契约及官方 DKDS SDK 校验通过。GitHub Pages 和源码 ZIP 使用这次合并提交生成。
+- 此次未运行真实 4200A、Windows Portable 或 Android APK 验收。受控 SMU 调试条件与其他测量模式的现场许可继续按现有协议策略判断。

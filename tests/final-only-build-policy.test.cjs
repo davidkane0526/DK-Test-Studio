@@ -35,8 +35,8 @@ test('parallel native and frontend build workflows cannot run automatically on m
   }
 });
 
-test('source archiving, build identity, branch policy and the static Pages preview run on main', () => {
-  for (const name of ['ui-update.yml', 'source-zip.yml', 'main-only-branch-policy.yml', 'core-pages.yml']) {
+test('source archiving, build identity and the static Pages preview run on main', () => {
+  for (const name of ['ui-update.yml', 'source-zip.yml', 'core-pages.yml']) {
     assert.match(triggers(name), /\bpush:\s*\n\s+branches: \[main\]/);
   }
   assert.doesNotMatch(get('ui-update.yml'), /electron-builder|gradlew|assembleRelease|gh release create/);

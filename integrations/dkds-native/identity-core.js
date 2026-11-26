@@ -22,6 +22,11 @@
     if(/身份不匹配/.test(s))return '设备不是预期的 Keithley 4200A';
     return s.split('\n')[0].slice(0,110);
   }
+  function decodeKxciFrame(base64){
+    const frame=atob(base64||'');
+    if(!frame.endsWith('\0')||frame.slice(0,-1).includes('\0'))throw Error('KXCI 响应不是单个完整 NUL 帧');
+    return frame.slice(0,-1).trim();
+  }
   function createIdentityController(tcp,protocol){
     if(!tcp||typeof tcp.open!=='function'||typeof tcp.exchange!=='function'||typeof tcp.close!=='function')throw Error('必须提供宿主 TCP open/exchange/close 适配器');
     if(!protocol||typeof protocol.parseIdentity!=='function'||protocol.IDN_REQUEST!=='*IDN?\0')throw Error('缺少已验证的 KXCI 身份协议');
@@ -40,9 +45,9 @@
         let opened=null,receivedIdentity=false;
         try{
           opened=await tcp.open({host:next.host,port:next.port,networkMode:next.networkMode,interfaceName:next.interfaceName,localAddress:next.localAddress,connectTimeoutMs:next.timeoutMs,preferLinkLocalEthernet:next.networkMode==='auto'&&next.host.startsWith('169.254.')},reuseSessionId);
-          const reply=await tcp.exchange({sessionId:opened.sessionId,base64:btoa(protocol.IDN_REQUEST),readTimeoutMs:next.timeoutMs,idleTimeoutMs:120,maxBytes:8192});
+          const reply=await tcp.exchange({sessionId:opened.sessionId,base64:btoa(protocol.IDN_REQUEST),responseTerminator:'nul',readTimeoutMs:next.timeoutMs,idleTimeoutMs:120,maxBytes:8192});
           receivedIdentity=true;
-          const found=protocol.parseIdentity(atob(reply.base64),next.expectedSerial);
+          const found=protocol.parseIdentity(decodeKxciFrame(reply.base64),next.expectedSerial);
           connection=opened;identity=found;phase='connected';diagnostic='';return status();
         }catch(e){
           if(opened){
@@ -68,10 +73,10 @@
           // KXCI Ethernet always replies. Commands which have no textual result
           // return ACK\0; draining it here prevents stale ACK bytes from being
           // mistaken for the next GN result or TI measurement.
-          const response=await tcp.exchange({sessionId:targetId,base64:btoa(command),
+          const response=await tcp.exchange({sessionId:targetId,base64:btoa(command),responseTerminator:'nul',
             readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:expectData?120:30,maxBytes,noReply:false});
           if(connection?.sessionId!==targetId)throw Error('连接已切换，模块查询已作废');
-          const raw=atob(response?.base64||'').replace(/\0+$/g,'').trim();
+          const raw=decodeKxciFrame(response?.base64);
           if(!expectData&&raw.toUpperCase()!=='ACK')
             throw Error('KXCI 写入命令未收到 ACK：'+command+' / '+(raw||'空响应'));
           return raw;
@@ -89,8 +94,13 @@
           const instrumentInfo=await send(protocol.GN_RESULT_REQUEST,8192);
           await send(protocol.REMOTE_MODULE_INFO_REQUEST,1024);
           const remoteModuleInfo=await send(protocol.GN_RESULT_REQUEST,8192);
+          const systemResult=await send(protocol.SYSTEM_INFO_REQUEST,1024);
+          const systemRaw=/^OK\b|^ACK$/i.test(systemResult)?await send(protocol.GN_RESULT_REQUEST,8192):systemResult;
           await send(protocol.DE_REQUEST,1024,false);enteredUserLibrary=false;
-          inventory=protocol.parseHardwareInventory(optionsRaw,instrumentInfo,remoteModuleInfo);inventoryError='';return status();
+          const parsed=protocol.parseHardwareInventory(optionsRaw,instrumentInfo,remoteModuleInfo);
+          let systemInfo=null,systemInfoError='';
+          try{systemInfo=protocol.parseSystemInfo(systemRaw,identity.serial);}catch(e){systemInfoError=String(e.message||e);if(/序列号不匹配/.test(systemInfoError))throw e;}
+          inventory=Object.freeze({...parsed,systemInfo,systemInfoError,ports:Object.freeze(protocol.portCatalog(parsed))});inventoryError='';return status();
         }catch(error){
           let reason=String(error?.message||error).slice(0,300);
           if(enteredUserLibrary&&connection?.sessionId===targetId){try{await send(protocol.DE_REQUEST,1024,false);enteredUserLibrary=false;}catch(restoreError){reason+='；恢复 KXCI 系统模式失败：'+String(restoreError?.message||restoreError).slice(0,120);}}
@@ -106,9 +116,9 @@
       const id=connection.sessionId;
       const request=(async()=>{
         try{
-          const answer=await tcp.exchange({sessionId:id,base64:btoa(protocol.IDN_REQUEST),
+          const answer=await tcp.exchange({sessionId:id,base64:btoa(protocol.IDN_REQUEST),responseTerminator:'nul',
             readTimeoutMs:settings.timeoutMs,idleTimeoutMs:120,maxBytes:8192});
-          protocol.parseIdentity(atob(answer.base64),identity.serial);
+          protocol.parseIdentity(decodeKxciFrame(answer.base64),identity.serial);
         }catch(error){
           await closeCurrent();
           phase='error';diagnostic='连接已失效：'+String(error?.message||error);
@@ -119,12 +129,34 @@
       return status();
     }
     // Internal measurement-only path. UI receives no raw-command endpoint.
+    const trace=[];
+    let systemProgram=null;
+    function beginSystemProgram(program){
+      if(systemProgram)throw Error('已有 System Mode 任务');
+      const reads=new Set(program.reads);
+      if(program.rpmRoutes?.length)reads.add(':PMU:TEST:STATUS?');
+      const pulseChannels=program.pulseChannel?(program.channels||[program]):[];
+      systemProgram={
+        commands:new Set([...program.setup,...reads,...program.cleanup,'ME1','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET']),
+        reads,rdNames:new Set(program.rdNames),count:program.count,
+        pulseFields:new Map(pulseChannels.map(channel=>[channel.pulseChannel,channel.fields]))
+      };
+      if(program.pulseChannel)systemProgram.commands.add(':PMU:EXECUTE');
+    }
+    function endSystemProgram(){systemProgram=null;}
+    function measurementTrace(){return trace.map(x=>({...x}));}
+    function clearMeasurementTrace(){trace.length=0;}
     async function measurementExchange(text,expectReply=false){
       if(phase!=='connected'||!connection||!identity||inventoryPending||verificationPending||
          inventory?.physicalModelsVerified!==true||
          inventory?.hardwareLimitsVerified!==true)
         throw Error('仪器及物理模块尚未完成身份核验');
       const cmd=String(text||'');
+      const rd=/^RD '([A-Z0-9]+)',([1-9][0-9]*)$/.exec(cmd);
+      const block=/^:PMU:DATA:GET ([1-8]),(0|[1-9][0-9]*),([1-9][0-9]*),([A-Z,]+)$/.exec(cmd);
+      const blockAllowed=Boolean(systemProgram&&block&&systemProgram.pulseFields.get(Number(block[1]))===block[4]&&Number(block[3])<=2048&&Number(block[2])+Number(block[3])<=systemProgram.count);
+      const systemAllowed=Boolean(systemProgram&&(systemProgram.commands.has(cmd)||blockAllowed||(rd&&systemProgram.rdNames.has(rd[1])&&Number(rd[2])<=systemProgram.count)));
+      const systemRead=Boolean(systemAllowed&&(systemProgram.reads.has(cmd)||rd||blockAllowed));
       const n='(?:0|[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[Ee][+-]?\\d+)?)';
       const dv=new RegExp('^DV([1-9]),0,('+n+'),('+n+')$').exec(cmd);
       const ri=new RegExp('^RI ([1-9]),('+n+'),('+n+')$').exec(cmd);
@@ -135,28 +167,32 @@
         throw Error('KXCI RI 参数越界');
       if(rg&&!(Number(rg[2])>0&&Number(rg[2])<=1))
         throw Error('KXCI RG 参数越界');
-      if(!['US','DE',':ERROR:LAST:CLEAR',':ERROR:LAST:GET'].includes(cmd)&&
-         !/^DV[1-9]$/.test(cmd)&&!/^TI[1-9]$/.test(cmd)&&!dv&&!ri&&!rg)
+      if(!systemAllowed&&!['US','DE','EM 1,0','BC','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET'].includes(cmd)&&
+         !/^DV[1-9]$/.test(cmd)&&!/^TI[1-9]$/.test(cmd)&&!/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)&&!/^IT[123]$/.test(cmd)&&!dv&&!ri&&!rg)
         throw Error('禁止非测量白名单 KXCI 指令');
-      if(expectReply&&!(/^TI[1-9]$/.test(cmd)||cmd===':ERROR:LAST:GET'))
+      if(expectReply&&!(systemRead||/^TI[1-9]$/.test(cmd)||/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
         throw Error('此 KXCI 指令没有测量响应');
-      if(!expectReply&&(/^TI[1-9]$/.test(cmd)||cmd===':ERROR:LAST:GET'))
+      if(!expectReply&&(systemRead||/^TI[1-9]$/.test(cmd)||/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
         throw Error('数据查询不能丢弃响应');
       const id=connection.sessionId;
       // Ethernet KXCI returns one NUL-terminated response for every command.
       // Always consume it; otherwise ACK from DV/US/RI/RG can poison the next TI.
-      const answer=await tcp.exchange({sessionId:id,base64:btoa(cmd+'\0'),
-        noReply:false,readTimeoutMs:settings?.timeoutMs||5000,
-        idleTimeoutMs:expectReply?120:30,maxBytes:8192});
-      if(connection?.sessionId!==id)throw Error('测量期间仪器连接发生变化');
-      const raw=atob(answer.base64||'').replace(/\0+$/g,'').trim();
-      if(expectReply)return raw;
-      if(raw.toUpperCase()!=='ACK')throw Error('KXCI 写入命令未收到 ACK：'+cmd+' / '+(raw||'空响应'));
-      return '';
+      const item={command:cmd,sentAt:new Date().toISOString(),response:'',error:'',durationMs:0},started=Date.now();
+      try{
+       const answer=await tcp.exchange({sessionId:id,base64:btoa(cmd+'\0'),responseTerminator:'nul',
+         noReply:false,readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:expectReply?120:30,maxBytes:systemRead?262144:8192});
+       const frame=atob(answer.base64||'');item.response=frame;
+       if(connection?.sessionId!==id)throw Error('测量期间仪器连接发生变化');
+       const raw=decodeKxciFrame(answer.base64);
+       if(expectReply){if((!raw||raw.toUpperCase()==='ACK')&&cmd!==':ERROR:LAST:GET')throw Error('查询未返回数据');return raw;}
+       if(raw.toUpperCase()!=='ACK')throw Error('未收到 ACK：'+raw);
+       return '';
+      }catch(error){item.error=String(error?.message||error);throw Error(cmd+'：'+item.error);}
+      finally{item.durationMs=Date.now()-started;trace.push(item);if(trace.length>256)trace.shift();}
     }
     async function disconnect(){if(inventoryPending)await inventoryPending.catch(()=>{});if(pending)await pending.catch(()=>{});if(verificationPending)await verificationPending.catch(()=>{});await closeCurrent();phase='disconnected';diagnostic='';settings=null;return status();}
     async function dispose(){await disconnect();tcp.closeAll?.();}
-    return Object.freeze({connect,inspectModules,verifyLiveConnection,disconnect,status,dispose,measurementExchange});
+    return Object.freeze({connect,inspectModules,verifyLiveConnection,disconnect,status,dispose,measurementExchange,measurementTrace,clearMeasurementTrace,beginSystemProgram,endSystemProgram});
   }
   const api=Object.freeze({createIdentityController,normalizeSettings,summarizeError});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-identity-core',api);

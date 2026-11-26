@@ -318,10 +318,15 @@ const ctx={
  assert.equal(JSON.stringify(state.pages[0]),oldIv);
  const beforeTime=record.fields.length;
  record.actions.findLast(row=>row.id==='library-time').onInvoke();
- assert.ok(record.fields.slice(beforeTime).some(row=>row.spec.attributes?.['data-dkts-timing-field']==='switchStepS'));
  assert.ok(record.layoutSpecs.some(spec=>spec.tagName==='canvas'&&spec.className==='dkts-time-waveform'));
  const timeMode=record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-mode');
  assert.equal(timeMode.spec.kind,'select');
+ assert.equal(timeMode.control.value,'native-fixed');
+ const isSwitchStep=row=>row.spec.attributes?.['data-dkts-timing-field']==='switchStepS';
+ assert.ok(!record.fields.slice(beforeTime).some(isSwitchStep));
+ const beforeLinearPlan=record.fields.length;
+ timeMode.spec.onChange({target:{value:'linear-step'}});
+ assert.ok(record.fields.slice(beforeLinearPlan).some(isSwitchStep));
  assert.ok(record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-stop').spec.readOnly);
  record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-source-D').spec.onChange({target:{value:'current'}});
  record.fields.findLast(row=>row.spec.attributes?.['data-dkts-parameter-path']==='segments.0.currentBias.D').spec.onInput({target:{value:'0.001'}});

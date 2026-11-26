@@ -204,7 +204,7 @@
     },
     safetyPolicies: {
       unknownModule: { policyBasis: 'fail-closed software policy; no numeric hardware capability is inferred for unidentified modules', applyGuessedNumericLimit: false, allowNonExecutablePlanning: true, allowHardwareOutput: false, requiredAction: 'Identify the exact installed module or mapped channel before enabling output.' },
-      kxci: { activeExecutionProtocolRevision: '4200A-KXCI-907-01E, March 2025', latestOfficialRevision: '4200A-KXCI-907-01F', latestOfficialPublished: '2026-10-09', latestOfficialContentVerified: false, allowInstrumentOutput: false, verificationStatus: 'pending-rev-f-content-review', sourceRefs: ['tek-4200a-current-manual-index'], requiredAction: 'Retrieve and compare the complete official Rev F KXCI programming manual against the Rev E command/response implementation, then run read-only and controlled hardware acceptance before enabling output.' },
+      kxci: { activeExecutionProtocolRevision: '4200A-KXCI-907-01F, September 2026 (SMU review subset)', latestOfficialRevision: '4200A-KXCI-907-01F', latestOfficialPublished: '2026-10-09', latestOfficialContentVerified: false, allowInstrumentOutput: false, smuSystemModeManualVerified: true, allowSystemModeOutput: true, allowMultiChannelListOutput: false, pmuModeManualVerified: true, allowPulseModeOutput: false, segmentArbManualVerified: true, allowSegmentArbOutput: false, verificationStatus: 'rev-f-smu-system-subset-eligible-for-controlled-commissioning', sourceRefs: ['tek-4200a-current-manual-index'], requiredAction: 'Rev F PDF obtained from user; SMU System Mode commands reviewed. Finish full integration, legacy firmware compatibility, and controlled hardware acceptance before enabling output.' },
       smu: { maximumSourceVoltageV: 210, voltageRangeOverrangePercent: 105, highVoltageNominalRangeV: 200, maximumOutputPowerWByPowerClass: { medium: 2.1, high: 21 }, applyVoltageDependentCompliancePowerLimit: true, interlockRequiredFor200VRange: true, interlockStatusAvailableThroughCurrentReadOnlyBridge: false, sourceRefs: ['tek-4200a-datasheet-2026', 'tek-4200a-kxci-rev-e', 'tek-4200a-setup-rev-f', 'tek-4200a-current-manual-index'], complianceMinimumA: { withoutPreamplifier: 1e-7, withPreamplifier: 1e-10 }, note: 'Reject a compliance request below the KXCI minimum instead of allowing KXCI to silently raise it.' },
       pulse: { allowedVoltageRangesV: [10, 40], sourceImpedanceOhm: 50, requireDutAndInterconnectLoad: true, maxLoadOhms: 1000000, requireAtLeastThreeSegmentsForSegmentArb: true, segmentArbTimeResolutionS: 1e-8, hardwareMaxSegmentTimeS: 40, currentKxciMinSegmentTimeSByRangeS: { PMU: { '10': 2e-8, '40': 5e-8 }, PGU: { '10': 1e-8, '40': 5e-8 } }, currentKxciCommandMaxSegmentTimeS: 1, currentKxciMaxArrayValuesPerCommand: 128, hardwareMaxSamplesPerChannel: 999999, hardwareSampleCountUpperBoundExclusive: 1000000, currentKxciBufferPointsPerChannel: 65536, currentKxciMaxGeneratedPointsPerChannel: 65536, clariusItmMaxPointsPerChannel: 4096, clariusUtmMaxPointsPerChannel: 65536, hardwareSampleCountFormula: 'measureWindowS × sampleRateHz × pulseCount × sweepPoints × stepPoints', kxciGeneratedPointBoundaryNote: 'Rev. E states generated points must be below 65536, but also defines fastestSampleRate = 65536 / TotalMeasureDuration and a 65536-point data buffer. Exact endpoint semantics are ambiguous; expose the documented 65536 capacity and flag this boundary rather than silently reducing it to 65535.', kxciInterfaceLimitsSourceRevision: '4200A-KXCI-907-01 Rev. E, March 2025', latestIndexListedKxciRevision: '4200A-KXCI-907-01F, 09 Oct 2026', latestKxciRevisionContentVerified: false, latestIndexListedPmuRevision: '4200A-PMU-900-01D, 22 Oct 2026', latestPmuRevisionContentVerified: false, pmuRevisionIndexConflictStatus: 'inconsistent-official-listings', numericPmuSpecsCurrentlyGroundedInRevision: '4200A-PMU-900-01C, May 2024', kxciInterfaceLimitsVerificationStatus: 'provisional-pending-rev-f-content-verification', sourceRefs: ['tek-4200a-kxci-rev-e', 'tek-4200a-current-manual-index'] },
       cvu: {
@@ -344,6 +344,85 @@
     if (!mod.output.rangesV.includes(range)) throw Error('PMU/PGU 输出量程只能选择 10 V 或 40 V');
     return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.kxciMaxArrayValuesPerCommand || 128, kxciMaxArrayValuesPerCommand: mod.segmentArb.kxciMaxArrayValuesPerCommand || 128, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, kxciMinSegmentS: mod.segmentArb.kxciMinSegmentTimeS?.[String(range)] ?? mod.segmentArb.minSegmentTimeS[String(range)], hardwareMinSegmentNote: mod.segmentArb.hardwareMinSegmentNote || null, kxciMaxSegmentS: mod.segmentArb.kxciMaxSegmentTimeS || 1, kxciLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus, timeResolutionS: mod.segmentArb.timeResolutionS });
   }
+function normalizeSegmentArb(settings){
+ const v=settings,arb=v?.arb;
+ if(arb?.blocks!==undefined){
+  if(!Array.isArray(arb.blocks)||arb.blocks.length<1||arb.blocks.length>512)throw Error('序列数量须为 1–512');
+  const limits=getSegmentArbLimits('pmu',Number(v.rangeV));
+  const blocks=arb.blocks.map((block,i)=>{try{return normalizeSegmentArb({...v,arb:{loops:block.loops,segments:block.segments}})}catch(e){throw Error('序列 '+(i+1)+'：'+e.message)}});
+  if(blocks.reduce((n,b)=>n+b.segments.length,0)>limits.maxSegments)throw Error('单通道总定义段数超出 '+limits.maxSegments);
+  for(let i=1;i<blocks.length;i++)if(blocks[i-1].segments.at(-1).stopV!==blocks[i].segments[0].startV)throw Error('序列 '+i+' 与 '+(i+1)+' 的连接电压不连续');
+  let totalTicks=0n,measuredTicks=0,minWindow=Infinity,records=0,points=0;
+  for(const b of blocks){
+   totalTicks+=BigInt(b.segments.reduce((n,s)=>n+s.durationTicks,0))*BigInt(b.loops);
+   measuredTicks+=b.totalMeasureDurationS*1e8;
+   records+=b.records;points+=b.points;
+   if(b.points)minWindow=Math.min(minWindow,b.windowS);
+  }
+  if(!Number.isSafeInteger(records)||records>65536)throw Error('组合序列记录数超出缓冲容量');
+  const rateHz=blocks[0].rateHz,budget=points?getPmuCaptureBudget(measuredTicks/1e8,minWindow,rateHz):null;
+  if(budget&&!budget.kxciCompatible)throw Error('组合序列总采样容量超出 KXCI 边界');
+  return Object.freeze({...blocks[0],blocks:Object.freeze(blocks),segments:Object.freeze(blocks.flatMap(b=>b.segments)),loops:null,points,records,estimatedRecords:points?(v.mode==='spot'?records:budget.sampleCountAtSelectedRate):0,peakV:Math.max(...blocks.map(b=>b.peakV)),minV:Math.min(...blocks.map(b=>b.minV)),maxV:Math.max(...blocks.map(b=>b.maxV)),durationS:Number(totalTicks)/1e8,durationTicksExact:String(totalTicks),totalMeasureDurationS:measuredTicks/1e8,windowS:points?minWindow:0,budget});
+ }
+ const check=(x,m)=>{if(!x)throw Error(m)},num=(x,label)=>{check(x!=null&&String(x).trim()!==''&&Number.isFinite(Number(x)),label+' 无效');return Number(x)};
+ check(arb&&typeof arb==='object'&&Array.isArray(arb.segments),'缺少序列段');
+ check(v.testMode==='sequence'||v.secondary==null,'任意序列当前仅支持一个端子');
+ check(['S','D','G'].includes(v.terminal)&&['1','2'].includes(v.channel)&&['spot','waveform'].includes(v.mode),'端子或测量方式无效');
+ const rangeV=num(v.rangeV,'电压档'),limits=getSegmentArbLimits('pmu',rangeV),loops=num(arb.loops,'序列重复次数'),rateHz=num(v.rateHz,'采样率');
+ check(Number.isSafeInteger(loops)&&loops>=1&&loops<=limits.maxSequenceLoops,'重复次数超出 1–1e12');
+ check(Number.isInteger(rateHz)&&rateHz>=1000&&rateHz<=200e6,'采样率超出 1 kSa/s–200 MSa/s');
+ check(arb.segments.length>=limits.minSegments&&arb.segments.length<=limits.maxSegments,'序列段数超出 3–2048');
+ const ticks=(x,label)=>{const us=num(x,label),t=us*100,nearest=Math.round(t);check(t>=0&&Number.isSafeInteger(nearest)&&Math.abs(t-nearest)<=Math.max(1e-7,Math.abs(t)*Number.EPSILON*4),label+' 必须符合 0.01 µs 时间分辨率');return nearest};
+ let peakV=0,minV=Infinity,maxV=-Infinity,previous=null,totalTicks=0,measureTicks=0,minMeasureTicks=Infinity,measureCount=0;
+ const segments=arb.segments.map((s,i)=>{
+  const label='第 '+(i+1)+' 段',startV=num(s.startV,label+' 起始电压'),stopV=num(s.stopV,label+' 终止电压'),durationTicks=ticks(s.durationUs,label+' 时长');
+  check(Math.abs(startV)<=rangeV&&Math.abs(stopV)<=rangeV,label+' 电压超出档位');
+  check(previous===null||startV===previous,label+' 起始电压须等于上一段终止电压');
+  previous=stopV;peakV=Math.max(peakV,Math.abs(startV),Math.abs(stopV));minV=Math.min(minV,startV,stopV);maxV=Math.max(maxV,startV,stopV);
+  // Rev F 7-55: TIME up to 40 s; 7-56: TIME:ADD explicitly says 1 s.
+  const maxTicks=i<limits.maxSegmentsPerCommand?4e9:1e8;
+  check(durationTicks>=Math.round(limits.kxciMinSegmentS*1e8)&&durationTicks<=maxTicks,label+' 超出原厂段时长限制');
+  check(typeof s.measure==='boolean',label+' 测量开关无效');
+  let startTicks=0,stopTicks=0;
+  if(s.measure){startTicks=ticks(s.measureStartUs,label+' 测量起点');stopTicks=ticks(s.measureStopUs,label+' 测量终点');check(stopTicks>startTicks&&stopTicks<=durationTicks,label+' 测量窗口须位于段内');measureCount++;measureTicks+=stopTicks-startTicks;minMeasureTicks=Math.min(minMeasureTicks,stopTicks-startTicks);}
+  totalTicks+=durationTicks;
+  return Object.freeze({startV,stopV,durationTicks,startTicks,stopTicks,measure:s.measure});
+ });
+ check(loops===1||segments[0].startV===segments.at(-1).stopV,'重复序列首尾电压必须连续');
+ // Unlike regular pulse mode, SARB endpoints are explicitly bounded by source range.
+ // Physical load-line limits are validated separately by the compiler.
+ const loadOhms=v.loadOhms===''?null:num(v.loadOhms,'负载');check(loadOhms===null||loadOhms>=1&&loadOhms<=1e6,'负载超出 1 Ω–1 MΩ');
+ if(v.currentRangeA!=='')check(num(v.currentRangeA,'电流档')>0,'固定电流档须为正');
+ const records=measureCount*loops;
+ let budget=null;
+ if(measureCount){
+  check(Number.isSafeInteger(records)&&records<=65536,'实测窗口数超出 KXCI 缓冲容量');
+  budget=getPmuCaptureBudget(measureTicks*loops/1e8,minMeasureTicks/1e8,rateHz,{pulseCount:loops,sweepPoints:measureCount});
+  check(budget.kxciCompatible,'采样预算超出 KXCI 65536 点边界');
+ }
+ return Object.freeze({arb:true,segments:Object.freeze(segments),loops,rangeV,rateHz,peakV,minV,maxV,loadOhms,points:measureCount,pulseCount:loops,records,estimatedRecords:measureCount?(v.mode==='spot'?records:budget.sampleCountAtSelectedRate):0,windowS:measureCount?minMeasureTicks/1e8:0,totalMeasureDurationS:measureTicks*loops/1e8,durationS:totalTicks*loops/1e8,durationTicksExact:String(BigInt(totalTicks)*BigInt(loops)),budget});
+}
+function normalizeArbPair(settings){
+ const main=normalizeSegmentArb(settings),partner=settings.arbPartner;
+ if(!partner)return main;
+ if(!partner.arb||partner.terminal===settings.terminal)throw Error('时序端子必须不同');
+ const v={...settings,...partner,arbPartner:null,secondary:null,rateHz:settings.rateHz,testMode:'sequence'};
+ const second=normalizeSegmentArb(v);
+ if(main.durationTicksExact!==second.durationTicksExact)throw Error('双通道总时长必须相等；请设置明确的等待段，不自动补齐');
+ return Object.freeze({...main,partner:second,totalEstimatedRecords:main.estimatedRecords+second.estimatedRecords});
+}
+function segmentArbPreview(settings,blockIndex=0){
+ // A single repeat of the selected block. This is planned output, not acquisition data.
+ const arb=settings?.arb,blocks=arb?.blocks||[arb];
+ if(!Number.isInteger(blockIndex)||blockIndex<0||blockIndex>=blocks.length)throw Error('时序序列不存在');
+ const b=blocks[blockIndex],summary=normalizeSegmentArb({...settings,arbPartner:null,secondary:null,arb:{loops:b.loops,segments:b.segments}});
+ let elapsed=0;
+ const segments=summary.segments.map((s,index)=>{
+  const startTicks=elapsed,endTicks=startTicks+s.durationTicks;elapsed=endTicks;
+  return Object.freeze({index:index+1,startTicks,endTicks,startV:s.startV,stopV:s.stopV,window:s.measure?Object.freeze({startTicks:startTicks+s.startTicks,endTicks:startTicks+s.stopTicks}):null});
+ });
+ return Object.freeze({source:'user-configured-plan',blockIndex,loops:summary.loops,durationTicks:elapsed,durationS:elapsed/1e8,minV:summary.minV,maxV:summary.maxV,segments:Object.freeze(segments)});
+}
   function getPmuCurrentRanges(rangeV, withRpm = false) {
     const mod = getModuleCapability(withRpm ? 'PMURPM' : 'PMU');
     const ranges = mod.measurement[withRpm ? 'withRpmCurrentRangesA' : 'currentRangesA'][String(Number(rangeV))];
@@ -490,7 +569,7 @@
     });
   }
   function exportDatabase() { return JSON.parse(JSON.stringify(DATABASE)); }
-  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
+  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, normalizeSegmentArb, normalizeArbPair, segmentArbPreview, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
   if (typeof window !== 'undefined') {
     window.DKTSHardwareCapabilities = api;
     if (window.DKDSPluginModules) window.DKDSPluginModules.define('com.dkts.keithley-4200', 'dkts-capabilities', api);

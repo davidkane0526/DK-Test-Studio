@@ -33,7 +33,7 @@ function configuredPage(model){
 }
 function makeInstrumentContext(modules,options={}){
  const commands=[],published=[],status=[];let closed=false;
- let lastQuery='';
+ let lastQuery='',measurementStarted=false,syntaxPending=false,firstOutput=true,systemRun=false;
  const instrumentInfo=[
   'slotno:1,name:SMU1,model:KISMU4200,serialno:SMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
   'slotno:2,name:SMU2,model:KISMU4200,serialno:SMU002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026'
@@ -56,17 +56,34 @@ function makeInstrumentContext(modules,options={}){
     commands.push({command,noReply:payload.noReply===true});
     if(command==='*IDN?\0')return reply('KI4200A,1498377,V1.14\0');
     if(command==='*OPT?\0')return reply('SMU1,SMU2\0');
+    if(command==='US\0')measurementStarted=true;
+    if(command==='ME1\0'){systemRun=true;measurementStarted=true;return reply('ACK\0');}
+    if(command==='ME4\0'){systemRun=false;return reply('ACK\0');}
+    if(/^(?:CH[1-9](?:,.*)?|SS|SM|MD|DM2|RS 7|VC[1-9],.*|ST .+|EC 1|WT .+|IN .+|NR .+|LI .+|VR1,.+|VL[1-9],.+|DT .+|HT .+|VP .+)\0$/.test(command))return reply('ACK\0');
+    if(command==="DO 'V1'\0")return reply('N0.1,N0.1\0');
+    if(command==="DO 'I1'\0")return reply('N1E-9,N2E-9\0');
+    if(command==="DO 'V2'\0"||command==="DO 'I2'\0")return reply('N0,N0\0');
+    if(command==="DO 'V1T'\0")return reply('0,0.12\0');
+    if(measurementStarted&&options.syntaxOnFirstDv&&firstOutput&&/^DV[1-8],/.test(command)){firstOutput=false;syntaxPending=true;}
     if(options.failDvAck&&/^DV[1-8]/.test(command))return reply('');
     if(command==='UL\0'||command==='DE\0'||command==='US\0'||
-       command===':ERROR:LAST:CLEAR\0'||/^DV[1-8](?:,0,[^,]+,[^,]+)?\0$/.test(command)||
+       command===':ERROR:LAST:CLEAR\0'||command==='EM 1,0\0'||command==='BC\0'||/^IT[123]\0$/.test(command)||/^DV[1-8](?:,0,[^,]+,[^,]+)?\0$/.test(command)||
        /^RI [1-8],[^,]+,[^,]+\0$/.test(command)||/^RG [1-8],[^,]+\0$/.test(command))
       return reply('ACK\0');
     if(command==='EX SystemUtil instrumentinfo(,4096,)\0'){lastQuery='instrument';return reply('OK\0');}
     if(command==='EX SystemUtil remotemoduleinfo(,4096,)\0'){lastQuery='remote';return reply('OK\0');}
-    if(command==='GN result\0')return reply(lastQuery==='instrument'?instrumentInfo+'\0':remoteInfo+'\0');
+    if(command==='EX SystemUtil systeminfo(,2048,)\0'){lastQuery='system';return reply('OK\0');}
+    if(command==='GN result\0')return reply(lastQuery==='instrument'?instrumentInfo+'\0':lastQuery==='system'?'serialno:1498377,swver:4200A-852-1.0,platformver:4200A-300-1,clariusver:V1.14\0':remoteInfo+'\0');
     if(command==='TI1\0')return reply('NAI+1.0000E-09\0');
     if(command==='TI2\0')return reply('NBI+0.0000E+00\0');
-    if(command===':ERROR:LAST:GET\0')return reply('No error (0)\0');
+    if(/^TV[12]\0$/.test(command)){const ch=Number(command[2]);const last=commands.filter(r=>r.command.startsWith('DV'+ch+',')).at(-1);const v=last?Number(last.command.split(',')[2]):0;return reply('N'+(ch===1?'A':'B')+'V'+v.toExponential(4)+'\0');}
+    if(command==='SP\0'){
+      if(systemRun){systemRun=false;return reply('1\0');}
+      if(options.busyAtStart&&!measurementStarted)return reply('16\0');
+      if(syntaxPending){syntaxPending=false;return reply('2\0');}
+      return reply('0\0');
+    }
+    if(command===':ERROR:LAST:GET\0')return reply(options.syntaxOnFirstDv?'KXCI command error. (-992)\0':'No error (0)\0');
     if(payload.noReply===true)throw Error('KXCI Ethernet command must drain its ACK');
     throw Error('Unexpected mock KXCI command: '+JSON.stringify(command));
    }
@@ -107,7 +124,7 @@ test('native Page maps to the same guarded Xsweep/Psweep KXCI domain contract',(
  assert.throws(()=>modules.get('measurementRuntime').pageToSweepProgram(wrongTarget),/漏极 SMU 电流/);
 });
 
-test('native runtime blocks real output until the latest KXCI Rev F manual is verified',async()=>{
+test('native runtime blocks legacy User Mode when its scoped execution permission is not enabled',async()=>{
  const {modules}=loadModules(false),{ctx,commands}=makeInstrumentContext(modules);
  const runtime=modules.get('measurementRuntime').createRuntime(ctx);
  try{
@@ -116,8 +133,8 @@ test('native runtime blocks real output until the latest KXCI Rev F manual is ve
   assert.equal(runtime.status().protocolVerified,false);
   const prepared=runtime.prepare(configuredPage(modules.get('model')));
   assert.equal(prepared.canExecute,false);
-  assert.match(prepared.reason,/Rev E.*Rev F.*禁止真实仪器输出/);
-  assert.throws(()=>runtime.start(configuredPage(modules.get('model')),true),/Rev E.*Rev F/);
+  assert.match(prepared.reason,/当前执行模式尚未取得输出许可/);
+  assert.throws(()=>runtime.start(configuredPage(modules.get('model')),true),/当前执行模式尚未取得输出许可/);
   assert.equal(commands.some(row=>/^DV/.test(row.command)),false);
  }finally{await runtime.dispose();}
 });
@@ -199,8 +216,8 @@ test('native runtime blocks timed execution when the DKDS lifecycle timer is una
   assert.equal(prepared.protocolVerified,true);
   assert.equal(prepared.executionAdapterAvailable,false);
   assert.equal(prepared.canExecute,false);
-  assert.match(prepared.reason,/生命周期管理的 DOM 定时服务/);
-  assert.throws(()=>runtime.start(configuredPage(modules.get('model')),true),/DOM 定时服务/);
+  assert.match(prepared.reason,/生命周期管理的查询\/停止调度器/);
+  assert.throws(()=>runtime.start(configuredPage(modules.get('model')),true),/生命周期管理/);
   assert.equal(commands.some(row=>/^DV/.test(row.command)),false);
  }finally{await runtime.dispose();}
 });
@@ -223,7 +240,7 @@ test('native stop cancels the DKDS-owned point timer before shutting down SMUs',
   assert.equal(fake.timerState.cancelled,1,'stop cancels the outstanding lifecycle timer');
   assert.equal(fake.timerState.fired,0,'a cancelled settling timer must not fire after stop');
   assert.equal(fake.commands.some(row=>row.command==='TI1\0'),false,'stop during settling does not trigger a measurement');
-  assert.equal(fake.commands.at(-1).command,'DV1\0','all active SMUs are commanded off before the run ends');
+  assert.equal(fake.commands.filter(row=>/^DV[1-9]\0$/.test(row.command)).at(-1).command,'DV1\0','all active SMUs are commanded off before the run ends');
  }finally{await runtime.dispose();}
 });
 
@@ -285,11 +302,102 @@ test('native runtime verifies compact KI4200A identity, physical modules, gates 
   assert.deepEqual(Array.from(column('drainCurrentA').values),[1e-9,1e-9]);
   assert.deepEqual(Array.from(column('xVoltageV').values),[0,.1]);
   assert.deepEqual(Array.from(column('rawKxciResponse').values),['NAI+1.0000E-09','NAI+1.0000E-09']);
-  assert.deepEqual(commands.slice(-1).map(row=>row.command),['DV1\0']);
+  assert.equal(commands.filter(row=>/^DV[1-9]\0$/.test(row.command)).at(-1).command,'DV1\0');
+  assert.equal(commands.at(-1).command,'SP\0','confirm last off command status');
   assert.ok(commands.filter(row=>/^DV/.test(row.command)||row.command==='US\0'||
    row.command===':ERROR:LAST:CLEAR\0').every(row=>row.noReply===false),
    'every write-only KXCI command must consume and validate ACK before the next query');
   await runtime.disconnect();
   assert.equal(runtime.status().connection.phase,'disconnected');
+ }finally{await runtime.dispose();}
+});
+
+
+test('busy instrument preflight does not clear buffers or drive or disable other tests',async()=>{
+ const {modules}=loadModules(true),fake=makeInstrumentContext(modules,{busyAtStart:true});
+ const runtime=modules.get('measurementRuntime').createRuntime(fake.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  runtime.start(configuredPage(modules.get('model')),true);
+  const final=await runtime.waitForCompletion();
+  assert.equal(final.run.state,'failed');
+  assert.equal(final.run.shutdown,'not-started');
+  assert.match(final.run.error,/已有测量/);
+  assert.ok(!fake.commands.some(row=>/^DV/.test(row.command)||row.command==='BC\0'||row.command==='US\0'));
+ }finally{await runtime.dispose();}
+});
+test('SP detects syntax error after first output before further source settings',async()=>{
+ const {modules}=loadModules(true),fake=makeInstrumentContext(modules,{syntaxOnFirstDv:true});
+ const runtime=modules.get('measurementRuntime').createRuntime(fake.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  runtime.start(configuredPage(modules.get('model')),true);
+  const final=await runtime.waitForCompletion();
+  assert.equal(final.run.state,'failed');
+  assert.match(final.run.error,/-992/);
+  assert.equal(final.run.shutdown,'commands-sent');
+  assert.equal(fake.commands.filter(row=>/^DV[1-9],/.test(row.command)).length,1);
+  assert.ok(!fake.commands.some(row=>/^TI/.test(row.command)));
+ }finally{await runtime.dispose();}
+});
+test('real DC model reaches guarded SMU runner in point-by-point mode',async()=>{
+ const {modules}=loadModules(true),fake=makeInstrumentContext(modules);
+ const model=modules.get('model'),runtime=modules.get('measurementRuntime').createRuntime(fake.ctx);
+ try{
+  const state=model.validate(model.initial());
+  const page=state.pages.find(row=>row.kind==='dc');
+  page.dc.preset='point-by-point';
+  page.dc.terminals.D.segments[0].stop='0.1';
+  page.dc.terminals.D.segments[0].step='0.1';
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  assert.equal(runtime.prepare(page).canExecute,true);
+  runtime.start(page,true);
+  const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'completed');
+  assert.equal(result.rows,2);
+  assert.equal(fake.commands.filter(row=>row.command==='TI1\0').length,2);
+ }finally{await runtime.dispose();}
+});
+test('real time model executes fixed-bias events with selected integration and actual times',async()=>{
+ const {modules}=loadModules(true),fake=makeInstrumentContext(modules);
+ const model=modules.get('model'),runtime=modules.get('measurementRuntime').createRuntime(fake.ctx);
+ try{
+  const state=model.add(model.validate(model.initial()),'time'),page=state.pages.at(-1);
+  page.timing.mode='native-fixed';
+  page.timing.integrationPreset='short';
+  page.timing.segments[0].durationS='0.3';
+  page.timing.segments[0].bias.D='0.1';
+  page.timing.events[0]={...page.timing.events[0],startS:'0.05',intervalS:'0.1',averageS:'0.08',points:'2'};
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  assert.equal(runtime.prepare(page).canExecute,true);
+  runtime.start(page,true);
+  const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'completed');
+  assert.equal(result.rows,2);
+  assert.equal(fake.commands.filter(row=>row.command==='IT1\0').length,1);
+  assert.equal(fake.commands.filter(row=>row.command==='ME1\0').length,1);
+  assert.equal(fake.commands.filter(row=>row.command==='TI1\0').length,0);
+  const rows=result.run.rows;
+  assert.deepEqual(Array.from(rows,row=>row.timeS),[0,0.12]);
+  assert.ok(rows.every(row=>row.source==='4200A-KXCI-DO'));
+ }finally{await runtime.dispose();}
+});
+
+test('Rev F scoped System Mode can run independently of the old User Mode gate',async()=>{
+ const {modules}=loadModules(false),fake=makeInstrumentContext(modules);
+ const model=modules.get('model'),runtime=modules.get('measurementRuntime').createRuntime(fake.ctx,{wait:async()=>{}});
+ try{
+  const state=model.validate(model.initial()),page=state.pages.find(p=>p.kind==='dc');
+  page.dc.preset='optimized';
+  page.dc.terminals.D.segments[0].stop='0.1';
+  page.dc.terminals.D.segments[0].step='0.1';
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  assert.equal(runtime.prepare(page).canExecute,true);
+  runtime.start(page,true);const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'completed');
+  assert.equal(result.rows,2);
+  assert.equal(result.published.canonical,true);
+  assert.equal(fake.commands.filter(c=>c.command==='ME1\0').length,1);
+  assert.ok(!fake.commands.some(c=>/^(DV|TI)/.test(c.command)));
  }finally{await runtime.dispose();}
 });

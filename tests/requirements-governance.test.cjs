@@ -30,13 +30,16 @@ test('DKTS README records the single stable Core identity and leaves physical ac
 test('DKTS development is restricted to one main branch and clean ZIP snapshots',()=>{
  const agents=read('AGENTS.md'),req=read('docs/USER_REQUIREMENTS.md');
  const sourceZip=read('.github/workflows/source-zip.yml');
- const branchPolicy=read('.github/workflows/main-only-branch-policy.yml');
+ const branchPolicy=read('.github/workflows/dkts-safe-branch-prune.yml');
  assert.match(agents,/Use only the GitHub `main` branch/);
  assert.match(req,/R-20261113-001/);
  assert.match(req,/R-20261103-002/);
  assert.match(sourceZip,/git archive/);
  assert.match(sourceZip,/retention-days: 30/);
  assert.match(branchPolicy,/branches: \[main\]/);
- assert.match(branchPolicy,/--method DELETE/);
- assert.match(branchPolicy,/remaining/);
+ assert.equal(fs.existsSync(path.resolve(__dirname,'../.github/workflows/main-only-branch-policy.yml')),false);
+ assert.match(branchPolicy,/b\.protected.*activeHeads\.has\(b\.name\)/);
+ assert.match(branchPolicy,/p\.head\.sha===b\.commit\.sha/);
+ assert.match(branchPolicy,/result\.data\.ahead_by===0&&result\.data\.behind_by>0/);
+ assert.match(branchPolicy,/github\.rest\.git\.deleteRef/);
 });

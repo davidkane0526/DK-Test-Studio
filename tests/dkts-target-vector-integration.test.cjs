@@ -1,0 +1,16 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+function load(){const modules=new Map();vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../integrations/dkds-native/model.js'),'utf8'),{window:{DKDSPluginModules:{define:(_,n,v)=>modules.set(n,v)}}});return modules.get('model');}
+const m=load();
+function plan(formula,y='result',extra={}){const p=m.validate(m.initial()).pages.find(p=>p.kind==='dc');Object.assign(p.dc.target,{x:'Vd',y,formula,...extra});return m.dcTargetColumns(p);}
+const rows=[0,1,2,0,1,2].map((v,i)=>({sequence:i+1,cycle:i<3?1:2,drainVoltageV:v,drainCurrentA:v*(i<3?2:5)}));
+const clean=v=>JSON.parse(JSON.stringify(v));
+test('Target dependency and Generator isolation',()=>{const t=plan('set result=dydx(Vd,Id)');assert.equal(t.needsVector,true);assert.deepEqual([...t.rawSignals].sort(),['Id','Vd']);assert.equal(m.evaluateTargetPoint(t,rows[0]),null);});
+test('derivative does not cross cycles',()=>{assert.deepEqual(clean(m.targetVectorRows(plan('set result=dydx(Vd,Id)'),rows)).map(r=>r.y),[2,2,2,5,5,5]);});
+test('integral and H export share complete groups',()=>{const t=plan('set result=integ(Vd,Id)','result',{h:'Id'});const out=clean(m.targetExportRows(t,rows));assert.deepEqual(out.map(r=>r.computedY),[0,1,4,0,2.5,10]);assert.deepEqual(out.map(r=>r.computedH),[0,2,4,0,5,10]);assert.equal(out[4].sourceRow,5);});
+test('nonuniform derivative and reverse derivative',()=>{const r=[0,1,3].map(x=>({drainVoltageV:x,drainCurrentA:2*x}));assert.deepEqual(clean(m.targetVectorRows(plan('set result=dxdy(Vd,Id)'),r)).map(r=>r.y),[.5,.5,.5]);});
+test('missing values and interrupted sequence are not bridged',()=>{const r=[{sequence:1,drainVoltageV:0,drainCurrentA:0},{sequence:2,drainVoltageV:1,drainCurrentA:null},{sequence:3,drainVoltageV:2,drainCurrentA:4},{sequence:5,drainVoltageV:3,drainCurrentA:6}];assert.deepEqual(clean(m.targetVectorRows(plan('set result=dydx(Vd,Id)'),r)).map(r=>r.y),[null,null,null,null]);});
+test('sum, vector generation and scalar broadcasting',()=>{assert.deepEqual(clean(m.targetVectorRows(plan('set result=Id+sum(Id)'),rows)).map(r=>r.y),[6,8,10,15,20,25]);assert.deepEqual(clean(m.targetVectorRows(plan('set result=linrange(1,3,3)'),rows)).map(r=>r.y),[1,2,3,1,2,3]);assert.throws(()=>m.targetVectorRows(plan('set result=range(1,2)'),rows),/align/);});
+function storeFor(r,short=false){const cols=Object.keys(r[0]).map(key=>({key,length:r.length,values:r.map(v=>v[key])}));return {columnMetadata:()=>cols,readColumnRange:(_,key,s)=>({values:cols.find(c=>c.key===key).values.slice(s.start,s.start+s.limit-(short?1:0))})};}
+test('plot calculates complete rows before reducing display',()=>{const t=plan('set result=dydx(Vd,Id)');const curves=m.curvesFromArtifacts([{artifactId:'a'}],storeFor(rows),{axis:'target',target:t,maxRead:2,maxDisplay:4});assert.equal(curves.length,2);assert.ok(curves.every(c=>c.source.readRows===6&&!c.source.truncated));assert.deepEqual(Array.from(curves,c=>c.points[0].y),[2,5]);assert.equal(m.curvesFromArtifacts([{artifactId:'a'}],storeFor(rows,true),{axis:'target',target:t}).length,0);});
+test('scalar Target regression',()=>{const t=plan('set result=2*Id');assert.equal(t.needsVector,false);assert.equal(m.evaluateTargetPoint(t,rows[2]).y,8);});

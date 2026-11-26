@@ -50,24 +50,43 @@
  const TIME_TERMINALS=['D','G','S','B'];
  const timeTerminalDefaults=value=>Object.fromEntries(TIME_TERMINALS.map(key=>[key,value]));
  const TIMED_DEFAULTS=Object.freeze({
-  time:Object.freeze({mode:'linear-step',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),
-   switchStepS:'0.1',sampleStepS:'0.1',cycles:'1',integrationPreset:'instrument',integrationS:'',
+  time:Object.freeze({mode:'linear-step',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),voltageLimitsV:Object.freeze(timeTerminalDefaults('')),
+   switchStepS:'0.1',sampleStepS:'0.1',listDelayS:'0.1',cycles:'1',integrationPreset:'instrument',integrationS:'',
    segments:Object.freeze([{durationS:'1',bias:timeTerminalDefaults('0'),currentBias:timeTerminalDefaults('0')}]),
    events:Object.freeze([{terminal:'D',quantity:'Current',startS:'0.1',intervalS:'0.1',averageS:'0.02',points:'9'}])}),
   retention:Object.freeze({terminal:'D',conditionV:'0',conditionS:'0',holdV:'0',readV:'0.1',
    firstS:'1',lastS:'100',windowS:'0.05',points:'10',spacing:'log',complianceA:'0.001'}),
-  pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',
+  pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',basePeakV:'',
    start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
    delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
-   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:''})
+   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',secondary:null,arb:null,arbPartner:null,testMode:'sweep'})
  });
  // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
  const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});
- const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw']);
+ const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw','target','target-h']);
  const timeBiasKey=mode=>mode==='current'?'currentBias':'bias';
  const timeBias=(settings,segment,terminal)=>segment[timeBiasKey(settings.sourceModes?.[terminal])]?.[terminal];
  function timeGrid(v){
-  if(v.mode!==undefined&&v.mode!=='linear-step')invalidField('mode','Select a supported time sweep mode');
+  if(v.mode!==undefined&&!['linear-step','native-fixed','native-list'].includes(v.mode))invalidField('mode','Select a supported time sweep mode');
+  if(v.mode==='native-list'){
+   if(!Array.isArray(v.segments)||!v.segments.length||v.segments.length>64)throw Error('Use 1–64 bias segments');
+   if(!Array.isArray(v.events)||v.events.length<1||v.events.length>6)throw Error('Use 1–6 measured signals');
+   const delay=atField('listDelayS',()=>numeric(v.listDelayS,'Native list settling delay'));if(delay<0||delay>6.553)invalidField('listDelayS','DT must be between 0 and 6.553 s');
+   let count=0;const starts=v.segments.map((s,i)=>{const start=count;count+=atField('segments.'+i+'.listPoints',()=>positiveInt(s.listPoints,4096,'Segment readings'));if(count>4096)invalidField('segments.'+i+'.listPoints','Native list supports up to 4096 readings per cycle');return start;});
+   return {starts,durationS:null,segmentCount:v.segments.length,samplePoints:count,sampleStep:null,settlingDelayS:delay,nativeList:true};
+  }
+  if(v.mode==='native-fixed'){
+   if(!Array.isArray(v.segments)||v.segments.length!==1)invalidField('mode','Native fixed bias requires one bias segment');
+   if(!Array.isArray(v.events)||v.events.length<1||v.events.length>6)invalidField('mode','Native fixed bias requires 1–6 measurement signals');
+   const event=v.events[0];
+   const count=atField('events.0.points',()=>positiveInt(event.points,4096,'Native NR'));
+   const start=atField('events.0.startS',()=>numeric(event.startS,'Native WT'));
+   const interval=atField('events.0.intervalS',()=>numeric(event.intervalS,'Native IN'));
+   if(start<0||start>100)invalidField('events.0.startS','WT must be between 0 and 100 s');
+   if(interval<0||interval>10)invalidField('events.0.intervalS','IN must be between 0 and 10 s');
+   // This is a diagram scale only, not a claimed physical duration.
+   return {starts:[0],durationS:Math.max(0.001,start+count*interval),segmentCount:1,samplePoints:count,sampleStep:interval,nativeFixed:true};
+  }
   const switchStep=atField('switchStepS',()=>numeric(v.switchStepS,'Switching Step'));
   const sampleStep=atField('sampleStepS',()=>numeric(v.sampleStepS,'Sampling Step'));
   if(switchStep<=0)invalidField('switchStepS','Switching Step must be positive');
@@ -97,6 +116,7 @@
    const mode=v.sourceModes[key];
    if(!['voltage','current'].includes(mode))invalidField('sourceModes.'+key,'Select voltage or current source mode');
    const current=mode==='current';
+   if(current&&(grid.nativeFixed||grid.nativeList)){const limit=atField('voltageLimitsV.'+key,()=>numeric(v.voltageLimitsV?.[key],key+' voltage compliance'));if(limit<=0||limit>210)invalidField('voltageLimitsV.'+key,'Current source requires a positive voltage compliance up to 210 V');}
    for(const [index,segment] of v.segments.entries()){
     const field='segments.'+index+'.'+timeBiasKey(mode)+'.'+key;
     const value=atField(field,()=>numeric(timeBias(v,segment,key),key+' bias'));
@@ -106,6 +126,18 @@
   const cycles=atField('cycles',()=>positiveInt(v.cycles,10000,'Cycles'));
   if(!Object.hasOwn(SMU_INTEGRATION_PLC,v.integrationPreset))
    invalidField('integrationPreset','Select a supported SMU integration preset');
+  if(grid.nativeFixed||grid.nativeList){
+   if(v.integrationS!=='')invalidField('integrationPreset','Select an instrument integration preset');
+   const event=v.events[0],signals=new Set();
+   for(const [i,e] of v.events.entries()){
+    if(!['D','G','S'].includes(e.terminal)||!['Current','Voltage'].includes(e.quantity))invalidField('events.'+i+'.terminal','Select a valid SMU measurement signal');
+    const key=e.terminal+':'+e.quantity;
+    if(signals.has(key))invalidField('events.'+i+'.quantity','Select each measurement signal only once');signals.add(key);
+    if(grid.nativeFixed)for(const field of ['startS','intervalS','points'])if(Number(e[field])!==Number(event[field]))invalidField('events.'+i+'.'+field,'Native fixed bias signals share start, wait and reading count');
+   }
+   if(!Number.isSafeInteger(grid.samplePoints*cycles))invalidField('cycles','Total readings exceed safe integer');
+   return {...grid,cycles,points:grid.samplePoints*cycles,signalCount:signals.size};
+  }
   const legacyIntegration=v.integrationS!==''?atField('integrationPreset',()=>numeric(v.integrationS,'Legacy integration time')):null;
   // Even at 60 Hz, a PLC preset has this minimum conversion time.
   // Instrument line frequency and settling time are verified separately.
@@ -137,9 +169,15 @@
   const values={...clone(TIMED_DEFAULTS[kind]),...settings};
   if(kind==='time'){
    values.sourceModes={...timeTerminalDefaults('voltage'),...values.sourceModes};
+   values.voltageLimitsV={...timeTerminalDefaults(''),...values.voltageLimitsV};
    if(Array.isArray(values.segments))values.segments=values.segments.map(segment=>segment&&({
-    ...segment,currentBias:{...timeTerminalDefaults('0'),...segment.currentBias}
+    ...segment,listPoints:segment.listPoints??'1',currentBias:{...timeTerminalDefaults('0'),...segment.currentBias}
    }));
+  }
+  if(kind==='pulse'){
+   if(settings?.testMode===undefined&&settings?.arb!=null)values.testMode='sequence';
+   if(!['sweep','sequence'].includes(values.testMode))throw Error('Invalid pulse test mode');
+   if(values.testMode==='sequence'&&values.arb==null)throw Error('Missing custom sequence');
   }
   if(kind==='pulse'&&Object.hasOwn(values,'windowStopUs')){
    values.windowTimeUs=String(numeric(values.windowStopUs,'Window stop')-numeric(values.windowStartUs,'Window start'));
@@ -147,11 +185,13 @@
   }
   return values;
  }
+ function pulseSecondarySettings(v){return {...v,...v.secondary,secondary:null,sweep:v.secondary?.sweep??'amplitude',basePeakV:v.secondary?.basePeakV??'',rangePolicy:v.secondary?.rangePolicy??'fixed',prePercent:v.secondary?.prePercent??v.prePercent??'0',postPercent:v.secondary?.postPercent??v.postPercent??'0'};}
  function timedSummary(kind,settings){
   const defaults=TIMED_DEFAULTS[kind];
   if(!defaults)return null;
   const v=timingSettings(kind,settings);
   if(kind==='time')return timeSummary(v);
+  if(kind==='pulse'&&v.testMode==='sequence')return window.DKDSPluginModules.require('dkts-capabilities').normalizeArbPair(v);
   if(!['S','D','G'].includes(v.terminal))throw Error('Select a Source, Drain or Gate terminal');
   const n=key=>numeric(v[key],key);
   if(kind==='retention'){
@@ -173,8 +213,9 @@
   if(![10,40].includes(rangeV)||!['1','2'].includes(v.channel)||!['amplitude','base'].includes(v.sweep)||!['spot','waveform'].includes(v.mode))
    throw Error('Invalid PMU range, sweep or acquisition mode');
   const points=segmentPoints({start,stop,step});
-  const peakV=Math.max(Math.abs(fixedV+start),Math.abs(fixedV+stop),
-   ...(v.sweep==='amplitude'?[Math.abs(fixedV)]:[Math.abs(start),Math.abs(stop)]));
+  const basePeakV=v.sweep==='base'?(v.basePeakV===''?(points===1?start+fixedV:NaN):n('basePeakV')):null;
+  if(v.sweep==='base'&&!Number.isFinite(basePeakV))invalidField('basePeakV','Enter the fixed absolute peak voltage for a multi-point base sweep');
+  const peakV=v.sweep==='amplitude'?Math.max(Math.abs(fixedV+start),Math.abs(fixedV+stop),Math.abs(fixedV)):Math.max(Math.abs(basePeakV),Math.abs(start),Math.abs(stop));
   if(peakV>rangeV)throw Error('Pulse base or top exceeds the selected voltage range');
   if(v.loadOhms!==''&&(n('loadOhms')<1||n('loadOhms')>1000000))throw Error('Load must be between 1 Ω and 1 MΩ');
   const rise=n('riseUs'),fall=n('fallUs'),period=n('periodUs'),width=n('widthUs'),delay=n('delayUs');
@@ -188,8 +229,22 @@
   const pulseCount=positiveInt(v.pulseCount,65536,'Pulse count'),rateHz=positiveInt(v.rateHz,200000000,'Sample rate');
   if(rateHz<1000)throw Error('Sample rate is below 1 kSa/s');
   if(v.currentRangeA!==''&&n('currentRangeA')<=0)throw Error('Current range must be positive');
-  return {points,pulseCount,rateHz,rangeV,peakV,windowS:windowUs*1e-6,
-   loadOhms:v.loadOhms===''?null:n('loadOhms')};
+  if(!['fixed','limited-auto'].includes(v.rangePolicy))throw Error('Invalid current range policy');
+  const pre=n('prePercent'),post=n('postPercent'),duration=rise+width+fall;
+  if(pre<0||pre>1||post<0||post>1)throw Error('Waveform pre/post fraction must be between 0 and 1');
+  if(v.mode==='waveform'&&(pre*duration>delay+1e-9||post*duration>period-delay-duration+1e-9))throw Error('Waveform pre/post capture exceeds available base time');
+  const captureWindowS=v.mode==='waveform'?duration*(1+pre+post)*1e-6:windowUs*1e-6;
+  const result={points,pulseCount,rateHz,rangeV,peakV,basePeakV,captureWindowS,windowS:windowUs*1e-6,loadOhms:v.loadOhms===''?null:n('loadOhms')};
+  if(v.secondary!==null){
+   if(!v.secondary||typeof v.secondary!=='object'||Array.isArray(v.secondary)||v.secondary.terminal===v.terminal||!['S','D','G'].includes(v.secondary.terminal))throw Error('Select a distinct Psweep terminal');
+   const required=['terminal','channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA'],optional=['sweep','basePeakV','rangePolicy','prePercent','postPercent'];
+   if(Object.keys(v.secondary).some(k=>![...required,...optional].includes(k)||typeof v.secondary[k]!=='string')||required.some(k=>typeof v.secondary[k]!=='string'))throw Error('Invalid Psweep pulse parameters');
+   const outer=timedSummary('pulse',pulseSecondarySettings(v));
+   if(v.mode==='waveform'&&outer.points!==1&&outer.points!==points)throw Error('Dual waveform requires equal-length simultaneous sweeps or a fixed companion pulse train');
+   if(v.mode==='spot'&&outer.points>1&&points===1)throw Error('Psweep requires a multi-point Xsweep');
+   result.secondary=outer;result.totalSweepPoints=v.mode==='waveform'?points:points*outer.points;
+  }
+  return result;
  }
  function segmentPoints(seg){
   const a=Number(seg.start),b=Number(seg.stop),step=Number(seg.step);
@@ -335,6 +390,7 @@
   const type=KINDS.find(x=>x.id===kind);if(!type)throw Error('Unknown test type');
   return {id,routineId,kind,name:type.label,testType:type.testType,note:'',
    terminals:ports(),sweep:defaultSweep(),
+   ...(kind==='time'?{timing:{...clone(TIMED_DEFAULTS.time),mode:'native-fixed'}}:{}),
    target:{name:'Id',logical:'D',quantity:'Current',range:'auto'},
    targets:[{id:'target-1',name:'Id',logical:'D',quantity:'Current',range:'auto'}],variables:[]};
  };
@@ -365,16 +421,176 @@
     limitI:'0.01',limitV:'1',segments:[{method:key===axis?'step':'constant',
      value:'0',start:'0',stop:'1',step:'0.1',points:'11',list:'0, 0.1, 0.2',formula:'getx()',range:'auto'}]
    }])),target:{formula:'',x:'',y:'',h:'',p:''},
-   strategy:{mode:'global',integration:'',delay:'',hold:'',onLimit:'stop',direction:'forward'},specIds:p.associateSpecId?[p.associateSpecId]:[]};
+   strategy:{mode:'global',integrationPreset:'normal',integration:'',delay:'',hold:'',onLimit:'stop',direction:'forward'},specIds:p.associateSpecId?[p.associateSpecId]:[]};
  }
  function dcOutputs(p,settings=p.dc){
   return dcTerminals(p,settings).filter(t=>t.resource!=='GNDU').flatMap(t=>
    ['I','V'].map(prefix=>prefix+t.logical.toLowerCase()));
  }
+
+ // Target functions operate on complete, ordered acquisition groups. They are
+ // intentionally separate from the scalar Generator evaluator.
+ const TARGET_VECTOR_ARITY=Object.freeze({linsweep:3,linrange:3,logsweep:3,range:-1,sum:-1,dydx:2,d2ydx2:2,d3ydx3:2,dxdy:2,d2xdy2:2,d3xdy3:2,integ:2});
+ function targetUsesVector(ast){
+  const [op,a,b]=ast;
+  if(op==='f')return Object.hasOwn(TARGET_VECTOR_ARITY,a)||b.some(targetUsesVector);
+  if(op==='n'||op==='v')return false;
+  return targetUsesVector(a)||(op!=='neg'&&targetUsesVector(b));
+ }
+ function vectorNumber(v){return v==null||v===''?NaN:Number(v);}
+ function vectorLength(n){if(!Number.isSafeInteger(n)||n<1||n>250000)throw Error('Target vector length must be 1–250000');return n;}
+ function vectorPair(x,y){
+  if(!Array.isArray(x)||!Array.isArray(y)||x.length!==y.length)throw Error('Target requires equal length X/Y vectors');
+  return x.length;
+ }
+ function vectorDerivative(x,y){
+  const n=vectorPair(x,y),out=Array(n).fill(NaN);
+  const slope=(a,b)=>Number.isFinite(x[a])&&Number.isFinite(x[b])&&Number.isFinite(y[a])&&Number.isFinite(y[b])&&x[b]!==x[a]?(y[b]-y[a])/(x[b]-x[a]):NaN;
+  for(let i=0;i<n;i++){
+   if(!Number.isFinite(x[i])||!Number.isFinite(y[i]))continue;
+   const l=i>0?slope(i-1,i):NaN,r=i+1<n?slope(i,i+1):NaN;
+   if(i>0&&i+1<n&&Number.isFinite(l)&&Number.isFinite(r)){
+    const dl=x[i]-x[i-1],dr=x[i+1]-x[i];
+    if(Math.sign(dl)===Math.sign(dr))out[i]=(dr*l+dl*r)/(dl+dr);
+   }else if(i===0)out[i]=r;
+   else if(i===n-1)out[i]=l;
+  }return out;
+ }
+ function vectorFunction(name,args){
+  if(name==='range'){if(args.some(Array.isArray))throw Error('range requires scalar values');return args.slice();}
+  if(name==='sum'){const a=args.flat();return a.every(Number.isFinite)?a.reduce((s,v)=>s+v,0):NaN;}
+  if(['linsweep','linrange','logsweep'].includes(name)){
+   if(args.some(v=>!Number.isFinite(v)))throw Error('Target sweep requires finite scalars');
+   const [a,b,c]=args;
+   if(name==='linsweep'){
+    if(a===b){if(c!==0)throw Error('Single-point linsweep requires zero step');return [a];}
+    if(c===0||Math.sign(c)!==Math.sign(b-a))throw Error('Invalid linsweep direction');
+    const q=(b-a)/c,n=vectorLength(Math.round(q)+1);
+    if(Math.abs(q-Math.round(q))>1e-8*Math.max(1,q))throw Error('linsweep endpoint is not reachable');
+    return Array.from({length:n},(_,i)=>i===n-1?b:a+i*c);
+   }
+   const n=vectorLength(c);if(n===1){if(a!==b)throw Error('Single-point range endpoints must match');return [a];}
+   if(name==='logsweep'&&(a<=0||b<=0))throw Error('logsweep requires positive endpoints');
+   return Array.from({length:n},(_,i)=>i===0?a:i===n-1?b:name==='logsweep'?Math.exp(Math.log(a)+(Math.log(b)-Math.log(a))*i/(n-1)):a+(b-a)*i/(n-1));
+  }
+  const [x,y]=args;
+  if(name==='integ'){
+   const n=vectorPair(x,y),out=Array(n).fill(NaN);
+   if(n&&Number.isFinite(x[0])&&Number.isFinite(y[0]))out[0]=0;
+   for(let i=1;i<n;i++)if([out[i-1],x[i-1],x[i],y[i-1],y[i]].every(Number.isFinite))out[i]=out[i-1]+(x[i]-x[i-1])*(y[i]+y[i-1])/2;
+   return out;
+  }
+  const reverse=name.includes('xdy'),order=name.startsWith('d3')?3:name.startsWith('d2')?2:1,independent=reverse?y:x;
+  let result=reverse?x:y;for(let i=0;i<order;i++)result=vectorDerivative(independent,result);return result;
+ }
+ function vectorValue(ast,env,polarity){
+  const [op,a,b]=ast;
+  if(op==='n')return a;if(op==='v')return env[a];
+  const scalar=(args,fn)=>{
+   const vectors=args.filter(Array.isArray);if(!vectors.length)return fn(...args);
+   const n=vectors[0].length;if(vectors.some(v=>v.length!==n))throw Error('Target vector lengths differ');
+   return Array.from({length:n},(_,i)=>fn(...args.map(v=>Array.isArray(v)?v[i]:v)));
+  };
+  if(op==='neg')return scalar([vectorValue(a,env,polarity)],v=>-v);
+  if(op==='f'){
+   const args=b.map(v=>vectorValue(v,env,polarity));
+   if(Object.hasOwn(TARGET_VECTOR_ARITY,a))return vectorFunction(a,args);
+   return scalar(args,(...values)=>targetValue(['f',a,values.map(v=>['n',v])],{},polarity));
+  }
+  return scalar([vectorValue(a,env,polarity),vectorValue(b,env,polarity)],(x,y)=>targetValue([op,['n',x],['n',y]],{},polarity));
+ }
+ const TARGET_GROUP_KEYS=['routineCycle','stageIndex','cycle','pPoint','pRepeat','xRepeat','pulseResource','sweepDirection'];
+ function targetVectorRows(target,rows){
+  if(rows.length>250000)throw Error('Target vector calculation exceeds the 250000-row software budget');
+  const out=Array(rows.length).fill(null);let start=0;
+  const key=row=>JSON.stringify(TARGET_GROUP_KEYS.map(k=>row[k]??null));
+  while(start<rows.length){
+   let end=start+1;const group=key(rows[start]);
+   while(end<rows.length&&key(rows[end])===group&&
+    (rows[end].sequence==null||rows[end-1].sequence==null||Number(rows[end].sequence)===Number(rows[end-1].sequence)+1))end++;
+   const block=rows.slice(start,end),env=Object.assign(Object.create(null),target.variables||{});
+   for(const [k,c] of Object.entries(target.inputs))env[k]=block.map(row=>vectorNumber(row[c.key]));
+   for(const z of target.formulas)env[z.name]=vectorValue(z.ast,env,target.polarity);
+   const axisValue=axis=>{if(!axis)return null;const v=vectorValue(axis.ast,env,target.polarity);if(Array.isArray(v)&&v.length!==block.length)throw Error('Target plot vector must align with acquired rows');return v;};
+   const x=axisValue(target.x),y=axisValue(target.y),h=axisValue(target.h);
+   const at=(v,i)=>Array.isArray(v)?v[i]:v;
+   for(let i=0;i<block.length;i++){
+    if(!targetPassesP(target,block[i]))continue;
+    const vx=at(x,i),vy=at(y,i),vh=at(h,i);
+    out[start+i]={x:Number.isFinite(vx)?vx:null,y:Number.isFinite(vy)?vy:null,h:Number.isFinite(vh)?vh:null};
+   }
+   start=end;
+  }return out;
+ }
+
+function targetExpression(input,known,deps,options={}){
+ const s=String(input).trim();if(!s||s.length>512)throw Error('Target expression length must be 1–512');
+ const re=/\s*([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?\d+)?|\.[0-9]+(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*|[()+*/,^-])/y;
+ const t=[];for(let p=0;p<s.length;p=re.lastIndex){re.lastIndex=p;const a=re.exec(s);if(!a)throw Error('Invalid Target expression');t.push(a[1]);}
+ let i=0;const arity={abs:1,sqrt:1,ln:1,lg:1,sin:1,cos:1,tan:1,asin:1,acos:1,atan:1,sinh:1,cosh:1,tanh:1,sgn:1,pow:2,mod:2,pi:0,e:0,scale:0};
+ function atom(){const a=t[i++];if(a==='('){const n=sum();if(t[i++]!==')')throw Error('Unclosed Target expression');return n;}if(/^[\d.]/.test(a||'')){const n=Number(a);if(!Number.isFinite(n))throw Error('Invalid Target number');return ['n',n];}if(!a||! /^[A-Za-z]/.test(a))throw Error('Expected Target value');
+ const k=a.toLowerCase();if(t[i]==='('){i++;const args=[];if(t[i]!==')'){args.push(sum());while(t[i]===','){i++;args.push(sum());}}if((k==='getx'||k==='getp')&&options.generator&&args.length===0){if(t[i++]!==')'||k==='getp'&&!options.outer)throw Error('Generator has no Psweep');return ['v',k];}if(t[i++]!==')'||!(Object.hasOwn(arity,k)&&args.length===arity[k]||!options.generator&&Object.hasOwn(TARGET_VECTOR_ARITY,k)&&(TARGET_VECTOR_ARITY[k]===-1?args.length>0:args.length===TARGET_VECTOR_ARITY[k])))throw Error('Unsupported Target function: '+a);return ['f',k,args];}if(!known.has(k))throw Error('Unknown Target variable: '+a);deps.add(k);return ['v',k];}
+ function power(){const a=atom();if(t[i]==='^'){i++;return ['^',a,unary()];}return a;}
+ function unary(){if(t[i]==='+'||t[i]==='-'){const op=t[i++];return op==='+'?unary():['neg',unary()];}return power();}
+ function product(){let a=unary();while(t[i]==='*'||t[i]==='/'){const op=t[i++];a=[op,a,unary()];}return a;}
+ function sum(){let a=product();while(t[i]==='+'||t[i]==='-'){const op=t[i++];a=[op,a,product()];}return a;}
+ const ast=sum();if(i!==t.length)throw Error('Unexpected Target token');return ast;
+}
+function targetValue(ast,env,polarity){
+ const [op,a,b]=ast;if(op==='n')return a;if(op==='v')return env[a];if(op==='neg')return -targetValue(a,env,polarity);
+ if(op==='f'){const fn={abs:Math.abs,sqrt:x=>Math.sqrt(Math.abs(x)),ln:Math.log,lg:Math.log10,sin:Math.sin,cos:Math.cos,tan:Math.tan,asin:Math.asin,acos:Math.acos,atan:Math.atan,sinh:Math.sinh,cosh:Math.cosh,tanh:Math.tanh,sgn:Math.sign,pow:Math.pow,mod:(x,y)=>x%y,pi:()=>Math.PI,e:()=>Math.E,scale:()=>polarity==='PMOS'?-1:1}[a];return fn(...b.map(x=>targetValue(x,env,polarity)));}
+ const x=targetValue(a,env,polarity),y=targetValue(b,env,polarity);return op==='+'?x+y:op==='-'?x-y:op==='*'?x*y:op==='/'?x/y:x**y;
+}
+function dcTargetColumns(page,dc=page.dc){
+ const mapped=dcOutputs(page,dc),roleNames={d:'drain',g:'gate',s:'source',b:'body'},signals=[...mapped,'Time'];
+ const raw=Object.fromEntries(signals.map(v=>[v.toLowerCase(),{signal:v,key:v==='Time'?'timeS':roleNames[v[1]]+(v[0]==='I'?'CurrentA':'VoltageV'),unit:v==='Time'?'s':v[0]==='I'?'A':'V'}]));
+ const variables=Object.create(null);for(const v of page.variables||[]){const k=String(v.name).toLowerCase();if(Object.hasOwn(raw,k)||Object.hasOwn(variables,k))throw Error('Duplicate Target variable: '+v.name);variables[k]=Number(v.value);}
+ const known=new Set([...Object.keys(raw),...Object.keys(variables)]),deps=new Set(),formulas=[];
+ const formula=String(dc.target.formula||'').trim();if(formula.length>8192)throw Error('Target formula too long');
+ if(formula)for(const line of formula.split(/[;\r\n]+/).map(x=>x.trim()).filter(Boolean)){const match=/^set\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.+)$/i.exec(line);if(!match)throw Error('Target formula requires set name = expression');const k=match[1].toLowerCase();if(known.has(k))throw Error('Duplicate Target assignment: '+match[1]);formulas.push({name:k,ast:targetExpression(match[2],known,deps)});known.add(k);}
+ const term=dcTerminals(page,dc).find(t=>dc.terminals[t.logical].role==='X'&&t.resource!=='GNDU');
+ const fallbackX=term?(dc.terminals[term.logical].mode==='current'?'I':'V')+term.logical.toLowerCase():'Vd',requested=dc.outputs.trim().split(/[\s,]+/);
+ const resolve=(name,fallback)=>{const v=String(name||'').trim()||fallback,parts=v.split(':'),expression=parts.length===2?parts[1].trim():v;if(parts.length>2||parts.length===2&&!parts[0].trim())throw Error('Invalid Target alias');const key=expression.toLowerCase(),direct=raw[key],ast=targetExpression(expression,known,deps);return {...(direct||{key:'derived:'+expression,unit:''}),signal:parts.length===2?parts[0].trim():direct?.signal||expression,ast};};
+ const x=resolve(dc.target.x,fallbackX),fallbackY=requested.find(v=>mapped.includes(v)&&v!==x.signal)||mapped.find(v=>v!==x.signal),y=resolve(dc.target.y,fallbackY);
+ if(x.key===y.key)invalidField('target.y','X and Y must be distinct signals');
+ const h=String(dc.target.h||'').trim()?resolve(dc.target.h,''):null;
+ const outer=dcTerminals(page,dc).find(t=>dc.terminals[t.logical].role==='P'&&t.resource!=='GNDU');
+ const filterText=String(dc.target.p||'').trim();let pFilter=null;
+ if(filterText){if(!outer)invalidField('target.p','P filter requires Psweep');const values=filterText.split(/[,;\s]+/).map(x=>Number(x));if(!values.length||values.some(v=>!Number.isFinite(v))||values.length>4096)invalidField('target.p','P filter requires comma-separated finite source levels');pFilter={key:dc.terminals[outer.logical].mode==='current'?'plannedPCurrentA':'plannedPVoltageV',values:[...new Set(values)]};}
+ const inputs=Object.fromEntries([...deps].filter(k=>Object.hasOwn(raw,k)).map(k=>[k,raw[k]]));
+ if(!Object.keys(inputs).length)throw Error('Target requires at least one acquired signal');
+ const needsVector=[x.ast,y.ast,...(h?[h.ast]:[]),...formulas.map(z=>z.ast)].some(targetUsesVector);
+ return {x,y,h,pFilter,needsVector,signals,inputs,rawSignals:Object.values(inputs).map(v=>v.signal),variables,formulas,polarity:dc.polarity};
+}
+function targetPassesP(target,row){const p=target.pFilter;if(!p)return true;const raw=row[p.key];if(raw==null||raw==='')return false;const value=Number(raw);return Number.isFinite(value)&&p.values.some(z=>Math.abs(value-z)<=Math.max(1e-15,Math.abs(z)*1e-9));}
+function evaluateTargetPoint(target,row){
+ if(target.needsVector||!targetPassesP(target,row))return null;
+ const env=Object.assign(Object.create(null),target.variables||{});for(const [k,c] of Object.entries(target.inputs||{})){const v=row[c.key];env[k]=v==null||v===''?NaN:Number(v);}
+ for(const z of target.formulas||[])env[z.name]=targetValue(z.ast,env,target.polarity);
+ const x=targetValue(target.x.ast,env,target.polarity),y=targetValue(target.y.ast,env,target.polarity);return Number.isFinite(x)&&Number.isFinite(y)?{x,y}:null;
+}
+ function targetForAxis(target,axis){if(axis==='target-h'){if(!target.h)throw Error('H expression is empty');return {...target,y:target.h};}return target;}
+ function targetExportRows(target,rows){const vectors=target.needsVector?targetVectorRows(target,rows):null;const out=[];for(const [i,row] of rows.entries()){if(!targetPassesP(target,row))continue;const point=vectors?vectors[i]:evaluateTargetPoint(target,row),hp=vectors?(point?{x:point.x,y:point.h}:null):target.h?evaluateTargetPoint(targetForAxis(target,'target-h'),row):null;out.push({sourceRow:row.sequence??i+1,cycle:row.cycle??null,pPoint:row.pPoint??null,plannedPVoltageV:row.plannedPVoltageV??null,plannedPCurrentA:row.plannedPCurrentA??null,computedX:point?.x??hp?.x??null,computedY:point?.y??null,computedH:hp?.y??null,xExpression:target.x.signal,yExpression:target.y.signal,hExpression:target.h?.signal??''});}return out;}
  function dcMethods(role){
   return role==='CONDITION'?['constant','generator']:['step','points','log','list'];
  }
- function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
+function dcAffine(raw,variables,polarity){
+ const input=String(raw??'').trim();
+ if(!input||input.length>256)throw Error('Generator expression length must be 1–256');
+ const re=/\s*([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?\d+)?|\.[0-9]+(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*|[()+*/-])/y;
+ const tokens=[];for(let p=0;p<input.length;p=re.lastIndex){re.lastIndex=p;const m=re.exec(input);if(!m)throw Error('Invalid Generator expression');tokens.push(m[1]);}
+ let i=0;const constant=b=>[0,b],scale=(a,b)=>a.map(v=>v*b);
+ function atom(){const t=tokens[i++];if(t==='-'||t==='+')return scale(atom(),t==='-'?-1:1);if(t==='('){const v=sum();if(tokens[i++]!==')')throw Error('Unclosed Generator expression');return v;}
+  if(/^(?:[0-9]|\.)/.test(t||''))return constant(Number(t));
+  if(tokens[i]==='('&&tokens[i+1]===')'){i+=2;if(t==='getx')return [1,0];if(t==='scale')return constant(polarity==='PMOS'?-1:1);throw Error('Native Generator supports getx() and scale(), not '+t+'()');}
+  if(Object.hasOwn(variables,t))return constant(Number(variables[t]));throw Error('Unknown Generator variable '+t);}
+ function product(){let a=atom();while(['*','/'].includes(tokens[i])){const op=tokens[i++],b=atom();if(op==='/'){if(b[0]!==0||b[1]===0)throw Error('Native Generator requires a nonzero constant divisor');a=scale(a,1/b[1]);}else{if(a[0]!==0&&b[0]!==0)throw Error('Native Generator must be affine in getx()');a=a[0]===0?scale(b,a[1]):scale(a,b[1]);}}return a;}
+ function sum(){let a=product();while(['+','-'].includes(tokens[i])){const op=tokens[i++],b=scale(product(),op==='-'?-1:1);a=[a[0]+b[0],a[1]+b[1]];}return a;}
+ const [ratio,offset]=sum();if(i!==tokens.length||!Number.isFinite(ratio)||!Number.isFinite(offset))throw Error('Invalid Generator expression');if(Math.abs(ratio)>10||Math.abs(offset)>210)throw Error('Native Generator ratio/offset exceed RT/FS limits');return {ratio,offset};
+}
+ function generatorEvaluator(raw,variables,polarity,outer){const env=Object.assign(Object.create(null),Object.fromEntries(Object.entries(variables).map(([k,v])=>[k.toLowerCase(),Number(v)])));const ast=targetExpression(raw,new Set(Object.keys(env)),new Set(),{generator:true,outer});return (x,p)=>{const value=targetValue(ast,{...env,getx:x,getp:p},polarity);if(!Number.isFinite(value))throw Error('Generator output is not finite');return value;};}
+function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
+  if(generator){generatorEvaluator(raw,variables,polarity,outer);return NaN;}
   const input=String(raw??'').trim();
   if(!input||input.length>256)throw Error('Enter an expression of 1–256 characters');
   const tokenPattern=/\s*([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?\d+)?|\.[0-9]+(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*|[()+*/-])/y;
@@ -430,6 +646,7 @@
  function migrateDcPreset(dc){
   if(dc.preset===undefined)dc.preset='optimized';
   if(dc.strategy){
+   if(dc.strategy.integrationPreset===undefined)dc.strategy.integrationPreset=dc.strategy.integration?.trim()?'legacy':'normal';
    if(dc.strategy.hold===undefined)dc.strategy.hold='';
    if(dc.strategy.onLimit===undefined)dc.strategy.onLimit='stop';
    if(dc.strategy.direction===undefined)dc.strategy.direction='forward';
@@ -446,7 +663,7 @@
      !Array.isArray(dc.specIds)||dc.specIds.length>100||new Set(dc.specIds).size!==dc.specIds.length||
      !dc.target||!['formula','x','y','h','p'].every(key=>text(dc.target[key],key==='formula'?4096:256))||
      !dc.strategy||!['global','local'].includes(dc.strategy.mode)||
-     !text(dc.strategy.integration)||!text(dc.strategy.delay)||!text(dc.strategy.hold)||
+     !['fast','normal','quiet','legacy'].includes(dc.strategy.integrationPreset??(dc.strategy.integration?.trim()?'legacy':'normal'))||!text(dc.strategy.integration)||!text(dc.strategy.delay)||!text(dc.strategy.hold)||
      !['stop','skip'].includes(dc.strategy.onLimit)||!['forward','forward-reverse'].includes(dc.strategy.direction))
    throw Error('Invalid DC test parameters');
   for(const key of ['D','G','S','B']){
@@ -548,9 +765,9 @@
      logical+' source or compliance exceeds the SMU planning envelope');
    }
   }
-  if(dc.preset==='point-by-point'&&dc.strategy.hold.trim()){
+  if(dc.strategy.hold.trim()){
    const hold=atField('hold',()=>numeric(dc.strategy.hold,'Hold time'));
-   if(hold<0||hold>1000)invalidField('hold','Hold time must be between 0 and 1000 s');
+   if(hold<0||hold>655.3)invalidField('hold','Hold time must be between 0 and 655.3 s');
   }
   if(dc.strategy.mode==='local'){
    for(const key of ['integration','delay']){
@@ -1053,7 +1270,7 @@
  // Core owns the canonical DataTable buffer and the drawing engine.
  // A curve reads bounded, immutable column slices instead of copying a whole
  // Artifact with artifacts.get(). Display decimation never changes raw data.
- function curvesFromArtifacts(refs,store,{maxRead=65536,maxDisplay=8192,axis='iv'}={}){
+ function curvesFromArtifacts(refs,store,{maxRead=65536,maxDisplay=8192,axis='iv',target=null}={}){
   const out=[];
   if(!Array.isArray(refs)||!store?.columnMetadata||!store?.readColumnRange)return out;
   const budget=Math.max(1,Math.min(65536,Math.floor(Number(maxRead)||65536)));
@@ -1069,19 +1286,26 @@
     iv:['drainvoltagev','vdset','vd','voltage','vds','drainvoltage','x'],
     transfer:['gatevoltagev','vg','vgs','gatevoltage'],
     it:['times','time','elapsedseconds','seconds','t'],
-    vt:['times','time','elapsedseconds','seconds','t']
+    vt:['times','time','elapsedseconds','seconds','t'],target:[]
    };
    if(!Object.prototype.hasOwnProperty.call(xkeys,axis))throw Error('Unknown graph axis');
-   const x=choose(xkeys[axis],'x',axis==='iv');
-   const y=axis==='vt'?choose(['drainvoltagev','measuredvoltagev','measuredvoltage','voltagev','voltage','vd'],'y',false):
+   const pulse=cols.some(c=>norm(c)==='pulsevoltagev')&&cols.some(c=>norm(c)==='pulsecurrenta');
+   if(pulse&&axis==='transfer')continue;
+   const targetCols=axis==='target'&&target?Object.fromEntries([...new Set([...Object.values(target.inputs).map(v=>v.key),...(target.pFilter?[target.pFilter.key]:[])])].map(key=>[key,cols.find(c=>norm(c)===key.toLowerCase())])):null;
+   if(axis==='target'&&(!targetCols||Object.values(targetCols).some(c=>!c)))continue;
+   const x=axis==='target'?Object.values(targetCols)[0]:pulse?choose(axis==='iv'?['pulsevoltagev']:xkeys[axis],'x',false):choose(xkeys[axis],'x',axis==='iv');
+   const y=axis==='target'?x:pulse?choose(axis==='vt'?['pulsevoltagev']:['pulsecurrenta'],'y',false):axis==='vt'?choose(['drainvoltagev','measuredvoltagev','measuredvoltage','voltagev','voltage','vd'],'y',false):
     choose(['draincurrenta','id','current','ids','i','draincurrent','y'],'y',axis!=='it');
-      if(!x||!y||x===y)continue;
-   const total=Math.min(Number(x.length)||0,Number(y.length)||0);
+      if(!x||!y||(axis!=='target'&&x===y))continue;
+   const total=Math.min(...(targetCols?Object.values(targetCols):[x,y]).map(c=>Number(c.length)||0));
+   const groupCols=Object.fromEntries((target?.needsVector?[...TARGET_GROUP_KEYS,'sequence']:['cycle','pPoint','pRepeat','xRepeat']).map(k=>[k,cols.find(c=>norm(c)===k.toLowerCase()&&Number(c.length)>=total)]).filter(([,c])=>c));
    if(!Number.isSafeInteger(total)||total<=0)continue;
    // Span the entire raw table, not just the first 65536 rows. All accesses
    // use the DKDS Data Center bounded column-read interface; no artifacts.get().
-   const limit=Math.min(budget,total);
-   const windows=total<=limit?1:Math.min(32,Math.max(2,Math.ceil(total/limit)));
+   const vectorMode=axis==='target'&&target?.needsVector===true;
+   if(vectorMode&&(total>250000||Object.values(targetCols).some(c=>Number(c.length)!==total)))continue;
+   const limit=vectorMode?total:Math.min(budget,total);
+   const windows=vectorMode?Math.ceil(total/4096):total<=limit?1:Math.min(32,Math.max(2,Math.ceil(total/limit)));
    const baseSize=Math.floor(limit/windows),extra=limit%windows;
    const spans=[];
    let cursor=0;
@@ -1089,37 +1313,48 @@
     const size=baseSize+(i<extra?1:0);
     if(!size)continue;
     const ideal=windows===1?0:Math.round(i*(total-size)/(windows-1));
-    const start=Math.max(cursor,Math.min(total-size,ideal));
+    const start=vectorMode?cursor:Math.max(cursor,Math.min(total-size,ideal));
     spans.push({start,limit:size});
     cursor=start+size;
    }
-   const sampled=[];
-   let readRows=0;
+   const sampled=[],vectorRows=[];
+   let readRows=0,vectorReadFailed=false;
    for(const span of spans){
-    const xc=store.readColumnRange(id,x.id||x.key,span);
-    const yc=store.readColumnRange(id,y.id||y.key,span);
+    const read=c=>store.readColumnRange(id,c.id||c.key,span)?.values;
     const isColumn=v=>Array.isArray(v)||ArrayBuffer.isView(v);
-    if(!isColumn(xc?.values)||!isColumn(yc?.values))continue;
-    const count=Math.min(span.limit,xc.values.length,yc.values.length);
-    readRows+=count;
+    const columns=targetCols?Object.fromEntries(Object.entries(targetCols).map(([k,c])=>[k,read(c)])):{x:read(x),y:read(y)};
+    const values=Object.values(columns);if(values.some(v=>!isColumn(v)))continue;
+    const groups=Object.fromEntries(Object.entries(groupCols).map(([k,c])=>[k,read(c)]).filter(([,v])=>isColumn(v)&&v.length>=Math.min(span.limit,...values.map(x=>x.length))));
+    const count=Math.min(span.limit,...values.map(v=>v.length));readRows+=count;
+    if(vectorMode){if(count!==span.limit||Object.keys(groups).length!==Object.keys(groupCols).length){vectorReadFailed=true;break;}for(let j=0;j<count;j++)vectorRows.push(Object.fromEntries([...Object.entries(columns),...Object.entries(groups)].map(([k,v])=>[k,v[j]])));continue;}
     for(let j=0;j<count;j++){
-     const vx=Number(xc.values[j]),vy=Number(yc.values[j]);
-     if(Number.isFinite(vx)&&Number.isFinite(vy))
-      sampled.push({index:span.start+j,point:{x:vx,y:vy}});
+     let point;if(targetCols){point=evaluateTargetPoint(target,Object.fromEntries(Object.entries(columns).map(([k,v])=>[k,v[j]])));}else{
+      const vx=columns.x[j],vy=columns.y[j];if(vx==null||vy==null||vx===''||vy==='')continue;point={x:Number(vx),y:Number(vy)};
+     }
+     if(point&&Number.isFinite(point.x)&&Number.isFinite(point.y)){
+      const group=Object.entries(groups).filter(([,v])=>v[j]!=null&&v[j]!==''&&Number.isFinite(Number(v[j]))).map(([k,v])=>k+'='+v[j]).join(' / ');
+      sampled.push({index:span.start+j,point,group});
+     }
     }
    }
+   if(vectorMode&&!vectorReadFailed&&readRows===total&&vectorRows.length===total){
+    let result;try{result=targetVectorRows(target,vectorRows);}catch{continue;}
+    let segment=0,previous='';for(let i=0;i<result.length;i++){const p=result[i],row=vectorRows[i];const key=JSON.stringify(TARGET_GROUP_KEYS.map(k=>row[k]??null));if(key!==previous||i>0&&row.sequence!=null&&vectorRows[i-1].sequence!=null&&Number(row.sequence)!==Number(vectorRows[i-1].sequence)+1){segment++;previous=key;}if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y)){segment++;continue;}sampled.push({index:i,point:{x:p.x,y:p.y},group:TARGET_GROUP_KEYS.filter(k=>row[k]!=null&&row[k]!=='').map(k=>k+'='+row[k]).join(' / ')+' #'+segment});}
+   }
    if(!sampled.length)continue;
+   const partitions=new Map();for(const item of sampled){if(!partitions.has(item.group))partitions.set(item.group,[]);partitions.get(item.group).push(item);}
+   for(const [group,series] of partitions){
    const chosen=[],seen=new Set();
    function keep(entry){
     if(entry&&!seen.has(entry.index)){seen.add(entry.index);chosen.push(entry);}
    }
    // Chronological min/max decimation retains local extrema of the rows
    // actually inspected. Unsampled gaps are NEVER represented as full coverage.
-   keep(sampled[0]);
-   const groups=Math.max(1,Math.floor((display-2)/2));
-   const groupStep=Math.max(1,Math.ceil(sampled.length/groups));
-   for(let start=0;start<sampled.length;start+=groupStep){
-    const block=sampled.slice(start,start+groupStep);
+   keep(series[0]);
+   const groups=Math.max(1,Math.floor((Math.max(4,Math.floor(display/partitions.size))-2)/2));
+   const groupStep=Math.max(1,Math.ceil(series.length/groups));
+   for(let start=0;start<series.length;start+=groupStep){
+    const block=series.slice(start,start+groupStep);
     let lo=block[0],hi=block[0];
     for(const point of block){
      if(point.point.y<lo.point.y)lo=point;
@@ -1127,19 +1362,20 @@
     }
     for(const entry of [lo,hi].sort((a,b)=>a.index-b.index))keep(entry);
    }
-   keep(sampled[sampled.length-1]);
+   keep(series[series.length-1]);
    chosen.sort((a,b)=>a.index-b.index);
    const partial=readRows<total;
-   out.push({id,artifactId:id,label:String(ref.name||id)+
+   out.push({id:partitions.size>1?id+':'+group:id,artifactId:id,label:String(ref.name||id)+(partitions.size>1?' · '+group:'')+
      (partial?' (preview '+readRows+'/'+total+')':''),
-    points:chosen.map(x=>x.point),
+    points:chosen.map(x=>x.point),...(axis==='target'?{target:{x:target.x,y:target.y}}:{}),
     source:{artifactId:id,kind:'dkds-artifact-bounded-preview',
      totalRows:total,readRows,displayRows:chosen.length,truncated:partial,
      coverage:partial?'stratified-intervals':'all-rows',
      windows:spans.map(x=>({start:x.start,rows:x.limit}))}});
+   }
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcSummary,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,pulseSecondarySettings,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

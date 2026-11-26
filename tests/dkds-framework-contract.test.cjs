@@ -17,7 +17,7 @@ function fixture(){
  for(const f of [
   'src/index.html','src/app/placeholder.js','src/core/placeholder.js',
   'desktop/native-update.js','desktop/ui-hot-update.js','desktop/apply-portable-update.ps1',
-  'mobile/plugins/DkdsLanTcp.template','mobile/plugins/DkdsAppUpdate.template',
+  'mobile/plugins/DkdsAppUpdate.template',
   'mobile/plugins/DkdsUiHotUpdate.template','sdk/tools/dkds-plugin.js'
  ])write(f,'\n');
  const keep=[
@@ -38,6 +38,19 @@ function fixture(){
  for(const [folder,id,pluginType,capabilities=[]] of [...keep,...analysis])
   write('src/plugins/'+folder+'/plugin.json',JSON.stringify({id,pluginType,capabilities}));
  // Minimal pinned-DKDS compatibility fixtures exercise each derived-host patch.
+ write('mobile/plugins/DkdsLanTcp.template',[
+  '      val noReply=p.optBoolean("noReply",false)',
+  '      row.socket.soTimeout=readTimeout',
+  '      while(output.size()<maxBytes){',
+  '        try{',
+  '          output.write(buffer,0,count)',
+  '          row.socket.soTimeout=idleTimeout',
+  '        }catch(error:SocketTimeoutException){',
+  '          if(output.size()==0)throw IllegalStateException("TCP read timed out before any response; session closed to prevent stale replies.",error)',
+  '        }',
+  '      }',
+  '      if(output.size()>=maxBytes)throw IllegalStateException("TCP response reached the configured byte limit. Session closed.")'
+ ].join('\n'));
  write('src/core/plugins/kernel/modules/workspace/top.js',
   "const selected=String(saved||preferredId||defaultSuperCandidate()||'').trim();");
  write('desktop/main.js',[
@@ -159,6 +172,9 @@ test('stage DKDS Core into DKTS directory without touching upstream or shipping 
    'production staging must reject the deliberately incomplete SDK fixture');
   const p=stage(f.root,out,{dktsRoot:repo,validateUpdater:()=>({verifiedCount:10,testOnly:true}),patchUpdaters:false});
   const stagedMain=fs.readFileSync(path.join(out,'desktop/main.js'),'utf8');
+  const tcpTemplate='mobile/plugins/DkdsLanTcp.template';
+  assert.match(fs.readFileSync(path.join(out,tcpTemplate),'utf8'),/val framed=p\.optString/);
+  assert.doesNotMatch(fs.readFileSync(path.join(f.root,tcpTemplate),'utf8'),/val framed=/);
   assert(!stagedMain.includes('\r\n'),'staging normalizes CRLF before exact source replacements');
   assert.match(stagedMain,/DK Test Studio/);
   assert.equal(p.derivedDistribution,true);

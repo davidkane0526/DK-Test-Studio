@@ -52,3 +52,13 @@ Checked: 2026-11-24
 - PMU sample rate accepts an integer from 1,000 to 200,000,000 Sa/s. Rev F preserves the ambiguous boundary at 65,536 generated points. DKTS leaves that boundary out of ready presets and flags it for review. DKTS preserves the requested rate. Pulse period, transition limits and off time are checked against the selected voltage range.
 - PMU Rev D confirms 200 MSa/s and the Clarius waveform sample/point limits. The timing fields reviewed here do not certify the full KXCI or PMU capability database or an installed chassis.
 - PDFs: [KXCI Rev F](https://download.tek.com/manual/4200A-KXCI-907-01F_Sept2026.pdf) · [Pulse Card Rev D](https://download.tek.com/manual/4200A-PMU-900-01D_Sept_2026.pdf).
+
+
+## 本次复核补记
+
+2026-11-24：当前会话重新访问 Rev F 官方 PDF 链接失败，繁中官方页面返回 403。此前 11 月 24 日开发日志记录已取得 PDF 并核对局部字段，但原件不在 Git 树中，不能据此声称本会话完成全文复核。Rev E PDF 正文可读。具体 SMU 指令、固件与实测需逐项确认，而非把 Rev F 当成不同协议。
+
+
+## 2026-11-24 · Rev F 原件恢复
+
+用户上传 4200A-KXCI-907-01F_Sept2026.pdf（211 页）。已读取实际原件，核对 2-2、3-14–15、4-3/6、5-7–10、5-20–30、5-34、5-40–42、5-45–49、5-54–57；不把私有上传 PDF 再分发到公共仓库。新版第 1-1/3-11/3-12 页说明 Clarius 1.15+ HiSLIP 与 legacy KXCI 区别；此前已经建立的 V1.14 raw TCP 路径不擅自改成 HiSLIP。完整命令集和固件实测未完成。

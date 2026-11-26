@@ -3,6 +3,7 @@
   const IDN_REQUEST='*IDN?\0',OPTIONS_REQUEST='*OPT?\0',UL_REQUEST='UL\0';
   const INSTRUMENT_INFO_REQUEST='EX SystemUtil instrumentinfo(,4096,)\0';
   const REMOTE_MODULE_INFO_REQUEST='EX SystemUtil remotemoduleinfo(,4096,)\0';
+  const SYSTEM_INFO_REQUEST='EX SystemUtil systeminfo(,2048,)\0';
   const GN_RESULT_REQUEST='GN result\0',DE_REQUEST='DE\0';
   function getCapabilities(){
     if(typeof window!=='undefined'&&window.DKTSHardwareCapabilities)return window.DKTSHardwareCapabilities;
@@ -157,7 +158,9 @@
       if(slot.family==='PMU'){
         const remoteChannels=rpmRecords.filter(x=>/4225/.test(x.model)).map(x=>Number(x.name.split('-').pop())).filter(Number.isInteger).sort((a,b)=>a-b);
         const badRpm=rpmRecords.some(x=>!/4225/.test(x.model));
-        if(badRpm||remoteChannels.length!==rpmCount||(rpmChannels.length&&remoteChannels.join(',')!==rpmChannels.join(','))){mismatch=true;reason='*OPT? 的 RPM 通道类别与 remotemoduleinfo 不一致';}
+        const genericRpm=slot.logicalType==='PMURPM';
+        const uniqueChannels=new Set(remoteChannels);
+        if(badRpm||uniqueChannels.size!==remoteChannels.length||(genericRpm?remoteChannels.length<1||remoteChannels.length>2:remoteChannels.length!==rpmCount||(rpmChannels.length&&remoteChannels.join(',')!==rpmChannels.join(',')))){mismatch=true;reason='*OPT? 的 RPM 通道类别与 remotemoduleinfo 不一致';}
         rpmChannels=remoteChannels.length?remoteChannels:rpmChannels;
         rpmCount=remoteChannels.length||rpmCount;
         if(rpmCount)type='PMURPM';
@@ -214,7 +217,70 @@
       instrumentInfoStatus:'verified',remoteModuleInfoStatus:'verified'
     });
   }
-  const api=Object.freeze({IDN_REQUEST,OPTIONS_REQUEST,UL_REQUEST,INSTRUMENT_INFO_REQUEST,REMOTE_MODULE_INFO_REQUEST,GN_RESULT_REQUEST,DE_REQUEST,parseIdentity,parseOptions,parseInstrumentInfo,parseRemoteModuleInfo,parseHardwareInventory});
+function portCatalog(inventory){
+ return (inventory?.slots||[]).flatMap(s=>{
+  if(!Number.isInteger(s.channel)||s.channel<1||s.channel>9)return [];
+  const base={verified:s.physicalIdentityVerified===true&&s.ratingsVerified===true,serial:s.physicalSerialNo||'',slot:s.slot,model:s.physicalModel||s.type||''};
+  if(s.family==='SMU')return [{...base,id:'SMU'+s.channel,family:'SMU',channel:s.channel}];
+  if(s.family==='PMU'||s.family==='PGU')return [1,2].map(ch=>({...base,id:(s.family==='PGU'?'VPU':'PMU')+s.channel+'-'+ch,family:s.family,card:s.channel,subchannel:ch,hasRpm:s.family==='PMU'&&(s.rpmChannels||[]).includes(ch)}));
+  if(['CVU','VS','VM'].includes(s.family))return [{...base,id:s.family+s.channel,family:s.family,channel:s.channel}];
+  return [];
+ });
+}
+function topologySignature(inventory,serial){
+ const cards=portCatalog(inventory).map(p=>[p.id,p.slot,p.serial,p.hasRpm===true,p.verified]).sort((a,b)=>a[0].localeCompare(b[0]));
+ const rpm=(inventory?.remoteModuleInfoRecords||[]).filter(r=>/^RPM\d+-[12]$/i.test(r.name)).map(r=>[r.name.toUpperCase(),r.slotNo,r.serialNo]).sort((a,b)=>a[0].localeCompare(b[0]));
+ return JSON.stringify([String(serial||''),cards,rpm]);
+}
+function confirmTopology(inventory,serial,links){
+ const ports=portCatalog(inventory),rpms=ports.filter(p=>p.hasRpm),smus=ports.filter(p=>p.family==='SMU'&&p.verified);
+ if(!serial||!inventory?.physicalModelsVerified||!inventory?.hardwareLimitsVerified)throw Error('请先识别全部实装模块');
+ if(rpms.length&&(!rpms.every(p=>p.serial)||!smus.every(p=>p.serial)||rpms.some(p=>!(inventory.remoteModuleInfoRecords||[]).some(r=>r.name.toUpperCase()==='RPM'+p.card+'-'+p.subchannel&&r.serialNo))))throw Error('请先确认模块和 RPM 的序列号');
+ if(!Array.isArray(links)||links.length!==rpms.length)throw Error('请逐一确认 RPM 对应的 SMU 接线');
+ const seen=new Set(),used=new Set();
+ for(const link of links){
+  if(!rpms.some(p=>p.id===link.pmu&&p.verified)||seen.has(link.pmu))throw Error('RPM 通道无效或重复');
+  seen.add(link.pmu);
+  if(link.smu!=='None'){
+   if(!smus.some(p=>p.id===link.smu)||used.has(link.smu))throw Error('SMU 接线无效或重复');
+   used.add(link.smu);
+  }
+ }
+ return Object.freeze({serial,signature:topologySignature(inventory,serial),links:links.map(x=>Object.freeze({pmu:x.pmu,smu:x.smu})),source:'user-confirmed-kcon-wiring',confirmedAt:new Date().toISOString()});
+}
+function planSmURoutes(inventory,serial,profile,resources){
+ const ports=portCatalog(inventory),rpms=ports.filter(p=>p.hasRpm);
+ if(!rpms.length)return [];
+ if(!profile||profile.serial!==serial||profile.signature!==topologySignature(inventory,serial))throw Error('请在仪器连接菜单确认 RPM 接线（一次性设置）');
+ const verified=confirmTopology(inventory,serial,profile.links);
+ const pulseCards=(inventory.slots||[]).filter(s=>['PMU','PGU'].includes(s.family)).map(s=>s.channel).sort((a,b)=>a-b);
+ if(pulseCards.some((v,i)=>v!==i+1)||pulseCards.length>4)throw Error('脉冲卡编号未能对应实际通道，请核对 KCon');
+ return verified.links.filter(x=>x.smu!=='None'&&resources.includes(x.smu)).map(x=>{
+  const port=rpms.find(p=>p.id===x.pmu);
+  return Object.freeze({pmu:x.pmu,smu:x.smu,pulseChannel:2*(port.card-1)+port.subchannel});
+ });
+}
+function resolvePulseResource(inventory,serial,profile,resource,legacyChannel){
+ const ports=portCatalog(inventory);
+ // A saved explicit PMU channel remains an explicit choice.
+ if(/^PMU[1-9]-[12]$/.test(resource))return resource;
+ // Only migrate an old card-level choice when the old plan specified CH1/2.
+ if(/^PMU[1-9]$/.test(resource)&&/^[12]$/.test(String(legacyChannel))){
+  const candidate=resource+'-'+legacyChannel;
+  return ports.some(p=>p.id===candidate)?candidate:resource;
+ }
+ if(!/^SMU[1-9]$/.test(resource)||!profile||profile.serial!==serial||profile.signature!==topologySignature(inventory,serial))return resource;
+ const confirmed=confirmTopology(inventory,serial,profile.links);
+ return confirmed.links.find(l=>l.smu===resource)?.pmu||resource;
+}
+function parseSystemInfo(value,serial){
+ const raw=String(value||'').trim().replace(/,\s*$/,'');
+ const fields=Object.fromEntries(raw.split(',').map(s=>s.trim().split(/:(.*)/s).slice(0,2).map(x=>x.trim())));
+ if(!fields.serialno||!fields.swver||!fields.platformver||!fields.clariusver)throw Error('系统版本信息缺失');
+ if(serial&&fields.serialno!==serial)throw Error('系统信息序列号不匹配');
+ return Object.freeze({serial:fields.serialno,softwareVersion:fields.swver,platformVersion:fields.platformver,clariusVersion:fields.clariusver,raw});
+}
+  const api=Object.freeze({SYSTEM_INFO_REQUEST,portCatalog,topologySignature,confirmTopology,planSmURoutes,resolvePulseResource,parseSystemInfo,IDN_REQUEST,OPTIONS_REQUEST,UL_REQUEST,INSTRUMENT_INFO_REQUEST,REMOTE_MODULE_INFO_REQUEST,GN_RESULT_REQUEST,DE_REQUEST,parseIdentity,parseOptions,parseInstrumentInfo,parseRemoteModuleInfo,parseHardwareInventory});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
