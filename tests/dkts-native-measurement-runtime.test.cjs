@@ -527,3 +527,23 @@ test('PMU time keeps legacy profiles and selects auto edges for the installed ha
  assert.throws(()=>t({...loaded,loadOhms:'1'}),/输出能力/);
  assert.throws(()=>t({sampleStepUs:'0.001'}),/采样步长/);
 });
+
+test('SMU time preview uses inclusive indices and estimates programmed waits only',()=>{
+ const {modules}=loadModules(),model=modules.get('model');
+ const fixed=model.validate(model.initial()).pages.find(page=>page.kind==='time').timing;
+ Object.assign(fixed.events[0],{startS:'0.2',intervalS:'0.125',points:'60'});
+ const points=model.timePreviewGrid(fixed,'point');
+ const timing=model.timePreviewGrid(fixed,'time');
+ assert.equal(points.origin,1);
+ assert.equal(points.readings.at(-1).at,60);
+ assert.equal(timing.readings[0].at,0.2);
+ assert.equal(timing.readings.at(-1).at,0.2+59*0.125);
+ const list={...fixed,mode:'native-list',listDelayS:'0.25',segments:[
+  {...fixed.segments[0],listPoints:'60'},{...fixed.segments[0],listPoints:'2'}
+ ]};
+ const listPoints=model.timePreviewGrid(list,'point'),listTimes=model.timePreviewGrid(list,'time');
+ assert.deepEqual(Array.from(listPoints.starts),[1,61]);
+ assert.equal(listTimes.starts[1],15);
+ assert.deepEqual({...listTimes.readings[60]},{at:15.25,segment:1});
+ assert.equal(model.timePreviewGrid({...list,listDelayS:'0'},'time').durationS,0);
+});

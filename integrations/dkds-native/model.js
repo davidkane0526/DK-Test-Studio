@@ -126,6 +126,20 @@
    throw Error('A cycle must have a finite number of switching and sampling steps');
   return {starts,durationS,segmentCount,samplePoints,sampleStep};
  }
+ function timePreviewGrid(settings,axis){
+  const grid=timeGrid(settings);
+  if(!grid.nativeFixed&&!grid.nativeList)return {...grid,origin:0,pointsAxis:false,readings:[]};
+  const pointsAxis=axis!=='time',fixed=grid.nativeFixed;
+  const wait=fixed?Number(settings.events[0].startS):grid.settlingDelayS;
+  const interval=fixed?grid.sampleStep:grid.settlingDelayS;
+  const readings=[];
+  const starts=grid.starts.map((start,segment)=>{
+   const end=grid.starts[segment+1]??grid.samplePoints;
+   for(let index=start;index<end;index++)readings.push({at:pointsAxis?index+1:wait+index*interval,segment});
+   return pointsAxis?start+1:start*interval;
+  });
+  return {...grid,starts,origin:pointsAxis?1:0,durationS:readings.at(-1).at,pointsAxis,readings};
+ }
  function timeSummary(v){
   const grid=timeGrid(v),{durationS,sampleStep}=grid;
   if(!['','GND','S','D','G'].includes(v.reference))invalidField('reference','Select a ground reference');
@@ -1414,6 +1428,6 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,TIME_PMU_MODE,defaultPmuTimeSettings,pulseSecondarySettings,timeGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,TIME_PMU_MODE,defaultPmuTimeSettings,pulseSecondarySettings,timeGrid,timePreviewGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

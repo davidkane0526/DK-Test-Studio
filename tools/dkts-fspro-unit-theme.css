@@ -265,7 +265,7 @@ html[data-dkds-theme-header-effect="true"] #dktsKeithley4200Page .dkts-dc-termin
 #dktsKeithley4200Page .dkts-time-segment:not(.dkts-time-column-head){border-block-end:1px solid var(--dkts-divider)}
 #dktsKeithley4200Page .dkts-time-preview-terminal::before{
  content:"";inline-size:9px;block-size:9px;border-radius:50%;
- background:color-mix(in srgb,var(--dkts-terminal-accent) 55%,var(--text-primary))
+ background:var(--dkts-terminal-accent)
 }
 #dktsKeithley4200Page .dkts-time-status[data-dkts-time-valid="false"]{color:var(--danger)}
 
