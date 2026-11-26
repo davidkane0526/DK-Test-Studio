@@ -1,6 +1,6 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.35","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.36","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),measurementData=ctx.modules.require('measurementData'),
    measurementRuntimeModule=ctx.modules.require('measurementRuntime'),units=ctx.ui.unitTemplates,
@@ -923,7 +923,33 @@
    for(const [i,s] of preview.segments.entries()){if(i===0)g.moveTo(x(s.startTicks),y(s.startV));else g.lineTo(x(s.startTicks),y(s.startV));g.lineTo(x(s.endTicks),y(s.stopV));}
    g.stroke();
   }
-  function renderArbTiming(host,p,values,put,panel){
+  function timeHelp(host,label,text){
+   if(!host)return;
+   const icon=units.layout.create(host,{variant:'identity',tagName:'span',className:'dkts-time-help'});
+   if(!icon)return;
+   icon.textContent='?';
+   icon.setAttribute('tabindex','0');
+   icon.setAttribute('role','img');
+   icon.setAttribute('aria-label',tr('说明 · ','Help · ')+label);
+   icon.setAttribute('aria-description',text);
+   icon.setAttribute('data-dkds-tooltip',text);
+  }
+  function reciprocal(value,scale){
+   const number=Number(value),result=scale/number;
+   return number>0&&Number.isFinite(result)&&result>0?String(result):'';
+  }
+  function renderSamplingFields(host,fields,read,write){
+   const controls={};
+   for(const [key,label,path,help] of fields){
+    controls[key]=scalarField(host,label,read(key),value=>{
+     write(key,value);
+     const other=key==='step'?'rate':'step';
+     controls[other].setValue(read(other));
+    },false,{'data-dkts-parameter-path':path},false,true);
+    if(help)timeHelp(controls[key].label,label,help);
+   }
+  }
+  function renderArbTiming(host,p,values,put,panel,timeSettings){
    const draft=editorPlan.draft,byBias=values.testMode==='bias-steps',path=byBias?'biasSteps':'arb';
    const partner=byBias?null:values.arbPartner,partnerActive=Boolean(partner&&draft.arbChannel===1);
    const current=()=>partnerActive?values.arbPartner:values,settings=current();
@@ -935,10 +961,10 @@
     else putChannel('arb',{blocks:blockList().map((block,i)=>i===selected?{...block,[key]:value}:block)});
     refresh();
    };
-   const field=(target,label,value,onChange,path)=>scalarField(target,label,String(value),v=>{onChange(String(v));},false,
+   const field=(target,label,value,onChange,path,disabled=false)=>scalarField(target,label,String(value),v=>{onChange(String(v));},disabled,
     {'data-dkts-parameter-path':(byBias?'pmu.':'')+path},false,true);
    const timingContext=()=>{const port=pulsePort(p,settings);return {withRpm:port.pmuVerified&&port.withRpm};};
-   let sequenceLayout,edgeDisplay,rateDisplay;
+   let sequenceLayout,edgeDisplay;
    if(editorSection==='sweep'){
     if(!byBias){
     const channels=panel('时序端子','Sequence terminals');
@@ -949,7 +975,11 @@
     },{key:'arb-second-terminal'});
     if(partner)dcSelect(channels,tr('编辑端子','Edit terminal'),partnerActive?'1':'0',[{value:'0',label:t(logicalNames[values.terminal])},{value:'1',label:t(logicalNames[partner.terminal])}],v=>{draft.arbChannel=Number(v);draft.arbBlock=0;draft.arbPage=0;render();},{key:'arb-edit-terminal'});
     }
-    const input=panel('输入设置','Input settings');
+    const input=panel(byBias?'Time Xsweep · 单周期':'输入设置',byBias?'Time Xsweep · One Cycle':'Input settings');
+    if(byBias){
+     input?.classList?.add('dkts-pmu-time-settings');
+     renderTimeMode(input,timeSettings);
+    }
     const choices=['S','D','G'].filter(k=>k!==(partnerActive?values.terminal:partner?.terminal));
     const channelSelect=(target,key,label,options)=>dcSelect(target,label,String(settings[key]),options.map(([value,label])=>({value,label})),value=>{putChannel(key,value);render();},{key:'arb-'+key});
     channelSelect(input,'terminal',tr('端子','Terminal'),choices.map(key=>[key,t(logicalNames[key])+' · '+pulsePort(p,{...values,...settings,terminal:key}).resource]));
@@ -959,9 +989,24 @@
     field(input,tr('负载 (Ω)','Load (Ω)'),settings.loadOhms,v=>{putChannel('loadOhms',v);refresh();},'loadOhms');
     const ranges=port.pmuVerified?hardware.getPmuCurrentRanges(Number(settings.rangeV),port.withRpm):[];
     channelSelect(input,'currentRangeA',tr('固定电流档','Fixed current range'),[
-     ['',tr('请选择固定电流档','Select a fixed range')],...ranges.map(r=>[String(r),String(r)+' A'])
+     ['',byBias?tr('请选择','Select'):tr('请选择固定电流档','Select a fixed range')],...ranges.map(r=>[String(r),String(r)+' A'])
     ]);
-    if(byBias&&!port.pmuVerified)units.note.create(input,{variant:'meta',text:tr('预览按 4225‑PMU 规格估算。接入并映射后会纳入已识别的 RPM。','Preview uses the 4225-PMU specifications and incorporates the RPM when the port is identified and mapped.')});
+    if(byBias){
+     renderSamplingFields(input,[
+      ['step',tr('采样步长 (µs)','Sampling step (µs)'),'pmu.sampleStepUs'],
+      ['rate',tr('采样频率 (Sa/s)','Sample rate (Sa/s)'),'pmu.rateHz']
+     ],key=>{
+      if(key==='step')return String(values.sampleStepUs??'').trim()||reciprocal(values.rateHz,1e6);
+      try{return String(hardware.segmentArbSampleRate(values));}catch{return '';}
+     },(key,value)=>{
+      if(key==='step')put('sampleStepUs',value.trim()||' ');
+      else{
+       values.sampleStepUs='';
+       put('rateHz',value.trim());
+      }
+      refresh();
+     });
+    }
     if(!byBias){
     const sequencePanel=panel('序列组合','Sequence list');
     dcSelect(sequencePanel,tr('序列','Sequence'),String(selected),blocks.map((b,i)=>({value:String(i),label:(i+1)+' · '+b.loops+' × '+b.segments.length+' '+tr('段','segments')})),v=>{draft.arbBlock=Number(v);draft.arbPage=0;render();},{key:'arb-block'});
@@ -980,35 +1025,60 @@
       render();
      },{key:'pmu-edge-mode'});
      if(edgeMode==='manual')field(seq,tr('设定过渡 (µs)','Set transition (µs)'),arb.edgeUs,v=>change('edgeUs',v),'biasSteps.edgeUs');
-     edgeDisplay=dcInput(seq,tr('实际编排的过渡 (µs)','Programmed transition (µs)'),'—',null,
-      {key:'pmu-edge-effective',readOnly:true}).control;
-     units.note.create(seq,{variant:'meta',className:'dkts-bias-step-note',text:tr(
-      '过渡按量程、偏置电平和已识别的 PMU/RPM 算出，单独计时。序列从 0 V 开始并回到 0 V。',
-      'Transitions are counted separately and determined by range, bias levels and the verified PMU/RPM. The sequence starts and returns at 0 V.')});
+     const edgeLabel=tr('过渡时间 (µs)','Transition (µs)');
+     const edge=dcInput(seq,edgeLabel,'—',null,{key:'pmu-edge-effective',readOnly:true});
+     edgeDisplay=edge.control;
+     timeHelp(edge.label,edgeLabel,tr('序列从 0 V 开始并回到 0 V。过渡时间另计。','The sequence starts and returns at 0 V. Transitions add to the hold time.'));
     }
     const count=arb.segments.length;
     const pageCount=Math.ceil(count/32),pageIndex=Math.max(0,Math.min(pageCount-1,draft.arbPage||0));
     if(pageCount>1)dcSelect(seq,tr('段范围','Segments'),String(pageIndex),Array.from({length:pageCount},(_,i)=>({value:String(i),label:(i*32+1)+'–'+Math.min(count,(i+1)*32)})),v=>{draft.arbPage=Number(v);render();},{key:'arb-page'});
     const edit=(i,key,val)=>change('segments',blockList()[selected].segments.map((s,j)=>j===i?{...s,[key]:val}:s));
+    const table=byBias?dcLayout(seq,'dkts-bias-step-table'):seq;
+    if(byBias){
+     const header=dcLayout(table,'dkts-bias-step-header dkts-bias-step-row');
+     for(const [zh,en] of [['段','No.'],['偏置 (V)','Bias (V)'],['保持 (µs)','Hold (µs)'],['测量','Measure'],
+      ['起点 (µs)','Start (µs)'],['终点 (µs)','Stop (µs)']]){
+      if(zh==='测量'){
+       const caption=units.layout.create(header,{variant:'identity',className:'dkts-bias-column-caption'});
+       units.note.create(caption,{variant:'meta',text:tr(zh,en)});
+       timeHelp(caption,tr(zh,en),tr('启用后可设置测量窗口。终点留空表示段末。','Enable to set the measurement window. Leave the stop blank for the segment end.'));
+      }else units.note.create(header,{variant:'meta',text:tr(zh,en)});
+     }
+    }
     const shapeFields=byBias?[['biasV','偏置 (V)','Bias (V)'],['durationUs','保持时间 (µs)','Hold (µs)']]:
      [['startV','起始电压 (V)','Start (V)'],['stopV','终止电压 (V)','Stop (V)'],['durationUs','时长 (µs)','Duration (µs)']];
     for(let i=pageIndex*32;i<Math.min(count,(pageIndex+1)*32);i++){
-     const s=arb.segments[i],row=byBias?dcLayout(seq,'dkts-bias-step-row'):
+     const s=arb.segments[i],row=byBias?dcLayout(table,'dkts-bias-step-row'):
       units.panel.create(seq,{variant:'headed',title:tr('段 ','Segment ')+(i+1),sizing:'content',className:'dkts-timing-panel'}).body;
-     if(byBias)units.note.create(row,{variant:'meta',text:tr('段 ','Segment ')+(i+1)});
+     if(byBias)row?.setAttribute?.('data-dkts-bias-row',String(i+1));
+     if(byBias)units.note.create(row,{variant:'meta',text:String(i+1)});
      const rowPath=path+'.segments.'+i+'.';
-     for(const [key,zh,en] of shapeFields)field(row,tr(zh,en),s[key],v=>edit(i,key,v),rowPath+key);
-     dcSelect(row,tr('测量','Measure'),s.measure?'on':'off',[{value:'off',label:tr('不测量','Off')},{value:'on',label:tr('测量','On')}],v=>{edit(i,'measure',v==='on');render();},{key:'arb-measure-'+i});
-     if(s.measure){
-      const windowFields=byBias?dcLayout(row,'dkts-bias-step-window'):row;
-      field(windowFields,tr('测量起点 (µs)','Measure start (µs)'),s.measureStartUs,v=>edit(i,'measureStartUs',v),rowPath+'measureStartUs');
-      const stopField=field(windowFields,tr('测量终点 (µs)','Measure stop (µs)'),
-       s.measureStopUs,v=>edit(i,'measureStopUs',v),rowPath+'measureStopUs');
-      if(byBias)stopField.control?.setAttribute('placeholder',tr('段末','End of segment'));
+     const labelFor=label=>tr('段 ','Segment ')+(i+1)+' · '+label;
+     for(const [key,zh,en] of shapeFields){
+      const input=field(row,tr(zh,en),s[key],v=>edit(i,key,v),rowPath+key);
+      if(byBias)input.control?.setAttribute('aria-label',labelFor(tr(zh,en)));
      }
-     if(count>(byBias?1:3))units.action.create(row,{id:'dkts-arb-remove-'+i,label:tr('删除','Remove'),variant:'quiet',direct:true,onInvoke:()=>{
-      change('segments',blockList()[selected].segments.filter((_,j)=>i!==j));render();
-     }});
+     dcSelect(row,tr('测量','Measure'),s.measure?'on':'off',[
+      {value:'off',label:tr('不测量','Off')},{value:'on',label:tr('测量','On')}
+     ],v=>{edit(i,'measure',v==='on');render();},{key:'arb-measure-'+i,ariaLabel:byBias?labelFor(tr('测量','Measure')):undefined});
+     if(byBias||s.measure){
+      const start=field(row,tr('测量起点 (µs)','Measure start (µs)'),s.measure?s.measureStartUs:'',v=>edit(i,'measureStartUs',v),rowPath+'measureStartUs',!s.measure);
+      const stop=field(row,tr('测量终点 (µs)','Measure stop (µs)'),s.measure?s.measureStopUs:'',v=>edit(i,'measureStopUs',v),rowPath+'measureStopUs',!s.measure);
+      if(byBias){
+       start.control?.setAttribute('placeholder','—');
+       start.control?.setAttribute('aria-label',labelFor(tr('测量起点 (µs)','Measure start (µs)')));
+       stop.control?.setAttribute('placeholder',s.measure?tr('段末','Segment end'):'—');
+       stop.control?.setAttribute('aria-label',labelFor(tr('测量终点 (µs)','Measure stop (µs)')));
+      }
+     }
+     if(byBias||count>3){
+      const remove=units.action.create(row,{id:'dkts-arb-remove-'+i,label:byBias?'−':tr('删除','Remove'),variant:'quiet',direct:true,
+       enabled:count>(byBias?1:3),onInvoke:()=>{
+        change('segments',blockList()[selected].segments.filter((_,j)=>i!==j));render();
+       }}).element;
+      if(byBias)remove?.setAttribute?.('aria-label',tr('删除段 ','Remove segment ')+(i+1));
+     }
     }
     if(blocks.reduce((n,b)=>n+b.segments.length,0)<2048)units.action.create(seq,{id:'dkts-arb-add',label:tr('增加时序段','Add segment'),variant:'quiet',direct:true,onInvoke:()=>{
      const segments=blockList()[selected].segments,last=segments.at(-1);
@@ -1018,34 +1088,25 @@
     }});
    }else if(editorSection==='target'){
     const event=panel('测量事件','Measure event');
-    for(const [label,config,isPartner] of [[t(logicalNames[values.terminal]),values,false],...(partner?[[t(logicalNames[partner.terminal]),partner,true]]:[])])
-     dcSelect(event,label+' · '+tr('采样方式','Acquisition'),config.mode,[{value:'spot',label:tr('窗口均值','Spot mean')},{value:'waveform',label:tr('窗口波形','Waveform')}],
-      v=>{if(isPartner)put('arbPartner',{...values.arbPartner,mode:v});else put('mode',v);refresh();},{key:'arb-mode-'+label});
-    if(byBias){
-     const step=values.sampleStepUs||String(Number((1e6/Number(values.rateHz)).toPrecision(10)));
-     const input=field(event,tr('采样步长 (µs)','Sampling step (µs)'),step,v=>{
-      // Empty is invalid while editing. Legacy plans may still store only rateHz.
-      put('sampleStepUs',v.trim()||' ');
-      refresh();
-     },'sampleStepUs');
-     input.control?.setAttribute('inputmode','decimal');
-     rateDisplay=dcInput(event,tr('设定采样率 (Sa/s)','Programmed sample rate (Sa/s)'),'—',null,
-      {key:'pmu-sample-rate',readOnly:true}).control;
-     units.note.create(event,{variant:'meta',text:tr(
-      '采样步长是测量窗口内的采集间隔。窗口均值每窗返回一个结果，波形模式返回各采样点。',
-      'Sampling step sets the interval within each measurement window. Spot mean returns one result per window. Waveform returns individual samples.')});
-    }else field(event,tr('采样率 (Sa/s)','Sample rate (Sa/s)'),values.rateHz,v=>{put('rateHz',v);refresh();},'rateHz');
+    for(const [label,config,isPartner] of [[t(logicalNames[values.terminal]),values,false],...(partner?[[t(logicalNames[partner.terminal]),partner,true]]:[])]){
+     const acquisition=dcSelect(event,label+' · '+tr('采样方式','Acquisition'),config.mode,[
+      {value:'spot',label:tr('窗口均值','Spot mean')},{value:'waveform',label:tr('窗口波形','Waveform')}
+     ],v=>{if(isPartner)put('arbPartner',{...values.arbPartner,mode:v});else put('mode',v);refresh();},{key:'arb-mode-'+label});
+     if(byBias)timeHelp(acquisition.label,tr('采样方式','Acquisition'),tr(
+      '窗口均值每窗返回一条，波形返回逐点数据。','Spot mean returns one result per window. Waveform returns each sample.'));
+    }
+    if(!byBias)field(event,tr('采样率 (Sa/s)','Sample rate (Sa/s)'),values.rateHz,v=>{put('rateHz',v);refresh();},'rateHz');
    }else{
     const strategy=panel('测量策略','Strategy');
     if(byBias)field(strategy,tr('序列重复次数','Sequence repeats'),arb.loops,v=>change('loops',v),'biasSteps.loops');
-    units.note.create(strategy,{variant:'meta',text:tr('由仪器执行完整序列及重复次数。','The instrument executes the complete sequence and repetitions.')});
+    if(!byBias)units.note.create(strategy,{variant:'meta',text:tr('由仪器执行完整序列及重复次数。','The instrument executes the complete sequence and repetitions.')});
    }
    let canvas=null;
    if(editorSection==='sweep'){
     const preview=panel('时序预览','Sequence preview',sequenceLayout);
     canvas=units.layout.create(preview,{variant:'identity',className:'dkts-time-waveform',tagName:'canvas'});
     canvas?.setAttribute?.('role','img');canvas?.setAttribute?.('aria-label',tr('当前序列一次循环的计划电压及测量窗口','Planned voltage and measure windows for one selected sequence repeat'));
-    units.note.create(preview,{variant:'meta',text:tr('当前端子、当前序列的一次循环；阴影为测量窗口。','One repeat of the selected terminal and sequence; shading marks measurement windows.')});
+    if(!byBias)units.note.create(preview,{variant:'meta',text:tr('当前端子、当前序列的一次循环；阴影为测量窗口。','One repeat of the selected terminal and sequence; shading marks measurement windows.')});
    }
    function draw(){if(!canvas)return;let data=null;try{data=hardware.segmentArbPreview({...values,...current(),testMode:values.testMode},selected,timingContext());}catch{}paintArbPreview(canvas,data);}
    if(canvas?.nodeType===1){const observer=typeof window.ResizeObserver==='function'?new window.ResizeObserver(draw):null;observer?.observe(canvas);const offTheme=window.DKDSTheme?.subscribeRevision?.(manifest.id+'.arb-preview',draw,{consumer:'raster'});disposeTimePreview=()=>{observer?.disconnect();offTheme?.();};}
@@ -1053,10 +1114,6 @@
    function refresh(){
     draw();summary.replaceChildren();
     if(edgeDisplay)edgeDisplay.value='—';
-    if(rateDisplay){
-     rateDisplay.value='—';
-     try{rateDisplay.value=String(hardware.segmentArbSampleRate(values));}catch{}
-    }
     try{
      const s=model.timedSummary('pulse',values,timingContext());
      if(edgeDisplay)edgeDisplay.value=s.transitionUs.join(' / ')||'—';
@@ -1068,7 +1125,7 @@
       units.note.create(summary,{variant:'warning',text:tr('请填写负载并选择固定电流档。','Enter the load and select a fixed current range.')});
      const policy=hardware.DATABASE.safetyPolicies.kxci;
      if(byBias&&(!policy.allowPulseModeOutput||!policy.allowSegmentArbOutput))
-      units.note.create(summary,{variant:'meta',text:tr('实际输出待 4200A 受控实机验收。','Instrument output awaits controlled 4200A verification.')});
+      units.note.create(summary,{variant:'meta',text:tr('实机输出待验收','Instrument output pending verification')});
     }catch(e){units.note.create(summary,{variant:'warning',text:String(e.message||e)});}
    }
    refresh();
@@ -1661,11 +1718,10 @@
    surface?.setAttribute?.('data-dkts-time-editor',editorSection);
    if(settings.mode===model.TIME_PMU_MODE){
     const panel=(zh,en,target=surface)=>dcLayout(dcPanel(target,tr(zh,en),'dkts-timing-panel'),'dkts-timing-fields');
-    if(editorSection==='sweep')renderTimeMode(panel('时间扫描','Time sweep'),settings);
     renderArbTiming(surface,p,settings.pmu,(key,value)=>{
      settings.pmu[key]=value;
      updateEditorPlan('pmu.'+key);
-    },panel);
+    },panel,settings);
     return;
    }
    const smus=p.terminals.filter(term=>isSmu(term)&&(!(native||list)||term.logical!=='B'));
@@ -1707,27 +1763,24 @@
      });
      shared('startS','首次读数前等待 (s)','Wait before first reading (s)');
      shared('intervalS','读数后等待 (s)','Wait after each reading (s)');
-     shared('points','每周期采样点数','Samples per cycle');
-     units.note.create(oneCycle,{variant:'meta',text:tr(
-      '每周期可设 1–4096 点。每点读取「目标」中的全部信号。实际时长还包含稳定、积分和读出，以仪器时间戳为准。',
-      'Set 1–4096 samples per cycle. Each point records all Target signals. Actual duration includes settling, integration and readout. Use the instrument timestamps.')});
+     const points=shared('points','每周期采样点数','Samples per cycle');
+     timeHelp(points.label,tr('每周期采样点数','Samples per cycle'),tr(
+      '1–4096 点。每点采集所选信号，实际间隔以仪器时间戳为准。',
+      '1–4096 points. Every point records the selected signals. Use instrument timestamps for actual intervals.'));
     }else if(list){plannedText(controls,settings,'listDelayS','每点稳定等待 (s)','Settling delay per point (s)');}
     else{
-    plannedText(controls,settings,'switchStepS','切换步长 (s)','Switching Step (s)');
-    segmentCount=dcInput(controls,tr('切换步数','Segments'),'—',null,{readOnly:true,key:'time-segments',
-     help:tr('单周期总时长 ÷ 切换步长。各时段持续时间必须是切换步长的整数倍。',
-      'Cycle duration divided by Switching Step. Each row duration must be a whole number of switching steps.')}).control;
-    const sampleSteps=['0.01','0.02','0.05','0.1','0.2','0.5','1','2','5','10'];
-    const preset=sampleSteps.find(value=>Number(value)===Number(settings.sampleStepS));
-    const customSampling=draft.customSampling||!preset;
-    dcSelect(controls,tr('计划采样步长 (s)','Planned Sampling Step (s)'),customSampling?'custom':preset,
-     [...sampleSteps.map(value=>({value,label:value})),{value:'custom',label:tr('自定义计划值','Custom plan value')}],
-     value=>{
-      draft.customSampling=value==='custom';
-      if(value!=='custom')settings.sampleStepS=value;
-      redrawDc();
-     },{key:'time-sampling-step',path:'sampleStepS'});
-    if(customSampling)plannedText(controls,settings,'sampleStepS','自定义计划采样步长 (s)','Custom planned sample step (s)');
+     const switchStep=plannedText(controls,settings,'switchStepS','切换步长 (s)','Switching step (s)');
+     timeHelp(switchStep.label,tr('切换步长','Switching step'),tr('每段持续时间须为切换步长的整数倍。','Each segment duration must be a whole multiple of the switching step.'));
+     segmentCount=dcInput(controls,tr('切换步数','Switch count'),'—',null,{readOnly:true,key:'time-segments'}).control;
+     renderSamplingFields(controls,[
+      ['step',tr('计划采样步长 (s)','Planned step (s)'),'sampleStepS'],
+      ['rate',tr('计划采样频率 (Hz)','Planned rate (Hz)'),'sampleRateHz',
+       tr('频率为步长的倒数，用于线性计划。','Rate is the reciprocal of the planned sampling step.')]
+     ],key=>key==='step'?settings.sampleStepS:reciprocal(settings.sampleStepS,1),(key,value)=>{
+      settings.sampleStepS=key==='step'?value:reciprocal(value,1);
+      updateEditorPlan(key==='step'?'sampleStepS':'sampleRateHz');
+      refreshPlan();
+     });
     }
     if(!native)samplePoints=dcInput(controls,tr('单周期总采样点','Total Time Points'),'—',null,{readOnly:true,key:'time-points'}).control;
     const repeat=dcPanel(input,tr('重复','Repeat'),'dkts-time-panel dkts-time-repeat');
@@ -1747,9 +1800,6 @@
      const protection=dcLayout(inputs,'dkts-time-source-modes');
      for(const term of smus.filter(term=>settings.sourceModes[term.logical]==='current'))plannedText(protection,settings.voltageLimitsV,term.logical,term.logical+' · '+tr('电压保护 (V)','Voltage compliance (V)'),term.logical+' · Voltage compliance (V)','voltageLimitsV.'+term.logical);
     }
-    if(!native)units.note.create(inputs,{variant:'meta',text:list?tr('每段指定采样点数。每点稳定等待不含采集耗时；实际时间来自仪器。','Set readings per segment. Settling delay excludes acquisition time; actual times come from the instrument.'):tr(
-     '各段持续时间相加得到单周期总时长。切换步长决定各 SMU 可以更新输出的时间网格。',
-     'Row durations add up to the cycle duration. Switching Step sets the common grid for SMU output changes.')});
     const table=dcLayout(inputs,'dkts-time-table');
     if(!smus.length)units.note.create(table,{variant:'warning',text:tr('请在工程顶栏分配 SMU 端子。','Assign an SMU terminal in the project toolbar.')});
     if(!native){
@@ -1798,7 +1848,6 @@
     canvas=units.layout.create(preview,{variant:'identity',className:'dkts-time-waveform',tagName:'canvas'});
     canvas?.setAttribute?.('role','img');
     canvas?.setAttribute?.('aria-label',tr('单循环计划偏置和各端子的测量窗口时间线','One-cycle timeline of planned terminal biases and acquisition windows'));
-    units.note.create(preview,{variant:'meta',text:list||native?tr('横轴为单周期采样点序。','The horizontal axis shows sample indices for one cycle.'):tr('折线为设定偏置，短条为测量窗口。时间轴显示单个循环。','Steps show planned biases. Bars show acquisition windows for one cycle.')});
     if(canvas?.nodeType===1){
      const observer=typeof window.ResizeObserver==='function'?new window.ResizeObserver(refreshPlan):null;
      observer?.observe(canvas);
@@ -1808,7 +1857,6 @@
    }else if(editorSection==='target'){
     const bySignal=native||list;
     const target=dcPanel(surface,bySignal?tr('采集信号','Measured signals'):tr('测量事件','Measure Event'),'dkts-time-panel');
-    if(bySignal)units.note.create(target,{variant:'meta',text:tr('每个采样点读取所选端子的电流或电压。点数和等待时间在「扫描」设置。','Each point reads the selected currents or voltages. Set the count and waits under Sweep.')});
     for(const [index,event] of settings.events.entries()){
      const row=dcLayout(target,bySignal?'dkts-time-event dkts-time-signal':'dkts-time-event');
      row?.setAttribute?.('data-dkts-time-event',String(index+1));
@@ -1835,26 +1883,23 @@
     const controls=dcLayout(strategy,'dkts-dc-strategy-fields');
     const presets=[{value:'instrument',label:tr('计划默认','Planning default')},...smuIntegrationPresets()];
     if(settings.integrationS!=='')presets.push({value:'legacy',label:tr('旧方案 · ','Legacy plan · ')+settings.integrationS+' s'});
-    dcSelect(controls,tr('SMU 积分档','SMU integration preset'),settings.integrationS!==''?'legacy':settings.integrationPreset,
+    const integration=dcSelect(controls,tr('SMU 积分档','SMU integration preset'),settings.integrationS!==''?'legacy':settings.integrationPreset,
      presets,value=>{
       if(value==='legacy')return;
       settings.integrationS='';
       settings.integrationPreset=value;
       redrawDc();
      },{key:'time-integration-preset',path:'integrationPreset'});
-    units.note.create(strategy,{variant:'meta',text:tr(
-     '积分时间随 50/60 Hz 电源线频率变化。实测采样还需计入稳定时间和读出开销。',
-     'Integration time depends on the 50/60 Hz power line frequency. Actual sampling also includes settling and readout overhead.')});
+    timeHelp(integration.label,tr('SMU 积分档','SMU integration'),tr(
+     '积分时间随 50/60 Hz 电源线频率变化。','Integration time depends on the 50/60 Hz line frequency.'));
    }else{
     const strategy=dcPanel(surface,tr('测试策略','Measurement strategy'),'dkts-time-panel');
-    units.note.create(strategy,{variant:'meta',text:tr('全局及本测试的 SMU 积分档在顶栏「端口」右侧设置。','Set global and per-test SMU integration in the top toolbar, next to Ports.')});
+    timeHelp(strategy,tr('SMU 积分档','SMU integration'),tr(
+     '在顶栏「端口」右侧的「积分」设置。','Use Integration in the top toolbar next to Ports.'));
    }
    const summary=dcPanel(surface,tr('方案校验','Plan checks'),'dkts-time-panel');
    status=units.note.create(summary,{variant:'meta',className:'dkts-time-status',text:''});
    status?.setAttribute?.('aria-live','polite');
-   units.note.create(summary,{variant:'meta',text:tr(
-    '固定偏置测试由仪器控制采样，实际时间以测量记录为准。线性步进用于规划多段偏置。',
-    'The instrument controls fixed-bias acquisition; actual times come from the measurements. Linear step defines a multi-segment plan.')});
    refreshPlan();
   }
 

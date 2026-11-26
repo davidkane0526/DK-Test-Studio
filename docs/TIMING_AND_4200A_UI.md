@@ -38,5 +38,5 @@
 ## 时间扫描的采样与输出
 
 - LabExpress 的 Switching Step 定义偏置更新的时间网格，Sampling Step 定义另一条采集时间网格。两个设置分别对应输出和采集。 [LabExpress 参数结构转录](reference/4200a/FSPro_LabExpress_to_DKTS_Implementation_V5.extracted.md)
-- DKTS 的「分段脉冲 · PMU」用每行保持时间定义输出，采样步长在「目标」中设置。软件按采样步长的倒数编译 KXCI `:PMU:SAMPLE:RATE`，检查最短测量窗口和采样缓冲。逐点输出使用仪器时间戳。SMU 固定偏置的 IN 控制读数后的等待，实际点间时间还含积分及读出。SMU 列表以点数和 DT 稳定等待表达。 [KXCI 手册，第 5、7 节](https://download.tek.com/manual/4200A-KXCI-907-01E_March2025.pdf)
+- DKTS 的「分段脉冲 · PMU」用每行保持时间定义输出，「扫描」中的采样步长和采样频率可以双向编辑。线性步进也可编辑这对计划参数。PMU 软件按采样步长的倒数编译 KXCI `:PMU:SAMPLE:RATE`，检查最短测量窗口和采样缓冲。逐点输出使用仪器时间戳。SMU 固定偏置的 IN 控制读数后的等待，实际点间时间还含积分及读出。SMU 列表以点数和 DT 稳定等待表达。 [KXCI 手册，第 5、7 节](https://download.tek.com/manual/4200A-KXCI-907-01E_March2025.pdf)
 - 分段脉冲的自动过渡逐边取 KXCI 最短段时间、该量程和电平的时序规格，以及所选实装 PMU/RPM 电流档的已公布典型建议中的较大值，按 10 ns 时间格向上取整。未确认硬件时按 4225-PMU 规格预览，接线和 DUT 波形仍以实测为准。 [硬件典型建议](https://download.tek.com/datasheet/1KW-60780-6_4200A-SCS_Parameter_Analyzer_Datasheet_050724.pdf)
