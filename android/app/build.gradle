@@ -15,8 +15,8 @@ android {
         applicationId 'studio.dk.test'
         minSdk 26
         targetSdk 35
-        versionCode 43
-        versionName '0.3.46'
+        versionCode 44
+        versionName '0.3.47'
     }
     signingConfigs {
         stablePreview {

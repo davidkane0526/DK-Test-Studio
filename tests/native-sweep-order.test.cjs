@@ -8,7 +8,7 @@ vm.runInNewContext(source,{window:{DKDSPluginModules:{define:(_id,name,api)=>{
  if(name==='model')model=api;
 }}}},{filename:'integrations/dkds-native/model.js'});
 function configured(){
- let state=model.initial();
+ let state=model.editPage(model.initial(),{kind:'iv'});
  state=model.edit(state,'D',{resource:'SMU1',role:'X'});
  state=model.edit(state,'G',{resource:'SMU2',role:'P'});
  state=model.edit(state,'S',{resource:'SMU3',bias:'0.25',role:'CONDITION'});
@@ -41,7 +41,7 @@ test('native offline X/P order nests X points -> X repeats -> P points -> P repe
  }
 });
 test('offline cursor preserves strict X and P segment endpoints and supports a single point',()=>{
- let state=model.initial();
+ let state=model.editPage(model.initial(),{kind:'iv'});
  state=model.edit(state,'D',{resource:'SMU1',role:'X'});
  state=model.editSegment(state,'X',0,{start:'0',stop:'0',step:'0'});
  state=model.addSegment(state,'X');
@@ -53,7 +53,7 @@ test('offline cursor preserves strict X and P segment endpoints and supports a s
  assert.equal(model.pointAt(page,2).p,null);
 });
 test('offline cursor fails closed without real port, with bad range, or on unsupported test type',()=>{
- let state=model.initial();
+ let state=model.editPage(model.initial(),{kind:'iv'});
  state=model.edit(state,'D',{resource:'None'});
  assert.throws(()=>model.pointAt(state.pages[0],0),/分配 Xsweep/);
  state=model.edit(state,'D',{resource:'SMU1',role:'X'});

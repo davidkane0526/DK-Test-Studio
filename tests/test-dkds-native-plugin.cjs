@@ -4,7 +4,7 @@ const root=require('node:path').resolve(__dirname,'../integrations/dkds-native')
 const manifest=JSON.parse(fs.readFileSync(root+'/plugin.json','utf8'));
 const js=fs.readFileSync(root+'/plugin.js','utf8'),model=fs.readFileSync(root+'/model.js','utf8'),shell=fs.readFileSync(root+'/ui-shell.js','utf8'),css=fs.readFileSync(root+'/ui-shell.css','utf8');
 assert.equal(manifest.id,'com.dkts.keithley-4200');
-assert.equal(manifest.version,'0.8.32');
+assert.equal(manifest.version,'0.8.33');
 assert.ok(manifest.requiresCore.includes('ui.dom'),'native timing uses DKDS-owned lifecycle-managed timers');
 assert.equal(manifest.apiVersion,'1.19.0');
 assert.equal(manifest.pluginType,'workbench');
@@ -87,7 +87,7 @@ vm.runInNewContext(model,{window:{DKDSPluginModules:{define:(id,name,instance)=>
 }}}});
 assert.ok(api);
 // Start the existing I–V regression cases from a pre-DC saved project.
-const orig=api.initial();
+const orig=api.editPage(api.initial(),{kind:'iv'});
 const nativeTime=api.add(orig,'time');
 assert.equal(nativeTime.pages.at(-1).timing.mode,'native-fixed');
 const time=api.editTiming(nativeTime,{mode:'linear-step'});
@@ -154,7 +154,7 @@ assert.equal(oldDeviceProject.devices,undefined,'legacy Device migration is immu
 const secondDevice=api.addDevice(orig);
 assert.equal(secondDevice.devices.length,2);
 assert.equal(secondDevice.routines.length,2);
-assert.equal(secondDevice.pages.length,3);
+assert.equal(secondDevice.pages.length,2);
 assert.equal(secondDevice.activeDeviceId,secondDevice.devices[1].id);
 assert.equal(secondDevice.routines[1].deviceId,secondDevice.devices[1].id);
 assert.equal(secondDevice.pages[1].routineId,secondDevice.routines[1].id);
@@ -267,7 +267,7 @@ const withRoutine=api.addRoutine(programmed);
 const withDevice=api.addDevice(withRoutine);
 assert.equal(withDevice.devices.length,2);
 assert.equal(withDevice.routines.length,3);
-assert.equal(withDevice.pages.length,6);
+assert.equal(withDevice.pages.length,withRoutine.pages.length+1);
 assert.equal(withDevice.pages[0].sweep.xSegments[0].stop,'1');
 const withLoops=api.setRoutineLoops(withDevice,withRoutine.activeRoutineId,'6');
 assert.equal(api.validate(withLoops).routines[1].loops,'6');
@@ -401,11 +401,11 @@ assert.equal(sampleCalls.filter(c=>c.key==='xx').reduce((n,c)=>n+c.limit,0),4096
  'separate 4096-row preview and 48-row TypedArray smoke each honor their budget');
 assert.match(preview.label,/preview 4\/8/);
 const newProject=api.validate(api.initial());
-assert.deepEqual(Array.from(newProject.pages,row=>row.kind),['iv','dc']);
+assert.deepEqual(Array.from(newProject.pages,row=>row.kind),['dc']);
 const newRoutine=api.addRoutine(newProject);
-assert.deepEqual(Array.from(newRoutine.pages.filter(p=>p.routineId===newRoutine.activeRoutineId),p=>p.kind),['iv','dc']);
+assert.deepEqual(Array.from(newRoutine.pages.filter(p=>p.routineId===newRoutine.activeRoutineId),p=>p.kind),['dc']);
 assert.deepEqual(Array.from(api.validate(orig).pages,p=>p.kind),['iv'],'load saved routines without inserting tests');
-const dcProject=api.select(newProject,'page-2');
+const dcProject=api.add(orig,'dc');
 const dcPage=dcProject.pages.find(row=>row.id===dcProject.activeId);
 const settings=JSON.parse(JSON.stringify(dcPage.dc));
 assert.deepEqual(Array.from(api.dcTerminals(dcPage),row=>row.logical),['D','G','S']);

@@ -1,6 +1,7 @@
 (() => {
  'use strict';
  const OWNER='com.dkts.keithley-4200';
+ const SMU_INTEGRATION=Object.freeze({short:'IT1',medium:'IT2',long:'IT3'});
  const ROLE_BY_LOGICAL=Object.freeze({S:'source',D:'drain',G:'gate'});
  const text=value=>String(value??'').trim();
  const finite=(value,label)=>{
@@ -19,7 +20,7 @@
    delayMs:finite(row.delayMs,label+' 第 '+(index+1)+' 段点间延迟')
   }));
  }
-function pageToBasicProgram(page, model){
+function pageToBasicProgram(page, model, globalIntegration='medium'){
  const check=(x,m)=>{if(!x)throw Error(m);};
  const n=(x,label)=>{check(x!==null&&x!==undefined&&String(x).trim()!==''&&Number.isFinite(Number(x)),label+' 数值无效');return Number(x);};
  const roles={D:'drain',G:'gate',S:'source',B:'body'},ports=Object.fromEntries(page.terminals.map(t=>[t.logical,t]));
@@ -42,8 +43,8 @@ function pageToBasicProgram(page, model){
   const hold=dc.strategy.hold.trim()?n(dc.strategy.hold,'Hold'):0;
   check(hold>=0&&hold<=655.3,'HT 允许 0–655.3 s');
   check(dc.preset==='optimized'||hold===0,'逐点模式 Hold 尚未接入');
-  const speed=dc.strategy.mode==='global'?'normal':dc.strategy.integrationPreset??(dc.strategy.integration.trim()?'legacy':'normal');
-  const integration={fast:'IT1',normal:'IT2',quiet:'IT3'}[speed];
+  const speed=dc.strategy.integrationPreset??(text(dc.strategy.integration)?'legacy':'normal');
+  const integration=dc.strategy.mode==='global'?SMU_INTEGRATION[globalIntegration]:{fast:'IT1',normal:'IT2',quiet:'IT3'}[speed];
   check(integration,'旧积分秒数未确认电源频率，请重新选择测量速度');
   const delay=dc.strategy.mode==='local'&&dc.strategy.delay.trim()?n(dc.strategy.delay,'Delay')*1000:0;
   check(dc.reference==='GND'||ports[dc.reference]?.resource==='GNDU','仅支持接地参考');
@@ -104,12 +105,13 @@ function pageToBasicProgram(page, model){
  if(page.kind==='time'){
   const t=page.timing,summary=model.timedSummary('time',t);
   check(['native-fixed','native-list'].includes(t.mode),'请选择仪器固定偏置或偏置列表；旧线性时间计划不自动改变时钟语义');
+  check(model.timeGroundNodes(page).includes(model.timeReference(page,t)),'参考节点必须是 GND 或已接到 GNDU 的端子');
   check(ports.B?.resource==='None','B 端尚未接入');
   const list=t.mode==='native-list';check(list||t.segments.length===1,'固定偏置要求单段');
   check(t.events.every(e=>active.includes(e.terminal)),'测量事件必须对应实装 SMU');
   const requestedOutputs=t.events.map(e=>(e.quantity==='Current'?'I':'V')+e.terminal.toLowerCase());
   check(!t.integrationS,'旧积分秒数尚未映射 PLC');
-  const integration={instrument:'IT2',short:'IT1',medium:'IT2',long:'IT3'}[t.integrationPreset];
+  const integration=SMU_INTEGRATION[t.integrationPreset==='instrument'?globalIntegration:t.integrationPreset];
   check(integration!==undefined,'积分预设无效');
   for(const k of Object.keys(roles)){
    const v=n(t.segments[0].bias[k],k+' 偏置');
@@ -138,8 +140,8 @@ function pageToBasicProgram(page, model){
  }
  throw Error('测试类型尚未接入');
 }
- function pageToSweepProgram(page,model){
-  if(page?.kind==='dc'||page?.kind==='time')return pageToBasicProgram(page,model);
+ function pageToSweepProgram(page,model,globalIntegration='medium'){
+  if(page?.kind==='dc'||page?.kind==='time')return pageToBasicProgram(page,model,globalIntegration);
   if(!page||!['iv','transfer','output'].includes(page.kind))
    throw Error('当前原生 KXCI 执行器仅支持 I–V、转移特性和输出特性');
   if(Array.isArray(page.targets)&&page.targets.length!==1)
@@ -197,7 +199,7 @@ function pageToBasicProgram(page, model){
   const loops=finite(sweep.loops,'整体循环次数');
   const xRepeats=finite(sweep.xRepeats,'Xsweep 重复次数');
   const pRepeats=finite(sweep.pRepeats,'Psweep 重复次数');
-  return {kind:page.kind,sweepProgram:{
+  return {kind:page.kind,systemIntegration:SMU_INTEGRATION[globalIntegration],sweepProgram:{
    terminals:terminalNames,fixedVoltages,portSettings,loops,
    xSweep:{terminal:xRole,repeats:xRepeats,delayMs:finite(sweep.pointDelay??20,'点间延迟'),segments:xSegments},
    pSweep:{enabled:sweep.pEnabled===true,
@@ -291,7 +293,7 @@ function pageToBasicProgram(page, model){
      if(v.testMode==='sequence'&&v.arbPartner){const settings={...v,...v.arbPartner,rateHz:v.rateHz,arbPartner:null,secondary:null};input.arbPartner={settings,resource:resolvePulsePort(page.terminals.find(t=>t.logical===settings.terminal)?.resource,settings.channel),wiringConfirmed:true};}
      if(v.secondary&&v.testMode!=='sequence'){const settings=model.pulseSecondarySettings(v);input.secondary={settings,summary:model.timedSummary('pulse',settings),resource:resolvePulsePort(page.terminals.find(t=>t.logical===settings.terminal)?.resource,settings.channel),wiringConfirmed:true};}
     }else{
-     input=pageToSweepProgram(page,model);
+     input=pageToSweepProgram(page,model,options.getSmuIntegration?.());
      const routes=protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,Object.values(input.sweepProgram.terminals));
      if(routes.length&&input.executionMode!=='system')throw Error('RPM 自动切换目前仅支持仪器原生 DC 和固定偏置时间测试');
      input.rpmRoutes=routes;

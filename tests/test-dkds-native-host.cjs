@@ -137,7 +137,9 @@ const artifactStore={
 };
 const ctx={
  modules:{require:name=>registry.get('com.dkts.keithley-4200:'+name)},
- state:{create:(init,options)=>{assert.equal(options.projectSlice,'settings');state=init;
+ state:{create:(init,options)=>{assert.equal(options.projectSlice,'settings');
+  assert.deepEqual(Array.from(init.pages,page=>page.kind),['dc']);
+  state=ctx.modules.require('model').editPage(init,{kind:'iv'});
   return {get:()=>state,patch:delta=>{state={...state,...delta};}}}},
  project:{capture:()=>record.captures++},
  status:{set:text=>record.status.push(text)},
@@ -171,11 +173,12 @@ const ctx={
  assert.ok(record.fields.some(row=>row.spec.label==='漏极 · D'&&row.control.value==='SMU1'));
  assert.ok(record.fields.some(row=>row.spec.label==='栅极 · G'&&row.control.value==='SMU2'));
  assert.equal(record.fields.some(row=>row.spec.label==='体端 · B'),false);
- assert.deepEqual(record.toolbar.map(row=>row.spec.id),['dkts-workspace-connect','dkts-workspace-scan','dkts-workspace-language']);
+ assert.deepEqual(record.toolbar.map(row=>row.spec.id),['dkts-workspace-connect','dkts-workspace-scan','dkts-workspace-smu-integration','dkts-workspace-language']);
  assert.ok(record.toolbar.every(row=>row.spec.variant==='quiet'&&row.spec.section==='instrument'));
  assert.deepEqual(Array.from(record.nativeCommands.actions,row=>row.id),record.toolbar.map(row=>row.spec.id));
  assert.equal(record.nativeCommands.activity,'dkts-keithley-4200');
  assert.ok(record.actions.some(row=>row.id==='dkts-toggle-templates'));
+ assert.ok(!record.actions.some(row=>row.id==='library-iv'));
  assert.equal(record.toolbar.find(row=>row.spec.id==='dkts-workspace-scan').button.disabled,false);
  assert.ok(!record.actions.some(row=>row.id==='dkts-return-data-plots'));
  assert.ok(record.actions.some(row=>row.id==='dkts-page-view-page-1'&&row.label==='⚙︎'));
@@ -322,10 +325,36 @@ const ctx={
  const timeMode=record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-mode');
  assert.equal(timeMode.spec.kind,'select');
  assert.equal(timeMode.control.value,'native-fixed');
+ const fieldAt=path=>record.fields.findLast(row=>row.spec.attributes?.['data-dkts-parameter-path']===path);
+ const fixedPoints=fieldAt('events.0.points');
+ assert.equal(fixedPoints.control.value,'9');
+ assert.ok(!fixedPoints.spec.readOnly);
+ fixedPoints.spec.onInput({target:{value:'12'}});
+ const currentTime=()=>state.pages.find(row=>row.id===state.activeId).timing;
+ assert.equal(currentTime().events[0].points,'12');
+ const reference=fieldAt('reference');
+ assert.equal(reference.spec.kind,'select');
+ assert.deepEqual(Array.from(reference.spec.options,option=>option.value),['GND','S']);
+ reference.spec.onChange({target:{value:'GND'}});
+ assert.equal(currentTime().reference,'GND');
+ const integration=record.toolbar.find(row=>row.spec.id==='dkts-workspace-smu-integration');
+ integration.spec.onClick({currentTarget:integration.button});
+ record.fields.findLast(row=>row.spec.label==='工程默认').spec.onChange({target:{value:'long'}});
+ assert.equal(state.smuIntegration,'long');
+ integration.spec.onClick({currentTarget:integration.button});
+ record.fields.findLast(row=>row.spec.label==='当前时间扫描').spec.onChange({target:{value:'short'}});
+ assert.equal(currentTime().integrationPreset,'short');
+ const beforeTimeTarget=record.fields.length;
+ record.tabs.at(-1).onChange('target');
+ assert.ok(!record.fields.slice(beforeTimeTarget).some(row=>row.spec.attributes?.['data-dkts-parameter-path']==='events.0.points'));
+ record.actions.findLast(row=>row.id==='add-time-event').onInvoke();
+ assert.deepEqual(Array.from(currentTime().events,event=>event.points),['12','12']);
+ record.tabs.at(-1).onChange('sweep');
+ fieldAt('events.0.points').spec.onInput({target:{value:'9'}});
  const isSwitchStep=row=>row.spec.attributes?.['data-dkts-timing-field']==='switchStepS';
  assert.ok(!record.fields.slice(beforeTime).some(isSwitchStep));
  const beforeLinearPlan=record.fields.length;
- timeMode.spec.onChange({target:{value:'linear-step'}});
+ fieldAt('mode').spec.onChange({target:{value:'linear-step'}});
  assert.ok(record.fields.slice(beforeLinearPlan).some(isSwitchStep));
  assert.ok(record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-stop').spec.readOnly);
  record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-source-D').spec.onChange({target:{value:'current'}});

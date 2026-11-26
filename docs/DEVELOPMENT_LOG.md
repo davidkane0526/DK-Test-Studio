@@ -967,3 +967,9 @@ Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive readi
 - R-20261126-002。发布基线为已经过合并验证的 GitHub `main` 提交 `de55eacb9b9196226a95d4c0f96361d8c518a12d`。本轮将完整应用版本从 V0.3.45 提升至 V0.3.46，原生插件从 0.8.31 提升至 0.8.32。正式构建号以本次提交的同 SHA `ui-update.yml` 为准。
 - Node 271/271 通过，含 TCP 回环帧校验。通过原生插件与宿主契约、固定 DKDS 更新器契约、官方 SDK 验证及独立插件打包。
 - 最终授权提交由统一 GitHub Actions 编译 Windows Portable 和 Android APK，校验固定签名并发布到同一个 Release。以同一 SHA 核对 Pages、源码归档和 Release 的 `PROVENANCE.txt` 与 `SHA256SUMS.txt`。真实 4200A 测量和用户设备的覆盖安装仍需现场验收。
+
+## 2026-11-26 · V0.3.47 时间扫描网页批注整改
+
+- R-20261126-003，基线 `6087b66`。固定偏置的首次读数前等待、读数后等待与每周期点数在扫描页编辑，目标页只选择采集信号。偏置预览以采样点序显示，实测时长取仪器时间戳。保留线性计划独立事件及偏置列表的分段点数。
+- 4200A 顶栏「端口」右侧增加工程级 SMU 积分档。DC 的 Global Setting 及继承设置的原生 Time 编译到相应 IT1/IT2/IT3。原有局部档位保留。Time 的 Ref Node 限于 GND 和已接地端子。新工程与新增流程默认 DC，新增菜单隐藏旧 I–V 模板，载入旧项目仍保留页面 ID、既有方案和历史归属。
+- Node 271/271、原生插件/模拟宿主及固定 DKDS SDK 验证通过。Chromium 在 1387×758 和 390×844 检查固定偏置点数、目标信号、参考节点和积分入口。交付同 SHA Core Pages 与源码 ZIP。真实仪器执行仍待验收。

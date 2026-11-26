@@ -25,7 +25,7 @@ function loadModules(protocolVerified=false){
  return {modules,window};
 }
 function configuredPage(model){
- let state=model.initial();
+ let state=model.editPage(model.initial(),{kind:'iv'});
  state=model.edit(state,'D',{resource:'SMU1'});
  const page=state.pages[0];
  page.sweep.xSegments=[{start:'0',stop:'0.1',step:'0.1',delayMs:'5',range:'auto'}];
@@ -100,7 +100,7 @@ function makeInstrumentContext(modules,options={}){
 
 test('native Page maps to the same guarded Xsweep/Psweep KXCI domain contract',()=>{
  const {modules}=loadModules(),model=modules.get('model');
- let state=model.initial();
+ let state=model.editPage(model.initial(),{kind:'iv'});
  state=model.edit(state,'D',{resource:'SMU1'});
  state=model.edit(state,'G',{resource:'SMU2',role:'P'});
  state=model.editSweep(state,{pEnabled:true,xRepeats:'2',pRepeats:'3',loops:'4'});
@@ -360,21 +360,28 @@ test('real DC model reaches guarded SMU runner in point-by-point mode',async()=>
 });
 test('real time model executes fixed-bias events with selected integration and actual times',async()=>{
  const {modules}=loadModules(true),fake=makeInstrumentContext(modules);
- const model=modules.get('model'),runtime=modules.get('measurementRuntime').createRuntime(fake.ctx);
+ const model=modules.get('model'),runtime=modules.get('measurementRuntime').createRuntime(fake.ctx,{getSmuIntegration:()=> 'long'});
  try{
   const state=model.add(model.validate(model.initial()),'time'),page=state.pages.at(-1);
   page.timing.mode='native-fixed';
   page.timing.integrationPreset='short';
+  assert.equal(model.timeReference(page),'S');
+  assert.deepEqual(Array.from(model.timeGroundNodes(page)),['GND','S']);
+  page.timing.reference='GND';
   page.timing.segments[0].durationS='0.3';
   page.timing.segments[0].bias.D='0.1';
   page.timing.events[0]={...page.timing.events[0],startS:'0.05',intervalS:'0.1',averageS:'0.08',points:'2'};
   await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  assert.match(runtime.prepare({...page,timing:{...page.timing,reference:'D'}}).reason,/GNDU/);
+  const inherited=runtime.prepare({...page,timing:{...page.timing,integrationPreset:'instrument'}});
+  assert.equal(inherited.input.timeProgram.integration,'IT3');
   assert.equal(runtime.prepare(page).canExecute,true);
   runtime.start(page,true);
   const result=await runtime.waitForCompletion();
   assert.equal(result.run.state,'completed');
   assert.equal(result.rows,2);
   assert.equal(fake.commands.filter(row=>row.command==='IT1\0').length,1);
+  assert.ok(fake.commands.some(row=>row.command==='NR 2\0'));
   assert.equal(fake.commands.filter(row=>row.command==='ME1\0').length,1);
   assert.equal(fake.commands.filter(row=>row.command==='TI1\0').length,0);
   const rows=result.run.rows;
@@ -385,7 +392,7 @@ test('real time model executes fixed-bias events with selected integration and a
 
 test('Rev F scoped System Mode can run independently of the old User Mode gate',async()=>{
  const {modules}=loadModules(false),fake=makeInstrumentContext(modules);
- const model=modules.get('model'),runtime=modules.get('measurementRuntime').createRuntime(fake.ctx,{wait:async()=>{}});
+ const model=modules.get('model'),runtime=modules.get('measurementRuntime').createRuntime(fake.ctx,{wait:async()=>{},getSmuIntegration:()=> 'long'});
  try{
   const state=model.validate(model.initial()),page=state.pages.find(p=>p.kind==='dc');
   page.dc.preset='optimized';
@@ -398,6 +405,7 @@ test('Rev F scoped System Mode can run independently of the old User Mode gate',
   assert.equal(result.rows,2);
   assert.equal(result.published.canonical,true);
   assert.equal(fake.commands.filter(c=>c.command==='ME1\0').length,1);
+  assert.ok(fake.commands.some(c=>c.command==='IT3\0'));
   assert.ok(!fake.commands.some(c=>/^(DV|TI)/.test(c.command)));
  }finally{await runtime.dispose();}
 });

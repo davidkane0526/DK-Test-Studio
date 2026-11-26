@@ -594,7 +594,7 @@
 }
 #dktsKeithley4200Page .dkts-time-panel>[data-dkds-unit-panel-body=true]{display:grid;gap:12px;padding:12px 14px;min-width:0}
 #dktsKeithley4200Page .dkts-time-panel .dkts-dc-strategy-fields{max-width:660px}
-#dktsKeithley4200Page .dkts-time-inputs>[data-dkds-unit-panel-body=true]>:last-child,
+#dktsKeithley4200Page .dkts-time-inputs>[data-dkds-unit-panel-body=true]>:last-child:not(.dkts-time-table),
 #dktsKeithley4200Page .dkts-time-column-head>*{justify-self:start}
 #dktsKeithley4200Page .dkts-time-workspace{
  display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:12px;align-items:start
@@ -615,6 +615,7 @@
  position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%)
 }
 #dktsKeithley4200Page .dkts-time-event{grid-template-columns:repeat(6,minmax(0,1fr)) 32px}
+#dktsKeithley4200Page .dkts-time-event.dkts-time-signal{grid-template-columns:repeat(2,minmax(0,180px)) 32px}
 #dktsKeithley4200Page :is(.dkts-time-segment,.dkts-time-event)>:last-child{justify-self:start}
 #dktsKeithley4200Page .dkts-time-preview-key{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
 #dktsKeithley4200Page .dkts-time-preview-terminal{display:inline-flex;align-items:center;gap:5px}

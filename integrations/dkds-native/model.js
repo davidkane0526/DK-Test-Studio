@@ -50,7 +50,7 @@
  const TIME_TERMINALS=['D','G','S','B'];
  const timeTerminalDefaults=value=>Object.fromEntries(TIME_TERMINALS.map(key=>[key,value]));
  const TIMED_DEFAULTS=Object.freeze({
-  time:Object.freeze({mode:'linear-step',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),voltageLimitsV:Object.freeze(timeTerminalDefaults('')),
+  time:Object.freeze({mode:'linear-step',reference:'',sourceModes:Object.freeze(timeTerminalDefaults('voltage')),voltageLimitsV:Object.freeze(timeTerminalDefaults('')),
    switchStepS:'0.1',sampleStepS:'0.1',listDelayS:'0.1',cycles:'1',integrationPreset:'instrument',integrationS:'',
    segments:Object.freeze([{durationS:'1',bias:timeTerminalDefaults('0'),currentBias:timeTerminalDefaults('0')}]),
    events:Object.freeze([{terminal:'D',quantity:'Current',startS:'0.1',intervalS:'0.1',averageS:'0.02',points:'9'}])}),
@@ -63,6 +63,13 @@
  });
  // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
  const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});
+ function timeGroundNodes(page){
+  return ['GND',...page.terminals.filter(term=>term.logical!=='B'&&term.resource==='GNDU').map(term=>term.logical)];
+ }
+ function timeReference(page,timing=page.timing){
+  const nodes=timeGroundNodes(page);
+  return timing.reference||nodes[1]||'GND';
+ }
  const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw','target','target-h']);
  const timeBiasKey=mode=>mode==='current'?'currentBias':'bias';
  const timeBias=(settings,segment,terminal)=>segment[timeBiasKey(settings.sourceModes?.[terminal])]?.[terminal];
@@ -112,6 +119,7 @@
  }
  function timeSummary(v){
   const grid=timeGrid(v),{durationS,sampleStep}=grid;
+  if(!['','GND','S','D','G'].includes(v.reference))invalidField('reference','Select a ground reference');
   for(const key of TIME_TERMINALS){
    const mode=v.sourceModes[key];
    if(!['voltage','current'].includes(mode))invalidField('sourceModes.'+key,'Select voltage or current source mode');
@@ -396,7 +404,7 @@
  };
 
  const DC_PRESETS=Object.freeze(['optimized','point-by-point']);
- const ROUTINE_DEFAULTS=Object.freeze(['iv','dc']);
+ const ROUTINE_DEFAULTS=Object.freeze(['dc']);
  const DC_METHODS=Object.freeze({
   constant:'Constant',step:'Linear Step',points:'Linear Points',log:'Log Points',list:'List',generator:'Generator'
  });
@@ -779,7 +787,7 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   return {x:assigned('X')[0].logical,p:assigned('P')[0]?.logical||null,outputs,preset:dc.preset};
  }
 
- const initial=()=>({schema:1,sequence:ROUTINE_DEFAULTS.length,activeId:'page-1',
+ const initial=()=>({schema:1,sequence:ROUTINE_DEFAULTS.length,activeId:'page-1',smuIntegration:'medium',
   activeDeviceId:'device-1',devices:[{id:'device-1',name:'MOSFET'}],
   activeRoutineId:'routine-1',
   routines:[{id:'routine-1',deviceId:'device-1',name:'测试流程 1'}],
@@ -790,6 +798,8 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
      state.pages.length>128||!Number.isSafeInteger(state.sequence)||state.sequence<1)
    throw Error('Invalid DKTS project state');
   state=clone(state);
+  state.smuIntegration??='medium';
+  if(!['short','medium','long'].includes(state.smuIntegration))throw Error('Select a global SMU integration preset');
   // Schema-1 snapshots predate Device ownership. Migrate in a cloned state
   // only; never change an already persisted project while merely validating.
   if(!Array.isArray(state.devices))
@@ -972,6 +982,9 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   if(!s.routines.some(r=>r.id===target))throw Error('Unknown Routine');
   s.sequence++;s.pages.push(page(kind,id,target));
   s.activeId=id;s.activeRoutineId=target;return validate(s);
+ }
+ function editSmuIntegration(s,preset){
+  return validate({...s,smuIntegration:preset});
  }
  function addRoutineDefaults(s,routineId){
   let next=s;
@@ -1376,6 +1389,6 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,pulseSecondarySettings,timeGrid,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,pulseSecondarySettings,timeGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();
