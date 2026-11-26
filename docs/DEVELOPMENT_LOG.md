@@ -961,3 +961,9 @@ Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive readi
 - 原生 SMU System Mode 使用角色到通道的映射。仅在 PMU 任务中建立脉冲通道白名单，修复原生 DC 与固定偏置 Time 在发送 ME1 前异常退出的问题。同步修正原生插件、宿主、帧补丁、Target 曲线、分支治理的测试断言和夹具。保留已移除的无条件分支删除工作流的现状。
 - Node 271/271 通过，含真实本机 TCP 回环和固定 DKDS Android 模板检查。原生插件、模拟宿主、固定 DKDS 暂存更新器契约及官方 DKDS SDK 校验通过。GitHub Pages 和源码 ZIP 使用这次合并提交生成。
 - 此次未运行真实 4200A、Windows Portable 或 Android APK 验收。受控 SMU 调试条件与其他测量模式的现场许可继续按现有协议策略判断。
+
+## 2026-11-26 · V0.3.46 统一 Core 发布
+
+- R-20261126-002。发布基线为已经过合并验证的 GitHub `main` 提交 `de55eacb9b9196226a95d4c0f96361d8c518a12d`。本轮将完整应用版本从 V0.3.45 提升至 V0.3.46，原生插件从 0.8.31 提升至 0.8.32。正式构建号以本次提交的同 SHA `ui-update.yml` 为准。
+- Node 271/271 通过，含 TCP 回环帧校验。通过原生插件与宿主契约、固定 DKDS 更新器契约、官方 SDK 验证及独立插件打包。
+- 最终授权提交由统一 GitHub Actions 编译 Windows Portable 和 Android APK，校验固定签名并发布到同一个 Release。以同一 SHA 核对 Pages、源码归档和 Release 的 `PROVENANCE.txt` 与 `SHA256SUMS.txt`。真实 4200A 测量和用户设备的覆盖安装仍需现场验收。
