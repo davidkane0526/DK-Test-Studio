@@ -9,7 +9,7 @@ function loadModules(protocolVerified=false){
  const modules=new Map(),window={DKTSHardwareCapabilities:null};
  window.DKDSPluginModules={
   define:(id,name,value)=>{assert.equal(id,OWNER);modules.set(name,value);},
-  require:name=>{if(!modules.has(name))throw Error('missing module '+name);return modules.get(name);}
+  require:(id,name)=>{if(!modules.has(name??id))throw Error('missing module '+(name??id));if(name)assert.equal(id,OWNER);return modules.get(name??id);}
  };
  const sandbox={window,atob,btoa,console,setTimeout,clearTimeout,Date,Math,Promise,Object,Array,Number,String,RegExp,Error,RangeError,Map,Set,Symbol};
  for(const file of ['hardware-capabilities.js','kxci-protocol.js','identity-core.js',
@@ -33,10 +33,11 @@ function configuredPage(model){
 }
 function makeInstrumentContext(modules,options={}){
  const commands=[],published=[],status=[];let closed=false;
- let lastQuery='',measurementStarted=false,syntaxPending=false,firstOutput=true,systemRun=false;
+ let lastQuery='',measurementStarted=false,syntaxPending=false,firstOutput=true,systemRun=false,pulseBusy=false,pulseReadCount=0;
  const instrumentInfo=[
   'slotno:1,name:SMU1,model:KISMU4200,serialno:SMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
-  'slotno:2,name:SMU2,model:KISMU4200,serialno:SMU002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026'
+  'slotno:2,name:SMU2,model:KISMU4200,serialno:SMU002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
+  ...(options.pmu?['slotno:3,name:PMU1,model:4225-PMU,serialno:PMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026']:[])
  ].join(',');
  const remoteInfo='';
  const reply=value=>({base64:Buffer.from(value,'ascii').toString('base64')});
@@ -55,7 +56,19 @@ function makeInstrumentContext(modules,options={}){
     const command=Buffer.from(payload.base64||'','base64').toString('ascii');
     commands.push({command,noReply:payload.noReply===true});
     if(command==='*IDN?\0')return reply('KI4200A,1498377,V1.14\0');
-    if(command==='*OPT?\0')return reply('SMU1,SMU2\0');
+    if(command==='*OPT?\0')return reply(options.pmu?'SMU1,SMU2,PMU1\0':'SMU1,SMU2\0');
+    if(options.pmu){
+     if(command===':PMU:EXECUTE\0'){pulseBusy=true;return reply('ACK\0');}
+     if(command===':PMU:TEST:STATUS?\0'){
+      if(pulseBusy){pulseBusy=false;return reply('1\0');}
+      return reply('0\0');
+     }
+     if(command===':PMU:DATA:COUNT? 1\0')return reply('2\0');
+     if(command===':PMU:DATA:GET 1,0,2,VH,IH,TH,SH\0'){
+      return reply(pulseReadCount++===0?'\0':'0.75,1E-6,0.00003,0;0.76,1.1E-6,0.000068,0\0');
+     }
+     if(command==='ZE\0'||/^:PMU:(?:INIT |LOAD |SOURCE:RANGE |MEASURE:RANGE |SAMPLE:RATE |SARB:|OUTPUT:STATE |ABORT\0)/.test(command))return reply('ACK\0');
+    }
     if(command==='US\0')measurementStarted=true;
     if(command==='ME1\0'){systemRun=true;measurementStarted=true;return reply('ACK\0');}
     if(command==='ME4\0'){systemRun=false;return reply('ACK\0');}
@@ -407,5 +420,68 @@ test('Rev F scoped System Mode can run independently of the old User Mode gate',
   assert.equal(fake.commands.filter(c=>c.command==='ME1\0').length,1);
   assert.ok(fake.commands.some(c=>c.command==='IT3\0'));
   assert.ok(!fake.commands.some(c=>/^(DV|TI)/.test(c.command)));
+ }finally{await runtime.dispose();}
+});
+
+test('segmented pulse uses the verified PMU port, exact hold profile and original readback',async()=>{
+ const {modules}=loadModules(),model=modules.get('model'),runtimeModule=modules.get('measurementRuntime');
+ let project=model.add(model.initial(),'arb');
+ project=model.edit(project,'D',{resource:'PMU1-1'});
+ const page=project.pages.at(-1);
+ assert.equal(page.kind,'pulse');
+ assert.equal(page.timing.testMode,'bias-steps');
+ const steps={...page.timing.biasSteps,loops:'2',edgeUs:'2',segments:[
+  {...page.timing.biasSteps.segments[0],durationUs:'5'},
+  {...page.timing.biasSteps.segments[1],biasV:'0.8',durationUs:'25',measureStartUs:'3'},
+  {...page.timing.biasSteps.segments[2],durationUs:'4'}
+ ]};
+ Object.assign(page.timing,{biasSteps:steps,loadOhms:'1000000',currentRangeA:'0.01'});
+ const capabilities=modules.get('dkts-capabilities');
+ const preview=capabilities.segmentArbPreview(page.timing);
+ assert.equal(preview.durationTicks,3800);
+ assert.deepEqual(Array.from(preview.segments,s=>[s.startV,s.stopV]),[[0,0],[0,.8],[.8,.8],[.8,0],[0,0]]);
+ assert.deepEqual({...preview.segments[2].window},{startTicks:1000,endTicks:3200});
+ const hardware=modules.get('dkts-kxci-measurement');
+ const fake=makeInstrumentContext(modules,{pmu:true});
+ const blocked=runtimeModule.createRuntime(fake.ctx,{wait:async()=>{}});
+ const endpoint={host:'169.254.111.118',port:1225,expectedSerial:'1498377'};
+ try{
+  await blocked.connectAndInspect(endpoint);
+  const check=blocked.prepare(page);
+  assert.equal(check.ready,true,check.reason);
+  assert.equal(check.canExecute,false);
+  assert.throws(()=>blocked.start(page,true),/实机验收/);
+  assert.ok(fake.commands.every(row=>!row.command.startsWith(':PMU:')));
+ }finally{await blocked.dispose();}
+ // Only the test fixture can simulate commissioning approval.
+ const DATABASE=JSON.parse(JSON.stringify(capabilities.DATABASE));
+ Object.assign(DATABASE.safetyPolicies.kxci,{allowPulseModeOutput:true,allowSegmentArbOutput:true});
+ modules.set('dkts-capabilities',{...capabilities,DATABASE});
+ const commissioned=makeInstrumentContext(modules,{pmu:true});
+ const runtime=runtimeModule.createRuntime(commissioned.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect(endpoint);
+  const prepared=runtime.prepare(page);
+  assert.equal(prepared.canExecute,true,prepared.reason);
+  const {pulse}=prepared.compiled;
+  assert.equal(pulse.durationTicksExact,'7600');
+  assert.equal(pulse.expected,2);
+  assert.ok(pulse.setup.includes(':PMU:SARB:SEQ:TIME 1,1,0.000005,0.000002,0.000025,0.000002,0.000004'));
+  assert.ok(pulse.setup.includes(':PMU:SARB:SEQ:MEAS:START 1,1,0,0,0.000003,0,0'));
+  assert.ok(pulse.setup.includes(':PMU:SARB:SEQ:MEAS:STOP 1,1,0,0,0.000025,0,0'));
+  const invalidWindow={...page.timing,biasSteps:{...steps,segments:steps.segments.map((s,i)=>i===1?{...s,measureStopUs:'26'}:s)}};
+  assert.throws(()=>hardware.compileSweep({...prepared.input,settings:invalidWindow},{inventory:prepared.inventory,capabilities}),/窗口/);
+  runtime.start(page,true);
+  const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'completed',result.run.error);
+  assert.equal(result.run.shutdown,'commands-sent');
+  assert.equal(result.rows,2);
+  assert.deepEqual(Array.from(result.run.rows,r=>[r.timeS,r.pulseVoltageV,r.rawKxciResponse]),[
+   [0.00003,0.75,'0.75,1E-6,0.00003,0'],[0.000068,0.76,'0.76,1.1E-6,0.000068,0']
+  ]);
+  assert.equal(result.published.canonical,true);
+  const commands=commissioned.commands.map(row=>row.command);
+  assert.equal(commands.filter(c=>c===':PMU:EXECUTE\0').length,1);
+  assert.ok(commands.indexOf(':PMU:OUTPUT:STATE 1,0\0')<commands.lastIndexOf(':PMU:DATA:GET 1,0,2,VH,IH,TH,SH\0'));
  }finally{await runtime.dispose();}
 });

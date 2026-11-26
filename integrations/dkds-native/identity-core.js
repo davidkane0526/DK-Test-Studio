@@ -184,7 +184,10 @@
        const frame=atob(answer.base64||'');item.response=frame;
        if(connection?.sessionId!==id)throw Error('测量期间仪器连接发生变化');
        const raw=decodeKxciFrame(answer.base64);
-       if(expectReply){if((!raw||raw.toUpperCase()==='ACK')&&cmd!==':ERROR:LAST:GET')throw Error('查询未返回数据');return raw;}
+       if(expectReply){
+        if(cmd!==':ERROR:LAST:GET'&&(raw.toUpperCase()==='ACK'||!raw&&!blockAllowed))throw Error('查询未返回数据');
+        return raw;
+       }
        if(raw.toUpperCase()!=='ACK')throw Error('未收到 ACK：'+raw);
        return '';
       }catch(error){item.error=String(error?.message||error);throw Error(cmd+'：'+item.error);}

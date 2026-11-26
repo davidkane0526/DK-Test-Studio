@@ -8,7 +8,7 @@
   {id:'pund',label:'PUND',testType:'Pulse'},
   {id:'endurance',label:'耐久性',testType:'Cycle'},
   {id:'retention',label:'保持特性',testType:'Time'},
-  {id:'arb',label:'任意波形',testType:'Pulse'},
+  {id:'arb',label:'分段脉冲',testType:'Pulse'},
   {id:'time',label:'时间扫描',testType:'IVT'},
   {id:'pulse',label:'脉冲扫描',testType:'Pulse'},
   {id:'cv',label:'C–V 扫描',testType:'CV'}
@@ -59,8 +59,13 @@
   pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',basePeakV:'',
    start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
    delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
-   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',secondary:null,arb:null,arbPartner:null,testMode:'sweep'})
+   pulseCount:'1',mode:'spot',rateHz:'1000000',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',secondary:null,arb:null,arbPartner:null,biasSteps:null,testMode:'sweep'})
  });
+ function defaultBiasSteps(){
+  return {edgeUs:'1',loops:'1',segments:['0','1','0'].map((biasV,index)=>({
+   biasV,durationUs:'10',measure:index===1,measureStartUs:'0',measureStopUs:''
+  }))};
+ }
  // KXCI Rev. F, SMU IT (0.1 / 1 / 10 power-line cycles).
  const SMU_INTEGRATION_PLC=Object.freeze({instrument:0,short:0.1,medium:1,long:10});
  function timeGroundNodes(page){
@@ -184,7 +189,7 @@
   }
   if(kind==='pulse'){
    if(settings?.testMode===undefined&&settings?.arb!=null)values.testMode='sequence';
-   if(!['sweep','sequence'].includes(values.testMode))throw Error('Invalid pulse test mode');
+   if(!['sweep','sequence','bias-steps'].includes(values.testMode))throw Error('Invalid pulse test mode');
    if(values.testMode==='sequence'&&values.arb==null)throw Error('Missing custom sequence');
   }
   if(kind==='pulse'&&Object.hasOwn(values,'windowStopUs')){
@@ -199,7 +204,10 @@
   if(!defaults)return null;
   const v=timingSettings(kind,settings);
   if(kind==='time')return timeSummary(v);
-  if(kind==='pulse'&&v.testMode==='sequence')return window.DKDSPluginModules.require('dkts-capabilities').normalizeArbPair(v);
+  if(kind==='pulse'&&['sequence','bias-steps'].includes(v.testMode)){
+   const capabilities=window.DKDSPluginModules.require('com.dkts.keithley-4200','dkts-capabilities');
+   return v.testMode==='sequence'?capabilities.normalizeArbPair(v):capabilities.normalizeSegmentArb(v);
+  }
   if(!['S','D','G'].includes(v.terminal))throw Error('Select a Source, Drain or Gate terminal');
   const n=key=>numeric(v[key],key);
   if(kind==='retention'){
@@ -942,6 +950,11 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
     if(p.dc.specIds.some(id=>specOwners.get(id)!==routineOwners.get(p.routineId)))
      throw Error('DC Spec must belong to the same Device');
    }
+   if(p.kind==='arb'){
+    p.kind='pulse';
+    p.timing={...p.timing,testMode:p.timing?.testMode??(p.timing?.arb?'sequence':'bias-steps'),
+     biasSteps:p.timing?.biasSteps??defaultBiasSteps()};
+   }
    if(TIMED_DEFAULTS[p.kind]){
     p.timing=timingSettings(p.kind,p.timing);
     timedSummary(p.kind,p.timing);
@@ -1389,6 +1402,6 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,pulseSecondarySettings,timeGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,defaultBiasSteps,pulseSecondarySettings,timeGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

@@ -577,7 +577,13 @@ async function executeNativeSequence(compiled,io){
 }
   function compileSweep(input,hardware={}){
     if(input.executionMode==='routine')return compileNativeSequence(input,hardware);
-    if(input.executionMode==='pulse')return (input.settings?.testMode==='sequence'||input.settings?.testMode===undefined&&input.settings?.arb!=null)?(input.settings.arbPartner?compileSegmentArbPair(input,hardware):compileSegmentArb(input,hardware)):input.secondary?compilePulsePair(input,hardware):compilePulse(input,hardware);
+    if(input.executionMode==='pulse'){
+      const mode=input.settings?.testMode;
+      if(mode==='bias-steps')return compileSegmentArb(input,hardware);
+      if(mode==='sequence'||mode===undefined&&input.settings?.arb!=null)
+        return input.settings.arbPartner?compileSegmentArbPair(input,hardware):compileSegmentArb(input,hardware);
+      return input.secondary?compilePulsePair(input,hardware):compilePulse(input,hardware);
+    }
     const planner=typeof require==='function'
       ?require('./measurement-plan.js')
       :window.DKDSPluginModules.require('dkts-plan');

@@ -344,7 +344,31 @@
     if (!mod.output.rangesV.includes(range)) throw Error('PMU/PGU 输出量程只能选择 10 V 或 40 V');
     return Object.freeze({ minSegments: mod.segmentArb.minSegmentsPerSequence, maxSegments: mod.segmentArb.maxSegmentsPerChannel, maxSegmentsPerCommand: mod.segmentArb.kxciMaxArrayValuesPerCommand || 128, kxciMaxArrayValuesPerCommand: mod.segmentArb.kxciMaxArrayValuesPerCommand || 128, maxSequences: mod.segmentArb.maxSequencesPerChannel, maxSequenceLoops: mod.segmentArb.maxSequenceLoops, minSegmentS: mod.segmentArb.minSegmentTimeS[String(range)], maxSegmentS: mod.segmentArb.maxSegmentTimeS, kxciMinSegmentS: mod.segmentArb.kxciMinSegmentTimeS?.[String(range)] ?? mod.segmentArb.minSegmentTimeS[String(range)], hardwareMinSegmentNote: mod.segmentArb.hardwareMinSegmentNote || null, kxciMaxSegmentS: mod.segmentArb.kxciMaxSegmentTimeS || 1, kxciLimitVerificationStatus: DATABASE.safetyPolicies.pulse.kxciInterfaceLimitsVerificationStatus, timeResolutionS: mod.segmentArb.timeResolutionS });
   }
+function expandBiasSteps(plan){
+ if(!Array.isArray(plan?.segments)||plan.segments.length<1||plan.segments.length>2048)
+  throw Error('请设置 1–2048 行偏置');
+ if(!String(plan.edgeUs??'').trim()||!Number.isFinite(Number(plan.edgeUs))||Number(plan.edgeUs)<=0)
+  throw Object.assign(Error('偏置过渡时间必须大于 0'),{field:'biasSteps.edgeUs'});
+ const segments=[];
+ let previous=0;
+ const transitionTo=bias=>{
+  if(bias!==previous)segments.push({startV:previous,stopV:bias,durationUs:plan.edgeUs,measure:false});
+  previous=bias;
+ };
+ for(const [index,row] of plan.segments.entries()){
+  const voltage=Number(row?.biasV);
+  if(!String(row?.biasV??'').trim()||!Number.isFinite(voltage))
+   throw Object.assign(Error('第 '+(index+1)+' 行偏置电压无效'),{field:'biasSteps.segments.'+index+'.biasV'});
+  transitionTo(voltage);
+  segments.push({startV:voltage,stopV:voltage,durationUs:row.durationUs,measure:row.measure,
+   measureStartUs:row.measureStartUs??'0',measureStopUs:row.measureStopUs==null||row.measureStopUs===''?row.durationUs:row.measureStopUs});
+ }
+ transitionTo(0);
+ return {segments,loops:plan.loops};
+}
 function normalizeSegmentArb(settings){
+ if(settings?.testMode==='bias-steps')
+  return normalizeSegmentArb({...settings,testMode:'sequence',arb:expandBiasSteps(settings.biasSteps)});
  const v=settings,arb=v?.arb;
  if(arb?.blocks!==undefined){
   if(!Array.isArray(arb.blocks)||arb.blocks.length<1||arb.blocks.length>512)throw Error('序列数量须为 1–512');
@@ -413,9 +437,11 @@ function normalizeArbPair(settings){
 }
 function segmentArbPreview(settings,blockIndex=0){
  // A single repeat of the selected block. This is planned output, not acquisition data.
- const arb=settings?.arb,blocks=arb?.blocks||[arb];
+ const biasSteps=settings?.testMode==='bias-steps';
+ const arb=biasSteps?expandBiasSteps(settings.biasSteps):settings?.arb,blocks=arb?.blocks||[arb];
  if(!Number.isInteger(blockIndex)||blockIndex<0||blockIndex>=blocks.length)throw Error('时序序列不存在');
- const b=blocks[blockIndex],summary=normalizeSegmentArb({...settings,arbPartner:null,secondary:null,arb:{loops:b.loops,segments:b.segments}});
+ const b=blocks[blockIndex],summary=normalizeSegmentArb({...settings,testMode:biasSteps?'sequence':settings.testMode,
+  arbPartner:null,secondary:null,arb:{loops:b.loops,segments:b.segments}});
  let elapsed=0;
  const segments=summary.segments.map((s,index)=>{
   const startTicks=elapsed,endTicks=startTicks+s.durationTicks;elapsed=endTicks;

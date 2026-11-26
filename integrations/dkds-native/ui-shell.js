@@ -564,6 +564,10 @@
   "任意波形",
   "Arbitrary Waveform"
  ],
+ "分段脉冲": [
+  "分段脉冲",
+  "Segmented Pulse"
+ ],
  "时间扫描": [
   "时间扫描",
   "Time Sweep"
