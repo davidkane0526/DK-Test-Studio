@@ -68,7 +68,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        rows:new Set(coords.filter(p=>p.w>0).map(p=>p.y)).size,
        columns:Math.max(0,...[...new Set(coords.map(p=>p.y))].map(
         y=>coords.filter(p=>p.y===y&&p.w>0).length)),
-       coords};
+       coords,
+       labels:[...grid.querySelectorAll('select')].map(node=>node.getAttribute('aria-label')||'')};
      })(),
      nativePlotGroupCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-plot-group="four-independent-frames"]').length,
      nativePlotViewCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-plot-frame]').length,
@@ -102,7 +103,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
        state.nativePlotGroupCount!==1||state.nativePlotViewCount!==4||
        state.nativePlotHeaderCount!==4||!state.scopedGeometryLoaded||
        state.projectSidebarWidth<265||state.projectSidebarWidth>275||
-       state.terminalGrid.rows!==1||state.terminalGrid.columns!==3)return;
+       state.terminalGrid.rows!==1||state.terminalGrid.columns!==4||
+       !['S','D','G','B'].every(key=>state.terminalGrid.labels.some(label=>label.includes('('+key+')'))))return;
    const img=await win.webContents.capturePage();
    if(img.isEmpty())throw Error('Empty Electron screen capture');
    const size=img.getSize(),bitmap=img.toBitmap(),unique=new Set();
@@ -159,15 +161,17 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
    })()`,true);
    if(!pageClicked)throw Error('FS-Pro Page navigation item unavailable in real Electron DOM');
    await new Promise(resolve=>setTimeout(resolve,350));
-   // Verify the FS-Pro Source/Drain/Gate mapping and scan editor against the
-   // sample project's GNDU / SMU1 / SMU2 configuration.
+   // Verify the DC Source/Drain/Gate/Body mapping and scan editor against
+   // the sample project's GNDU / SMU1 / SMU2 / None configuration.
    const configured=await win.webContents.executeJavaScript(`(()=>{
     const toolbar=document.querySelector('#dktsKeithley4200Page [data-dkts-port-desktop]');
     const ports=toolbar?[...toolbar.querySelectorAll('select')]:[];
-    if(ports.length!==3)return false;
-    return ports.map(node=>node.value).join(',')==='GNDU,SMU1,SMU2';
+    if(ports.length!==4)return false;
+    const labels=ports.map(node=>node.getAttribute('aria-label')||'');
+    return ports.map(node=>node.value).join(',')==='GNDU,SMU1,SMU2,None'&&
+     ['S','D','G','B'].every(key=>labels.some(label=>label.includes('('+key+')')));
    })()`,true);
-   if(!configured)throw Error('FS-Pro Terminal strip must expose Source/Drain/Gate as GNDU/SMU1/SMU2');
+   if(!configured)throw Error('FS-Pro DC Terminal strip must expose Source/Drain/Gate/Body as GNDU/SMU1/SMU2/None');
    await new Promise(resolve=>setTimeout(resolve,220));
    const pageEditor=await win.webContents.executeJavaScript(`(()=>{
     const tabs=[...document.querySelectorAll('#dktsKeithley4200Page .dkts-tab-bar')];
@@ -195,8 +199,8 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
    const pageImage=await win.webContents.capturePage();
    if(pageImage.isEmpty())throw Error('Core Page editor screenshot empty');
    fs.writeFileSync(path.join(dir,'core-host-page.png'),pageImage.toPNG());
-   // Phone-width Page editor: the three desktop selectors must collapse into a
-   // single Core popover action instead of clipping the Terminal strip.
+   // Phone-width Page editor: the four desktop DC selectors (including Body)
+   // must collapse into one Core popover action instead of clipping the strip.
    const phoneOldSize=win.getSize();
    try{
     win.setMinimumSize(320,400);

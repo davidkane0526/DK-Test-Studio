@@ -316,7 +316,16 @@ jobs:
         working-directory: dist/dkts-framework-staging/mobile/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64 --no-daemon
+          for attempt in 1 2 3; do
+            if ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64 --no-daemon --refresh-dependencies; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::Gradle dependency resolution/build failed on attempt $attempt; retrying with refreshed dependencies."
+              sleep 12
+            fi
+          done
+          exit 1
       - name: Verify package ID and DKTS UI/plugin payload
         run: |
           apk=dist/dkts-framework-staging/mobile/android/app/build/outputs/apk/release/app-release.apk
