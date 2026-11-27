@@ -328,15 +328,28 @@ jobs:
       - name: Generate isolated Core Build Android project
         working-directory: dist/dkts-framework-staging/mobile
         run: npx expo prebuild --platform android --clean
+      - name: Inspect Android autolinking command and Node module resolution
+        working-directory: dist/dkts-framework-staging/mobile
+        run: |
+          echo '=== Generated Android settings.gradle ==='
+          sed -n '1,220p' android/settings.gradle
+          echo '=== Node module resolution ==='
+          node - <<'NODE'
+          for (const name of ['expo-modules-autolinking','@react-native-community/cli','react-native/package.json','@react-native/gradle-plugin/package.json']) {
+            try { console.log(name+': '+require.resolve(name)); }
+            catch (error) { console.log(name+': MISSING ('+error.code+')'); }
+          }
+          NODE
       - name: Compile offline DKTS Android APK for package/signing checks
         working-directory: dist/dkts-framework-staging/mobile/android
         run: |
           chmod +x gradlew
+          export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--trace-uncaught"
           if ! grep -q '^org.gradle.java.installations.auto-download=' gradle.properties; then
             echo 'org.gradle.java.installations.auto-download=false' >> gradle.properties
           fi
           for attempt in 1 2 3; do
-            if ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64 --no-daemon --refresh-dependencies; then
+            if ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64 --no-daemon --refresh-dependencies --stacktrace --info --console=plain; then
               exit 0
             fi
             if [ "$attempt" -lt 3 ]; then
