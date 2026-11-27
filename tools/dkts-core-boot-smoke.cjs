@@ -186,15 +186,18 @@ module.exports=function start({app,BrowserWindow,APP_ROOT}){
      .find(el=>el.textContent.includes('Xsweep'));
     return {visible,tabCount:tabButtons.length,backButton:back?.textContent.trim()==='▥',
      graphVisible:!!graph&&graph.getBoundingClientRect().height>0,
-     terminalRows:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-terminal-setting]').length,
-     rangeFields:row?.querySelectorAll('select').length||0,
+     dcEditorVisible:!!document.querySelector('#dktsKeithley4200Page [data-dkts-dc-editor="sweep"]'),
+     dcTerminalCount:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-dc-terminal]').length,
+     dcPrimaryRows:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-dc-primary]').length,
+     dcSelectCount:document.querySelectorAll('#dktsKeithley4200Page select[data-dkts-dc-field]').length,
      xSweepVisible:!!xPanel,
      desktopPortToolbarVisible:(()=>{const el=document.querySelector('#dktsKeithley4200Page [data-dkts-port-desktop]');return !!el&&el.getBoundingClientRect().width>0;})(),
      plotHeaders:document.querySelectorAll('#dktsKeithley4200Page [data-dkts-plot-header]').length};
    })()`,true);
    if(!pageEditor.visible||pageEditor.tabCount!==3||!pageEditor.backButton||pageEditor.graphVisible||
-      pageEditor.terminalRows!==2||pageEditor.rangeFields<3||!pageEditor.xSweepVisible||
-      !pageEditor.desktopPortToolbarVisible||pageEditor.plotHeaders!==4)
+      !pageEditor.dcEditorVisible||pageEditor.dcTerminalCount!==3||pageEditor.dcPrimaryRows<3||
+      pageEditor.dcSelectCount<3||!pageEditor.xSweepVisible||!pageEditor.desktopPortToolbarVisible||
+      pageEditor.plotHeaders!==4)
     throw Error('FS-Pro Page editor hierarchy invalid: '+JSON.stringify(pageEditor));
    const pageImage=await win.webContents.capturePage();
    if(pageImage.isEmpty())throw Error('Core Page editor screenshot empty');
