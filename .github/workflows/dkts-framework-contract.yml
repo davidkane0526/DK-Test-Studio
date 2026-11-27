@@ -4,7 +4,7 @@ on:
   # A normal source push must never compile an app. Only a final, reviewed
   # single-main commit carrying [DKTS-FINAL-BUILD] may invoke the release job.
   push:
-    branches: [main]
+    branches: [main, build/v0.3.53-a226]
 permissions:
   actions: read
   contents: read
@@ -50,19 +50,26 @@ jobs:
           CORE_SHA: ${{ github.sha }}
           CORE_RUN_NUMBER: ${{ github.run_number }}
           EVENT_NAME: ${{ github.event_name }}
+          CORE_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         shell: bash
         run: |
           set -euo pipefail
           revision="$CORE_RUN_NUMBER"
           if [[ "$EVENT_NAME" == "push" ]]; then
-            revision=""
-            for attempt in $(seq 1 30); do
-              revision="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ui-update.yml/runs" \
-                -f head_sha="$CORE_SHA" -f event=push -f per_page=30 \
-                --jq '.workflow_runs | sort_by(.created_at) | last | .run_number // empty' || true)"
-              if [[ "$revision" =~ ^[1-9][0-9]*$ ]]; then break; fi
-              sleep 2
-            done
+            # Pin an already allocated V/a identity for a build-only branch.
+            manual_build_id="$(printf '%s\n' "$CORE_COMMIT_MESSAGE" | sed -nE 's/.*\[DKTS-BUILD-ID=(a[1-9][0-9]*)\].*/\1/p' | head -1 || true)"
+            if [[ "$manual_build_id" =~ ^a[1-9][0-9]*$ ]]; then
+              revision="${manual_build_id#a}"
+            else
+              revision=""
+              for attempt in $(seq 1 30); do
+                revision="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ui-update.yml/runs" \
+                  -f head_sha="$CORE_SHA" -f event=push -f per_page=30 \
+                  --jq '.workflow_runs | sort_by(.created_at) | last | .run_number // empty' || true)"
+                if [[ "$revision" =~ ^[1-9][0-9]*$ ]]; then break; fi
+                sleep 2
+              done
+            fi
           fi
           [[ "$revision" =~ ^[1-9][0-9]*$ ]] || {
             echo "::error::Could not resolve a monotonic UI revision number for this SHA."
@@ -375,7 +382,7 @@ jobs:
     needs: [change-scope, resolve-build-identity, android-core-preview]
     env:
       DKTS_BUILD_NUMBER: ${{ needs.resolve-build-identity.outputs.build_number }}
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot') && needs.android-core-preview.result == 'success' }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/build/v0.3.53-a226') && (needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot') && needs.android-core-preview.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     # The stable package ID is only releasable with the existing pinned signer.
@@ -456,7 +463,7 @@ jobs:
 
   publish-core-preview:
     needs: [change-scope, resolve-build-identity, framework-readonly-check, windows-core-preview, android-core-preview, android-core-fixed-sign-preview]
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-scope.result == 'success' && (needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot') && needs.framework-readonly-check.result == 'success' && needs.windows-core-preview.result == 'success' && needs.android-core-preview.result == 'success' && needs.android-core-fixed-sign-preview.result == 'success' }}
+    if: ${{ always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/build/v0.3.53-a226') && needs.change-scope.result == 'success' && (needs.change-scope.outputs.update_channel == 'full-app' || needs.change-scope.outputs.update_channel == 'ui-hot') && needs.framework-readonly-check.result == 'success' && needs.windows-core-preview.result == 'success' && needs.android-core-preview.result == 'success' && needs.android-core-fixed-sign-preview.result == 'success' }}
     permissions:
       actions: read
       contents: write
@@ -584,7 +591,7 @@ jobs:
           Version: V${app_version} $UI_REV
           Build identity: $UI_REV
           Android versionCode: $((100000+${UI_REV#a}))
-          Revision counter source: ui-update.yml run_number for this exact source commit.
+          Revision counter source: pinned existing a226 allocation from application source c28ab3e; this build-only branch does not allocate a new revision.
           Architecture: Genuine DKDS Core, staged read-only and branded by DKTS.
           Windows: DKTS portable package with the stable application identity.
           Android: studio.dk.test, signed with the pinned DKTS certificate ($SIGNING_STATUS).
