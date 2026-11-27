@@ -344,12 +344,8 @@ jobs:
         working-directory: dist/dkts-framework-staging/mobile/android
         run: |
           chmod +x gradlew
-          export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--trace-uncaught"
-          if ! grep -q '^org.gradle.java.installations.auto-download=' gradle.properties; then
-            echo 'org.gradle.java.installations.auto-download=false' >> gradle.properties
-          fi
           for attempt in 1 2 3; do
-            if ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64 --no-daemon --refresh-dependencies --stacktrace --info --console=plain; then
+            if ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64 --no-daemon --refresh-dependencies --stacktrace --console=plain; then
               exit 0
             fi
             if [ "$attempt" -lt 3 ]; then
