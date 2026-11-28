@@ -1055,3 +1055,13 @@ Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive readi
 - **7 原生对数与多 VAR2**（5-22/23/24）：Optimized 对数扫描在跨度恰好是整数个仪器对数步且计划电平与该网格一致时，用 `VR/IR` 2/3/4（每十倍频 10/25/50 点），否则保留精确的 VL/IL 列表。Optimized 可设最多 4 个 Psweep 源，附加源排在主 VAR2 之后定义（CH 函数 2），用 `VP/IP …,FF`（2–4）步进；模型、计划规范化与编译三处都要求单段线性、步数一致、≤32 步，不能与 Generator 组合。
 - 测试：新增 `tests/dkts-kxci-extensions.test.cjs` 19 项、数据中心测试 1 项。`node --test tests/*.test.cjs` 301 项：293 通过、2 跳过、6 失败，失败与基线相同（容器缺 D3）；`tests/test-dkds-native-host.cjs` 通过。
 - 未改动 `safetyPolicies.kxci` 任何开关；未合并 PR；未连接物理 4200A，自检、OV/OS/OD/SR/RK/RF、VR 对数网格与 VP 多源索引都还需要实机验收；未提升版本号，未构建预览或 ZIP。
+
+## 2026-11-28 · PMU 脉冲测试支持（分支 claude/project-thread-ctfnir）
+
+- R-20261128-004，基线 `afdcc95`（PR #24 分支）。先核对现状：脉冲扫描、双通道嵌套、Segment Arb、PMU 分段偏置的编译、分块回收、Data Center 与绘图已存在；门禁 `allowPulseModeOutput`/`allowSegmentArbOutput` 为 false。
+- **Rev F 第 7 节核对**：`compilePulse`/`compileSegmentArb` 生成的 INIT、RPM:CONFIGURE、LOAD、SOURCE:RANGE、MEASURE:RANGE、MEASURE:MODE、SAMPLE:RATE、PULSE:BURST:COUNT、PULSE:TRAIN、SWEEP/STEP:PULSE:*、PULSE:TIMES、TIMES:PIV、TIMES:WAVEFORM、OUTPUT:STATE、EXECUTE、TEST:STATUS?、DATA:COUNT?、DATA:GET、ABORT 及全部 SARB 指令的语法、参数顺序与手册一致。时序下限（10 V：周期 60 ns、脉宽 40 ns、边沿 20 ns、延迟 20 ns；40 V：500/250/50/50 ns；最小关断 40 ns）、波形前后窗口按 width + 0.5(rise+fall) 计算、SARB 10 ns 分辨率、每条 128 值、序列号 1–512、循环 1–1e12 均与 7-19/7-36/7-43–7-60 一致。DATA:GET 每块取 128 点（手册上限 2048），LOAD 限 1 Ω–1 MΩ（手册 1–1e7 Ω），都比手册保守，未改。
+- **`53cdb2a` 脉冲选项**：双向扫描（SWEEP:PULSE:AMPLITUDE/BASE 末参数，记录数 ×2，仅单通道多点）；平均模式（Spot Mean 3 / 波形 4，Spot 平均每扫描点 1 条）；基线读数（MEASURE:PIV ch,1,1，DATA:GET 取 VH,IH,TH,SH,VL,IL,TL,SL，Data Center 新增基线电压/电流/时间/状态列，仅 Spot Mean）；LLEC:CONFIGURE；连接补偿（CONNECTION:COMP 按卡最低通道号发送短路/偏置电流启用，双通道同卡只发一次）。不发 MEASURE:CONNECTION:COMP，因为它要求探针短接或抬起。
+- **`0c42f6b` PUND**：测试类型中原有 PUND 入口却无执行器。现以幅值、边沿、平顶、间隔、可选负预置脉冲和循环次数生成单个 Segment Arb 序列（首段间隔 + 预置 + P/U/N/D 各 4 段），四个读脉冲的上升、平顶、下降以波形采集，复用 `compileSegmentArb`、同一门禁与执行路径。运行后按 4 × 循环数等长块标注 `pulsePund`/`pulsePundIndex`，按仪器时间戳梯形积分（仅正时间步）得 Q(P)、Q(U)、Q(N)、Q(D) 和开关电荷 Q(P)−Q(U)、Q(N)−Q(D)，填写电极面积时换算 µC/cm²，写入数据表元数据并显示在状态栏。原始读数与时间戳不改。
+- 测试：新增 `tests/dkts-pmu-rev-f-options.test.cjs` 7 项、`tests/dkts-pund.test.cjs` 3 项；`dkts-native-measurement-runtime` 新增 PUND 端到端（门禁关闭时拒绝启动且不发 :PMU: 指令；模拟验收后 8 点标注与电荷）；`test-dkds-native-host.cjs` 覆盖脉冲新选项和 PUND 编辑器三个分页（宿主模拟补上 `DKDSPluginModules.require`）。`npm test` 311 项：309 通过、2 跳过、0 失败；`test-dkds-native-host.cjs`、`test-dkds-native-plugin.cjs` 通过。
+- **待实机确认**：(1) TIMES:PIV 用法行写作 `:PMU:PIV:TIMES`，标题与示例为 `:PMU:TIMES:PIV`，代码沿用后者；(2) TIMES:PIV 百分比以平顶还是全脉宽为基准；(3) 双向扫描是否重复终点（当前按 2N 计）；(4) 扫描时每点是否各发 burstCount 个脉冲；(5) 平均模式的记录数；(6) SARB 波形采集的时间戳起点与每段采样数，PUND 标注依赖四个读脉冲点数相等；(7) 10 V 档 SARB 能否输出 −V 到 +V（手册写 ±10 V）；(8) 连接补偿数据须先在 Clarius 或 KXCI 中测量保存。
+- 未修改 `safetyPolicies.kxci` 任何开关；未连接物理 4200A；未构建预览、ZIP 或安装包；未提升版本号。

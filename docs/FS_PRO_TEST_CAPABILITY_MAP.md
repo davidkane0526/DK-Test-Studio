@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | DC 优化扫描 | 电压起止、步长、内外扫描、固定偏置、限流、积分和延迟 | System Mode / VR VP VL VC IT DT HT ME1 | 基础电压模式；Log / Generator、电流源、固定档待完善 |
 | 时间测试 | 固定偏置、起始等待、读数后等待、点数、速度 | WT IN NR IT ME1 | 基础单段固定电压偏置；多段/多事件仍为规划 |
-| 脉冲测试 | 幅值、基线、周期、脉宽、读出窗口、量程 | PMU route, pulse source & measure, buffered acquisition | 已有参数规划、RPM 别名；执行待接入 |
+| 脉冲测试 | 幅值、基线、周期、脉宽、读出窗口、量程 | PMU route, pulse source & measure, buffered acquisition | 单/双通道脉冲扫描、Segment Arb、PMU 分段偏置和 PUND 已编译并接入 Data Center；含双向扫描、平均、基线读数、LLEC、连接补偿。实机输出门禁关闭，待受控验收 |
 | 循环/保持 | 写入、保持、读出、循环、读数计划 | 原生任务组合、已确认路径自动切换 | 待执行集成 |
 | CV | 频率、交流振幅、直流偏置、测量模型 | CVU sweep & compensation | 待实现 |
 | 仪器管理 | 实装模块、接线、校准日期、校准/补偿 | IDN OPT SystemUtil AC PMU/CVU compensation | 已读版本和校准信息、保存人工确认接线；校准操作待完成 |
@@ -57,3 +57,5 @@
 - Generator: nonlinear/getp() via native list compiler, with original X/P index. Multi-channel list output requires commissioning; no per-point network execution.
 
 - Target H/P: H expression + separate DKDS frame, P source-level filter, full independent computed CSV. Same-frame secondary Y axis requires DKDS renderer support.
+
+2026-11-28：依据 Rev F 第 7 节补齐标准脉冲的 dualSweep、MEASURE:MODE 3/4、MEASURE:PIV 低电平（VL/IL/TL/SL）、LLEC:CONFIGURE 与启用已存储的 CONNECTION:COMP。PUND 以单个 Segment Arb 序列实现，采集四个读脉冲的波形，按等长块标注 P/U/N/D 并计算开关电荷。`allowPulseModeOutput`、`allowSegmentArbOutput` 仍为 false。
