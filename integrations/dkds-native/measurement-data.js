@@ -18,7 +18,8 @@
   ['cycle','整体循环','','index'],['xRepeat','Xsweep 重复','','index'],
   ['xSegment','Xsweep 扫描段','','index'],['point','Xsweep 点序','','index'],
   ['pRepeat','Psweep 重复','','index'],['pSegment','Psweep 扫描段','','index'],
-  ['pPoint','Psweep 点序','','index']
+  ['pPoint','Psweep 点序','','index'],
+  ['complianceFlag','触及限流标记','','raw']
  ];
  const STRINGS=[
   ['pulseResource','脉冲通道'],['pulseMode','脉冲采集方式'],['pulseProgram','脉冲任务类型'],['pulseStatusRaw','脉冲原始状态'],
@@ -26,8 +27,24 @@
   ['complianceRole','触及限流端口'],['rawKxciResponse','KXCI 原始响应'],
   ['rawKxciResponses','各端口原始响应 JSON'],
   ['measurementStatusByRole','端口状态 JSON'],
-  ['measurementOrder','采样端口顺序 JSON']
+  ['measurementOrder','采样端口顺序 JSON'],
+  // Rev F 5-2: every SMU reading carries a status letter (N normal, C in
+  // compliance). Flat per-port columns let the Data Center filter/plot points
+  // without parsing the JSON column above.
+  ['drainStatus','漏极点状态'],['gateStatus','栅极点状态'],['sourceStatus','源极点状态'],['bodyStatus','衬底点状态']
  ];
+ const STATUS_ROLES=Object.freeze({drainStatus:'drain',gateStatus:'gate',sourceStatus:'source',bodyStatus:'body'});
+ // Per-point status as the instrument reported it; missing/unknown stays ''.
+ function pointStatus(row,role){const v=row?.measurementStatusByRole?.[role];return v==='N'||v==='C'?v:v?'unknown':'';}
+ function statusSummary(rows){
+  const byRole={};let compliancePoints=0,unknownPoints=0;
+  for(const row of rows){
+   if(row.measurementStatus==='C')compliancePoints++;else if(row.measurementStatus!=='N')unknownPoints++;
+   for(const role of Object.values(STATUS_ROLES))if(pointStatus(row,role)==='C')byRole[role]=(byRole[role]||0)+1;
+  }
+  const first=rows.findIndex(row=>row.measurementStatus==='C');
+  return Object.freeze({compliancePoints,unknownPoints,complianceByRole:Object.freeze(byRole),firstComplianceSequence:first<0?null:rows[first].sequence});
+ }
  const safeId=value=>String(value||'').trim();
  function publishRaw(ctx,{runId,rows,serial,startedAt,finishedAt,runState,source,scope}={}){
   if(!ctx?.data?.model?.createTable||!ctx?.data?.artifacts?.publish)
@@ -53,11 +70,12 @@
   // Numeric acquisition channels stay in original units. Missing measurements
   // are NaN in the numeric DataTable; their null/status/response information
   // remains preserved verbatim in the raw metadata/text columns.
-  const columns=FIELDS.filter(([key])=>pulseRun?rows.some(row=>row[key]!=null):!key.startsWith('pulse')).map(([key,name,unit,role])=>({
+  const columns=FIELDS.filter(([key])=>pulseRun?key!=='complianceFlag'&&rows.some(row=>row[key]!=null):!key.startsWith('pulse')).map(([key,name,unit,role])=>({
    key,name,unit,role,dtype:'float64',
-   values:rows.map(row=>row[key]==null?NaN:Number(row[key]))
+   values:rows.map(row=>key==='complianceFlag'?(row.measurementStatus==='C'?1:row.measurementStatus==='N'?0:NaN):row[key]==null?NaN:Number(row[key]))
   }));
-  for(const [key,name] of STRINGS.filter(([key])=>pulseRun||!key.startsWith('pulse'))){
+  for(const [key,name] of STRINGS.filter(([key])=>(pulseRun||!key.startsWith('pulse'))&&!(pulseRun&&STATUS_ROLES[key]))){
+   if(STATUS_ROLES[key]){columns.push({key,name,unit:'',role:'raw',dtype:'string',values:rows.map(row=>pointStatus(row,STATUS_ROLES[key]))});continue;}
    columns.push({key,name,unit:'',role:'raw',dtype:'string',
     values:rows.map(row=>
      key==='rawKxciResponses'||key==='measurementStatusByRole'||key==='measurementOrder'
@@ -70,7 +88,7 @@
    transient:false,
    source:source||{name:'KI4200A '+instrument},
    metadata:{instrument:'KI4200A',instrumentSerial:instrument,
-    rawInstrumentResponse:true,timeOrigin:pulseRun||rows[0].source!=='4200A-KXCI-TI'?'instrument':'host-elapsed',...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode,pulseProgram:rows[0].pulseProgram||'pulse-sweep'}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
+    rawInstrumentResponse:true,...(pulseRun?{}:{pointStatus:statusSummary(rows)}),timeOrigin:pulseRun||rows[0].source!=='4200A-KXCI-TI'?'instrument':'host-elapsed',...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode,pulseProgram:rows[0].pulseProgram||'pulse-sweep'}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
     acquisition:{runId:id,timestamp:String(startedAt||''),
      finishedAt:String(finishedAt||''),runState,sequenceIndex:0,
      provenance:'kxci-native-acquisition'},
@@ -118,6 +136,6 @@ function publishSequence(ctx,opts){
  }
  return {rows:opts.rows.length,artifacts,errors,canonical:true,unprocessed:true};
 }
- const api=Object.freeze({publishRaw,publishRun,publishSequence,owner:OWNER,fields:FIELDS.map(x=>x[0])});
+ const api=Object.freeze({publishRaw,publishRun,publishSequence,statusSummary,owner:OWNER,fields:FIELDS.map(x=>x[0])});
  window.DKDSPluginModules.define(OWNER,'measurementData',api,{replace:true});
 })();

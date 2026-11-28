@@ -356,8 +356,9 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
       if(published?.errors?.length)publishError=published.errors.join('；');
      }catch(error){publishError=String(error?.message||error);}
     }
-    notify('measurement-finished',{rows:rows.length,published,publishError,commandTrace:controller.measurementTrace()});
-    return Object.freeze({run:current,rows:rows.length,published,publishError});
+    const pointStatus=rows.length&&rows[0].source!=='4200A-KXCI-PMU'&&typeof measurementData.statusSummary==='function'?measurementData.statusSummary(rows):null;
+    notify('measurement-finished',{rows:rows.length,published,publishError,pointStatus,commandTrace:controller.measurementTrace()});
+    return Object.freeze({run:current,rows:rows.length,published,publishError,pointStatus});
    }catch(error){
     const failure=String(error?.message||error);
     try{ctx.status.set('测量结果处理失败：'+failure);}catch{}

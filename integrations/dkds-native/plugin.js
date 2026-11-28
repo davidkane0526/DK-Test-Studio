@@ -92,7 +92,11 @@
       void ctx.ui.dialogs.alert({title:'4200A 测量失败',message:run.error||'未知错误',detail:trace});
      }
      else if(update.publishError)ctx.status.set('测量结束，但原始数据发布失败：'+update.publishError);
-     else if(update.published)ctx.status.set('测量 '+run.state+'；'+update.rows+' 行 KXCI 原始数据已写入 DKDS Data Center');
+     else if(update.published){
+      const ps=update.pointStatus,roles={drain:'D',gate:'G',source:'S',body:'B'};
+      const hit=ps?.compliancePoints?'；其中 '+ps.compliancePoints+' 点触及限流（'+Object.entries(ps.complianceByRole).map(([r,n])=>(roles[r]||r)+' '+n).join('，')+'，首次在第 '+ps.firstComplianceSequence+' 点）':'';
+      ctx.status.set('测量 '+run.state+'；'+update.rows+' 行 KXCI 原始数据已写入 DKDS Data Center'+hit);
+     }
      else ctx.status.set('测量 '+run.state+'；没有可发布的实际 TI 采样行');
      refreshData();
     }else if(update.event==='measurement-stopping')ctx.status.set('正在停止测量并关闭活动 SMU 输出…');
