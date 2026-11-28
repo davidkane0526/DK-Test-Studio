@@ -6,7 +6,8 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const dir=path.resolve(__dirname,'../integrations/dkds-native');
 const registry=new Map(),definitions=[];
 const sandbox={
- window:{matchMedia:()=>({matches:false}),DKDSPluginModules:{define:(id,name,value)=>registry.set(id+':'+name,value)}},
+ window:{matchMedia:()=>({matches:false}),DKDSPluginModules:{define:(id,name,value)=>registry.set(id+':'+name,value),
+  require:(id,name)=>registry.get(id+':'+name)}},
  DKDSPlugins:{define:(manifest,activate)=>definitions.push({manifest,activate})},
  console
 };
@@ -294,6 +295,18 @@ const ctx={
   ['kind-it','kind-vt','kind-raw']);
  record.actions.findLast(row=>row.id==='library-pulse').onInvoke();
  assert.ok(record.fields.some(row=>row.spec.attributes?.['data-dkts-timing-field']==='widthUs'));
+ const pulseType=()=>record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='preset');
+ assert.ok(pulseType().spec.options.some(row=>row.value==='pulse-sequence'));
+ pulseType().spec.onChange({target:{value:'pulse-sequence'}});
+ const pulseTiming=()=>state.pages.find(page=>page.id===state.activeId).timing;
+ assert.equal(pulseTiming().testMode,'sequence');
+ const arbitraryField=path=>record.fields.findLast(row=>row.spec.attributes?.['data-dkts-parameter-path']===path);
+ assert.equal(arbitraryField('arb.segments.0.measureStartUs').spec.disabled,true);
+ assert.equal(arbitraryField('arb.segments.1.measureStartUs').spec.disabled,false);
+ assert.equal(arbitraryField('arb.segments.1.measureStartUs').control.value,'2');
+ pulseType().spec.onChange({target:{value:'pulse'}});
+ assert.equal(pulseTiming().testMode,'sweep');
+ assert.equal(pulseTiming().arb.segments[1].measureStartUs,'2');
  // Adding a DC test exposes its own controls and retains the existing I–V test.
  const oldIv=JSON.stringify(state.pages[0]);
  const beforeDc=record.fields.length;

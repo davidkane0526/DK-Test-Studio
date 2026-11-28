@@ -474,7 +474,7 @@
 #dktsKeithley4200Page .dkts-time-icon-anchor{
  display:inline-flex;align-items:center;justify-content:flex-start;gap:4px;min-width:0
 }
-#dktsKeithley4200Page .dkts-time-editor .dkts-time-icon{
+#dktsKeithley4200Page .dkts-time-icon{
  display:inline-grid;place-items:center;flex:none;box-sizing:border-box;
  inline-size:14px;min-inline-size:14px;block-size:14px;min-block-size:14px;
  padding:0;border:0;border-radius:50%;
@@ -482,7 +482,7 @@
  background-blend-mode:multiply;color:var(--text-primary);
  font:700 9px/1 system-ui,sans-serif;cursor:help
 }
-#dktsKeithley4200Page .dkts-time-editor .dkts-time-switch{cursor:pointer}
+#dktsKeithley4200Page .dkts-time-switch{cursor:pointer}
 .dkts-smu-timing-popover{
  z-index:var(--dkds-layer-global-float,2400);inline-size:min(410px,calc(100vw - 16px));pointer-events:none
 }
@@ -507,7 +507,7 @@
 }
 #dktsKeithley4200Page .dkts-bias-step-table{grid-column:1/-1;min-width:0;container:dkts-pmu-bias / inline-size}
 #dktsKeithley4200Page .dkts-bias-step-row{
- display:grid;grid-template-columns:22px repeat(5,minmax(0,1fr)) 30px;align-items:center;
+ display:grid;grid-template-columns:var(--dkts-pmu-segment-columns,22px repeat(5,minmax(0,1fr)) 30px);align-items:center;
  gap:8px;padding:8px 7px;border-block-end:1px solid var(--dkts-divider,var(--border-strong))
 }
 #dktsKeithley4200Page .dkts-time-column-head{background:var(--surface-secondary)}
@@ -801,4 +801,57 @@
  --dkui-component-field-surface:transparent;
  --dkui-component-field-text:var(--dkui-text-muted,#6b7a90);
  cursor:default
+}
+
+#dktsKeithley4200Page [data-dkts-editor-kind="pulse"]{container:dkts-pulse-page / inline-size}
+#dktsKeithley4200Page .dkts-pulse-sweep-row{
+ display:grid;grid-template-columns:minmax(130px,.9fr) minmax(220px,1.45fr) minmax(0,2.8fr);
+ align-items:start
+}
+#dktsKeithley4200Page .dkts-pulse-sweep-row+.dkts-pulse-sweep-row{
+ border-block-start:1px solid var(--dkts-divider,var(--border-strong))
+}
+#dktsKeithley4200Page :is(.dkts-pulse-terminal,.dkts-pulse-config,.dkts-pulse-levels){
+ display:grid;align-content:start;gap:8px 10px;min-width:0;padding:10px 12px
+}
+#dktsKeithley4200Page :is(.dkts-pulse-config,.dkts-pulse-levels){
+ align-self:stretch;border-inline-start:1px solid var(--dkts-divider,var(--border-strong))
+}
+#dktsKeithley4200Page .dkts-pulse-sweep-row:not(:has(.dkts-pulse-config))>.dkts-pulse-terminal{
+ grid-column:1/-1;grid-template-columns:minmax(80px,max-content) minmax(100px,160px);align-items:center
+}
+#dktsKeithley4200Page .dkts-pulse-config{grid-template-columns:repeat(2,minmax(0,1fr))}
+#dktsKeithley4200Page .dkts-pulse-levels{
+ grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:min-content
+}
+#dktsKeithley4200Page :is(.dkts-pulse-sweep-row,.dkts-bias-step-row,.dkts-arb-sequence-controls) .dkts-native-field{min-width:0}
+@container dkts-pulse-page (max-width:840px){
+ #dktsKeithley4200Page .dkts-pulse-sweep-row{grid-template-columns:minmax(120px,1fr) minmax(0,2.2fr)}
+ #dktsKeithley4200Page .dkts-pulse-levels{grid-column:1/-1;border-inline-start:0}
+}
+@container dkts-pulse-page (max-width:440px){
+ #dktsKeithley4200Page .dkts-pulse-sweep-row{grid-template-columns:minmax(0,1fr)}
+ #dktsKeithley4200Page .dkts-pulse-config{border-inline-start:0}
+ #dktsKeithley4200Page .dkts-pulse-levels{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+#dktsKeithley4200Page .dkts-arb-sequence-controls{
+ grid-template-columns:minmax(130px,230px) minmax(110px,150px) minmax(0,1fr);align-items:end
+}
+@container dkts-pulse-page (max-width:570px){
+ #dktsKeithley4200Page .dkts-arb-sequence-controls{
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr))
+ }
+}
+@container dkts-pulse-page (max-width:930px){
+ #dktsKeithley4200Page .dkts-arb-workspace{grid-template-columns:minmax(0,1fr)}
+}
+#dktsKeithley4200Page .dkts-arb-sequence-actions{
+ display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-start
+}
+#dktsKeithley4200Page .dkts-arb-step-table{--dkts-pmu-segment-columns:22px repeat(6,minmax(0,1fr)) 30px}
+#dktsKeithley4200Page .dkts-arb-step-table .dkts-bias-step-header{align-items:end}
+#dktsKeithley4200Page :is(.dkts-arb-step-table,.dkts-pulse-sweep-row) .dkds-field-label{min-width:0}
+@container dkts-pmu-bias (max-width:480px){
+ #dktsKeithley4200Page .dkts-arb-step-table .dkts-bias-step-row>:nth-child(4){grid-column:auto}
 }

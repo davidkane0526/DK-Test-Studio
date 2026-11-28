@@ -746,6 +746,72 @@
    if(!timingDrafts.has(p.id))timingDrafts.set(p.id,{settings:JSON.parse(JSON.stringify(p.timing))});
    return timingDrafts.get(p.id);
   }
+  function renderPulseSweepInputs(host,page,values,put,refresh){
+   const axes=[{name:'Xsweep',config:values,excluded:values.secondary?.terminal},
+    {name:'Psweep',config:values.secondary,excluded:values.terminal}];
+   for(const {name,config,excluded} of axes){
+    const outer=name==='Psweep',prefix=outer?'secondary.':'';
+    const band=dcLayout(host,'dkts-pulse-sweep-row');
+    band?.setAttribute?.('data-dkts-pulse-axis',name);
+    const identity=dcLayout(band,'dkts-pulse-terminal');
+    const heading=dcLayout(identity,'dkts-dc-terminal-label');
+    if(config?.terminal)renderTerminalBadge(heading,config.terminal);
+    units.note.create(heading,{variant:'meta',className:'dkts-dc-terminal-name',text:name});
+    const set=(key,value)=>{
+     if(outer)put('secondary',{...values.secondary,[key]:String(value)});
+     else put(key,value);
+     refresh();
+    };
+    const choices=['D','G','S'].filter(key=>key!==excluded).map(key=>({
+     value:key,label:t(logicalNames[key])+' · '+pulsePort(page,{...values,...config,terminal:key}).resource
+    }));
+    if(outer)choices.unshift({value:'None',label:tr('未启用','Off')});
+    dcSelect(identity,config?tr('端子','Terminal'):false,config?.terminal||'None',choices,terminal=>{
+     if(!outer)put('terminal',terminal);
+     else if(terminal==='None')put('secondary',null);
+     else if(config)set('terminal',terminal);
+     else{
+      const keys=['channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs',
+       'windowStartUs','windowTimeUs','currentRangeA','sweep','basePeakV','rangePolicy','prePercent','postPercent'];
+      const initial=Object.fromEntries(keys.map(key=>[key,String(values[key])]));
+      put('secondary',{...initial,terminal,stop:String(values.start),step:'0',currentRangeA:''});
+     }
+     redrawDc();
+    },{key:outer?'pulse-p-terminal':'pulse-x-terminal',path:prefix+'terminal',ariaLabel:name+' '+tr('端子','Terminal')});
+    if(!config)continue;
+    const mode=dcLayout(band,'dkts-pulse-config');
+    const levels=dcLayout(band,'dkts-pulse-levels');
+    const port=pulsePort(page,{...values,...config});
+    const select=(target,key,zh,en,options,redraw=false)=>dcSelect(target,tr(zh,en),config[key]??options[0].value,options,
+     value=>{set(key,value);if(redraw)redrawDc();},{key:'pulse-'+(outer?'p-':'x-')+key,path:prefix+key,ariaLabel:name+' '+tr(zh,en)});
+    const number=(target,key,zh,en)=>scalarField(target,tr(zh,en),config[key]??'',value=>set(key,value),false,
+     {'data-dkts-timing-field':outer?undefined:key,'data-dkts-parameter-path':prefix+key,'aria-label':name+' '+tr(zh,en)},false,true);
+    select(mode,'sweep','方法','Method',[{value:'amplitude',label:tr('扫描幅值','Amplitude sweep')},
+     {value:'base',label:tr('扫描基线','Base sweep')}],true);
+    select(mode,'rangeV','电压档','Voltage range',[{value:'10',label:'10 V'},{value:'40',label:'40 V'}],true);
+    if(!port.match?.[3])select(mode,'channel','卡内通道','Card channel',[{value:'1',label:'CH1'},{value:'2',label:'CH2'}],true);
+    number(mode,'loadOhms','负载 (Ω)','Load (Ω)');
+    const baseSweep=config.sweep==='base';
+    for(const [key,zh,en] of [['start','起始 (V)','Start (V)'],['stop','终止 (V)','Stop (V)'],['step','步进 (V)','Step (V)'],
+     baseSweep?['basePeakV','固定峰值 (V)','Fixed peak (V)']:['fixedV','基线 (V)','Base (V)']])number(levels,key,zh,en);
+    if(baseSweep&&config.basePeakV===''){
+     const legacy=number(levels,'fixedV','旧单点幅值 (V)','Legacy single-point amplitude (V)');
+     timeHelp(legacy.label,tr('旧单点幅值','Legacy single-point amplitude'),
+      tr('仅供缺少固定峰值的旧单点基线方案使用。','Used by older single-point base plans without an explicit peak.'));
+    }
+    if(outer){
+     const ranges=port.pmuVerified?hardware.getPmuCurrentRanges(Number(config.rangeV),port.withRpm):[];
+     select(mode,'currentRangeA','电流档','Current range',[{value:'',label:tr('自动','Auto')},
+      ...ranges.map(range=>({value:String(range),label:range+' A'}))],true);
+     if(config.currentRangeA)select(mode,'rangePolicy','量程模式','Range mode',[{value:'fixed',label:tr('固定','Fixed')},
+      {value:'limited-auto',label:tr('最低自动量程','Limited auto')}]);
+     for(const [key,zh,en] of [['widthUs','平顶 (µs)','Flat top (µs)'],['riseUs','上升 (µs)','Rise (µs)'],
+      ['fallUs','下降 (µs)','Fall (µs)'],['delayUs','首脉冲延迟 (µs)','First-pulse delay (µs)'],
+      ['windowStartUs','测量延迟 (µs)','Measure delay (µs)'],['windowTimeUs','测量时间 (µs)','Measure time (µs)']])
+      number(levels,key,zh,en);
+    }
+   }
+  }
   function renderTiming(host,p){
    const pulse=p.kind==='pulse',draft=editorPlan.draft,values=draft.settings;
    const put=(key,value)=>{values[key]=value;updateEditorPlan(key);};
@@ -768,69 +834,29 @@
      options.push([values.currentRangeA,values.currentRangeA+' A · '+tr('待核验','Unverified')]);
     return options;
    };
-   if(pulse&&editorSection==='sweep'){
-    const modePanel=panel('扫描类型','Sweep type');
-    fsproField(modePanel,{kind:'select',label:tr('测试方式','Test mode'),value:values.testMode,attributes:{'data-dkts-timing-field':'testMode'},
-     options:[{value:'sweep',label:'Pulse I–V'},{value:'sequence',label:tr('任意波形','Arbitrary waveform')}],onChange:event=>{
-     const mode=event.target.value;
-     // Preserve mode-specific settings when switching modes.
-     if(mode==='sequence'&&!values.arb)values.arb={loops:'1',segments:[{startV:'0',stopV:'1',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'},{startV:'1',stopV:'1',durationUs:'10',measure:true,measureStartUs:'2',measureStopUs:'8'},{startV:'1',stopV:'0',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'}]};
-     draft.arbPage=0;
-     put('testMode',mode);render();
-    }});
-   }
    if(pulse&&values.testMode!=='sweep'){
     renderArbTiming(host,p,values,put,panel);return;
    }
    if(editorSection==='sweep'){
-    const input=panel('输入设置','Input settings');
-    select(input,'terminal',tr('端子','Terminal'),['S','D','G'].filter(key=>!pulse||key!==values.secondary?.terminal).map(key=>[key,t(logicalNames[key])+' · '+
-     (pulse?pulsePort(p,{...values,terminal:key}).resource:p.terminals.find(term=>term.logical===key)?.resource||'None')]));
     if(pulse){
-     select(input,'rangeV',tr('PMU 电压档','PMU voltage range'),[['10','10 V'],['40','40 V']]);
-     if(!match?.[3])select(input,'channel',tr('卡内通道','Card channel'),[['1','CH1'],['2','CH2']]);
-     fields(input,[['loadOhms','DUT 与互连等效负载 (Ω)','DUT and interconnect load (Ω)']]);
-     const levels=panel('Xsweep · 脉冲电平','Xsweep · Pulse levels');
-     const amplitude=values.sweep==='amplitude';
-     select(levels,'sweep',tr('扫描方式','Sweep mode'),[['amplitude',tr('扫描幅值','Amplitude sweep')],['base',tr('扫描基线','Base sweep')]]);
-     if(!amplitude){fields(levels,[['basePeakV','固定峰值 (V)','Fixed peak (V)']]);if(values.basePeakV==='')fields(levels,[['fixedV','旧单点相对幅值 (V)','Legacy single-point relative amplitude (V)']]);}
-     fields(levels,[['start','起始 (V)','Start (V)'],['stop','终止 (V)','Stop (V)'],['step','步进 (V)','Step (V)']]);
-     const outer=panel('Psweep · 脉冲电平','Psweep · Pulse levels');
-     const otherKeys=['S','D','G'].filter(key=>key!==values.terminal);
-     fsproField(outer,{kind:'select',label:tr('端子','Terminal'),value:values.secondary?.terminal||'None',options:[{value:'None',label:'None'},...otherKeys.map(key=>({value:key,label:t(logicalNames[key])+' · '+pulsePort(p,{...values,terminal:key}).resource}))],onChange:event=>{
-      const terminal=event.target.value;if(terminal==='None'){put('secondary',null);render();return;}
-      const keys=['channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA','sweep','basePeakV','rangePolicy','prePercent','postPercent'];
-      const secondary=values.secondary?{...values.secondary,terminal}:{...Object.fromEntries(keys.map(k=>[k,String(values[k])])),terminal,stop:String(values.start),step:'0',currentRangeA:''};
-      put('secondary',secondary);render();
-     }});
-     if(values.secondary){
-      const second=values.secondary,port=pulsePort(p,{...values,...second});
-      const setSecond=(key,value)=>{put('secondary',{...values.secondary,[key]:String(value)});refreshTimingSummary();};
-      if(!port.match?.[3])dcSelect(outer,tr('卡内通道','Card channel'),second.channel,[{value:'1',label:'CH1'},{value:'2',label:'CH2'}],value=>{setSecond('channel',value);render();},{key:'psweep-channel',path:'secondary.channel'});
-      dcSelect(outer,tr('电压档','Voltage range'),second.rangeV,[{value:'10',label:'10 V'},{value:'40',label:'40 V'}],value=>{setSecond('rangeV',value);render();},{key:'psweep-range',path:'secondary.rangeV'});
-      dcSelect(outer,tr('电流档','Current range'),second.currentRangeA,[{value:'',label:tr('自动','Auto')},...(port.pmuVerified?hardware.getPmuCurrentRanges(Number(second.rangeV),port.withRpm):[]).map(x=>({value:String(x),label:String(x)+' A'}))],value=>setSecond('currentRangeA',value),{key:'psweep-current-range',path:'secondary.currentRangeA'});
-      dcSelect(outer,tr('扫描方式','Sweep mode'),second.sweep||'amplitude',[{value:'amplitude',label:tr('扫描幅值','Amplitude sweep')},{value:'base',label:tr('扫描基线','Base sweep')}],value=>{setSecond('sweep',value);render();},{key:'psweep-mode',path:'secondary.sweep'});
-      if(second.currentRangeA)dcSelect(outer,tr('量程模式','Range mode'),second.rangePolicy||'fixed',[{value:'fixed',label:tr('固定','Fixed')},{value:'limited-auto',label:tr('最低自动量程','Limited auto')}],value=>setSecond('rangePolicy',value),{key:'psweep-range-policy',path:'secondary.rangePolicy'});
-      const secondaryBase=second.sweep==='base';
-      for(const [key,zh,en] of [[secondaryBase?'basePeakV':'fixedV',secondaryBase?'固定峰值 (V)':'基线 (V)',secondaryBase?'Fixed peak (V)':'Base (V)'],['start','起始 (V)','Start (V)'],['stop','终止 (V)','Stop (V)'],['step','步进 (V)','Step (V)'],['loadOhms','负载 (Ω)','Load (Ω)'],['widthUs','平顶 (µs)','Flat top (µs)'],['riseUs','上升 (µs)','Rise (µs)'],['fallUs','下降 (µs)','Fall (µs)'],['delayUs','延迟 (µs)','Delay (µs)'],['windowStartUs','测量延迟 (µs)','Measure delay (µs)'],['windowTimeUs','测量时间 (µs)','Measure time (µs)']])
-       scalarField(outer,tr(zh,en),second[key]??'',value=>setSecond(key,value),false,{'data-dkts-parameter-path':'secondary.'+key},false,true);
-     }
+     const input=dcPanel(host,tr('输入设置','Input settings'),'dkts-dc-input-panel');
+     renderPulseSweepInputs(input,p,values,put,refreshTimingSummary);
      const basic=panel('脉冲设置 · 基本','Pulse Settings · Basic');
      fields(basic,[['periodUs','脉冲周期 (µs)','Pulse Period (µs)'],['widthUs','计划平顶时长 (µs)','Planned flat top (µs)']]);
      const advanced=panel('脉冲设置 · 高级','Pulse Settings · Advanced');
      for(const [key,zh,en] of [['holdUs','保持时间 (µs)','Hold Time (µs)'],
-      ['baseDelayUs','基线延迟 (µs)','Base Delay (µs)']])
-      scalarField(advanced,tr(zh,en),values[key],null,false,{'data-dkts-timing-field':key},true);
-     units.note.create(advanced,{variant:'meta',text:tr(
-      '保持和基线延迟保留旧方案值。当前 KXCI 脉冲设置仅提供独立的首脉冲延迟。',
-      'Hold and base delay preserve legacy plan values. This KXCI pulse setup exposes the first-pulse delay separately.')});
+      ['baseDelayUs','基线延迟 (µs)','Base Delay (µs)']]){
+      const label=tr(zh,en),legacy=scalarField(advanced,label,values[key],null,false,{'data-dkts-timing-field':key},true);
+      timeHelp(legacy.label,label,tr(
+       '仅显示旧方案值。可用的延迟设置是「首脉冲延迟」。',
+       'Saved legacy value. Use First-pulse delay to configure an active delay.'));
+     }
      for(const [key,zh,en] of [['windowStartUs','测量延迟 (µs)','Measure Delay (µs)'],
       ['windowTimeUs','测量时间 (µs)','Measure Time (µs)']]){
       const field=scalarField(advanced,tr(zh,en),values[key],value=>{put(key,String(value).trim());refreshTimingSummary();},false,
        {'data-dkts-timing-field':key,'data-dkts-parameter-path':key,'placeholder':'Auto'},false,true);
-      field.control?.setAttribute?.('placeholder','Auto');
+      if(key==='windowTimeUs')timeHelp(field.label,tr(zh,en),tr('留空时按可用平顶窗口估算。','If blank, sampling is estimated from the available flat-top window.'));
      }
-     if(amplitude)fields(advanced,[['fixedV','基线电平 (V)','Base Level (V)']]);
      select(advanced,'currentRangeA',tr('量程选择','Range Selection'),pulseRanges());
      if(values.currentRangeA)select(advanced,'rangePolicy',tr('量程模式','Range mode'),[['fixed',tr('固定','Fixed')],['limited-auto',tr('最低自动量程','Limited auto')]]);
      units.action.create(advanced,{id:'dkts-pulse-auto',label:tr('自动测量设置','Auto measurement settings'),
@@ -841,6 +867,9 @@
      fields(advanced,[['riseUs','上升时间 (µs)','Rise (µs)'],['fallUs','下降时间 (µs)','Fall (µs)'],
       ['delayUs','首脉冲延迟 (µs)','First-pulse delay (µs)'],['pulseCount','每点脉冲数','Pulses per point']]);
     }else{
+     const input=panel('输入设置','Input settings');
+     select(input,'terminal',tr('端子','Terminal'),['S','D','G'].map(key=>[key,t(logicalNames[key])+' · '+
+      (p.terminals.find(term=>term.logical===key)?.resource||'None')]));
      fields(input,[['conditionV','初始偏置 (V)','Initial bias (V)'],['conditionS','初始偏置时长 (s)','Initial bias duration (s)'],
       ['holdV','保持偏置 (V)','Hold bias (V)']]);
      const schedule=panel('Time Xsweep · 保持时序','Time Xsweep · Retention schedule');
@@ -853,34 +882,39 @@
      select(event,'mode',tr('采样方式','Acquisition'),[['spot',tr('窗内均值（Pulse I–V）','Spot mean (Pulse I–V)')],['waveform',tr('窗内波形','Window waveform')]]);
      if(values.mode==='waveform')fields(event,[['prePercent','脉冲前采样比例 (0–1)','Pre-data fraction (0–1)'],['postPercent','脉冲后采样比例 (0–1)','Post-data fraction (0–1)']]);
      const presets=['1000','10000','100000','1000000','10000000','50000000','100000000','200000000'];
-     let rates=[];
+     let rates=[],rateHelp='';
      try{
       const budget=captureBudget(model.timedSummary('pulse',values),null);
       rates=presets.filter(rate=>Number(rate)>=budget.minSampleRateHz&&Number(rate)<=budget.kxciMaxSampleRateHz&&
        Math.ceil(Number(rate)*budget.totalMeasureDurationS-1e-9)<budget.interfaceMaxGeneratedPointsPerChannel);
-      units.note.create(event,{variant:'meta',text:tr('KXCI 采样范围 ','KXCI sample rate ') +
-       Math.ceil(budget.minSampleRateHz)+' – '+Math.floor(budget.kxciMaxSampleRateHz)+tr(' Sa/s（上限待核验）',' Sa/s (boundary pending verification)')});
+      rateHelp=tr('KXCI 采样范围 ','KXCI sample rate ') +
+       Math.ceil(budget.minSampleRateHz)+' – '+Math.floor(budget.kxciMaxSampleRateHz)+tr(' Sa/s（上限待核验）',' Sa/s (boundary pending verification)');
      }catch{}
      const selected=rates.find(rate=>Number(rate)===Number(values.rateHz));
      const customLabel=tr('自定义整数采样率','Custom integer rate');
-     dcSelect(event,tr('采样率 (Sa/s)','Sample rate (Sa/s)'),draft.customRate?'custom':selected||'custom',
+     const rateLabel=tr('采样率 (Sa/s)','Sample rate (Sa/s)');
+     const sampleRate=dcSelect(event,rateLabel,draft.customRate?'custom':selected||'custom',
       [...rates.map(value=>({value,label:Number(value).toLocaleString(language)})),{value:'custom',label:customLabel}],
       value=>{
        draft.customRate=value==='custom';
        if(value!=='custom')put('rateHz',value);
        render();
       },{key:'pulse-rate-preset',path:'rateHz'});
+     if(rateHelp)timeHelp(sampleRate.label,rateLabel,rateHelp);
      if(draft.customRate||!selected)fields(event,[['rateHz','自定义采样率 (Sa/s)','Custom rate (Sa/s)']]);
     }else fields(event,[['readV','读出偏置 (V)','Read bias (V)'],['windowS','读出窗口 (s)','Read window (s)'],['complianceA','SMU 电流保护 (A)','SMU compliance (A)']]);
    }else{
     const strategy=panel('仪器与调度','Instrument and scheduling');
-    units.note.create(strategy,{variant:'meta',text:pulse?tr(
-     '由 4225-PMU 负责脉冲和测量窗口。规划时间以平顶为参考，执行适配仍需按对应 KXCI 模式核对。',
-     'The 4225-PMU owns pulse and window timing. Planning uses the flat top as its reference. Verify conversion for the selected KXCI mode.'):
-     tr('初始偏置后进入保持时段，读出事件的时间相对于保持开始。实测应保存时间戳和间隔偏差。',
-      'Read events are relative to the start of the hold after initial bias. Acquisition should preserve timestamps and interval deviation.')});
+    if(pulse){
+     const timing=dcLayout(strategy,'dkts-bias-column-caption');
+     units.note.create(timing,{variant:'meta',text:'4225-PMU'});
+     timeHelp(timing,'4225-PMU',tr('脉冲与测量窗口由仪器定时。','The instrument times the pulse and measurement window.'));
+    }else units.note.create(strategy,{variant:'meta',text:tr('初始偏置后进入保持时段，读出事件的时间相对于保持开始。实测应保存时间戳和间隔偏差。',
+     'Read events are relative to the start of the hold after initial bias. Acquisition should preserve timestamps and interval deviation.')});
    }
-   const summary=panel('方案校验','Plan checks');
+   const checks=panel('方案校验','Plan checks');
+   if(pulse)mountParameterIssue(checks);
+   const summary=pulse?dcLayout(checks,'dkts-plan-summary'):checks;
    function refreshTimingSummary(){
     summary.replaceChildren();
    try{
@@ -891,8 +925,6 @@
      ' · '+String(slot.physicalModel||slot.family)+(withRpm?' + RPM':''):' · '+tr('模块待核验','Module unverified'))});
     let reason='';
     if(pulse){
-     if(values.windowStartUs===''||values.windowTimeUs==='')
-      units.note.create(summary,{variant:'meta',text:tr('Auto 采样预算按可用平顶窗口估算。','Auto estimates sample usage from the available flat-top window.')});
      const budget=captureBudget(result,result.rateHz);
      units.note.create(summary,{variant:'meta',text:tr('每通道预计采样点','Estimated samples per channel')+' '+budget.sampleCountAtSelectedRate});
      reason=pulseCompatibility(values,result,budget);
@@ -910,7 +942,7 @@
      if(!limits.known||limits.requiresInterlock)reason=tr('SMU 额定值或现场互锁待核验。','Verify the SMU rating or physical interlock.');
     }
     if(reason)units.note.create(summary,{variant:'warning',text:reason});
-   }catch(error){units.note.create(summary,{variant:'warning',text:String(error.message||error)});}
+   }catch(error){if(!pulse)units.note.create(summary,{variant:'warning',text:planMessage(error)});}
    }
    refreshTimingSummary();
   }
@@ -1053,16 +1085,26 @@
    const timingContext=()=>{const port=pulsePort(p,settings);return {withRpm:port.pmuVerified&&port.withRpm};};
    let sequenceLayout,edgeDisplay,rangeDisplay,currentRangeControl;
    if(editorSection==='sweep'){
-    if(!byBias){
-    const channels=panel('时序端子','Sequence terminals');
-    dcSelect(channels,tr('第二端子','Second terminal'),values.arbPartner?.terminal||'None',[{value:'None',label:'None'},...['S','D','G'].filter(k=>k!==values.terminal).map(k=>({value:k,label:t(logicalNames[k])+' · '+pulsePort(p,{...values,terminal:k}).resource}))],terminal=>{
-     if(terminal==='None'){draft.arbChannel=0;put('arbPartner',null);}
-     else{const old=values.arbPartner;put('arbPartner',old?{...old,terminal}:{terminal,channel:values.channel,rangeV:values.rangeV,loadOhms:values.loadOhms,currentRangeA:values.currentRangeA,mode:values.mode,arb:JSON.parse(JSON.stringify(values.arb))});}
-     draft.arbBlock=0;draft.arbPage=0;render();
-    },{key:'arb-second-terminal'});
-    if(partner)dcSelect(channels,tr('编辑端子','Edit terminal'),partnerActive?'1':'0',[{value:'0',label:t(logicalNames[values.terminal])},{value:'1',label:t(logicalNames[partner.terminal])}],v=>{draft.arbChannel=Number(v);draft.arbBlock=0;draft.arbPage=0;render();},{key:'arb-edit-terminal'});
-    }
     const input=panel(byBias?'时间扫描 · 单周期':'输入设置',byBias?'Time sweep · One cycle':'Input settings');
+    if(!byBias){
+     const candidates=['S','D','G'].filter(key=>key!==values.terminal).map(key=>({
+      value:key,label:t(logicalNames[key])+' · '+pulsePort(p,{...values,terminal:key}).resource
+     }));
+     dcSelect(input,tr('第二端子','Second terminal'),values.arbPartner?.terminal||'None',[
+      {value:'None',label:tr('未启用','Off')},...candidates
+     ],terminal=>{
+      if(terminal==='None'){draft.arbChannel=0;put('arbPartner',null);}
+      else{
+       const old=values.arbPartner;
+       put('arbPartner',old?{...old,terminal}:{terminal,channel:values.channel,rangeV:values.rangeV,
+        loadOhms:values.loadOhms,currentRangeA:values.currentRangeA,mode:values.mode,arb:JSON.parse(JSON.stringify(values.arb))});
+      }
+      draft.arbBlock=0;draft.arbPage=0;redrawDc();
+     },{key:'arb-second-terminal'});
+     if(partner)dcSelect(input,tr('编辑端子','Edit terminal'),partnerActive?'1':'0',[
+      {value:'0',label:t(logicalNames[values.terminal])},{value:'1',label:t(logicalNames[partner.terminal])}
+     ],v=>{draft.arbChannel=Number(v);draft.arbBlock=0;draft.arbPage=0;redrawDc();},{key:'arb-edit-terminal'});
+    }
     if(byBias){
      input?.classList?.add('dkts-pmu-time-settings');
      renderTimeMode(input,timeSettings);
@@ -1113,70 +1155,80 @@
      field(input,tr('循环次数','Cycles'),arb.loops,v=>change('loops',v),'biasSteps.loops');
     }
     if(!byBias){
-    const sequencePanel=panel('序列组合','Sequence list');
-    dcSelect(sequencePanel,tr('序列','Sequence'),String(selected),blocks.map((b,i)=>({value:String(i),label:(i+1)+' · '+b.loops+' × '+b.segments.length+' '+tr('段','segments')})),v=>{draft.arbBlock=Number(v);draft.arbPage=0;render();},{key:'arb-block'});
-    if(blocks.length<512&&blocks.reduce((n,b)=>n+b.segments.length,0)<=2045)units.action.create(sequencePanel,{id:'dkts-arb-block-add',label:tr('增加序列','Add sequence'),variant:'quiet',direct:true,onInvoke:()=>{const end=blocks.at(-1).segments.at(-1).stopV;const segment={startV:end,stopV:end,durationUs:'10',measure:false,measureStartUs:'0',measureStopUs:'0'};putChannel('arb',{blocks:[...blocks,{loops:'1',segments:Array.from({length:3},()=>({...segment}))}]});draft.arbBlock=blocks.length;draft.arbPage=0;render();}});
-    if(blocks.length>1)units.action.create(sequencePanel,{id:'dkts-arb-block-remove',label:tr('删除当前序列','Remove sequence'),variant:'quiet',direct:true,onInvoke:()=>{putChannel('arb',{blocks:blocks.filter((_,i)=>i!==selected)});draft.arbBlock=Math.max(0,selected-1);draft.arbPage=0;render();}});
-    field(sequencePanel,tr('序列重复次数','Sequence repeats'),arb.loops,v=>change('loops',v),'arb.loops');
+     const sequencePanel=panel('序列组合','Sequence list');
+     sequencePanel.classList?.add('dkts-arb-sequence-controls');
+     dcSelect(sequencePanel,tr('序列','Sequence'),String(selected),blocks.map((b,i)=>({
+      value:String(i),label:(i+1)+' · '+b.loops+' × '+b.segments.length+' '+tr('段','segments')
+     })),v=>{draft.arbBlock=Number(v);draft.arbPage=0;render();},{key:'arb-block'});
+     field(sequencePanel,tr('序列重复次数','Sequence repeats'),arb.loops,v=>change('loops',v),'arb.loops');
+     const actions=dcLayout(sequencePanel,'dkts-arb-sequence-actions');
+     if(blocks.length<512&&blocks.reduce((n,b)=>n+b.segments.length,0)<=2045)
+      units.action.create(actions,{id:'dkts-arb-block-add',label:'＋ '+tr('新增序列','Add sequence'),variant:'secondary',direct:true,onInvoke:()=>{
+       const end=blocks.at(-1).segments.at(-1).stopV;
+       const segment={startV:end,stopV:end,durationUs:'10',measure:false,measureStartUs:'0',measureStopUs:'0'};
+       putChannel('arb',{blocks:[...blocks,{loops:'1',segments:Array.from({length:3},()=>({...segment}))}]});
+       draft.arbBlock=blocks.length;draft.arbPage=0;render();
+      }});
+     if(blocks.length>1)units.action.create(actions,{id:'dkts-arb-block-remove',label:tr('删除当前序列','Remove sequence'),
+      variant:'quiet',direct:true,onInvoke:()=>{
+       putChannel('arb',{blocks:blocks.filter((_,i)=>i!==selected)});draft.arbBlock=Math.max(0,selected-1);draft.arbPage=0;render();
+      }});
     }
-    if(byBias)sequenceLayout=dcLayout(host,'dkts-bias-step-layout');
-    const seq=panel(byBias?'分段偏置表':'时序段',byBias?'Bias segments':'Sequence segments',sequenceLayout);
+    sequenceLayout=dcLayout(host,byBias?'dkts-bias-step-layout':'dkts-bias-step-layout dkts-arb-workspace');
+    const seq=panel(byBias?'分段偏置表':'时序段表',byBias?'Bias segments':'Sequence segments',sequenceLayout);
     const count=arb.segments.length;
     const pageCount=Math.ceil(count/32),pageIndex=Math.max(0,Math.min(pageCount-1,draft.arbPage||0));
     if(pageCount>1)dcSelect(seq,tr('段范围','Segments'),String(pageIndex),Array.from({length:pageCount},(_,i)=>({value:String(i),label:(i*32+1)+'–'+Math.min(count,(i+1)*32)})),v=>{draft.arbPage=Number(v);render();},{key:'arb-page'});
     const edit=(i,key,val)=>change('segments',blockList()[selected].segments.map((s,j)=>j===i?{...s,[key]:val}:s));
-    const table=byBias?dcLayout(seq,'dkts-bias-step-table'):seq;
-    if(byBias){
-     const header=dcLayout(table,'dkts-bias-step-header dkts-bias-step-row dkts-time-column-head');
-     for(const [zh,en] of [['段','No.'],['偏置 (V)','Bias (V)'],['保持 (µs)','Hold (µs)'],['测量','Measure'],
-      ['起点 (µs)','Start (µs)'],['终点 (µs)','Stop (µs)']]){
-      if(zh==='测量'){
-       const caption=units.layout.create(header,{variant:'identity',className:'dkts-bias-column-caption'});
-       units.note.create(caption,{variant:'meta',text:tr(zh,en)});
-       timeHelp(caption,tr(zh,en),tr('启用后可设置测量窗口。终点留空表示段末。','Enable to set the measurement window. Leave the stop blank for the segment end.'));
-      }else units.note.create(header,{variant:'meta',text:tr(zh,en)});
-     }
-    }
-    const shapeFields=byBias?[['biasV','偏置 (V)','Bias (V)'],['durationUs','保持时间 (µs)','Hold (µs)']]:
-     [['startV','起始电压 (V)','Start (V)'],['stopV','终止电压 (V)','Stop (V)'],['durationUs','时长 (µs)','Duration (µs)']];
+    const table=dcLayout(seq,byBias?'dkts-bias-step-table':'dkts-bias-step-table dkts-arb-step-table');
+    const shapeFields=byBias?[['biasV','偏置 (V)','Bias (V)'],['durationUs','保持 (µs)','Hold (µs)']]:
+     [['startV','起始 (V)','Start (V)'],['stopV','终止 (V)','Stop (V)'],['durationUs','时长 (µs)','Duration (µs)']];
+    const header=dcLayout(table,'dkts-bias-step-header dkts-bias-step-row dkts-time-column-head');
+    const columns=[['段','No.'],...shapeFields.map(([,zh,en])=>[zh,en]),['测量','Measure'],
+     ['起点 (µs)','Start (µs)'],['终点 (µs)','Stop (µs)']];
+    columns.forEach(([zh,en],index)=>{
+     const label=tr(zh,en);
+     if(index===shapeFields.length+1){
+      const caption=dcLayout(header,'dkts-bias-column-caption');
+      units.note.create(caption,{variant:'meta',text:label});
+      timeHelp(caption,label,byBias?tr(
+       '启用后可设置测量窗口。终点留空表示段末。','Enable to set the measurement window. Leave the stop blank for the segment end.'):
+       tr('启用后填写段内测量窗口。','Enable to set the measurement window within this segment.'));
+     }else units.note.create(header,{variant:'meta',text:label});
+    });
     for(let i=pageIndex*32;i<Math.min(count,(pageIndex+1)*32);i++){
-     const s=arb.segments[i],row=byBias?dcLayout(table,'dkts-bias-step-row'):
-      units.panel.create(seq,{variant:'headed',title:tr('段 ','Segment ')+(i+1),sizing:'content',className:'dkts-timing-panel'}).body;
-     if(byBias)row?.setAttribute?.('data-dkts-bias-row',String(i+1));
-     if(byBias)units.note.create(row,{variant:'meta',text:String(i+1)});
+     const s=arb.segments[i],row=dcLayout(table,'dkts-bias-step-row');
+     row?.setAttribute?.(byBias?'data-dkts-bias-row':'data-dkts-arb-row',String(i+1));
+     units.note.create(row,{variant:'meta',text:String(i+1)});
      const rowPath=path+'.segments.'+i+'.';
      const labelFor=label=>tr('段 ','Segment ')+(i+1)+' · '+label;
      for(const [key,zh,en] of shapeFields){
-      const input=field(row,tr(zh,en),s[key],v=>edit(i,key,v),rowPath+key);
-      if(byBias)input.control?.setAttribute('aria-label',labelFor(tr(zh,en)));
+      const label=tr(zh,en),input=field(row,label,s[key],v=>edit(i,key,v),rowPath+key);
+      input.control?.setAttribute('aria-label',labelFor(label));
      }
      dcSelect(row,tr('测量','Measure'),s.measure?'on':'off',[
-      {value:'off',label:tr('不测量','Off')},{value:'on',label:tr('测量','On')}
-     ],v=>{edit(i,'measure',v==='on');render();},{key:'arb-measure-'+i,ariaLabel:byBias?labelFor(tr('测量','Measure')):undefined});
-     if(byBias||s.measure){
-      const start=field(row,tr('测量起点 (µs)','Measure start (µs)'),s.measure?s.measureStartUs:'',v=>edit(i,'measureStartUs',v),rowPath+'measureStartUs',!s.measure);
-      const stop=field(row,tr('测量终点 (µs)','Measure stop (µs)'),s.measure?s.measureStopUs:'',v=>edit(i,'measureStopUs',v),rowPath+'measureStopUs',!s.measure);
-      if(byBias){
-       start.control?.setAttribute('placeholder','—');
-       start.control?.setAttribute('aria-label',labelFor(tr('测量起点 (µs)','Measure start (µs)')));
-       stop.control?.setAttribute('placeholder',s.measure?tr('段末','Segment end'):'—');
-       stop.control?.setAttribute('aria-label',labelFor(tr('测量终点 (µs)','Measure stop (µs)')));
-      }
+      {value:'off',label:byBias?tr('不测量','Off'):tr('关','Off')},{value:'on',label:byBias?tr('测量','On'):tr('开','On')}
+     ],v=>{edit(i,'measure',v==='on');redrawDc();},{key:'arb-measure-'+i,ariaLabel:labelFor(tr('测量','Measure'))});
+     for(const [key,zh,en] of [['measureStartUs','测量起点 (µs)','Measure start (µs)'],
+      ['measureStopUs','测量终点 (µs)','Measure stop (µs)']]){
+      const label=tr(zh,en),input=field(row,label,s.measure?s[key]:'',v=>edit(i,key,v),rowPath+key,!s.measure);
+      input.control?.setAttribute('placeholder',byBias&&s.measure&&key==='measureStopUs'?tr('段末','Segment end'):'—');
+      input.control?.setAttribute('aria-label',labelFor(label));
      }
-     if(byBias||count>3){
-      const remove=units.action.create(row,{id:'dkts-arb-remove-'+i,label:byBias?'−':tr('删除','Remove'),variant:byBias?'secondary':'quiet',direct:true,
-       enabled:count>(byBias?1:3),onInvoke:()=>{
-        change('segments',blockList()[selected].segments.filter((_,j)=>i!==j));render();
-       }}).element;
-      if(byBias)remove?.setAttribute?.('aria-label',tr('删除段 ','Remove segment ')+(i+1));
-     }
+     const remove=units.action.create(row,{id:'dkts-arb-remove-'+i,label:'−',variant:'secondary',direct:true,
+      enabled:count>(byBias?1:3),onInvoke:()=>{
+       change('segments',blockList()[selected].segments.filter((_,j)=>i!==j));redrawDc();
+      }}).element;
+     remove?.setAttribute?.('aria-label',tr('删除段 ','Remove segment ')+(i+1));
     }
-    if(blocks.reduce((n,b)=>n+b.segments.length,0)<2048)units.action.create(seq,{id:'dkts-arb-add',label:byBias?'＋ '+tr('新增时间段','Add time segment'):tr('增加时序段','Add segment'),variant:byBias?'secondary':'quiet',className:byBias?'dkts-bias-step-add':undefined,direct:true,onInvoke:()=>{
-     const segments=blockList()[selected].segments,last=segments.at(-1);
-     const voltage=byBias?{biasV:last.biasV}:{startV:last.stopV,stopV:last.stopV};
-     change('segments',[...segments,{...voltage,durationUs:'10',measure:false,measureStartUs:'0',measureStopUs:byBias?'':'0'}]);
-     draft.arbPage=Math.floor(count/32);render();
-    }});
+    if(blocks.reduce((n,b)=>n+b.segments.length,0)<2048)
+     units.action.create(seq,{id:'dkts-arb-add',label:'＋ '+(byBias?tr('新增时间段','Add time segment'):tr('新增时序段','Add segment')),
+      variant:'secondary',className:'dkts-bias-step-add',direct:true,onInvoke:()=>{
+       const segments=blockList()[selected].segments,last=segments.at(-1);
+       const voltage=byBias?{biasV:last.biasV}:{startV:last.stopV,stopV:last.stopV};
+       change('segments',[...segments,{...voltage,durationUs:'10',measure:false,measureStartUs:'0',measureStopUs:byBias?'':'0'}]);
+       draft.arbPage=Math.floor(count/32);redrawDc();
+      }});
    }else if(editorSection==='target'){
     const event=panel('测量事件','Measure event');
     for(const [label,config,isPartner] of [[t(logicalNames[values.terminal]),values,false],...(partner?[[t(logicalNames[partner.terminal]),partner,true]]:[])]){
@@ -1190,7 +1242,11 @@
    }else{
     const strategy=panel('测量策略','Strategy');
     if(byBias)rangeDisplay=dcInput(strategy,tr('自动电压档','Auto voltage range'),'—',null,{key:'pmu-auto-range',readOnly:true}).control;
-    if(!byBias)units.note.create(strategy,{variant:'meta',text:tr('由仪器执行完整序列及重复次数。','The instrument executes the complete sequence and repetitions.')});
+    if(!byBias){
+     const timing=dcLayout(strategy,'dkts-bias-column-caption');
+     units.note.create(timing,{variant:'meta',text:'4225-PMU'});
+     timeHelp(timing,'4225-PMU',tr('序列与重复次数由仪器执行。','The instrument executes the sequences and repeats.'));
+    }
    }
    let plot=null,data=emptyPlanPlot();
    if(editorSection==='sweep'){
@@ -1223,8 +1279,8 @@
     plot.requestRender?.('timing-plan');
    }
    const planPanel=panel('方案校验','Plan checks');
-   const summary=byBias?dcLayout(planPanel,'dkts-plan-summary'):planPanel;
-   if(byBias)mountParameterIssue(planPanel);
+   mountParameterIssue(planPanel);
+   const summary=dcLayout(planPanel,'dkts-plan-summary');
    function refresh(){
     draw();summary.replaceChildren();
     if(edgeDisplay)edgeDisplay.value='—';
@@ -1251,7 +1307,7 @@
      const policy=hardware.DATABASE.safetyPolicies.kxci;
      if(byBias&&(!policy.allowPulseModeOutput||!policy.allowSegmentArbOutput))
       units.note.create(summary,{variant:'meta',text:tr('当前策略未开放实机输出','Instrument output is disabled by policy')});
-    }catch(e){if(!byBias)units.note.create(summary,{variant:'warning',text:String(e.message||e)});}
+    }catch{}
    }
    refresh();
   }
@@ -1496,10 +1552,21 @@
     {value:'point-by-point',label:tr('DC（逐点）','DC Point By Point')},
     {value:'pulse',label:'Pulse I–V'}
    ];
-   if(value==='pulse-sequence')options.push({value,label:tr('任意波形 · PMU','Arbitrary waveform · PMU')});
+   if(!dc)options.push({value:'pulse-sequence',label:tr('任意波形 · PMU','Arbitrary waveform · PMU')});
    dcSelect(host,tr('类型','Type'),value,options,next=>{
     if(dc&&next!=='pulse'){
      settings.preset=next;
+     redrawDc();
+     return;
+    }
+    if(!dc&&(next==='pulse'||next==='pulse-sequence')){
+     if(next==='pulse-sequence'&&!settings.arb)settings.arb={loops:'1',segments:[
+      {startV:'0',stopV:'1',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'},
+      {startV:'1',stopV:'1',durationUs:'10',measure:true,measureStartUs:'2',measureStopUs:'8'},
+      {startV:'1',stopV:'0',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'}
+     ]};
+     settings.testMode=next==='pulse'?'sweep':'sequence';
+     editorPlan.draft.arbPage=0;
      redrawDc();
      return;
     }
@@ -2905,7 +2972,7 @@
     })),onChange:selectTab});
    renderParameterControls(editorTabs,p);
    parameters.replaceChildren();
-   if(p.kind!=='time'||editorSection==='info')mountParameterIssue(parameters);
+   if(editorSection==='info'||!['time','pulse'].includes(p.kind))mountParameterIssue(parameters);
    if(p.previousPortMapping&&Object.keys(s.portMapping).some(key=>p.previousPortMapping[key]!==s.portMapping[key]))
     units.note.create(parameters,{variant:'warning',text:tr(
      '此测试已改用工程共享端口。运行前请核对原映射与当前接线。','This test now uses the shared mapping. Check the original mapping against the wiring before running.')+
