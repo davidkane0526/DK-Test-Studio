@@ -1042,3 +1042,16 @@ Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive readi
 - `*IDN?` 额外接受 Rev F 4-4 的 `KEITHLEY INSTRUMENTS,MODEL 4200A[-SCS],serial,fw`，其他型号仍拒绝。TI/TV 解析允许字段间与指数前可选空格（5-2/5-41/5-42），通道与状态校验不变。用户模式固定量程超过 100 mA 时拒绝（5-51 RI 未列 1 A），传输层 RI 上限同步降为 0.1 A。`compileSystemPlan` 内增加 HT 0–655.3 s 校验（5-16）。注释改引 Rev F 页码。
 - 新增 `tests/dkts-kxci-rev-f-fixes.test.cjs` 8 项；`dkts-system-mode-review`、`dkts-native-measurement-runtime` 的模拟仪器改为 `CH1T` 并接受 `ZE`。`node --test tests/*.test.cjs` 282 项：274 通过、2 跳过、6 失败，6 项失败与基线相同，均因容器缺少 `node_modules` 中的 D3 7.9.0（未运行 `npm install`）。
 - 未改动 `safetyPolicies.kxci` 任何开关；未连接物理 4200A；未构建预览、ZIP 或安装包；未提升版本号。
+
+## 2026-11-28 · Rev F 七项功能扩展（分支 claude/project-thread-wntzw6，PR #24）
+
+- R-20261128-003，基线 `c448610`。按序实施，每项一提交：自检 `853a3be`、OV `9f30d11`、OS/OD + SR + IT4/RF/RK `366c4a1`、逐点状态 `0aeb3b1`、原生对数与多 VAR2 `50c331d`。
+- **1 自检**（4-4/3-14）：连接对话框「KXCI 自检」只发固定查询序列 SP、`*IDN?`、ID、`*OPT?`、`:ERROR:LAST:CLEAR/GET` 及一条不存在的 `ZZDKTSPROBE`，检查 SP 语法位、错误队列与 ACK 帧，结果可导出原始 CSV。不发 DV/TI/TV/ME；测量进行中拒绝运行。
+- **2 OV**（5-48）：每个活动 SMU 在出源前设 OV = 计划峰值 ×1.1 + 0.5 V，向上取 0.1 V，封顶 221 V（电流源取电压保护值）；System Mode 放在 SS 之后，用户模式在第一条 DV 之前；收尾在 ZE / DV 关断后恢复 `OV ch,221`。可用 `overvoltageProtection:false` 关闭。
+- **3 OS/OD**（5-16/17）：策略新增上电顺序和上电延时（0–1 s），仅 Optimized；未列出的 SMU 按通道号排在后面；收尾恢复为按通道顺序且延时为 0。
+- **4 SR**（5-37/5-40）：源量程「自动 / 最佳固定」。System Mode 发 `SR ch,2`、收尾恢复 `SR ch,0`；用户模式对电压源按计划峰值选 DV 量程码（≤21 V 为 1 = 20 V 档，否则 2）。传输层 DV 白名单接受量程码 0–2，并限定 1 号档 |V| ≤ 21 V。
+- **5 IT4/RF/RK**（5-47/5-50/5-52）：测量速度新增「自定义」（延时系数、滤波系数 0–100，PLC 0.01–10），可按量程设 RF 延时系数（需 IT4）；自动量程可跳过 1 mA 以下档位（RK）。Rev F 没有 RK 复位指令，故仅允许 1 mA 以下，UI 注明会保留到仪器复位。
+- **6 逐点状态**（5-2）：Rev F 只说明每个读数前带状态字母（N 正常 / C 限流），没有 `CH<n>S` 数组，因此不新增指令，而是从现有 DO/TI 读数取状态：Data Center 表新增漏/栅/源/衬底点状态列和数值 `complianceFlag`，表元数据和运行结果附限流统计，状态栏显示各端限流点数和首次出现的序号。
+- **7 原生对数与多 VAR2**（5-22/23/24）：Optimized 对数扫描在跨度恰好是整数个仪器对数步且计划电平与该网格一致时，用 `VR/IR` 2/3/4（每十倍频 10/25/50 点），否则保留精确的 VL/IL 列表。Optimized 可设最多 4 个 Psweep 源，附加源排在主 VAR2 之后定义（CH 函数 2），用 `VP/IP …,FF`（2–4）步进；模型、计划规范化与编译三处都要求单段线性、步数一致、≤32 步，不能与 Generator 组合。
+- 测试：新增 `tests/dkts-kxci-extensions.test.cjs` 19 项、数据中心测试 1 项。`node --test tests/*.test.cjs` 301 项：293 通过、2 跳过、6 失败，失败与基线相同（容器缺 D3）；`tests/test-dkds-native-host.cjs` 通过。
+- 未改动 `safetyPolicies.kxci` 任何开关；未合并 PR；未连接物理 4200A，自检、OV/OS/OD/SR/RK/RF、VR 对数网格与 VP 多源索引都还需要实机验收；未提升版本号，未构建预览或 ZIP。
