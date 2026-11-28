@@ -1035,3 +1035,12 @@ Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive readi
 - 待批准修复（未实施）：(1) DO 时间戳名用 `V<n>T`，RD 用 `CH<n>T`，Rev F 5-45/5-56 示例为 `CH1T`；(2) 停止/收尾仅在用 RPM 时发送 `SS`+`ZE`，Rev F 未说明 ME4 后自动待机；(3) `*IDN?` 解析与 Rev F 4-4 的 `KEITHLEY INSTRUMENTS,MODEL nnnn,...` 格式不同；(4) RI 1 A 档 Rev F 未列出；(5) 注释仍引用 Rev E。
 - 待实机确认：TI/TV 响应是否含空格、SP 返回文本格式、HiSLIP 与原始 TCP 1225、无错误时 `:ERROR:LAST:GET` 返回。PMU/PGU（第 7 节）与 CVU（第 6 节）未在本次范围。
 - 仅文档变更，未运行测试，未连接物理 4200A，未构建预览或 ZIP。
+
+## 2026-11-28 · 审阅叠加 PR 并整理主线（R-20261128-006）
+
+- [#26](https://github.com/davidkane0526/DK-Test-Studio/pull/26)，原提交 `86617df`。集成图窗空状态、手机单列、模板对齐、GNDU 限值占位、只读样式、DC 窄屏布局和偏置图卡填充。Core Empty State 保持原生文字样式，模板展开标记移到右边。涉及 `plugin.js`、`ui-shell.css` 和宿主测试。
+- [#24](https://github.com/davidkane0526/DK-Test-Studio/pull/24)，原分支 `afdcc95`。选取 `c448610` 的身份格式、TI/TV 空格、RI/HT 校验及 SMU 收尾修正，和 `0aeb3b1` 的逐端口状态列、限流汇总。关闭输出时即使 SS 未获确认也尝试 ZE，并据响应保留失败状态。混合流程的 SMU 汇总排除 PMU 记录。Rev F 第 5-56 页示例只确认 RD 使用 `CH<n>T`，批量 DO 的命名待实机核对，暂沿用主线命名。
+- #24 的自检会清除仪器错误记录，也缺少与连接校验及模块查询的双向互斥。OV 清理把原保护值替换为 221 V。OS/OD、SR、IT4/RF/RK、原生对数和多 VAR2 的端到端指令与设置恢复待补验；若要恢复这些改动，从原 PR 的提交继续。参见 [Keithley KXCI Rev F 原厂手册](https://download.tek.com/manual/4200A-KXCI-907-01F_Sept2026.pdf)。
+- [#25](https://github.com/davidkane0526/DK-Test-Studio/pull/25)，原分支 `35acd3c`。双通道编译器只发送 X 通道的全局平均模式，两路采集参数却可分别配置。PUND 按点数整除推定 P/U/N/D 边界，对截短记录可产生错误电荷。原提交保留，待核实双通道共享参数、PUND 时间戳/分段和不完整采集后继续；本轮发布的门禁沿用现有主线，PMU 标准脉冲和 Segment Arb 仍关闭。
+- [#23](https://github.com/davidkane0526/DK-Test-Studio/pull/23) 的 Gradle 与 DC 烟测修正已在主线 `cf66ba0`。两个临时构建分支均指向发布标签 `dkts-v0.3.53-a226` 的 `a16f913`。这两个分支的剩余差异属于当次构建触发、固定版本号、临时诊断和发布说明。
+- 验证：`npm test` 283 通过、2 跳过、0 失败。Core 原生插件和宿主测试均通过。以固定 DKDS `20f0568` 构建同源 Core，Chromium 验证图窗 1440／900／390 px、空状态、手机「数据」菜单与 DC 窄屏表单。4200A、Windows Electron 和 Android 真机验收待完成。本轮交付同提交源码 ZIP 和 Core Pages 预览。

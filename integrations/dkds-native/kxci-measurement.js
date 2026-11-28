@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  // KXCI Rev. E, section 5: US / DV / TI / RG / RI. Commands are sent as
+  // KXCI Rev. F (4200A-KXCI-907-01F), section 5: US / DV / TI / TV / RG / RI. Commands are sent as
   // NUL-terminated ASCII. User mode executes each point on the instrument;
   // values returned by TI, not planned voltages, constitute measured data.
   const ROLES=Object.freeze(['source','drain','gate','body']);
@@ -147,7 +147,9 @@ function compileSystemPlan(compiled,input,inventory){
   assert(delays.size===1,'单次原生扫描要求各段使用同一个 DT');
   const delay=[...delays][0]/1000;
   assert(delay>=0&&delay<=6.553,'DT 范围 0–6.553 s');
-  setup.push('DT '+fmt(delay),'HT '+fmt(input.systemHoldS||0));
+  const hold=input.systemHoldS??0;
+  assert(Number.isFinite(hold)&&hold>=0&&hold<=655.3,'HT 范围 0–655.3 s（Rev F 5-16）');
+  setup.push('DT '+fmt(delay),'HT '+fmt(hold));
   const seg=x.segments[0],linear=!timeList&&!dcList&&x.segments.length===1&&seg.points>=2&&seg.points<=1024&&Math.abs(levels(x,seg)[2])<=(current(x.terminal)?1.05:210)&&
     (current(x.terminal)||levels(x,seg).every(v=>v===0||Math.abs(v)>=0.001));
   assert(!Object.keys(generators).length||linear,'原生 Generator 当前核验线性 VAR1；列表或非线性需要另行验收');
@@ -187,9 +189,13 @@ function compileSystemPlan(compiled,input,inventory){
  const signals=available.length<=6?available:available.filter(s=>required.has(key(s)));
  assert(signals.length<=6,'LI 最多 6 项测量函数；保留漏极 V/I、各活动端保护读数及用户所选目标，请减少额外测量信号');
  setup.push('LI '+signals.map(s=>"'"+s.name+"'").join(','),'MD');
+ // Rev F's CH<n>T example is for RD. Keep the existing DO name until
+ // the bulk timestamp query has been checked on the instrument.
  const timestamp='V'+channels.drain+'T';
  const reads=[...signals.map(s=>"DO '"+s.name+"'"),"DO '"+timestamp+"'"];
- const cleanup=['MD','ME4','DE',...active.map(r=>'CH'+channels[r]),...(rpmRoutes.length?['SS','ZE',...rpmRoutes.map(r=>'RP '+r.pmu+', 0')]:[])];
+ // Rev F 5-20 ST standby only applies when a test completes; 5-26 ZE turns all
+ // SMU outputs off. Always send SS+ZE after ME4, then return RPMs to pulse.
+ const cleanup=['MD','ME4','SS','ZE',...rpmRoutes.map(r=>'RP '+r.pmu+', 0'),'DE',...active.map(r=>'CH'+channels[r])];
  // Only these exact validated setup/read/stop strings may pass the internal
  // transport lease. RD indices are separately bounded by count.
  return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,rpmRoutes:Object.freeze(rpmRoutes.slice()),xRole:x.terminal,pRole:p?.terminal||null,xMode:current(x.terminal)?'current':'voltage',pMode:p?(current(p.terminal)?'current':'voltage'):null,requestedOutputs:input.requestedOutputs||['Id'],timing,dcList:dcList?Object.freeze({...dcList,pValues:Object.freeze(dcList.pValues.slice()),multiChannel:Object.keys(followers).length>0}):null,timeList:timeList?Object.freeze({segmentIndices:Object.freeze(timeList.segmentIndices.slice()),multiChannel:Object.keys(followers).length>0}):null,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
@@ -331,11 +337,18 @@ async function executeSystemTask(program,io){
    if(triggered){
     try{await command('ME4');await settle();}catch(e){safe=false;error+=(error?'；':'')+'停止未确认：'+String(e.message||e);}
    }
+   // Outputs off first (Rev F 5-26), even when ME4 was not confirmed: ZE is
+   // the only documented all-SMU off command. Then RPMs back to pulse (7-72)
+   // and remove the channel definitions so later tests start from a clean DE page.
+   try{await command('SS');}
+   catch(e){safe=false;error+=(error?'；':'')+'SS 未确认：'+String(e.message||e);}
+   try{await command('ZE');if((await poll()).busy)throw Error('关断后仍 Busy');}
+   catch(e){safe=false;error+=(error?'；':'')+'ZE 关断未确认：'+String(e.message||e);}
    if(safe){
     try{
+     for(const route of switched){await command('RP '+route.pmu+', 0');await poll();}
      await command('DE');await poll();
      for(const r of [...program.active].reverse()){await command('CH'+program.channels[r]);const status=await poll();if(status.busy)throw Error('关断后仍 Busy');}
-     if(switched.length){await command('SS');await command('ZE');await poll();for(const route of switched){await command('RP '+route.pmu+', 0');await poll();}}
     }catch(e){safe=false;error+=(error?'；':'')+'关闭未确认：'+String(e.message||e);}
    }
    shutdown=safe?'commands-sent':'unconfirmed';if(!safe)state='failed';
@@ -603,6 +616,14 @@ async function executeNativeSequence(compiled,io){
       return name!=='None'&&name!=='GNDU'&&!channelNumber(name);
     });
     if(unsupported.length)throw Error('DC KXCI 用户模式暂不支持非 SMU 电压源：'+unsupported.join(', '));
+    if(input.executionMode!=='system'){
+      // Rev F 5-51 documents RI ranges only up to 100 mA (4200/4201-SMU);
+      // a fixed 1 A range on 4210/4211 has no documented RI form.
+      const fixed=role=>[plan.portSettings[role]?.rangeMode==='fixed'?plan.portSettings[role].rangeA:'auto',
+        ...[plan.xSweep,plan.pSweep].filter(a=>a?.terminal===role).flatMap(a=>a.segments.map(s=>s.rangeA))];
+      if(active.some(role=>fixed(role).some(r=>r!=='auto'&&Number(r)>0.1+1e-12)))
+        throw Error('KXCI RI 在 Rev F 中仅列出至 100 mA 的固定量程；1 A 请使用自动量程');
+    }
     const limitRoles=active.every(role=>plan.limitsByRole?.[role]?.known);
     // Keep the hardware's documented ratings; only unresolved physical
     // interlocks and incomplete identity block output, never invent a derating.
@@ -633,19 +654,22 @@ function voltageTrigger(channel){
 }
 function parseTv(raw,channel){
  const text=String(raw??'').replace(/\0/g,'').trim().replace(/,\s*$/,'');
- const m=/^([NC])([A-Z])V\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)[Ee][+-]?\d+)$/i.exec(text);
+ // Rev F 5-2/5-42 print the reply as 'XYZ ±N.NNNN E±NN' or 'X Y Z ...';
+ // accept optional whitespace between fields and before the exponent.
+ const m=/^([NC])\s*([A-Z])\s*V\s*([+-]?\s*(?:\d+(?:\.\d*)?|\.\d+)\s*[Ee]\s*[+-]?\d+)$/i.exec(text);
  if(!m)throw Error('KXCI TV 原始响应无法解析：'+text.slice(0,95));
  const trigger=voltageTrigger(channel),observed=m[2].toUpperCase().charCodeAt(0)-64;
  if(observed!==trigger)throw Error('KXCI TV 响应通道无法确认：SMU'+channel+' / '+m[2]);
- const voltageV=Number(m[3]);if(!Number.isFinite(voltageV)||Math.abs(voltageV)>=9e37)throw Error('TV 读数无效');
+ const voltageV=Number(m[3].replace(/\s+/g,''));if(!Number.isFinite(voltageV)||Math.abs(voltageV)>=9e37)throw Error('TV 读数无效');
  return Object.freeze({voltageV,status:m[1].toUpperCase(),rawResponse:text,channel:m[2].toUpperCase(),requestedSmU:channel,trigger});
 }
   function parseTi(raw,expectedChannel){
     const text=String(raw??'').replace(/\0/g,'').trim().replace(/,\s*$/,'');
     // 4200A user-mode: status letter, channel letter, I, signed scientific reading.
-    const m=/^([A-Z])([A-Z])I\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)[Ee][+-]?\d+)$/i.exec(text);
+    // Rev F 5-2/5-41: 'XYZ ±N.NNNN E±NN'; whitespace between fields is optional.
+    const m=/^([A-Z])\s*([A-Z])\s*I\s*([+-]?\s*(?:\d+(?:\.\d*)?|\.\d+)\s*[Ee]\s*[+-]?\d+)$/i.exec(text);
     if(!m)throw Error('KXCI TI 原始响应无法解析：'+text.slice(0,95));
-    const currentA=Number(m[3]);
+    const currentA=Number(m[3].replace(/\s+/g,''));
     if(!Number.isFinite(currentA))throw Error('KXCI TI 返回非有限电流');
     const status=m[1].toUpperCase();
     if(!['N','C'].includes(status))throw Error('KXCI TI 状态异常：'+status);
@@ -686,7 +710,7 @@ function parseTv(raw,channel){
       return String(r||'');
     }
     async function shutdown(j){
-      // DVn with no arguments disables that SMU output (KXCI Rev E, ex. 2).
+      // DVn with no arguments disables that SMU output (KXCI Rev F 5-40, ex. 2 on 5-55).
       let ok=true;
       const failed=[];
       // Drain a prior syntax flag before checking the off commands themselves.

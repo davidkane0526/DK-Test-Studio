@@ -31,7 +31,11 @@ const units={
    setColumns:count=>{record.groupColumns=count},dispose:()=>record.disposals++};}},
  popover:{create:(host,spec)=>{record.popovers.push(spec);return {
   body:el(),close:()=>{record.closedPads++;}}}},
- layout:{apply:(host,spec)=>{assert.equal(spec.responsiveGeometry[0].maxWidth,310);return host;},create:(host,spec)=>{
+ layout:{apply:(host,spec)=>{
+  if(spec.responsiveGeometry)assert.equal(spec.responsiveGeometry[0].maxWidth,310);
+  else assert.equal(spec.variant,'identity');
+  return host;
+ },create:(host,spec)=>{
    record.layouts=(record.layouts||[]);record.layouts.push(spec.variant);record.layoutSpecs.push(spec);
    // The pinned SDK allows canonical layout recipes; arbitrary geometry
    // values are not guaranteed and previously failed real Core activation.

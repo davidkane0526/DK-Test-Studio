@@ -163,7 +163,7 @@
       const rg=new RegExp('^RG ([1-9]),('+n+')$').exec(cmd);
       if(dv&&!(Math.abs(Number(dv[2]))<=210&&Number(dv[3])>0&&Number(dv[3])<=1.05))
         throw Error('KXCI DV 指令值越过绝对硬件边界');
-      if(ri&&!(Number(ri[2])>0&&Number(ri[2])<=1&&Number(ri[3])>0&&Number(ri[3])<=1.05))
+      if(ri&&!(Number(ri[2])>0&&Number(ri[2])<=0.1&&Number(ri[3])>0&&Number(ri[3])<=1.05))
         throw Error('KXCI RI 参数越界');
       if(rg&&!(Number(rg[2])>0&&Number(rg[2])<=1))
         throw Error('KXCI RG 参数越界');

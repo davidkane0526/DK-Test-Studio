@@ -570,7 +570,38 @@ PR #8 旧宿主分支安全功能应与新 Core 验证一致后由归档记录�
 - 保留 `smuSystemModeManualVerified=true`、`allowSystemModeOutput=true`：Optimized DC（System Mode）在模块身份/额定值核验通过、无需高压互锁时允许受控实机输出。用户模式逐点 DV/TI 继续由 `allowInstrumentOutput=false` 禁止。本条就 System Mode 取代 R-20261116-005 中「Rev F 全文核对并实机验收前不得输出」的限制，其余条件不变。
 - **验收标准**：README、`integrations/dkds-native/README.md`、`docs/ARCHITECTURE_TARGET.md` 中关于输出门禁的现行描述与代码一致；不修改任何门禁代码或开关。
 
+## R-20261128-002 · 在开发分支实现 Rev F 修复并扩展功能
+
+- 2026-11-28 原话：「1.新建一个分支用于你的开发 2.实现你的提议并优化、丰富项目功能」。用户明确授权本次使用开发分支 `claude/project-thread-wntzw6`，就本任务取代 AGENTS.md 第 8 条「只用 main」；合并前由用户确认。
+- 先实现 Rev F 核对报告中的修复：DO 时间戳 `CH<n>T`、收尾始终 `SS`+`ZE`、`*IDN?` 手册格式、TI/TV 可选空格、RI 1 A 档、HT 范围与 Rev F 注释。真实输出开关保持现状，不放宽。功能扩展先列提案，用户确认后再做。
+- **验收标准**：每项修复有对应回归测试；不改变任何 `safetyPolicies.kxci` 开关；通过 PR 交付。
+
+## R-20261128-003 · 依次完成 7 项 Rev F 功能扩展
+
+- 2026-11-28 原话：「继续吧 都要完成，你可以按顺序开发」；随后「我准备去休息，所以不用让我批准，你完成全部后我再看」。
+- 范围（按序）：1 实机自检（纯查询）；2 过压保护 OV；3 上电顺序 OS/OD；4 System Mode 固定源量程 SR；5 自定义测量速度 IT4/RF/RK；6 逐点状态（原提 `DO 'CH<n>S'`，Rev F 未列此名，改为解析每个读数自带的 N/C 状态字母）；7 原生对数扫描与多路 VAR2。小的设计选择按推荐方案自行决定并在交付总结中列出。
+- **验收标准**：继续在分支 `claude/project-thread-wntzw6` / PR #24 交付；每项有回归测试；不放宽任何 `safetyPolicies.kxci` 开关；不合并 PR。
+
+## R-20261128-004 · 优化界面和细节
+
+- 2026-11-28 原话：「1.做 PMU 支持 2.优化界面和细节」。本条只记录第 2 项；PMU 支持由并行任务另行记录。本次在分支 `claude/project-thread-iv8r9j`（基于 PR #24）开发并以独立 PR 交付，合并前由用户确认。
+- 在同源 Core 预览中按 1440／900／390 px 检查并修正：数据表图窗无数据时显示与其他图窗一致的空状态；手机宽度图窗单列堆叠，标题和「数据」菜单不再被裁切；测试模板分组标题和模板项左对齐；只读参数（GNDU 设定值与限值、接地 Ref、自动输出）以只读样式显示，GNDU 限值显示「—」；手机上 DC 端子行改为上下排列，模式/方法下拉不截断；手机上 DC 与时间扫描编辑页边距一致；偏置预览图填满图卡。
+- **验收标准**：不改变参数层级、字段顺序和 FS-Pro 术语；不改动 `safetyPolicies.kxci` 与 KXCI/测试计划逻辑；只用 DKDS Unit API 和插件作用域样式（不新增 `!important`）；全量测试通过；三种宽度截图复核。
+
+### 同一需求的并行任务 · PMU 脉冲测试支持
+
+- 2026-11-28 原话：「1.做 PMU 支持 2.优化界面和细节」。项目协调方说明：基于 PR #24 分支另开分支与 PR，不合并；PMU 输出须与现有 `safetyPolicies.kxci` 门禁同样受控，不放宽任何门禁；界面另有线程并行优化，本线程只做 PMU 所需的界面改动。
+- 现状核对：脉冲扫描、双通道、Segment Arb、PMU 分段偏置的编译、执行、Data Center 与绘图链路已存在，只是 `allowPulseModeOutput`/`allowSegmentArbOutput` 为 false。本次依据 Rev F 第 7 节补齐手册已列、软件未接入的部分：双向扫描（dualSweep）、Spot Mean/波形平均模式（MEASURE:MODE 3/4）、基线低电平测量（MEASURE:PIV 低电平与 VL/IL/TL/SL）、负载线补偿（LLEC:CONFIGURE）、启用已存储的连接补偿（CONNECTION:COMP），以及测试类型中已有入口却未实现的 PUND（以 Segment Arb 波形采集实现）。
+- **验收标准**：每个新选项都有编译与解析回归测试，指令语法与 Rev F 7-5/7-11/7-14/7-15/7-30–7-33 一致；PUND 页面能生成方案、通过同一执行与 Data Center 路径；未经用户决定不修改 `allowPulseModeOutput`、`allowSegmentArbOutput`；文档列出需要实机确认的项目；通过独立 PR 交付，不合并。
+
+## R-20261128-005 · 开放 PMU 标准脉冲与 Segment Arb 实机输出
+
+- 2026-11-28，用户在决策卡「PMU 实机输出门禁本次是否开放？」上选择「标准脉冲和 Segment Arb 都开放」，该选项说明为「两类 PMU 输出都在模块核验通过且峰值 ≤21 V 时允许实机输出，PUND 也随之可以运行」。
+- 设 `allowPulseModeOutput=true`、`allowSegmentArbOutput=true`。保留 `pmuModeManualVerified`/`segmentArbManualVerified` 检查、模块身份与额定值核验、峰值 > 21 V 需高压互锁即拒绝的条件。用户模式 DV/TI（`allowInstrumentOutput`）与多通道 SMU 原生列表（`allowMultiChannelListOutput`）不变。本条就 PMU 取代 R-20261128-004 中「未经用户决定不修改门禁」的限制。
+- **验收标准**：数据库两项开关为 true，并有回归测试确认 ≤ 21 V 且模块已核验时可执行、> 21 V 或模块未核验时仍拒绝、其他门禁未变；原有拒绝路径测试改为显式关闭门禁后继续覆盖；README 与能力映射同步。
+
 ## R-20261128-006 · 审阅并精简 DKTS 分支
 
 - 2026-11-28，用户要求「你应该知道我说的项目吧／审阅最新的pr，梳理我的分支，保留并合并正确有意义的部分／修剪我的分支」。
 - 验收标准：审阅最新 PR 及相关叠加改动，验证后将可用改动集成至 DKTS `main`；记录待补验的技术原因及可恢复的提交；核对发布标签和引用后清理多余分支。
+- 本次审阅授权将已验证的部分集成至主线。上文保留原 PR 的阶段性要求及 PMU 开放决定；各项交付状态见开发日志。

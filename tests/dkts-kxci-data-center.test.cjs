@@ -89,3 +89,18 @@ test('canonical KXCI column labels match independent I-V, transfer and I-t chart
   assert.equal(curves[0].points[1].y,2e-9);
  }
 });
+
+test('Rev F 5-2 per-point status letters become flat per-port columns, a compliance flag and a run summary',()=>{
+ const {ctx,record}=context();
+ const rows=[frame(1,{measurementStatusByRole:{drain:'N',gate:'N'}}),
+  frame(2,{measurementStatus:'C',complianceRole:'gate',measurementStatusByRole:{drain:'N',gate:'C'}}),
+  frame(3,{measurementStatus:'unknown',measurementStatusByRole:{drain:'X'}})];
+ api.publishRaw(ctx,input(rows));
+ const t=record.published[0],col=k=>t.columns.find(c=>c.key===k);
+ assert.deepEqual(col('drainStatus').values,['N','N','unknown']);
+ assert.deepEqual(col('gateStatus').values,['N','C','']);
+ assert.deepEqual(col('complianceFlag').values.slice(0,2),[0,1]);
+ assert.ok(Number.isNaN(col('complianceFlag').values[2]));
+ assert.deepEqual(JSON.parse(JSON.stringify(t.metadata.pointStatus)),{compliancePoints:1,unknownPoints:1,complianceByRole:{gate:1},firstComplianceSequence:2});
+ assert.deepEqual(JSON.parse(JSON.stringify(api.statusSummary(rows))),JSON.parse(JSON.stringify(t.metadata.pointStatus)));
+});
