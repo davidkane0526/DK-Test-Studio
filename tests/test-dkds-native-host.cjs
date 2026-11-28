@@ -314,6 +314,9 @@ const ctx={
  assert.equal(pulseTiming().secondary.terminal,'G');
  assert.equal(pulseTiming().secondary.role,'condition');
  assert.equal(pulseTiming().secondary.conditionV,'1.2');
+ const pulseRun=record.actions.findLast(row=>row.id==='dkts-run-'+state.activeId);
+ assert.equal(pulseRun.element.disabled,true,'a standalone SMU blocks the PMU-only test while its draft can be saved');
+ assert.match(pulseRun.element.title,/D · SMU 1、G · SMU 2 为独立 SMU/);
  gatePulseRole().spec.onChange({target:{value:'psweep'}});
  assert.equal(pulseTiming().secondary.role,'psweep');
  gatePulseRole().spec.onChange({target:{value:'condition'}});

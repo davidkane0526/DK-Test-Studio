@@ -572,7 +572,6 @@ test('Pulse I–V switches from DC, restores both configurations, and publishes 
 test('Pulse I–V can accompany Xsweep with a constant gate bias and records only measured X data',async()=>{
  const {modules}=loadModules(),model=modules.get('model');
  let project=model.setIvType(model.initial(),'pulse');
- project=model.edit(project,'D',{resource:'PMU1-1'});
  const initial=project.pages.find(page=>page.id===project.activeId).timing;
  const secondary={terminal:'G',role:'condition',conditionV:'1.2',channel:'2',rangeV:'10',loadOhms:'1000000',
   fixedV:'0.25',start:'0.1',stop:'0.3',step:'0.1',widthUs:initial.widthUs,riseUs:initial.riseUs,
@@ -583,13 +582,20 @@ test('Pulse I–V can accompany Xsweep with a constant gate bias and records onl
  const fixture=makeInstrumentContext(modules,{pmu:true});
  const runtime=modules.get('measurementRuntime').createRuntime(fixture.ctx,{wait:async()=>{}});
  try{
-  await runtime.connectAndInspect(endpoint);
   const currentPage=()=>project.pages.find(page=>page.id===project.activeId);
+  assert.deepEqual(Array.from(runtime.pulseRouting(currentPage()).issues,item=>item.logical+' '+item.mapped),
+   ['D SMU1','G SMU2']);
+  await runtime.connectAndInspect(endpoint);
+  assert.match(runtime.prepare(currentPage()).reason,/D · SMU 1、G · SMU 2 为独立 SMU/);
+  project=model.edit(project,'D',{resource:'PMU1-1'});
   assert.equal(model.timedSummary('pulse',currentPage().timing).totalSweepPoints,2);
   const unsupported=runtime.prepare(currentPage());
   assert.equal(unsupported.canExecute,false);
-  assert.match(unsupported.reason,/独立 SMU/);
+  assert.match(unsupported.reason,/G · SMU 2 为独立 SMU/);
   assert.throws(()=>runtime.start(currentPage(),true),/独立 SMU/);
+  assert.ok(fixture.commands.every(row=>!row.command.startsWith(':PMU:')));
+  project=model.edit(project,'G',{resource:'PMU2-1'});
+  assert.throws(()=>runtime.start(currentPage(),true),/未检测到 PMU2-1/);
   assert.ok(fixture.commands.every(row=>!row.command.startsWith(':PMU:')));
   project=model.edit(project,'G',{resource:'PMU1-2'});
   const prepared=runtime.prepare(currentPage());

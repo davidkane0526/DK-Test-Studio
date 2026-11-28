@@ -1072,3 +1072,10 @@ Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive readi
 - 4200A + 4225-PMU 的 Pulse I–V 由 KXCI 驱动。根据 KXCI Rev F 第 7-22 页的基线及峰值定义，固定偏置在第二 PMU 通道上使用同值的 `:PMU:PULSE:TRAIN`。两路保留物理模块、功耗、负载、接线与峰值核验及关断确认，只采信主扫描通道的返回数据。未映射的独立 SMU 偏置显示方案提示并拒绝执行。参见 [Keithley KXCI Rev F 原厂手册](https://download.tek.com/manual/4200A-KXCI-907-01F_Sept2026.pdf)。
 - 变更涉及 DKTS 原生插件的页面、模型、PMU 编译及运行时。验证 `npm test` 288 通过、2 跳过、0 失败，两项插件／宿主检查通过。通过模拟 KXCI 验证命令、非执行路径、读数来源与伴随通道关断；固定 DKDS `20f0568` 的 Chromium 验证 1367／900／390 px、角色切换数值保留和电压超档即时提示。
 - 交付同提交 Core Pages、源码 ZIP 与 Windows 0.8.41 本地覆盖插件。固定 DKDS 桌面安装逻辑通过从 0.8.39 和 0.8.40 升级与回退验证。4200A 实际固定电平、仪器对同值脉冲的处理与漏栅相对时序待现场验收。
+
+## 2026-11-28 · Pulse I–V 与 DC 共用端子行及 PMU 端口前置校验（R-20261128-011）
+
+- 从已部署的 `6a9656d` 接续。DC 与 Pulse I–V 共用输入端子行、字母标识及列宽。参考在端子名下方，模式与方法同行，角色置于模式下方。PMU 电压档、负载和伴随通道专用参数移到「PMU 通道设置」。类型显示「Pulse I–V · PMU」。已保存的固定偏置、Psweep 与任意波形继续各自保存。
+- 现有 Pulse 执行器只走 4225-PMU。适配前置校验在编辑页和运行时共用。独立 SMU、未检测到的已选 PMU 和重复的活动通道会阻止运行。只有明确指定的 PMU 或实机核验的 RPM 路由进入原执行器。网页可保存离线待核验的 PMU 端口方案。
+- 概伦原厂规格把常规 Pulse IV（最小脉宽 50 μs）与高速波形套件（建议最短 130 ns）分开列出。Keithley 的 SMU 在 Clarius 内有 Pulse Mode，DKTS 现有 KXCI Pulse 入口未接入该模式。资料公开范围不能确认用户那台 FS-Pro 的通道配置。 [概伦 FS-Pro](https://www.primarius-tech.com/uploads/20230307/EN_FS-Pro.pdf#page=2) · [Keithley SMU 手册](https://www.tek.com/en/-/media/documents/4200a-smu-900-01a_dec_2020.pdf)
+- `npm test` 288 通过、2 跳过、0 失败，插件及宿主测试通过。模拟 KXCI 断言 SMU 与未检测 PMU 均无输出，合法双 PMU 仍编译、读取与关断。同源 Chromium 验证 1367 像素下 DC/Pulse 控件坐标和列线一致，900／390 像素布局、拒绝提示、运行禁用、离线修正、固定偏置和溢出检查通过。交付同提交 Pages、源码 ZIP 和 Windows 0.8.42 本地覆盖插件。固定 DKDS 安装逻辑通过从 0.8.39 和 0.8.41 覆盖及回退，实机电平与时序仍待验收。

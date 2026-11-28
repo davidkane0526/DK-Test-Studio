@@ -221,6 +221,26 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    return pending;
   };
  }
+ function pulseRouteMessage(issues,language){
+  const english=language==='en',standalone=[],messages=[];
+  for(const {logical,mapped,resource,code} of issues){
+   const port=mapped==='None'?(english?'unassigned':'未分配'):mapped.replace(/^SMU(\d)$/,'SMU $1');
+   const terminal=logical+' · '+port;
+   if(code==='missing')messages.push(english?terminal+': '+resource+' was not detected on the connected 4200A.':
+    terminal+'：已连接的 4200A 未检测到 '+resource+'。');
+   else if(code==='duplicate')messages.push(english?terminal+': '+resource+' is already used by another active terminal.':
+    terminal+'：'+resource+' 已分配给另一个活动端子。');
+   else if(/^SMU[1-9]$/.test(mapped))standalone.push(terminal);
+   else messages.push(english?terminal+': assign a 4225-PMU port in the project toolbar.':
+    terminal+'：请在工程顶栏分配 4225‑PMU 端口。');
+  }
+  if(standalone.length){
+   const ports=standalone.join(english?', ':'、');
+   messages.unshift(english?'Standalone SMU connections: '+ports+'. Select a 4225-PMU port or verify an RPM route.':
+    ports+' 为独立 SMU。请选择 4225‑PMU 端口或核验 RPM 路由。');
+  }
+  return messages.join(' ');
+ }
  function createRuntime(ctx,options={}){
   const protocol=ctx.modules.require('dkts-kxci');
   const identity=ctx.modules.require('dkts-identity-core');
@@ -255,6 +275,26 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
   let topologyProfile=null;
   function setTopologyProfile(profile){if(runner.status(0).running)throw Error('测量期间不能更改接线');topologyProfile=profile||null;}
   function resolvePulsePort(resource,legacyChannel){const c=controller.status();return protocol.resolvePulseResource(c.inventory,c.identity?.serial,topologyProfile,resource,legacyChannel);}
+  function pulseRouting(page,settings=page.timing){
+   const connection=controller.status(),inventory=connection.inventory;
+   const companion=settings.testMode==='sequence'?settings.arbPartner:settings.testMode==='sweep'?settings.secondary:null;
+   const active=companion?[settings,companion]:[settings];
+   const resources=[],issues=[];
+   for(const source of active){
+    const logical=source.terminal;
+    const mapped=page.terminals.find(row=>row.logical===logical)?.resource||'None';
+    const resource=resolvePulsePort(mapped,source.channel);
+    const explicit=/^PMU[1-9]-[12]$/.test(resource||'');
+    const legacy=!inventory&&/^PMU[1-9]$/.test(mapped)&&/^[12]$/.test(String(source.channel));
+    const port=legacy?mapped+'-'+source.channel:resource;
+    const detected=inventory&&(inventory.ports||protocol.portCatalog(inventory)).some(item=>item.family==='PMU'&&item.id===port);
+    const code=!explicit&&!legacy?'mapping':inventory&&!connection.inventoryPending&&!connection.inventoryError&&!detected?
+     'missing':resources.includes(port)?'duplicate':'';
+    if(code)issues.push({code,logical,mapped,resource:port});
+    resources.push(port);
+   }
+   return {resources,issues};
+  }
   function confirmWiring(links){const c=controller.status();if(runner.status(0).running||c.phase!=='connected')throw Error('请在仪器空闲时确认接线');const profile=protocol.confirmTopology(c.inventory,c.identity.serial,links);setTopologyProfile(profile);return profile;}
   // DKDS owns DOM timers and cancels them with the plugin lifecycle. Never
   // create raw setTimeout/setInterval resources inside a plugin.
@@ -288,15 +328,15 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
     let input;
     const pmuTime=page.kind==='time'&&page.timing.mode===model.TIME_PMU_MODE;
     if(page.kind==='pulse'||pmuTime){
-     const v=pmuTime?{...page.timing.pmu,rangeV:'auto'}:page.timing,resource=resolvePulsePort(page.terminals.find(t=>t.logical===v.terminal)?.resource,v.channel);
+     const v=pmuTime?{...page.timing.pmu,rangeV:'auto'}:page.timing;
+     const routing=pulseRouting(page,v);
+     if(routing.issues.length)throw Error(pulseRouteMessage(routing.issues));
+     const [resource,companion]=routing.resources;
      protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,[]);
      input={executionMode:'pulse',settings:v,summary:pmuTime?null:model.timedSummary('pulse',v),resource,wiringConfirmed:true};
-     if(v.testMode==='sequence'&&v.arbPartner){const settings={...v,...v.arbPartner,rateHz:v.rateHz,arbPartner:null,secondary:null};input.arbPartner={settings,resource:resolvePulsePort(page.terminals.find(t=>t.logical===settings.terminal)?.resource,settings.channel),wiringConfirmed:true};}
+     if(v.testMode==='sequence'&&v.arbPartner){const settings={...v,...v.arbPartner,rateHz:v.rateHz,arbPartner:null,secondary:null};input.arbPartner={settings,resource:companion,wiringConfirmed:true};}
      if(v.secondary&&v.testMode==='sweep'){
       const settings=model.pulseSecondarySettings(v);
-      const companion=resolvePulsePort(page.terminals.find(t=>t.logical===settings.terminal)?.resource,settings.channel);
-      if(settings.role==='condition'&&!/^PMU[1-9]-[12]$/.test(companion||''))
-       throw Error('固定偏置需要另一路已映射的 4225-PMU 或已核验的 RPM 路由；当前方案无法同时执行独立 SMU 直流偏置');
       input.secondary={settings,summary:model.timedSummary('pulse',settings),resource:companion,wiringConfirmed:true};
      }
     }else{
@@ -444,10 +484,10 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
   }
   return Object.freeze({connect,inspectModules,connectAndInspect,checkConnection,disconnect,
    currentTcp:()=>hasShared()?shared('current'):null,
-   prepare,prepareRoutine,start,startRoutine,stop,status,waitForCompletion,dispose,setTopologyProfile,confirmWiring,resolvePulsePort,
+   prepare,prepareRoutine,start,startRoutine,stop,status,waitForCompletion,dispose,setTopologyProfile,confirmWiring,resolvePulsePort,pulseRouting,
    currentRanges:(resource,voltagePeaks)=>hardwareCapabilities.verifiedCurrentRanges(
     controller.status(),resource,voltagePeaks)});
  }
- const api=Object.freeze({createRuntime,pageToSweepProgram,pageToBasicProgram});
+ const api=Object.freeze({createRuntime,pageToSweepProgram,pageToBasicProgram,pulseRouteMessage});
  window.DKDSPluginModules.define(OWNER,'measurementRuntime',api,{replace:true});
 })();

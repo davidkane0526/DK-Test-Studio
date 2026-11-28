@@ -553,7 +553,7 @@
  display:grid;gap:6px 9px;align-items:end;min-width:0
 }
 #dktsKeithley4200Page .dkts-dc-editor{display:grid;gap:9px;min-width:0;container-type:inline-size}
-#dktsKeithley4200Page [data-dkts-editor-kind="dc"]{
+#dktsKeithley4200Page :is([data-dkts-editor-kind="dc"],[data-dkts-editor-kind="pulse"]){
  container:dkts-dc-page / inline-size;
  --dkts-dc-inset:10px;
  --dkts-dc-columns:188px 260px minmax(0,1fr);
@@ -568,7 +568,7 @@
  display:grid;grid-template-columns:var(--dkts-dc-columns);gap:0;align-items:stretch;
  padding-inline:var(--dkts-dc-inset);overflow:auto;scrollbar-gutter:stable both-edges;scrollbar-width:thin
 }
-#dktsKeithley4200Page [data-dkts-editor-kind="dc"] .dkts-parameter-content{
+#dktsKeithley4200Page :is([data-dkts-editor-kind="dc"],[data-dkts-editor-kind="pulse"]) .dkts-parameter-content{
  padding-inline:var(--dkts-dc-inset);scrollbar-gutter:stable both-edges
 }
 #dktsKeithley4200Page [data-dkts-editor-kind="dc"] .dkts-tab-bar{display:flex;align-items:stretch;padding:0 8px 0 0}
@@ -604,7 +604,7 @@
 }
 #dktsKeithley4200Page .dkts-dc-terminal-modes{
  grid-area:1/2/4/3;
- display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:12px;
+ display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.07fr);gap:12px;
  align-self:stretch;align-items:start;padding:12px var(--dkts-dc-column-padding);min-width:0
 }
 #dktsKeithley4200Page :is(.dkts-dc-terminal-id,.dkts-dc-terminal-modes){
@@ -783,9 +783,10 @@
  #dktsKeithley4200Page .dkts-dc-segments{grid-area:3/1/4/2;padding:4px 10px 10px}
 }
 /* Phones use overlay scrollbars: the DC editor's stable both-edge gutter only
-   added ~20px of inset that the time/pulse editors did not have. */
+   adds unnecessary inset to compact parameter editors. */
 @media(max-width:620px){
- #dktsKeithley4200Page [data-dkts-editor-kind="dc"] :is(.dkts-editor-tabs,.dkts-parameter-content){
+ #dktsKeithley4200Page [data-dkts-editor-kind="dc"] .dkts-editor-tabs,
+ #dktsKeithley4200Page :is([data-dkts-editor-kind="dc"],[data-dkts-editor-kind="pulse"]) .dkts-parameter-content{
   scrollbar-gutter:auto;padding-inline:7px
  }
  #dktsKeithley4200Page .dkts-editor-tabs{padding-inline:7px}
@@ -803,33 +804,18 @@
  cursor:default
 }
 
-#dktsKeithley4200Page [data-dkts-editor-kind="pulse"]{container:dkts-pulse-page / inline-size}
-#dktsKeithley4200Page .dkts-pulse-sweep-row{
- display:grid;grid-template-columns:minmax(130px,.9fr) minmax(220px,1.45fr) minmax(0,2.8fr);
- align-items:start
+#dktsKeithley4200Page [data-dkts-editor-kind="pulse"]{container-name:dkts-dc-page dkts-pulse-page}
+#dktsKeithley4200Page .dkts-dc-input-panel .dkts-parameter-issue{margin:8px 12px}
+#dktsKeithley4200Page .dkts-pulse-channel-panel>[data-dkds-unit-panel-body=true]{display:grid;gap:8px;padding:8px 14px 10px}
+#dktsKeithley4200Page .dkts-pulse-channel{
+ display:grid;grid-template-columns:minmax(0,130px) minmax(0,1fr);gap:6px 12px;align-items:center
 }
-#dktsKeithley4200Page .dkts-pulse-sweep-row+.dkts-pulse-sweep-row{
- border-block-start:1px solid var(--dkts-divider,var(--border-strong))
+#dktsKeithley4200Page .dkts-pulse-channel-fields{
+ display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,108px),1fr));gap:6px 10px;align-items:end
 }
-#dktsKeithley4200Page :is(.dkts-pulse-terminal,.dkts-pulse-config,.dkts-pulse-levels){
- display:grid;align-content:start;gap:8px 10px;min-width:0;padding:10px 12px
-}
-#dktsKeithley4200Page :is(.dkts-pulse-config,.dkts-pulse-levels){
- align-self:stretch;border-inline-start:1px solid var(--dkts-divider,var(--border-strong))
-}
-#dktsKeithley4200Page .dkts-pulse-config{grid-template-columns:repeat(2,minmax(0,1fr))}
-#dktsKeithley4200Page .dkts-pulse-levels{
- grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:min-content
-}
-#dktsKeithley4200Page :is(.dkts-pulse-sweep-row,.dkts-bias-step-row,.dkts-arb-sequence-controls) .dkts-native-field{min-width:0}
-@container dkts-pulse-page (max-width:840px){
- #dktsKeithley4200Page .dkts-pulse-sweep-row{grid-template-columns:minmax(120px,1fr) minmax(0,2.2fr)}
- #dktsKeithley4200Page .dkts-pulse-levels{grid-column:1/-1;border-inline-start:0}
-}
-@container dkts-pulse-page (max-width:440px){
- #dktsKeithley4200Page .dkts-pulse-sweep-row{grid-template-columns:minmax(0,1fr)}
- #dktsKeithley4200Page .dkts-pulse-config{border-inline-start:0}
- #dktsKeithley4200Page .dkts-pulse-levels{grid-template-columns:repeat(2,minmax(0,1fr))}
+#dktsKeithley4200Page :is(.dkts-dc-terminal,.dkts-pulse-channel,.dkts-bias-step-row,.dkts-arb-sequence-controls) .dkts-native-field{min-width:0}
+@container dkts-pulse-page (max-width:570px){
+ #dktsKeithley4200Page .dkts-pulse-channel{grid-template-columns:minmax(0,1fr)}
 }
 
 #dktsKeithley4200Page .dkts-arb-sequence-controls{
@@ -848,7 +834,7 @@
 }
 #dktsKeithley4200Page .dkts-arb-step-table{--dkts-pmu-segment-columns:22px repeat(6,minmax(0,1fr)) 30px}
 #dktsKeithley4200Page .dkts-arb-step-table .dkts-bias-step-header{align-items:end}
-#dktsKeithley4200Page :is(.dkts-arb-step-table,.dkts-pulse-sweep-row) .dkds-field-label{min-width:0}
+#dktsKeithley4200Page :is(.dkts-arb-step-table,.dkts-dc-terminal) .dkds-field-label{min-width:0}
 @container dkts-pmu-bias (max-width:480px){
  #dktsKeithley4200Page .dkts-arb-step-table .dkts-bias-step-row>:nth-child(4){grid-column:auto}
 }
