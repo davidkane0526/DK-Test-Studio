@@ -569,3 +569,8 @@ PR #8 旧宿主分支安全功能应与新 Core 验证一致后由归档记录�
 - 2026-11-28，用户在 KXCI Rev F 核对报告的决策卡上选择「保留，只改文档」，问题为「System Mode 已开放的输出许可要怎么处理？」。
 - 保留 `smuSystemModeManualVerified=true`、`allowSystemModeOutput=true`：Optimized DC（System Mode）在模块身份/额定值核验通过、无需高压互锁时允许受控实机输出。用户模式逐点 DV/TI 继续由 `allowInstrumentOutput=false` 禁止。本条就 System Mode 取代 R-20261116-005 中「Rev F 全文核对并实机验收前不得输出」的限制，其余条件不变。
 - **验收标准**：README、`integrations/dkds-native/README.md`、`docs/ARCHITECTURE_TARGET.md` 中关于输出门禁的现行描述与代码一致；不修改任何门禁代码或开关。
+
+## R-20261128-006 · 审阅并精简 DKTS 分支
+
+- 2026-11-28，用户要求「你应该知道我说的项目吧／审阅最新的pr，梳理我的分支，保留并合并正确有意义的部分／修剪我的分支」。
+- 验收标准：审阅最新 PR 及相关叠加改动，验证后将可用改动集成至 DKTS `main`；记录待补验的技术原因及可恢复的提交；核对发布标签和引用后清理多余分支。
