@@ -1559,7 +1559,8 @@
     const roles=[{value:'CONDITION',label:'Condition'},{value:'X',label:'Xsweep'},{value:'P',label:'Psweep'}];
     dcSelect(modeFields,false,role,roles.filter(option=>option.value===role||
      (option.value==='CONDITION'?row.segments.length===1:
-      !smus.some(other=>other.logical!==key&&dc.terminals[other.logical].role===option.value))),
+      (option.value==='P'&&dc.preset==='optimized'?smus.filter(other=>other.logical!==key&&dc.terminals[other.logical].role==='P').length<4:
+      !smus.some(other=>other.logical!==key&&dc.terminals[other.logical].role===option.value)))),
      value=>{
       row.role=value;
       for(const segment of row.segments)

@@ -770,9 +770,20 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
    invalidField('bodyResource','Assign a different resource to the DC body terminal');
   const smus=terminals.filter(t=>t.resource!=='GNDU');
   const assigned=role=>smus.filter(t=>dc.terminals[t.logical].role===role);
-  if(assigned('X').length!==1||assigned('P').length>1)
-   invalidField('roles','Select exactly one Xsweep and at most one Psweep on mapped SMUs');
-  const outer=assigned('P').length===1;
+  // Rev F 5-22 VP/IP FF: up to four VAR2 sources step together in the
+  // instrument-native (Optimized) mode; point-by-point keeps one Psweep.
+  const maxP=dc.preset==='optimized'?4:1;
+  if(assigned('X').length!==1||assigned('P').length>maxP)
+   invalidField('roles',maxP>1?'Select exactly one Xsweep and at most four Psweep sources on mapped SMUs':'Select exactly one Xsweep and at most one Psweep on mapped SMUs (several Psweep sources need Optimized)');
+  const outer=assigned('P').length>=1;
+  if(assigned('P').length>1){
+   const pointsOf=t=>{const seg=dc.terminals[t.logical].segments;if(seg.length!==1||!['step','points'].includes(seg[0].method))invalidField(t.logical+'.method',t.logical+': each of several Psweep sources needs one Linear Step/Points segment');
+    const v=raw=>dcExpression(raw,Object.fromEntries(p.variables.map(row=>[row.name,Number(row.value)])),dc.polarity);
+    return seg[0].method==='points'?Number(v(seg[0].points)):Math.round(Math.abs((v(seg[0].stop)-v(seg[0].start))/v(seg[0].step)))+1;};
+   const counts=assigned('P').map(pointsOf);
+   if(counts.some(c=>c!==counts[0]))invalidField('roles','All Psweep sources must have the same number of steps');
+   if(counts[0]>32)invalidField('roles','Native VAR2 allows at most 32 steps');
+  }
   const reference=dc.reference,referenceRow=dc.terminals[reference];
   const grounded=reference==='GND'||byKey.get(reference)?.resource==='GNDU';
   if(!grounded&&(!byKey.has(reference)||referenceRow.mode!=='voltage'||
@@ -863,7 +874,7 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
    }
   }
   const strategy=dcStrategyExtensions(p,{...dc,strategy:{...STRATEGY_EXTENSIONS,...dc.strategy}},smus.map(t=>t.logical));
-  return {x:assigned('X')[0].logical,p:assigned('P')[0]?.logical||null,outputs,preset:dc.preset,strategy};
+  return {x:assigned('X')[0].logical,p:assigned('P')[0]?.logical||null,pExtra:assigned('P').slice(1).map(t=>t.logical),outputs,preset:dc.preset,strategy};
  }
 
  const initial=()=>({schema:1,sequence:ROUTINE_DEFAULTS.length,activeId:'page-1',smuIntegration:'medium',

@@ -185,3 +185,53 @@ test('transport whitelist accepts the new modeless commands and rejects out-of-r
  for(const bad of ['OV 1,300','IT4,1,1,50','DV1,1,30,0.001','RK 1,1E-2'])
   await assert.rejects(()=>c.measurementExchange(bad),undefined,bad);
 });
+
+function logPage(m,{start='0.1',stop='10',points='21'}={}){
+ const p=dcPage(m);Object.assign(p.dc.terminals.D.segments[0],{method:'log',start,stop,points});return p;
+}
+
+test('Rev F 5-24: a log sweep on a whole log10/25/50 grid compiles to native VR2/3/4',()=>{
+ const {m,r,k,hardware}=loadNative();
+ const cases=[['21',2],['51',3],['101',4]];
+ for(const [points,type] of cases){
+  const c=k.compileSweep(r.pageToBasicProgram(logPage(m,{points}),m),hardware),s=c.system.setup;
+  const vr=s.find(x=>/^VR[234],/.test(x));
+  assert.equal(vr,'VR'+type+',0.1,10,0.01',s.join(' | '));
+  assert.ok(!s.some(x=>/^VL/.test(x)));
+ }
+});
+
+test('log sweeps off the native grid keep the exact planned levels as VL',()=>{
+ const {m,r,k,hardware}=loadNative();
+ const c=k.compileSweep(r.pageToBasicProgram(logPage(m,{stop:'5',points:'12'}),m),hardware),s=c.system.setup;
+ assert.ok(!s.some(x=>/^VR[234],/.test(x)));
+ assert.ok(s.some(x=>/^VL1,1,/.test(x)));
+ assert.equal(k.nativeLogSweep({role:'drain',start:0.0001,stop:0.1,points:31},{terminal:'drain'},Array(31).fill(0),false,null),null,'planned levels must match');
+});
+
+test('Rev F 5-22/5-23: several Psweep sources compile to VP with stepper index 2–4 in CH order',()=>{
+ const {m,r,k,hardware}=loadNative();
+ const p=dcPage(m);p.dc.bodyResource='SMU3';
+ Object.assign(p.dc.terminals.G,{role:'P',segments:[{...p.dc.terminals.G.segments[0],method:'points',start:'0',stop:'2',points:'3'}]});
+ Object.assign(p.dc.terminals.B,{role:'P',ref:'GND',segments:[{...p.dc.terminals.B.segments[0],method:'points',start:'0',stop:'-1',points:'3'}]});
+ const input=r.pageToBasicProgram(p,m);
+ assert.equal(input.sweepProgram.pExtra.length,1);
+ const c=k.compileSweep(input,hardware),s=c.system.setup;
+ const vp=s.filter(x=>/^VP /.test(x));
+ assert.deepEqual([...vp],['VP 0,1,3,0.01','VP 0,-0.5,3,0.01,2'],s.join(' | '));
+ const ch=s.filter(x=>/^CH\d,'V/.test(x));
+ assert.match(ch.at(-1),/^CH3,'V3','I3',1,2$/,'extra VAR2 defined last');
+ assert.ok(ch.indexOf(ch.find(x=>/^CH2,/.test(x)))<ch.length-1);
+ assert.ok(!s.some(x=>/^VC3,/.test(x)),'VAR2 source must not also get a fixed VC');
+ assert.equal(c.overvoltage.body,1.6);
+});
+
+test('several Psweep sources need Optimized mode and equal step counts',()=>{
+ const {m}=loadNative();
+ const p=dcPage(m,'point-by-point');p.dc.bodyResource='SMU3';
+ p.dc.terminals.G.role='P';p.dc.terminals.G.segments[0].method='step';
+ p.dc.terminals.B.role='P';p.dc.terminals.B.ref='GND';p.dc.terminals.B.segments[0].method='step';
+ assert.throws(()=>m.dcSummary(p),/Optimized/);
+ p.dc.preset='optimized';p.dc.terminals.B.segments[0].step='0.5';
+ assert.throws(()=>m.dcSummary(p),/same number of steps/);
+});

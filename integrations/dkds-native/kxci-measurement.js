@@ -94,7 +94,7 @@ function compileSystemPlan(compiled,input,inventory){
  .map(s=>(s.family==='SMU'?'CH':s.family)+s.channel))];
  assert(active.every(r=>disable.includes('CH'+channels[r])),'活动通道未在实际模块中确认');
  setup.push(...disable);
- const x=plan.xSweep,p=plan.pSweep,generators=plan.generators||{},followers=plan.listFollowers||{},timeList=input.timeList||null,dcList=input.dcList||null;
+ const x=plan.xSweep,p=plan.pSweep,extraP=plan.pExtra||[],generators=plan.generators||{},followers=plan.listFollowers||{},timeList=input.timeList||null,dcList=input.dcList||null;
  assert(x.repeats===1||timing,'System Mode 暂不支持 Xsweep 重复嵌套，请用整体 Cycles');
  assert(!p||p.repeats===1,'System Mode 暂不支持 Psweep 重复嵌套');
  const current=r=>plan.sourceModes?.[r]==='current';
@@ -109,11 +109,15 @@ function compileSystemPlan(compiled,input,inventory){
  const xValues=axisValues(x),pValues=p?axisValues(p):[];
  if(timeList){assert(!timing&&!p&&!Object.keys(generators).length&&Array.isArray(timeList.segmentIndices)&&timeList.segmentIndices.length===count&&timeList.segmentIndices.every((v,i,a)=>Number.isSafeInteger(v)&&v>=1&&(i?v===a[i-1]||v===a[i-1]+1:v===1)),'时间列表索引无效');}
  if(dcList){assert(!timeList&&!timing&&!p&&Number.isSafeInteger(dcList.xCount)&&dcList.xCount>=1&&count%dcList.xCount===0&&(!dcList.pRole||followers[dcList.pRole]&&dcList.pMode===plan.sourceModes[dcList.pRole]&&dcList.pValues.length===count&&dcList.pValues.every((v,i)=>v===followers[dcList.pRole].values[i])),'Generator 列表索引无效');}
- const definitionOrder=timeList||dcList?[x.terminal,...active.filter(r=>r!==x.terminal)]:active;
+ // Rev F 5-23: VAR2 stepper index follows CH definition order, so the
+ // primary Psweep is defined before the extra VAR2 sources (index 2–4).
+ const extraRoles=extraP.map(a=>a.terminal);
+ assert(!extraP.length||p&&!timing&&!timeList&&!dcList&&!Object.keys(generators).length&&extraP.length<=3,'多个 VAR2 源仅用于原生 VAR1/VAR2 扫描');
+ const definitionOrder=timeList||dcList?[x.terminal,...active.filter(r=>r!==x.terminal)]:extraP.length?[...active.filter(r=>!extraRoles.includes(r)),...extraRoles]:active;
  for(const r of definitionOrder){
   const setting=plan.portSettings[r],axis=x.terminal===r?x:p?.terminal===r?p:null;
   assert(setting.rangeMode!=='fixed'&&(!axis||axis.segments.every(s=>s.rangeA==='auto')),'System Mode 的 RI 不能保证整个 sweep 固定档位；请使用 Auto / 最低自动量程');
-  setup.push("CH"+channels[r]+",'V"+channels[r]+"','I"+channels[r]+"',"+(current(r)?2:1)+","+(timing?3:r===x.terminal||followers[r]?1:r===p?.terminal?2:generators[r]?4:3));
+  setup.push("CH"+channels[r]+",'V"+channels[r]+"','I"+channels[r]+"',"+(current(r)?2:1)+","+(timing?3:r===x.terminal||followers[r]?1:r===p?.terminal||extraP.some(a=>a.terminal===r)?2:generators[r]?4:3));
  }
  const rpmRoutes=input.rpmRoutes||[];
  for(const route of rpmRoutes){
@@ -150,7 +154,7 @@ function compileSystemPlan(compiled,input,inventory){
   const ch=channels[r],setting=plan.portSettings[r],limit=compliance(r);
   if(generators[r]){
    const g=generators[r];assert(!timing,'Generator 不用于固定偏置');setup.push('RT '+fmt(g.ratio)+','+ch,'FS '+fmt(g.offset)+','+ch,'CM '+fmt(limit)+','+ch);
-  }else if(timing||r!==x.terminal&&r!==p?.terminal&&!followers[r]){
+  }else if(timing||r!==x.terminal&&r!==p?.terminal&&!extraRoles.includes(r)&&!followers[r]){
    setup.push((current(r)?'IC':'VC')+ch+','+fmt(current(r)?plan.fixedCurrents[r]:plan.fixedVoltages[r])+','+fmt(limit));
   }
   setup.push('ST '+ch+',1');
@@ -170,8 +174,10 @@ function compileSystemPlan(compiled,input,inventory){
   setup.push('DT '+fmt(delay),'HT '+fmt(hold));
   const seg=x.segments[0],linear=!timeList&&!dcList&&x.segments.length===1&&seg.points>=2&&seg.points<=1024&&Math.abs(levels(x,seg)[2])<=(current(x.terminal)?1.05:210)&&
     (current(x.terminal)||levels(x,seg).every(v=>v===0||Math.abs(v)>=0.001));
+  const log=linear?null:nativeLogSweep(input.xLog,x,xValues,current(x.terminal),timeList||dcList);
   assert(!Object.keys(generators).length||linear,'原生 Generator 当前核验线性 VAR1；列表或非线性需要另行验收');
-  if(linear)setup.push((current(x.terminal)?'IR1,':'VR1,')+[...levels(x,seg),compliance(x.terminal)].map(fmt).join(','));
+  if(log)setup.push((current(x.terminal)?'IR':'VR')+log.type+','+[log.start,log.stop,compliance(x.terminal)].map(fmt).join(','));
+  else if(linear)setup.push((current(x.terminal)?'IR1,':'VR1,')+[...levels(x,seg),compliance(x.terminal)].map(fmt).join(','));
   else{
    assert(!p,'当前仅核验了单轴 VL 与线性 VAR1/VAR2；非线性嵌套需要独立核验');
    setup.push((current(x.terminal)?'IL':'VL')+channels[x.terminal]+',1,'+fmt(compliance(x.terminal))+','+xValues.map(fmt).join(','));
@@ -185,6 +191,13 @@ function compileSystemPlan(compiled,input,inventory){
    assert(Math.abs(step)<=(current(p.terminal)?1.05:210),'外层扫描步长超出原厂指令范围');
    assert((s.delayMs??p.delayMs)===0,'VAR2 独立延迟未映射到原生扫描');
    setup.push((current(p.terminal)?'IP ':'VP ')+[start,step,s.points,compliance(p.terminal)].map(fmt).join(','));
+   extraP.forEach((axis,i)=>{
+    const t=axis.segments[0],[a,,d]=levels(axis,t);
+    assert(t.points===s.points,'附加 VAR2 源步数须与 Psweep 一致');
+    assert(current(axis.terminal)||[a,d].every(v=>v===0||Math.abs(v)>=0.001),'VP 小于 1 mV 的非零值可能被仪器归零');
+    assert(Math.abs(d)<=(current(axis.terminal)?1.05:210),'附加 VAR2 步长超出原厂指令范围');
+    setup.push((current(axis.terminal)?'IP ':'VP ')+[a,d,t.points,compliance(axis.terminal),i+2].map(fmt).join(','));
+   });
   }
  }
  // Keep automatic range flooring explicit instead of inheriting earlier tasks.
@@ -627,6 +640,7 @@ async function executeNativeSequence(compiled,io){
     const channels=Object.fromEntries(active.map(role=>[role,channelNumber(plan.terminals[role])]));
     if(!channels.drain)throw Error('当前 KXCI 执行需要漏极 SMU');
     if(channels.body&&input.executionMode!=='system')throw Error('B 端请使用原生 Optimized 执行');
+    if(plan.pExtra?.length&&input.executionMode!=='system')throw Error('多个 VAR2 源只在 Optimized 原生模式执行');
     // KXCI SMU current-mode TI responses map SMU1..SMU8 to A..H.
     // An SMU9 assignment must not be accepted without protocol evidence.
     if(channels.drain>8)throw Error('当前 KXCI TI 电流回读仅核验 SMU1 至 SMU8，不能选择 SMU9 测量');
@@ -653,7 +667,7 @@ async function executeNativeSequence(compiled,io){
     let highestV=0;const peakByRole={};
     for(const role of active){
       const axis=plan.xSweep.terminal===role?plan.xSweep:
-        plan.pSweep?.terminal===role?plan.pSweep:null;
+        plan.pSweep?.terminal===role?plan.pSweep:plan.pExtra?.find(a=>a.terminal===role)||null;
       const volts=plan.listFollowers?.[role]&&plan.sourceModes?.[role]!=='current'?plan.listFollowers[role].values:plan.generators?.[role]?plan.generators[role].segments.flatMap(s=>[s.startV,s.stopV]):plan.sourceModes?.[role]==='current'?[plan.portSettings[role].complianceV]:axis?axis.segments.flatMap(s=>[s.startV,s.stopV]):
         [plan.fixedVoltages[role]];
       peakByRole[role]=Math.max(0,...volts.map(v=>Math.abs(v)));
@@ -682,6 +696,28 @@ async function executeNativeSequence(compiled,io){
       commandMode:system?'KXCI-SYSTEM-ME1':'KXCI-US-DV-TI',measurementChannel:channels.drain,
       totalPoints:plan.totalPoints,integration:input.systemIntegration||'IT2',timeProgram:input.timeProgram||null});
   }
+// Rev F 5-24 VR/IR sweep types 2/3/4 = log10/log25/log50 (points per
+// decade). The step positions are instrument-chosen, so the native form is
+// used only when the planned span is a whole number of those steps and the
+// planned levels equal that symmetric log grid; otherwise the list (VL/IL)
+// form keeps exactly the levels the user planned.
+const LOG_SWEEP_TYPES=Object.freeze([[2,10],[3,25],[4,50]]);
+function nativeLogSweep(hint,x,xValues,current,listMode){
+ if(!hint||listMode||hint.role!==x.terminal)return null;
+ const {start,stop,points}=hint;
+ if(!(Number.isFinite(start)&&Number.isFinite(stop)&&start*stop>0&&start!==stop&&Number.isInteger(points)&&points>=2&&points<=1024))return null;
+ if(xValues.length!==points)return null;
+ if(!current&&Math.min(Math.abs(start),Math.abs(stop))<0.001)return null;
+ if(Math.max(Math.abs(start),Math.abs(stop))>(current?1.05:210))return null;
+ const decades=Math.abs(Math.log10(Math.abs(stop/start)));
+ for(const [type,perDecade] of LOG_SWEEP_TYPES){
+  const steps=decades*perDecade;
+  if(Math.abs(steps-Math.round(steps))>1e-6||Math.round(steps)!==points-1)continue;
+  const grid=Array.from({length:points},(_,i)=>i===0?start:i===points-1?stop:Math.sign(start)*Math.abs(start)*Math.pow(Math.abs(stop/start),i/(points-1)));
+  if(grid.every((v,i)=>Math.abs(v-xValues[i])<=Math.abs(v)*1e-9))return Object.freeze({type,perDecade,start,stop,points});
+ }
+ return null;
+}
 // Rev F 5-47: IT1/IT2/IT3 presets or IT4,delayFactor,filterFactor,PLC.
 function validIntegration(value){
  const s=String(value||'');
@@ -1034,7 +1070,7 @@ function parseTv(raw,channel){
     }
     return Object.freeze({start,stop,status:publicState,waitForCompletion,dispose});
   }
-  const api=Object.freeze({overvoltageLimit,compileSweep,compileNativeSequence,executeNativeSequence,points,parseTi,parseTv,voltageTrigger,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,compileSegmentArbPair,parsePulseBlock,executePulseTask});
+  const api=Object.freeze({overvoltageLimit,nativeLogSweep,compileSweep,compileNativeSequence,executeNativeSequence,points,parseTi,parseTv,voltageTrigger,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,compileSegmentArbPair,parsePulseBlock,executePulseTask});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
     window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci-measurement',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

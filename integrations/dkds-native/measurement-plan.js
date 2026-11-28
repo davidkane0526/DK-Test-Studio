@@ -251,6 +251,18 @@
       x.terminal==='gate'?'drain':'gate',sourceModes):null;
     if(p&&p.terminal===x.terminal)
       throw Error('Psweep 和 Xsweep 不能扫描同一个电极');
+    // Rev F 5-22 VP/IP FF index 2–4: extra VAR2 sources step with Psweep.
+    const pExtra=Object.freeze((Array.isArray(program.pExtra)?program.pExtra:[]).map((axis,i)=>sweepAxis(axis,'Psweep '+(i+2),'gate',sourceModes)));
+    if(pExtra.length){
+      if(input.executionMode!=='system'||!p)throw Error('多个 VAR2 源只在 Optimized 原生模式且存在 Psweep 时执行');
+      if(pExtra.length>3)throw Error('Rev F VP/IP 最多 4 个 VAR2 源');
+      const used=new Set([x.terminal,p.terminal]);
+      for(const axis of pExtra){
+        if(used.has(axis.terminal))throw Error('VAR2 源不能与其他扫描共用电极');used.add(axis.terminal);
+        if(!/^SMU[1-9]$/.test(terminalChannels[axis.terminal]))throw Error('附加 VAR2 源必须分配 SMU');
+        if(axis.segments.length!==1||axis.points!==p.points||axis.repeats!==1)throw Error('附加 VAR2 源须为单段且与 Psweep 步数一致');
+      }
+    }
     if(['None','GNDU'].includes(terminalChannels[x.terminal])||
        (p&&['None','GNDU'].includes(terminalChannels[p.terminal])))
       throw Error('扫描电极必须分配能输出电压的仪器通道');
@@ -273,7 +285,7 @@
     for(const r of DC_ROLES){if(sourceModes[r]==='current'&&!/^SMU[1-9]$/.test(terminalChannels[r]))throw Error('电流源需要 SMU');if(sourceModes[r]==='current'&&fixedVoltages[r]!==0||sourceModes[r]==='voltage'&&fixedCurrents[r]!==0)throw Error('固定偏置单位不匹配');}
     const generators=Object.create(null);
     for(const [role,g] of Object.entries(program.generators||{})){
-      if(input.executionMode!=='system'||!DC_ROLES.includes(role)||!/^SMU[1-9]$/.test(terminalChannels[role])||role===x.terminal||role===p?.terminal||sourceModes[role]!=='voltage'||sourceModes[x.terminal]!=='voltage')throw Error('Generator 需要独立电压 SMU 和原生电压 Xsweep');
+      if(input.executionMode!=='system'||!DC_ROLES.includes(role)||!/^SMU[1-9]$/.test(terminalChannels[role])||role===x.terminal||role===p?.terminal||pExtra.some(a=>a.terminal===role)||sourceModes[role]!=='voltage'||sourceModes[x.terminal]!=='voltage')throw Error('Generator 需要独立电压 SMU 和原生电压 Xsweep');
       const ratio=finite(g?.ratio,'Generator ratio',-10,10),offset=finite(g?.offset,'Generator offset',-210,210);
       if(fixedVoltages[role]!==0||fixedCurrents[role]!==0)throw Error('Generator 与固定输出冲突');
       const segments=x.segments.map(s=>{const a=s.startV*ratio+offset,b=s.stopV*ratio+offset;return {startV:finite(a,'Generator 起点',-210,210),stopV:finite(b,'Generator 终点',-210,210),rangeA:'auto'};});
@@ -319,7 +331,7 @@
       if(configured&&!slot)throw Error(role+' 端口 '+name+' 未在实际模块清单中发现');
       slotForRole[role]=slot;
       if(!configured||!slot)continue;
-      const ownAxis=x.terminal===role?x:p?.terminal===role?p:null;
+      const ownAxis=x.terminal===role?x:p?.terminal===role?p:pExtra.find(a=>a.terminal===role)||null;
       if(current){
        const segments=listFollowers[role]?.segments||(ownAxis?ownAxis.segments:[{startA:fixedCurrents[role],stopA:fixedCurrents[role],rangeA:'auto'}]);
        if(segments.some(s=>s.rangeA!=='auto'))throw Error('电流源暂不支持固定电压测量档');
@@ -401,7 +413,7 @@
     const allVerified=configured&&roles.length>0&&roles.every(role=>limitsByRole[role]?.known===true);
     return Object.freeze({
       schema:'dkts.sweep-program.v1',kind,terminals:terminalChannels,
-      fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,listFollowers,xSweep:x,pSweep:p,loops,totalPoints,
+      fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,listFollowers,xSweep:x,pSweep:p,pExtra,loops,totalPoints,
       hardwareCapabilityStatus:!configured?'not-inspected':allVerified?'identified':'unresolved',
       limitsByRole,powerBudget,hardwareVerified:false,executable:false,
       provenance:'user-configured-plan',

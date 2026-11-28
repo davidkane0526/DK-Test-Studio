@@ -54,7 +54,7 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
   const delay=dc.strategy.mode==='local'&&dc.strategy.delay.trim()?n(dc.strategy.delay,'Delay')*1000:0;
   check(dc.reference==='GND'||ports[dc.reference]?.resource==='GNDU','仅支持接地参考');
   const vars=Object.fromEntries(page.variables.map(v=>[v.name,Number(v.value)])),v=x=>model.dcExpression(x,vars,dc.polarity);
-  const axes={},generators={},generatorFormulas={};
+  const axes={},generators={},generatorFormulas={},extraP=[];let xLog=null;
   for(const k of active){
    const row=dc.terminals[k],r=roles[k];
    const current=row.mode==='current';
@@ -73,6 +73,9 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
     else if(s.method==='log'){
      check(dc.preset==='optimized'&&row.role==='X','对数扫描请使用 Optimized 的 Xsweep');
      const a=v(s.start),b=v(s.stop),count=v(s.points);check(Number.isInteger(count)&&count>=2&&count<=4096&&a*b>0,'对数扫描参数无效');
+     // Candidate for Rev F 5-24 native VR/IR log sweep; compileSystemPlan only
+     // uses it when the instrument grid provably equals these planned levels.
+     if(row.segments.length===1)xLog={role:r,start:a,stop:b,points:count};
      for(let i=0;i<count;i++){const level=i===0?a:i===count-1?b:Math.sign(a)*Math.exp(Math.log(Math.abs(a))+(Math.log(Math.abs(b))-Math.log(Math.abs(a)))*i/(count-1));segs.push(make(level,level,0));}
     }
     else if(s.method==='list')for(const x of s.list.split(/[,\n]/).map(v))segs.push(make(x,x,0));
@@ -80,10 +83,15 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    }
    check(segs.length<=4096,'单轴最多 4096 个编译段');
    // DC strategy Delay is shared, not an independent VAR2 step delay.
-   axes[row.role]=axis(r,dc.preset==='optimized'&&row.role==='P'?segs.map(s=>({...s,delayMs:0})):segs);
+   const built=axis(r,dc.preset==='optimized'&&row.role==='P'?segs.map(s=>({...s,delayMs:0})):segs);
+   // Rev F 5-22 VP FF: up to four VAR2 sources step together (Optimized only).
+   if(row.role==='P'&&axes.P){check(dc.preset==='optimized','多个 Psweep 源只在 Optimized 原生模式执行');extraP.push({...built,enabled:true});}
+   else axes[row.role]=built;
   }
   check(axes.X,'缺少 Xsweep');
+  check(!extraP.length||!Object.keys(generatorFormulas).length,'多个 Psweep 源不能与 Generator 组合');
   if(dc.strategy.direction==='forward-reverse'){
+   xLog=null;
    check(!axes.P||dc.preset==='point-by-point'||Object.keys(generatorFormulas).length,'Optimized 双向扫描与 Psweep 需要原生列表模式');
    const x=axes.X,r=x.terminal,current=sourceModes[r]==='current',levels=[];
    for(const seg of x.segments){const a=current?seg.startA:seg.startV,b=current?seg.stopA:seg.stopV,d=current?seg.stepA:seg.stepV;const count=a===b?1:Math.round((b-a)/d)+1;check(Number.isSafeInteger(count)&&count>=1&&count<=4096&&(count===1||Math.abs(a+(count-1)*d-b)<=Math.max(1e-15,Math.abs(d)*1e-8)),'双向扫描起止值与步长不匹配');for(let i=0;i<count;i++)levels.push({...seg,value:i===count-1?b:a+i*d});check(levels.length<=4096,'扫描点数超出单轴容量');}
@@ -101,11 +109,11 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
     const xs=expand(x),ps=p?expand(p):[null];check(xs.length*ps.length<=4096,'Generator 单次列表最多 4096 点');
     const master=[],pLevels=[],evals=Object.fromEntries(Object.entries(generatorFormulas).map(([role,expr])=>[role,model.generatorEvaluator(expr,vars,dc.polarity,!!p)]));for(const role of Object.keys(evals))followers[role]=[];if(p)followers[p.terminal]=[];
     for(const pv of ps)for(const xv of xs){master.push(xv);if(p){followers[p.terminal].push(pv);pLevels.push(pv);}for(const [role,evalFn] of Object.entries(evals))followers[role].push(evalFn(xv,pv));}
-    dcList={xCount:xs.length,pRole:p?.terminal||null,pMode:p?sourceModes[p.terminal]:null,pValues:pLevels};
+    xLog=null;dcList={xCount:xs.length,pRole:p?.terminal||null,pMode:p?sourceModes[p.terminal]:null,pValues:pLevels};
     const range=x.segments[0].rangeA;axes.X={...x,segments:master.map(z=>current?{startA:z,stopA:z,stepA:0,rangeA:range,delayMs:delay}:segment(z,z,0,range,delay))};delete axes.P;
    }
   }
-  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,systemIntegration:integration,smuStrategy,requestedOutputs:info.outputs,plotSignals,dcList,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,listFollowers:followers,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
+  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,systemIntegration:integration,smuStrategy,xLog:dc.preset==='optimized'?xLog:null,requestedOutputs:info.outputs,plotSignals,dcList,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,listFollowers:followers,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled,...(extraP.length?{pExtra:extraP}:{})}};
  }
  if(page.kind==='time'){
   const t=page.timing,summary=model.timedSummary('time',t);
