@@ -190,14 +190,17 @@
       const dv=new RegExp('^DV([1-9]),0,('+n+'),('+n+')$').exec(cmd);
       const ri=new RegExp('^RI ([1-9]),('+n+'),('+n+')$').exec(cmd);
       const rg=new RegExp('^RG ([1-9]),('+n+')$').exec(cmd);
+      const ov=new RegExp('^OV ([1-9]),('+n+')$').exec(cmd);
       if(dv&&!(Math.abs(Number(dv[2]))<=210&&Number(dv[3])>0&&Number(dv[3])<=1.05))
         throw Error('KXCI DV 指令值越过绝对硬件边界');
       if(ri&&!(Number(ri[2])>0&&Number(ri[2])<=0.1&&Number(ri[3])>0&&Number(ri[3])<=1.05))
         throw Error('KXCI RI 参数越界');
       if(rg&&!(Number(rg[2])>0&&Number(rg[2])<=1))
         throw Error('KXCI RG 参数越界');
+      if(ov&&!(Number(ov[2])>=0&&Number(ov[2])<=221))
+        throw Error('KXCI OV 参数越界');
       if(!systemAllowed&&!['US','DE','EM 1,0','BC','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET'].includes(cmd)&&
-         !/^DV[1-9]$/.test(cmd)&&!/^TI[1-9]$/.test(cmd)&&!/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)&&!/^IT[123]$/.test(cmd)&&!dv&&!ri&&!rg)
+         !/^DV[1-9]$/.test(cmd)&&!/^TI[1-9]$/.test(cmd)&&!/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)&&!/^IT[123]$/.test(cmd)&&!dv&&!ri&&!rg&&!ov)
         throw Error('禁止非测量白名单 KXCI 指令');
       if(expectReply&&!(systemRead||/^TI[1-9]$/.test(cmd)||/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
         throw Error('此 KXCI 指令没有测量响应');

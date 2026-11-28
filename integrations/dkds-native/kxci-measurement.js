@@ -124,6 +124,7 @@ function compileSystemPlan(compiled,input,inventory){
   assert(route.pulseChannel===2*(Number(m[1])-1)+Number(m[2]),'脉冲通道编号不一致');
  }
  setup.push('SS');
+ if(compiled.overvoltage)for(const r of active)setup.push('OV '+channels[r]+','+fmt(compiled.overvoltage[r]));
  if(rpmRoutes.length){
   setup.push('ZE');
   for(const route of rpmRoutes)setup.push(':PMU:OUTPUT:STATE '+route.pulseChannel+',0','RP '+route.pmu+', 2');
@@ -195,10 +196,11 @@ function compileSystemPlan(compiled,input,inventory){
  const reads=[...signals.map(s=>"DO '"+s.name+"'"),"DO '"+timestamp+"'"];
  // Rev F 5-20 ST standby only applies when a test completes; 5-26 ZE turns all
  // SMU outputs off. Always send SS+ZE after ME4, then return RPMs to pulse.
- const cleanup=['MD','ME4','SS','ZE',...rpmRoutes.map(r=>'RP '+r.pmu+', 0'),'DE',...active.map(r=>'CH'+channels[r])];
+ const release=compiled.overvoltage?active.map(r=>'OV '+channels[r]+','+OV_RELEASE):[];
+ const cleanup=['MD','ME4','SS','ZE',...release,...rpmRoutes.map(r=>'RP '+r.pmu+', 0'),'DE',...active.map(r=>'CH'+channels[r])];
  // Only these exact validated setup/read/stop strings may pass the internal
  // transport lease. RD indices are separately bounded by count.
- return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),count,cycles:plan.loops,xValues,pValues,active,channels,rpmRoutes:Object.freeze(rpmRoutes.slice()),xRole:x.terminal,pRole:p?.terminal||null,xMode:current(x.terminal)?'current':'voltage',pMode:p?(current(p.terminal)?'current':'voltage'):null,requestedOutputs:input.requestedOutputs||['Id'],timing,dcList:dcList?Object.freeze({...dcList,pValues:Object.freeze(dcList.pValues.slice()),multiChannel:Object.keys(followers).length>0}):null,timeList:timeList?Object.freeze({segmentIndices:Object.freeze(timeList.segmentIndices.slice()),multiChannel:Object.keys(followers).length>0}):null,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
+ return Object.freeze({setup:Object.freeze(setup),reads:Object.freeze(reads),signals:Object.freeze(signals),timestamp,cleanup:Object.freeze(cleanup),overvoltageRelease:Object.freeze(release),count,cycles:plan.loops,xValues,pValues,active,channels,rpmRoutes:Object.freeze(rpmRoutes.slice()),xRole:x.terminal,pRole:p?.terminal||null,xMode:current(x.terminal)?'current':'voltage',pMode:p?(current(p.terminal)?'current':'voltage'):null,requestedOutputs:input.requestedOutputs||['Id'],timing,dcList:dcList?Object.freeze({...dcList,pValues:Object.freeze(dcList.pValues.slice()),multiChannel:Object.keys(followers).length>0}):null,timeList:timeList?Object.freeze({segmentIndices:Object.freeze(timeList.segmentIndices.slice()),multiChannel:Object.keys(followers).length>0}):null,rdNames:Object.freeze([...signals.map(s=>s.name),'CH'+channels.drain+'T'])});
 }
 function parseSystemValues(raw){
  const text=String(raw??'').trim().replace(/,\s*$/,'');
@@ -344,6 +346,7 @@ async function executeSystemTask(program,io){
    catch(e){safe=false;error+=(error?'；':'')+'ZE 关断未确认：'+String(e.message||e);}
    if(safe){
     try{
+     for(const cmd of program.overvoltageRelease||[]){await command(cmd);await poll();}
      for(const route of switched){await command('RP '+route.pmu+', 0');await poll();}
      await command('DE');await poll();
      for(const r of [...program.active].reverse()){await command('CH'+program.channels[r]);const status=await poll();if(status.busy)throw Error('关断后仍 Busy');}
@@ -627,24 +630,35 @@ async function executeNativeSequence(compiled,io){
     // interlocks and incomplete identity block output, never invent a derating.
     const physicalVerified=hardware.inventory?.physicalModelsVerified===true &&
       hardware.inventory?.hardwareLimitsVerified===true;
-    let highestV=0;
+    let highestV=0;const peakByRole={};
     for(const role of active){
       const axis=plan.xSweep.terminal===role?plan.xSweep:
         plan.pSweep?.terminal===role?plan.pSweep:null;
       const volts=plan.listFollowers?.[role]&&plan.sourceModes?.[role]!=='current'?plan.listFollowers[role].values:plan.generators?.[role]?plan.generators[role].segments.flatMap(s=>[s.startV,s.stopV]):plan.sourceModes?.[role]==='current'?[plan.portSettings[role].complianceV]:axis?axis.segments.flatMap(s=>[s.startV,s.stopV]):
         [plan.fixedVoltages[role]];
-      highestV=Math.max(highestV,...volts.map(v=>Math.abs(v)));
+      peakByRole[role]=Math.max(0,...volts.map(v=>Math.abs(v)));
+      highestV=Math.max(highestV,peakByRole[role]);
     }
+    // Rev F 5-48 OV: hardware overvoltage clamp per SMU, set before the source
+    // turns on. 10 % + 0.5 V headroom above the planned peak (or the voltage
+    // compliance of a current source), rounded up to 0.1 V, capped at 221 V.
+    const overvoltage=input.overvoltageProtection===false?null:
+      Object.freeze(Object.fromEntries(active.map(role=>[role,overvoltageLimit(peakByRole[role])])));
     const requiresInterlock=highestV>21||active.some(role=>
       plan.limitsByRole?.[role]?.segmentLimits?.some(s=>s.requiresInterlock));
-    const base={plan,channels,active};
+    const base={plan,channels,active,overvoltage};
     const system=input.executionMode==='system'?compileSystemPlan(base,input,hardware.inventory):null;
-    return Object.freeze({plan,channels,active,system,physicalVerified,
+    return Object.freeze({plan,channels,active,system,overvoltage,physicalVerified,
       capabilityVerified:limitRoles,requiresInterlock,
       canExecute:physicalVerified&&limitRoles&&!requiresInterlock,
       commandMode:system?'KXCI-SYSTEM-ME1':'KXCI-US-DV-TI',measurementChannel:channels.drain,
       totalPoints:plan.totalPoints,integration:input.systemIntegration||'IT2',timeProgram:input.timeProgram||null});
   }
+function overvoltageLimit(peakV){
+ const v=Number(peakV);if(!Number.isFinite(v)||v<0)throw Error('OV 计划电压无效');
+ return Math.min(221,Math.ceil((v*1.1+0.5)*10-1e-9)/10);
+}
+const OV_RELEASE=221;
 function voltageTrigger(channel){
  const ids=[1,2,3,4,7,8,9,10];
  if(!Number.isInteger(channel)||!ids[channel-1])throw Error('Invalid SMU voltage trigger channel');
@@ -721,6 +735,10 @@ function parseTv(raw,channel){
         }
         catch(e){ok=false;failed.push(role+': '+String(e.message||e));}
       }
+      if(ok&&j.overvoltageSet)for(const role of j.compiled.active){
+        try{await command('OV '+j.compiled.channels[role]+','+OV_RELEASE);const flags=parseStatusByte(await command('SP',true));if(flags.syntaxError)throw Error('OV 恢复被拒绝');}
+        catch(e){j.error=(j.error?j.error+'；':'')+'输出已关闭，但 '+role+' OV 恢复失败：'+String(e.message||e);}
+      }
       j.shutdown=ok?'commands-sent':'unconfirmed';
       if(!ok)j.error=(j.error?j.error+'；':'')+
         '输出关闭未获确认，请在仪器现场检查：'+failed.join('; ');
@@ -781,6 +799,12 @@ function parseTv(raw,channel){
         if(!['IT1','IT2','IT3'].includes(integration))throw Error('测量速度无效');
         await command(integration);
         await verifyError();
+        // Rev F 5-48: clamp each SMU before any DV turns it on.
+        if(j.compiled.overvoltage)for(const role of j.compiled.active){
+          await command('OV '+j.compiled.channels[role]+','+numeric(j.compiled.overvoltage[role]));
+          await verifyError();
+          j.overvoltageSet=true;
+        }
         for(const point of points(plan)){
           if(j.cancelled)break;
           for(const role of j.compiled.active){
@@ -957,7 +981,7 @@ function parseTv(raw,channel){
     }
     return Object.freeze({start,stop,status:publicState,waitForCompletion,dispose});
   }
-  const api=Object.freeze({compileSweep,compileNativeSequence,executeNativeSequence,points,parseTi,parseTv,voltageTrigger,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,compileSegmentArbPair,parsePulseBlock,executePulseTask});
+  const api=Object.freeze({overvoltageLimit,compileSweep,compileNativeSequence,executeNativeSequence,points,parseTi,parseTv,voltageTrigger,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,compileSegmentArbPair,parsePulseBlock,executePulseTask});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
     window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci-measurement',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

@@ -81,7 +81,7 @@ function makeInstrumentContext(modules,options={}){
     if(options.failDvAck&&/^DV[1-8]/.test(command))return reply('');
     if(command==='UL\0'||command==='DE\0'||command==='US\0'||
        command===':ERROR:LAST:CLEAR\0'||command==='EM 1,0\0'||command==='BC\0'||/^IT[123]\0$/.test(command)||/^DV[1-8](?:,0,[^,]+,[^,]+)?\0$/.test(command)||
-       /^RI [1-8],[^,]+,[^,]+\0$/.test(command)||/^RG [1-8],[^,]+\0$/.test(command))
+       /^RI [1-8],[^,]+,[^,]+\0$/.test(command)||/^RG [1-8],[^,]+\0$/.test(command)||/^OV [1-8],[^,]+\0$/.test(command))
       return reply('ACK\0');
     if(command==='EX SystemUtil instrumentinfo(,4096,)\0'){lastQuery='instrument';return reply('OK\0');}
     if(command==='EX SystemUtil remotemoduleinfo(,4096,)\0'){lastQuery='remote';return reply('OK\0');}
