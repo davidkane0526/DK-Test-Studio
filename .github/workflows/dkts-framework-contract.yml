@@ -299,6 +299,22 @@ jobs:
       - name: Install DKTS-derived DKDS Android dependencies
         working-directory: dist/dkts-framework-staging/mobile
         run: npm install --no-audit --no-fund
+      - name: Use CI-provided JDK 17 without remote Foojay toolchain resolution
+        working-directory: dist/dkts-framework-staging/mobile
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const file='node_modules/@react-native/gradle-plugin/settings.gradle.kts';
+          let source=fs.readFileSync(file,'utf8');
+          const block=/plugins\s*\{\s*id\(["']org\.gradle\.toolchains\.foojay-resolver-convention["']\)\.version\(["'][^"']+["']\)\s*\}\s*/m;
+          const line=/^\s*id\(["']org\.gradle\.toolchains\.foojay-resolver-convention["']\)\.version\(["'][^"']+["']\)\s*$/m;
+          if(block.test(source)) source=source.replace(block,'');
+          else if(line.test(source)) source=source.replace(line,'');
+          else if(source.includes('foojay-resolver-convention')) throw new Error('Unexpected Foojay resolver declaration shape');
+          fs.writeFileSync(file,source);
+          if(fs.readFileSync(file,'utf8').includes('foojay-resolver-convention')) throw new Error('Foojay resolver was not removed from the staging dependency');
+          console.log('Using setup-java JDK 17; optional Foojay JDK auto-download disabled in the DKTS staging copy only.');
+          NODE
       - name: Regenerate offline DKDS Core WebView source
         working-directory: dist/dkts-framework-staging/mobile
         run: npm run sync:web
@@ -309,7 +325,16 @@ jobs:
         working-directory: dist/dkts-framework-staging/mobile/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64 --no-daemon
+          for attempt in 1 2 3; do
+            if ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64 --no-daemon --refresh-dependencies --stacktrace --console=plain; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::Gradle dependency resolution/build failed on attempt $attempt; retrying with refreshed dependencies."
+              sleep 12
+            fi
+          done
+          exit 1
       - name: Verify package ID and DKTS UI/plugin payload
         run: |
           apk=dist/dkts-framework-staging/mobile/android/app/build/outputs/apk/release/app-release.apk
