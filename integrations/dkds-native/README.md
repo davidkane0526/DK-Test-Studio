@@ -7,7 +7,7 @@
 - 数据源来自 `ctx.data.sources.list()` 和 `ctx.data.artifacts.get()`。数据中心、分组图标题、历史、AI、SMB、网页服务及内存由 DKDS 宿主维护。
 - `ctx.state.create(...,{projectSlice:'settings'})` 用于项目持久化，`ctx.project.capture()` 记入宿主历史。
 - 10 种离线测试页面、参数组织和端子映射；**None 不显示在参数面板**。
-- Core 原生工作区已接入 DKDS `network.tcp` capability、4200A 身份/模块核验、DC SMU KXCI 运行时、显式启动确认、安全停止和原始 TI 行 Data Center 发布。门禁分两路：用户模式逐点 `DV/TI` 受 `safetyPolicies.kxci.allowInstrumentOutput` 控制，当前为 `false`；Optimized DC（System Mode，`ME1` 原生任务）受 `smuSystemModeManualVerified` 与 `allowSystemModeOutput` 控制，当前均为 `true`，在模块身份/额定值核验通过且不需要高压互锁（≤ 21 V）时允许受控实机输出（R-20261128-001）。PMU（`allowPulseModeOutput`）、Segment Arb 与 PUND（`allowSegmentArbOutput`）以及多通道原生列表仍各自关闭。此外 DKDS Plugin API 1.19 的 `ctx.ui.dom.timeout()` 是受生命周期管理的定时接口；插件通过它实现逐点 DV/TI 延时，停止时取消待执行 timer，不创建 raw timer。
+- Core 原生工作区已接入 DKDS `network.tcp` capability、4200A 身份/模块核验、DC SMU KXCI 运行时、显式启动确认、安全停止和原始 TI 行 Data Center 发布。门禁分两路：用户模式逐点 `DV/TI` 受 `safetyPolicies.kxci.allowInstrumentOutput` 控制，当前为 `false`；Optimized DC（System Mode，`ME1` 原生任务）受 `smuSystemModeManualVerified` 与 `allowSystemModeOutput` 控制，当前均为 `true`，在模块身份/额定值核验通过且不需要高压互锁（≤ 21 V）时允许受控实机输出（R-20261128-001）。PMU 标准脉冲（`allowPulseModeOutput`）与 Segment Arb、PUND、PMU 分段偏置（`allowSegmentArbOutput`）按用户决定 R-20261128-005 已开放，同样只在模块身份/额定值核验通过且峰值 ≤ 21 V 时允许受控实机输出；多通道 SMU 原生列表仍关闭。此外 DKDS Plugin API 1.19 的 `ctx.ui.dom.timeout()` 是受生命周期管理的定时接口；插件通过它实现逐点 DV/TI 延时，停止时取消待执行 timer，不创建 raw timer。
 - 同源浏览器预览使用同一插件源，但浏览器没有 Electron IPC，不能实际连接仪器或执行测量。
 - 当前运行器为主机逐点 `DV/TI` 模式，不等同于仪器内部扫描；在完成 KXCI Rev F 命令核对前，不得宣称可达到 20 ns 硬件扫描速度。
 

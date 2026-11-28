@@ -587,3 +587,9 @@ PR #8 旧宿主分支安全功能应与新 Core 验证一致后由归档记录�
 - 2026-11-28 原话：「1.做 PMU 支持 2.优化界面和细节」。项目协调方说明：基于 PR #24 分支另开分支与 PR，不合并；PMU 输出须与现有 `safetyPolicies.kxci` 门禁同样受控，不放宽任何门禁；界面另有线程并行优化，本线程只做 PMU 所需的界面改动。
 - 现状核对：脉冲扫描、双通道、Segment Arb、PMU 分段偏置的编译、执行、Data Center 与绘图链路已存在，只是 `allowPulseModeOutput`/`allowSegmentArbOutput` 为 false。本次依据 Rev F 第 7 节补齐手册已列、软件未接入的部分：双向扫描（dualSweep）、Spot Mean/波形平均模式（MEASURE:MODE 3/4）、基线低电平测量（MEASURE:PIV 低电平与 VL/IL/TL/SL）、负载线补偿（LLEC:CONFIGURE）、启用已存储的连接补偿（CONNECTION:COMP），以及测试类型中已有入口却未实现的 PUND（以 Segment Arb 波形采集实现）。
 - **验收标准**：每个新选项都有编译与解析回归测试，指令语法与 Rev F 7-5/7-11/7-14/7-15/7-30–7-33 一致；PUND 页面能生成方案、通过同一执行与 Data Center 路径；未经用户决定不修改 `allowPulseModeOutput`、`allowSegmentArbOutput`；文档列出需要实机确认的项目；通过独立 PR 交付，不合并。
+
+## R-20261128-005 · 开放 PMU 标准脉冲与 Segment Arb 实机输出
+
+- 2026-11-28，用户在决策卡「PMU 实机输出门禁本次是否开放？」上选择「标准脉冲和 Segment Arb 都开放」，该选项说明为「两类 PMU 输出都在模块核验通过且峰值 ≤21 V 时允许实机输出，PUND 也随之可以运行」。
+- 设 `allowPulseModeOutput=true`、`allowSegmentArbOutput=true`。保留 `pmuModeManualVerified`/`segmentArbManualVerified` 检查、模块身份与额定值核验、峰值 > 21 V 需高压互锁即拒绝的条件。用户模式 DV/TI（`allowInstrumentOutput`）与多通道 SMU 原生列表（`allowMultiChannelListOutput`）不变。本条就 PMU 取代 R-20261128-004 中「未经用户决定不修改门禁」的限制。
+- **验收标准**：数据库两项开关为 true，并有回归测试确认 ≤ 21 V 且模块已核验时可执行、> 21 V 或模块未核验时仍拒绝、其他门禁未变；原有拒绝路径测试改为显式关闭门禁后继续覆盖；README 与能力映射同步。

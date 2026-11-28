@@ -89,3 +89,17 @@ test('planner mirrors the compiler for the new options',()=>{
  assert.throws(()=>plan({acquireLow:'1',mode:'waveform'}),/Base-level/);
  assert.throws(()=>plan({connectionComp:'x'}),/compensation/);
 });
+
+test('R-20261128-005 opens PMU pulse and Segment Arb output only for <=21 V plans',()=>{
+ const policy=h.DATABASE.safetyPolicies.kxci;
+ assert.equal(policy.allowPulseModeOutput,true);assert.equal(policy.allowSegmentArbOutput,true);
+ // Other gates are unchanged.
+ assert.equal(policy.allowInstrumentOutput,false);assert.equal(policy.allowMultiChannelListOutput,false);
+ const low=k.compilePulse({executionMode:'pulse',settings:base,summary:{points:3},resource:'PMU1-2',wiringConfirmed:true},hardware);
+ assert.equal(low.canExecute,true);assert.equal(low.requiresInterlock,false);
+ const high=k.compilePulse({executionMode:'pulse',settings:{...base,rangeV:'40',fixedV:'0',start:'22',stop:'22',step:'0',periodUs:'10',widthUs:'2',riseUs:'0.2',fallUs:'0.2',windowStartUs:'0.5',windowTimeUs:'1',currentRangeA:'0.01'},summary:{points:1},resource:'PMU1-2',wiringConfirmed:true},hardware);
+ assert.equal(high.canExecute,false);assert.equal(high.requiresInterlock,true);
+ // Unverified modules stay blocked.
+ const unverified={inventory:{...inventory,physicalModelsVerified:false},capabilities:h};
+ assert.equal(k.compilePulse({executionMode:'pulse',settings:base,summary:{points:3},resource:'PMU1-2',wiringConfirmed:true},unverified).canExecute,false);
+});

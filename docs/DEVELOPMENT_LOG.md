@@ -1065,3 +1065,9 @@ Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive readi
 - 测试：新增 `tests/dkts-pmu-rev-f-options.test.cjs` 7 项、`tests/dkts-pund.test.cjs` 3 项；`dkts-native-measurement-runtime` 新增 PUND 端到端（门禁关闭时拒绝启动且不发 :PMU: 指令；模拟验收后 8 点标注与电荷）；`test-dkds-native-host.cjs` 覆盖脉冲新选项和 PUND 编辑器三个分页（宿主模拟补上 `DKDSPluginModules.require`）。`npm test` 311 项：309 通过、2 跳过、0 失败；`test-dkds-native-host.cjs`、`test-dkds-native-plugin.cjs` 通过。
 - **待实机确认**：(1) TIMES:PIV 用法行写作 `:PMU:PIV:TIMES`，标题与示例为 `:PMU:TIMES:PIV`，代码沿用后者；(2) TIMES:PIV 百分比以平顶还是全脉宽为基准；(3) 双向扫描是否重复终点（当前按 2N 计）；(4) 扫描时每点是否各发 burstCount 个脉冲；(5) 平均模式的记录数；(6) SARB 波形采集的时间戳起点与每段采样数，PUND 标注依赖四个读脉冲点数相等；(7) 10 V 档 SARB 能否输出 −V 到 +V（手册写 ±10 V）；(8) 连接补偿数据须先在 Clarius 或 KXCI 中测量保存。
 - 未修改 `safetyPolicies.kxci` 任何开关；未连接物理 4200A；未构建预览、ZIP 或安装包；未提升版本号。
+
+## 2026-11-28 · 开放 PMU 实机输出门禁（分支 claude/project-thread-ctfnir，PR #25）
+
+- R-20261128-005，基线 `91a9346`。用户在决策卡上选择开放标准脉冲和 Segment Arb。`hardware-capabilities.js` 中 `allowPulseModeOutput`、`allowSegmentArbOutput` 改为 true，`verificationStatus` 与 `requiredAction` 注明本次决定和 ≤ 21 V 条件。编译器的 `canExecute = physicalVerified && peak ≤ 21`、高压互锁拒绝、模块身份核验未改。
+- 测试：`dkts-pmu-rev-f-options` 新增门禁项（≤ 21 V 可执行、22 V 需互锁不可执行、模块未核验不可执行、`allowInstrumentOutput`/`allowMultiChannelListOutput` 仍为 false）。`dkts-native-measurement-runtime` 两项拒绝路径与 `dkts-routine-review` 改为在测试夹具中显式关闭门禁，继续覆盖拒绝且不发 `:PMU:` 指令；`dkts-sarb-review` 断言改为 true。`npm test` 314 项：312 通过、2 跳过、0 失败；`test-dkds-native-host.cjs`、`test-dkds-native-plugin.cjs` 通过。
+- 仍未连接物理 4200A。首次实机使用前建议先用示波器或 1 MΩ 负载、低幅值（例如 1 V）跑一次标准脉冲并核对波形和数据，再验证上一条列出的 8 个待确认项。

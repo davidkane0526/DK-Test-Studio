@@ -442,6 +442,9 @@ test('segmented pulse uses the verified PMU port, exact hold profile and origina
  ]};
  Object.assign(pmu,{biasSteps:steps,loadOhms:'1000000',currentRangeA:'0.01',sampleStepUs:'0.5'});
  const capabilities=modules.get('dkts-capabilities');
+ // Exercise the refusal path with both PMU gates explicitly closed.
+ const closedDb=JSON.parse(JSON.stringify(capabilities.DATABASE));Object.assign(closedDb.safetyPolicies.kxci,{allowPulseModeOutput:false,allowSegmentArbOutput:false});
+ modules.set('dkts-capabilities',{...capabilities,DATABASE:closedDb});
  const preview=capabilities.segmentArbPreview(pmu);
  assert.equal(preview.durationTicks,3404);
  assert.deepEqual(Array.from(preview.segments,s=>[s.startV,s.stopV]),[[0,0],[0,.8],[.8,.8],[.8,0],[0,0]]);
@@ -583,6 +586,9 @@ test('PUND page compiles to one Segment Arb sequence, stays gated and labels P/U
  const page=project.pages.find(p=>p.id===project.activeId);
  assert.equal(page.kind,'pund');assert.equal(page.timing.testMode,'pund');
  const capabilities=modules.get('dkts-capabilities');
+ // Exercise the refusal path with both PMU gates explicitly closed.
+ const closedDb=JSON.parse(JSON.stringify(capabilities.DATABASE));Object.assign(closedDb.safetyPolicies.kxci,{allowPulseModeOutput:false,allowSegmentArbOutput:false});
+ modules.set('dkts-capabilities',{...capabilities,DATABASE:closedDb});
  const fake=makeInstrumentContext(modules,{pmu:true});
  const blocked=runtimeModule.createRuntime(fake.ctx,{wait:async()=>{}});
  const endpoint={host:'169.254.111.118',port:1225,expectedSerial:'1498377'};
