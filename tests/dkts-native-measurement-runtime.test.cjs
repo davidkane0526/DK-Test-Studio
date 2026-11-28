@@ -34,6 +34,7 @@ function configuredPage(model){
 function makeInstrumentContext(modules,options={}){
  const commands=[],published=[],status=[];let closed=false;
  let lastQuery='',measurementStarted=false,syntaxPending=false,firstOutput=true,systemRun=false,pulseBusy=false,pulseReadCount=0;
+ let kultBusy=false,kultToken=0;
  const instrumentInfo=[
   'slotno:1,name:SMU1,model:KISMU4200,serialno:SMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
   'slotno:2,name:SMU2,model:KISMU4200,serialno:SMU002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
@@ -69,6 +70,24 @@ function makeInstrumentContext(modules,options={}){
       return reply(pulseReadCount++===0?'\0':'0.75,1E-6,0.00003,0;0.76,1.1E-6,0.000061,0\0');
      }
      if(/^:PMU:(?:INIT |LOAD |LLEC:CONFIGURE |SOURCE:RANGE |MEASURE:(?:RANGE|MODE|PIV) |SAMPLE:RATE |PULSE:(?:BURST:COUNT|TIMES|TRAIN) |SWEEP:PULSE:AMPLITUDE |TIMES:PIV |SARB:|OUTPUT:STATE |ABORT\0)/.test(command))return reply('ACK\0');
+    }
+    if(options.smuPulse){
+     if(command==='GD DKTSsmu Smupulse\0')return reply((options.missingKult?'ACK':'DKTS_SMU_PULSE_ABI_1')+'\0');
+     if(command.startsWith('EX DKTSsmu Smupulse(')){
+      const args=command.slice(command.indexOf('(')+1,-2).split(',');
+      assert.equal(args.length,22);
+      kultToken=Number(args[14]);
+      kultBusy=true;
+      return reply((options.kultNumericReply?'0':'ACK')+'\0');
+     }
+     if(command==='AB\0'){kultBusy=false;return reply('ACK\0');}
+     if(command==='SP\0'&&kultBusy){if(!options.kultPersistentBusy)kultBusy=false;return reply('16\0');}
+     if(command==='GN receipt\0')return reply(String(options.staleKult?kultToken-1:kultToken)+'\0');
+     if(command==='GN vd 2\0')return reply('0.101;0.197\0');
+     if(command==='GN id 2\0')return reply('1.2E-6;1E22\0');
+     if(command==='GN elapsed 2\0')return reply('0.011;0.045\0');
+     if(command==='ZE\0'&&options.kultShutdownFails&&commands.some(row=>row.command.startsWith('EX DKTSsmu')))
+      return reply('ERROR\0');
     }
     if(command==='US\0')measurementStarted=true;
     if(command==='ME1\0'){systemRun=true;measurementStarted=true;return reply('ACK\0');}
@@ -567,6 +586,84 @@ test('Pulse I–V switches from DC, restores both configurations, and publishes 
   assert.ok(commands.includes(':PMU:EXECUTE\0'));
   assert.ok(commands.indexOf(':PMU:OUTPUT:STATE 1,0\0')<commands.lastIndexOf(':PMU:DATA:GET 1,0,2,VH,IH,TH,SH\0'));
  }finally{await runtime.dispose();}
+});
+
+test('SMU Pulse I–V uses the installed LPT module and publishes only returned values',async()=>{
+ const {modules}=loadModules(),model=modules.get('model');
+ const makePage=()=>{
+  let project=model.setIvType(model.initial(),'pulse-smu');
+  const page=project.pages.find(row=>row.id===project.activeId);
+  assert.equal(page.timing.testMode,'smu-sweep');
+  project=model.editTiming(project,{smu:{...page.timing.smu,start:'0.1',stop:'0.2',step:'0.1',gateRole:'condition',gateV:'1.2'}});
+  return project.pages.find(row=>row.id===project.activeId);
+ };
+ const page=makePage();
+ assert.throws(()=>model.smuPulseSummary({...page.timing.smu,onMs:'0.05'}),/5–20000/);
+ const endpoint={host:'169.254.111.118',expectedSerial:'1498377'};
+ const fixture=makeInstrumentContext(modules,{smuPulse:true,kultNumericReply:true});
+ const runtime=modules.get('measurementRuntime').createRuntime(fixture.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect(endpoint);
+  const prepared=runtime.prepare(page);
+  assert.equal(prepared.canExecute,true,prepared.reason);
+  assert.equal(prepared.compiled.commandMode,'KXCI-SMU-PULSE-KULT');
+  assert.deepEqual({...prepared.channels},{drain:1,gate:2});
+  assert.match(prepared.compiled.smuPulse.moduleExecute,/Smupulse\(1,2,0.1,0.2,2,5,20,1.2,0.001,0.2,0.001/);
+  assert.throws(()=>runtime.start(page,false),/必须经过用户确认/);
+  assert.equal(fixture.commands.some(row=>row.command.startsWith('EX DKTSsmu')),false);
+  runtime.start(page,true);
+  const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'completed',result.run.error);
+  assert.equal(result.run.shutdown,'commands-sent');
+  assert.equal(result.rows,2);
+  assert.equal(result.published?.canonical,true,result.publishError);
+  assert.deepEqual(Array.from(result.run.rows,row=>row.drainVoltageV),[0.101,0.197]);
+  assert.equal(result.run.rows[0].gateVoltageV,undefined);
+  assert.equal(result.run.rows[0].plannedGateVoltageV,1.2);
+  assert.equal(result.run.rows[1].measurementCompleteness,'partial');
+  assert.equal(result.run.rows[1].rawKxciResponse,'0.197;1E22;0.045');
+  assert.equal(fixture.published[0].metadata.timeOrigin,'instrument-after-mpulse');
+  const commands=fixture.commands.map(row=>row.command);
+  assert.ok(commands.indexOf('GD DKTSsmu Smupulse\0')<commands.findIndex(command=>command.startsWith('EX DKTSsmu')));
+  assert.ok(commands.includes('ZE\0'));
+ }finally{await runtime.dispose();}
+ for(const [options,message] of [
+  [{missingKult:true},/安装并构建/],
+  [{staleKult:true},/本次运行的关断回执/],
+  [{kultShutdownFails:true},/ZE/]
+ ]){
+  const failure=makeInstrumentContext(modules,{smuPulse:true,...options});
+  const api=modules.get('measurementRuntime').createRuntime(failure.ctx,{wait:async()=>{}});
+  try{
+   await api.connectAndInspect(endpoint);
+   api.start(page,true);
+   const result=await api.waitForCompletion();
+   assert.equal(result.run.state,'failed');
+   assert.match(result.run.error,message);
+   if(options.missingKult){
+    assert.equal(result.run.shutdown,'not-started');
+    assert.equal(failure.commands.some(row=>row.command.startsWith('EX DKTSsmu')),false);
+   }
+   if(options.staleKult)assert.equal(result.rows,0);
+   if(options.kultShutdownFails){
+    assert.equal(result.run.shutdown,'unconfirmed');
+    assert.equal(api.prepare(page).canExecute,false);
+   }
+  }finally{await api.dispose();}
+ }
+ const stopped=makeInstrumentContext(modules,{smuPulse:true,kultPersistentBusy:true});
+ let cancel;
+ const api=modules.get('measurementRuntime').createRuntime(stopped.ctx,{wait:async()=>{cancel();}});
+ try{
+  cancel=()=>api.stop();
+  await api.connectAndInspect(endpoint);
+  api.start(page,true);
+  const result=await api.waitForCompletion();
+  assert.equal(result.run.state,'stopped',result.run.error);
+  assert.equal(result.run.shutdown,'commands-sent');
+  assert.equal(result.rows,0);
+  assert.ok(stopped.commands.some(row=>row.command==='AB\0'));
+ }finally{await api.dispose();}
 });
 
 test('Pulse I–V can accompany Xsweep with a constant gate bias and records only measured X data',async()=>{

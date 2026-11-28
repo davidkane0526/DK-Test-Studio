@@ -1079,3 +1079,11 @@ Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive readi
 - 现有 Pulse 执行器只走 4225-PMU。适配前置校验在编辑页和运行时共用。独立 SMU、未检测到的已选 PMU 和重复的活动通道会阻止运行。只有明确指定的 PMU 或实机核验的 RPM 路由进入原执行器。网页可保存离线待核验的 PMU 端口方案。
 - 概伦原厂规格把常规 Pulse IV（最小脉宽 50 μs）与高速波形套件（建议最短 130 ns）分开列出。Keithley 的 SMU 在 Clarius 内有 Pulse Mode，DKTS 现有 KXCI Pulse 入口未接入该模式。资料公开范围不能确认用户那台 FS-Pro 的通道配置。 [概伦 FS-Pro](https://www.primarius-tech.com/uploads/20230307/EN_FS-Pro.pdf#page=2) · [Keithley SMU 手册](https://www.tek.com/en/-/media/documents/4200a-smu-900-01a_dec_2020.pdf)
 - `npm test` 288 通过、2 跳过、0 失败，插件及宿主测试通过。模拟 KXCI 断言 SMU 与未检测 PMU 均无输出，合法双 PMU 仍编译、读取与关断。同源 Chromium 验证 1367 像素下 DC/Pulse 控件坐标和列线一致，900／390 像素布局、拒绝提示、运行禁用、离线修正、固定偏置和溢出检查通过。交付同提交 Pages、源码 ZIP 和 Windows 0.8.42 本地覆盖插件。固定 DKDS 安装逻辑通过从 0.8.39 和 0.8.41 覆盖及回退，实机电平与时序仍待验收。
+
+## 2026-11-29 · 4200A SMU 脉冲接入与时间扫描边界（R-20261129-001）
+
+- 从 Pages `bcd859b` 接续。新增「Pulse I–V · SMU」，复用 DC 端子行。漏极是直连 SMU 的电压步进脉冲，0 V 关断基线，独立 SMU 栅极可设 Condition，源极接 GNDU。脉冲计划与既有 PMU、Arb、DC 参数分别保存。当前支持单项运行。
+- 新增仪器端 KULT 源码及安装参数表。采用原厂 LPT `mpulse` 在仪器侧出脉冲并读取末端 V/I。DKTS 用 KXCI 核验模块 ABI、执行、匹配本次回执及读取原始列。导通和关断等待范围取 5–20,000 整毫秒。固定量程按物理模块及限流选择。取消走 AB，正常完成、失败或取消均在已出源路径执行安全关断，关断未核验阻断后续启动。LPT 返回后的仪器计时器与设定值有独立来源，过载标记保留原值及部分结果状态。
+- 区分 FS-Pro 常规 50 µs、高速套件建议 130 ns、Clarius SMU 脉冲 5 ms 和 PMU 采样时序。LPT 的 1 ms 示例属于单项示例。线性时间步进明确标记为只规划并禁用执行，时间 PMU 模式沿用实装通道校验。固定 SMU 的 WT/IN 和列表 DT 仍由 KXCI 执行。
+- `npm test` 289 通过、2 跳过、0 失败，原生插件及宿主测试通过。SMU 脉冲模拟覆盖：模块缺失不执行 EX，使用本次回执，V/I 原样及过载保存，停止 AB，关闭异常后的启动锁。使用模拟 LPT 头和实现以 C89 编译模块，验证范围检查、固定栅压、采集和错误复位。固定 DKDS 的桌面包安装逻辑验证 0.8.39 和 0.8.42 覆盖至 0.8.43 及回退。同源 Chromium 验证 SMU／PMU 选项及各自参数、50 µs 拦截、时间扫描执行权限和 1367／900／390 像素布局。
+- 交付网页、同提交干净源码 ZIP、Windows 0.8.43 本地覆盖插件及 4200A KULT 源码。未在实际 4200A 配套 KULT 编译安装，未核验该机 GD／EX／AB 响应、实测波形或断线关断。实体仪器须安装对应用户库后验收。

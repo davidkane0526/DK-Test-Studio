@@ -221,6 +221,15 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    return pending;
   };
  }
+ function smuPulsePorts(page,settings){
+  const port=logical=>page.terminals.find(row=>row.logical===logical)?.resource||'None';
+  const drain=port('D'),gate=settings.gate?port('G'):'None';
+  const invalid=[];
+  if(!/^SMU[1-8]$/.test(drain))invalid.push('D');
+  if(settings.gate&&(!/^SMU[1-8]$/.test(gate)||gate===drain))invalid.push('G');
+  if(port('S')!=='GNDU')invalid.push('S');
+  return {drain,gate,invalid};
+ }
  function pulseRouteMessage(issues,language){
   const english=language==='en',standalone=[],messages=[];
   for(const {logical,mapped,resource,code} of issues){
@@ -327,7 +336,14 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    try{
     let input;
     const pmuTime=page.kind==='time'&&page.timing.mode===model.TIME_PMU_MODE;
-    if(page.kind==='pulse'||pmuTime){
+    if(page.kind==='pulse'&&page.timing.testMode==='smu-sweep'){
+     const settings=model.timedSummary('pulse',page.timing);
+     const {drain,gate,invalid}=smuPulsePorts(page,settings);
+     if(invalid.length)throw Error('核对 SMU 脉冲端口：'+invalid.join('、')+'。活动漏极和栅极使用独立 SMU，源极使用 GNDU。');
+     const routes=protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,[drain,gate]);
+     if(routes.length)throw Error('本 SMU 脉冲模块需要 SMU 直连 DUT，暂不支持通过 RPM 输出');
+     input={executionMode:'smu-pulse',settings,drain,gate};
+    }else if(page.kind==='pulse'||pmuTime){
      const v=pmuTime?{...page.timing.pmu,rangeV:'auto'}:page.timing;
      const routing=pulseRouting(page,v);
      if(routing.issues.length)throw Error(pulseRouteMessage(routing.issues));
@@ -349,9 +365,10 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
      inventory:connection.inventory,capabilities:hardwareCapabilities
     });
     const protocolPolicy=hardwareCapabilities.DATABASE?.safetyPolicies?.kxci||{};
-    const protocolVerified=compiled.pulse?protocolPolicy.pmuModeManualVerified===true&&protocolPolicy.allowPulseModeOutput===true&&(!compiled.pulse.arb||protocolPolicy.segmentArbManualVerified===true&&protocolPolicy.allowSegmentArbOutput===true):compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true&&(!(compiled.system.timeList?.multiChannel||compiled.system.dcList?.multiChannel)||protocolPolicy.allowMultiChannelListOutput===true):protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
+    const protocolVerified=compiled.smuPulse?protocolPolicy.smuPulseKultManualVerified===true&&protocolPolicy.allowSmuPulseOutput===true:compiled.pulse?protocolPolicy.pmuModeManualVerified===true&&protocolPolicy.allowPulseModeOutput===true&&(!compiled.pulse.arb||protocolPolicy.segmentArbManualVerified===true&&protocolPolicy.allowSegmentArbOutput===true):compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true&&(!(compiled.system.timeList?.multiChannel||compiled.system.dcList?.multiChannel)||protocolPolicy.allowMultiChannelListOutput===true):protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
     let reason='';
-    if(!protocolVerified)reason=compiled.pulse?'当前策略未开放此 PMU 模式的实机输出':'Rev F 已取得；当前执行模式尚未取得输出许可';
+    if(!protocolVerified)reason=compiled.smuPulse?'当前策略未开放 KULT SMU 脉冲输出':compiled.pulse?
+     '当前策略未开放此 PMU 模式的实机输出':'Rev F 已取得；当前执行模式尚未取得输出许可';
     else if(!executionAdapterAvailable)reason='当前 DKDS 宿主缺少生命周期管理的查询/停止调度器';
     else if(!compiled.physicalVerified)reason='实际模块型号、序列号或附件身份尚未完整核验';
     else if(!compiled.capabilityVerified)reason='一个或多个活动 SMU 的额定值尚未核验';
@@ -365,7 +382,8 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
   }
   function prepareRoutine(pages,repeat){
    if(!Array.isArray(pages)||!pages.length||runner.status(0).running)return {ready:false,canExecute:false,reason:'流程为空或仪器正在执行'};
-   try{const stages=pages.map(page=>{const p=prepare(page);if(!p.canExecute)throw Error(page.name+'：'+(p.reason||'执行前检查失败'));if(!p.compiled.system&&!p.compiled.pulse)throw Error(page.name+'：流程当前仅支持仪器原生执行');return {input:p.input,scope:{pageId:page.id,routineId:page.routineId,pageName:page.name}};});
+   try{const stages=pages.map(page=>{const p=prepare(page);if(!p.canExecute)throw Error(page.name+'：'+(p.reason||'执行前检查失败'));if(p.compiled.smuPulse)throw Error(page.name+'：SMU 脉冲请单项运行');
+    if(!p.compiled.system&&!p.compiled.pulse)throw Error(page.name+'：流程当前仅支持仪器原生执行');return {input:p.input,scope:{pageId:page.id,routineId:page.routineId,pageName:page.name}};});
     const input={executionMode:'routine',repeat,stages},c=controller.status(),compiled=measurement.compileSweep(input,{inventory:c.inventory,capabilities:hardwareCapabilities});return {ready:true,canExecute:compiled.canExecute,pointCount:compiled.totalPoints,input,compiled};
    }catch(e){return {ready:false,canExecute:false,reason:String(e.message||e)};}
   }
@@ -445,7 +463,8 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    const connection=controller.status(),serial=connection.identity.serial;
    const runId='dkts-kxci-'+Date.now()+'-'+(++runSequence);
    controller.clearMeasurementTrace();
-   const initial=runner.start(prepared.input,{
+   const input=prepared.compiled.smuPulse?{...prepared.input,token:(Date.now()+runSequence)%2147483646+1}:prepared.input;
+   const initial=runner.start(input,{
     inventory:connection.inventory,capabilities:hardwareCapabilities
    },'CONFIRM_WIRING_AND_OUTPUT');
    monitorTask=monitor(runId,serial,connection.route,{pageId:page.id,routineId:page.routineId,pageName:page.name});
@@ -488,6 +507,6 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    currentRanges:(resource,voltagePeaks)=>hardwareCapabilities.verifiedCurrentRanges(
     controller.status(),resource,voltagePeaks)});
  }
- const api=Object.freeze({createRuntime,pageToSweepProgram,pageToBasicProgram,pulseRouteMessage});
+ const api=Object.freeze({createRuntime,pageToSweepProgram,pageToBasicProgram,pulseRouteMessage,smuPulsePorts});
  window.DKDSPluginModules.define(OWNER,'measurementRuntime',api,{replace:true});
 })();

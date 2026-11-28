@@ -554,6 +554,123 @@ function compileSegmentArbPair(input,hardware){
  const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,y.countQuery],cleanup:[x.offCommand,y.offCommand,':PMU:ABORT'],channels:[x,y],resources:[x.resource,y.resource],peak:Math.max(x.peak,y.peak),estimatedRecords:x.estimatedRecords+y.estimatedRecords};
  return {...a,pulse,channels:{...a.channels,...b.channels},active:[...a.active,...b.active],totalPoints:pulse.estimatedRecords,requiresInterlock:a.requiresInterlock||b.requiresInterlock,canExecute:a.canExecute&&b.canExecute};
 }
+const SMU_PULSE_MODULE='DKTSsmu Smupulse';
+const SMU_PULSE_DESCRIPTION='GD '+SMU_PULSE_MODULE;
+const SMU_PULSE_ABI=/\bDKTS_SMU_PULSE_ABI_1\b/;
+function compileSmuPulse(input,hardware){
+ const {inventory,capabilities}=hardware,v=input.settings;
+ const check=(valid,message)=>{if(!valid)throw Error(message);};
+ const {start,stop,points,onMs,offMs,gateV,drainLimitA,gateLimitA}=v;
+ const token=input.token??1;
+ check(Number.isInteger(token)&&token>=1&&token<=2147483647,'SMU 脉冲回执无效');
+ check(Number.isInteger(points)&&points>=1&&points<=256&&Number.isFinite(start)&&Number.isFinite(stop)&&
+  (points===1?start===stop:start!==stop),'SMU 脉冲扫描范围或点数无效');
+ check([onMs,offMs].every(ms=>Number.isInteger(ms)&&ms>=5&&ms<=20000)&&points*(onMs+offMs)<=120000,'SMU 脉冲等待参数无效');
+ const selected=(resource,peak,limit)=>{
+  const channel=/^SMU[1-8]$/.test(resource)?channelNumber(resource):null;
+  const slot=inventory?.slots?.find(item=>item.family==='SMU'&&item.channel===channel);
+  check(channel&&slot?.physicalIdentityVerified===true&&slot.ratingsVerified===true,resource+' 需要实装 SMU 身份与额定值核验');
+  check(Number.isFinite(peak)&&Math.abs(peak)<=21&&Number.isFinite(limit)&&limit>0&&limit<=1,'SMU 脉冲电压或限流超限');
+  const limits=capabilities.getSmuLimits(slot,peak,limit);
+  const electrical=capabilities.getModuleCapability(limits.moduleType)?.electrical;
+  const current=limits.availableCurrentRangesA?.find(range=>range>=limit&&limit>=range*electrical.complianceMinFractionOfRange);
+  check(limits.known&&!limits.requiresInterlock&&current,'SMU 脉冲需选择可覆盖限流的固定电流档');
+  return {channel,rangeV:limits.voltageRangeNominalV,rangeA:current};
+ };
+ const drain=selected(input.drain,Math.max(Math.abs(start),Math.abs(stop)),drainLimitA);
+ const gate=v.gate?selected(input.gate,gateV,gateLimitA):null;
+ check(!gate||gate.channel!==drain.channel,'SMU 脉冲漏极和栅极须使用不同端口');
+ const inputs=[drain.channel,gate?.channel||0,start,stop,points,onMs,offMs,gate?gateV:0,
+  drainLimitA,drain.rangeV,drain.rangeA,gate?gateLimitA:0,gate?.rangeV||0,gate?.rangeA||0,token];
+ const numerics=inputs.map(systemNumber);
+ check([8,11].every(i=>Number(numerics[i])<=inputs[i]),'限流无法按 KXCI 数值格式无上调地表示');
+ const moduleExecute='EX '+SMU_PULSE_MODULE+'('+[...numerics,'',points,'',points,'',points,''].join(',')+')';
+ const reads=['GN receipt',...['vd','id','elapsed'].map(name=>'GN '+name+' '+points)];
+ const smuPulse={setup:['UL',moduleExecute],reads:[SMU_PULSE_DESCRIPTION,...reads],cleanup:['AB','DE','SS','ZE'],rdNames:[],count:points,
+  moduleExecute,receipt:reads[0],columns:reads.slice(1),token,start,stop,gateV:gate?gateV:null,
+  resources:[input.drain,...(gate?[input.gate]:[])],peak:Math.max(Math.abs(start),Math.abs(stop),gate?Math.abs(gateV):0),
+  currentPeak:Math.max(drainLimitA,gate?gateLimitA:0)};
+ const physicalVerified=inventory?.physicalModelsVerified===true&&inventory.hardwareLimitsVerified===true;
+ const channels={drain:drain.channel,...(gate?{gate:gate.channel}:{})};
+ return {plan:{kind:'pulse'},smuPulse,channels,active:Object.keys(channels),totalPoints:points,physicalVerified,
+  capabilityVerified:true,requiresInterlock:false,canExecute:physicalVerified,commandMode:'KXCI-SMU-PULSE-KULT'};
+}
+function smuPulseValues(raw,count){
+ const values=String(raw).trim().replace(/;\s*$/,'').split(';').map(literal=>parseSystemValues(literal));
+ if(values.length!==count||values.some(items=>items.length!==1))throw Error('SMU 脉冲实测列点数不一致');
+ return values.map(items=>items[0]);
+}
+async function executeSmuPulseTask(p,io){
+ const {command,wait,cancelled,onBatch}=io;
+ let switched=false,attempted=false,idle=false,state='completed',shutdown='not-started',error='';
+ const append=e=>{error+=(error?'；':'')+String(e.message||e);};
+ const status=async()=>{
+  const flags=parseStatusByte(await command('SP',true));
+  if(flags.syntaxError)throw Error('SMU 脉冲指令状态异常 SP='+flags.value);
+  return flags;
+ };
+ const waitIdle=async(seconds,stopDuringWait)=>{
+  const deadline=Date.now()+seconds*1000;
+  for(let checks=0;checks<seconds*5&&Date.now()<deadline;checks++){
+   if(stopDuringWait&&cancelled())return false;
+   if(!(await status()).busy)return true;
+   await wait(200);
+  }
+  throw Error('等待 SMU 脉冲仪器空闲超时');
+ };
+ try{
+  if((await status()).busy)throw Error('4200A 正在执行其他测试');
+  if(cancelled())return {state:'stopped',shutdown,error};
+  switched=true;
+  await command('UL');await status();
+  const description=await command(SMU_PULSE_DESCRIPTION,true).catch(()=>{throw Error('未读到 DKTSsmu/Smupulse。请在 4200A 上用 KULT 安装并构建 DKTS SMU 脉冲模块。');});
+  if(!SMU_PULSE_ABI.test(description))throw Error('4200A 上的 DKTSsmu/Smupulse 版本或接口未核验');
+  if(!cancelled()){
+   attempted=true;
+   await command(p.moduleExecute);
+   idle=await waitIdle(180,true);
+   if(idle&&!cancelled()){
+    const [receipt]=smuPulseValues(await command(p.receipt,true),1);
+    if(receipt.value!==p.token)throw Error('SMU 脉冲没有返回本次运行的关断回执');
+    const columns=[];
+    for(const query of p.columns)columns.push(smuPulseValues(await command(query,true),p.count));
+    const [voltage,current,elapsed]=columns;
+    if(elapsed.some(({value},i)=>value<0||(i&&value<elapsed[i-1].value)))throw Error('SMU 脉冲仪器时间无效');
+    if(!cancelled()){
+     const rows=elapsed.map((time,i)=>{
+      const v=voltage[i],a=current[i],drainVoltageV=Math.abs(v.value)<1e20?v.value:null,drainCurrentA=Math.abs(a.value)<1e20?a.value:null;
+      return {sequence:i+1,cycle:1,point:i+1,timeS:time.value,timeOrigin:'instrument-after-mpulse',
+       source:'4200A-KXCI-SMU-PULSE',measurementCompleteness:drainVoltageV===null||drainCurrentA===null?'partial':'complete',
+       measurementStatus:'unknown',drainVoltageV,drainCurrentA,plannedDrainVoltageV:i===p.count-1?p.stop:p.start+(p.stop-p.start)*i/(p.count-1),
+       ...(p.gateV===null?{}:{plannedGateVoltageV:p.gateV}),
+       rawKxciResponse:[v.literal,a.literal,time.literal].join(';')};
+     });
+     onBatch(rows);
+    }
+   }
+  }
+  if(cancelled())state='stopped';
+ }catch(e){state='failed';append(e);}
+ finally{
+  if(attempted){
+   let safe=true;
+   if(!idle){
+    try{await command('AB');await waitIdle(15,false);}
+    catch(e){safe=false;append(e);}
+   }
+   for(const cmd of ['DE','SS','ZE']){
+    try{await command(cmd);if((await status()).busy)throw Error('关闭 SMU 时仪器仍忙');}
+    catch(e){safe=false;append(e);}
+   }
+   shutdown=safe?'commands-sent':'unconfirmed';
+   if(!safe)state='failed';
+  }else if(switched){
+   try{await command('DE');await status();}
+   catch(e){state='failed';append(e);}
+  }
+ }
+ return {state,shutdown,error};
+}
 function compileNativeSequence(input,hardware){
  const repeat=Number(input.repeat),entries=input.stages;
  if(!Number.isSafeInteger(repeat)||repeat<1||repeat>10000||!Array.isArray(entries)||!entries.length)throw Error('流程循环或测试页无效');
@@ -595,6 +712,7 @@ async function executeNativeSequence(compiled,io){
 }
   function compileSweep(input,hardware={}){
     if(input.executionMode==='routine')return compileNativeSequence(input,hardware);
+    if(input.executionMode==='smu-pulse')return compileSmuPulse(input,hardware);
     if(input.executionMode==='pulse'){
       const mode=input.settings?.testMode;
       if(mode==='bias-steps')return compileSegmentArb(input,hardware);
@@ -734,9 +852,11 @@ function parseTv(raw,channel){
     }
     async function executeNative(j,lease){
       try{
-        const program=j.compiled.pulse||j.compiled.system;
+        const {smuPulse,pulse,system}=j.compiled;
+        const program=smuPulse||pulse||system;
         controller.beginSystemProgram(program);
-        const result=await (j.compiled.pulse?executePulseTask:executeSystemTask)(program,{command,wait,cancelled:()=>j.cancelled,
+        const task=smuPulse?executeSmuPulseTask:pulse?executePulseTask:executeSystemTask;
+        const result=await task(program,{command,wait,cancelled:()=>j.cancelled,
           onBatch:rows=>{j.rows.push(...rows);try{onProgress(publicState(0));}catch{}},
           onPreview:rows=>{j.previewRows=rows.slice();try{onProgress(publicState(0));}catch{}}});
         Object.assign(j,result);
@@ -752,7 +872,7 @@ function parseTv(raw,channel){
     }
     async function execute(j,lease){
       if(j.compiled.stages)return executeRoutine(j,lease);
-      if(j.compiled.system||j.compiled.pulse)return executeNative(j,lease);
+      if(j.compiled.system||j.compiled.pulse||j.compiled.smuPulse)return executeNative(j,lease);
       const plan=j.compiled.plan;
       const lastCommands=Object.create(null);
       let previousP=null,timeOrigin=null;
@@ -942,12 +1062,14 @@ function parseTv(raw,channel){
           throw Error(context+'当前策略未开放 System Mode 实机输出');
       }
       if(compiled.pulse)checkPulsePolicy(compiled.pulse);
+      if(compiled.smuPulse&&!(policy.smuPulseKultManualVerified&&policy.allowSmuPulseOutput))
+       throw Error('当前策略未开放 KULT SMU 脉冲输出');
       if(!compiled.capabilityVerified||!compiled.physicalVerified)
         throw Error('实际模块型号及其理论额定值尚未完整核验');
       if(compiled.requiresInterlock)
         throw Error('该方案需要硬件高压互锁，尚未实现互锁状态的可靠读取');
       // No implicit partial plan override and no software-derived measurement.
-      const needsWait=Boolean(compiled.stages)||Boolean(compiled.pulse)||Boolean(compiled.system)||Boolean(compiled.timeProgram)||compiled.plan.xSweep.delayMs>0||
+      const needsWait=Boolean(compiled.stages)||Boolean(compiled.pulse)||Boolean(compiled.smuPulse)||Boolean(compiled.system)||Boolean(compiled.timeProgram)||compiled.plan.xSweep.delayMs>0||
         compiled.plan.xSweep.segments.some(s=>(s.delayMs||0)>0)||
         Boolean(compiled.plan.pSweep&&(compiled.plan.pSweep.delayMs>0||
           compiled.plan.pSweep.segments.some(s=>(s.delayMs||0)>0)));

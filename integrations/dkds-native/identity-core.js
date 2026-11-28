@@ -138,7 +138,7 @@
       const pulseChannels=program.pulseChannel?(program.channels||[program]):[];
       systemProgram={
         commands:new Set([...program.setup,...reads,...program.cleanup,'ME1','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET']),
-        reads,rdNames:new Set(program.rdNames),count:program.count,
+        reads,rdNames:new Set(program.rdNames),count:program.count,moduleExecute:program.moduleExecute,
         pulseFields:new Map(pulseChannels.map(channel=>[channel.pulseChannel,channel.fields]))
       };
       if(program.pulseChannel)systemProgram.commands.add(':PMU:EXECUTE');
@@ -188,7 +188,8 @@
         if(cmd!==':ERROR:LAST:GET'&&(raw.toUpperCase()==='ACK'||!raw&&!blockAllowed))throw Error('查询未返回数据');
         return raw;
        }
-       if(raw.toUpperCase()!=='ACK')throw Error('未收到 ACK：'+raw);
+       if(raw.toUpperCase()!=='ACK'&&!(cmd===systemProgram?.moduleExecute&&/^[+-]?(?:0+(?:\.0*)?|\.0+)(?:E[+-]?\d+)?$/i.test(raw)))
+        throw Error('未收到 ACK 或成功状态：'+raw);
        return '';
       }catch(error){item.error=String(error?.message||error);throw Error(cmd+'：'+item.error);}
       finally{item.durationMs=Date.now()-started;trace.push(item);if(trace.length>256)trace.shift();}

@@ -53,3 +53,9 @@
 - LabExpress 2022.01 IVT 第 42–43 页的项目转录记录了 Time Xsweep、Switching Step、Sampling Step 与 Table Input。转录没有列出一对单独的首点前和读数后等待字段。当前可读资料不能确认 LabExpress 在其他页面是否提供对应设置。FS-Pro 的时域采样按时间网格描述，DKTS 的 SMU 兼容路径按 Keithley 固定偏置指令描述。 [LabExpress 结构转录](reference/4200a/FSPro_UI_Replica_Implementation_V6.extracted.md) · [概伦 FS-Pro 产品资料](https://www.primarius-tech.com/uploads/20230307/EN_FS-Pro.pdf)
 - 固定偏置的 WT 从设定偏置后算到首读，IN 从一笔读数完成算到下一笔开始。列表的 DT 表示每点稳定等待。设为 0 可省略对应的额外等待。实际点间时间包含积分及读出，由仪器时间戳确定。线性步进可在偏置表编排各段保持时间，在目标中设读数起点。 [KXCI Rev F，第 5-13、5-28、5-30 页](https://download.tek.com/manual/4200A-KXCI-907-01F_Sept2026.pdf)
 - 线性步进的计划采样网格每周期须为 1–65,536 点。这是 DKTS 的离线容量。采样频率和步长共享同一校验，超限格标记在当前字段与「方案校验」，旧超限项目可打开后更正。
+
+## 2026-11-29 · SMU 脉冲和时间扫描边界
+
+- `Pulse I–V · SMU` 由已安装的 4200A KULT 用户模块执行 LPT `mpulse`。本版本采用 5–20,000 整毫秒的开/关设定，5 ms 取 Clarius SMU Pulse Mode 的导通时间下限作初次验收范围。LPT 示例包含 1 ms，手册没有给 50 µs 的标准 SMU 有效采样保证。漏极 V/I 在脉冲结束前测得，点时间由模块在返回后查询仪器计时器。 [SMU 手册第 3 章](https://www.tek.com/en/-/media/documents/4200a-smu-900-01a_dec_2020.pdf) · [LPT Rev D](https://download.tek.com/manual/4200A-LPT-907-01D_LPT_May_2024.pdf)
+- 概伦数据表把常规 Pulse IV 的 50 µs 与高速波形套件的建议最短 130 ns 分开。4200A 使用 4225-PMU 时，Tektronix 给出带测量最短 60 ns（10 V 档）和 140 ns（40 V 档）的时序规格。电流档、负载、稳定时间和所需有效采样窗口会限制具体测试的最短脉宽。 [FS-Pro 数据表](https://www.primarius-tech.com/uploads/20230307/EN_FS-Pro.pdf#page=2) · [4200A-SCS 数据表](https://download.tek.com/datasheet/1KW-60780-6_4200A-SCS_Parameter_Analyzer_Datasheet_050724.pdf)
+- 时间扫描的「线性步进 · 计划」保留独立的切换步长和计划采样网格，界面禁用实机运行。SMU 时间偏置固定模式的 WT 和 IN 分别作用于首读前和读数结束后。列表模式的 DT 是逐点稳定等待。实测的间隔还包括积分与设备操作。以 IT1 的 0.1 PLC 为例，50/60 Hz 线频下积分时间分别约 2/1.67 ms。PMU 分段脉冲由实装 4225-PMU 的采样时钟执行，仍需检查段、量程、采集窗口和缓冲。 [KXCI Rev F 第 5、7 章](https://download.tek.com/manual/4200A-KXCI-907-01F_Sept2026.pdf)

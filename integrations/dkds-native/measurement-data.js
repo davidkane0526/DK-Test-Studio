@@ -58,14 +58,19 @@
    throw Error('No actual KXCI samples to publish');
   for(let i=0;i<rows.length;i++){
    const row=rows[i];
-   const pulse=row?.source==='4200A-KXCI-PMU';
-   if(!['4200A-KXCI-TI','4200A-KXCI-DO','4200A-KXCI-RD','4200A-KXCI-PMU'].includes(row?.source)||row.sequence!==i+1||
-      !Number.isFinite(row.timeS)||!(pulse?Number.isFinite(row.pulseVoltageV)&&Number.isFinite(row.pulseCurrentA):Number.isFinite(row.drainCurrentA)&&(Number.isFinite(row.drainVoltageV)||row.source==='4200A-KXCI-TI'&&row.measurementCompleteness==='partial'))||!row.rawKxciResponse||
+   const pulse=row?.source==='4200A-KXCI-PMU',smuPulse=row?.source==='4200A-KXCI-SMU-PULSE';
+   const partial=row?.measurementCompleteness==='partial';
+   const hasSmuValues=(Number.isFinite(row?.drainCurrentA)||smuPulse&&partial&&row?.drainCurrentA===null)&&
+    (Number.isFinite(row?.drainVoltageV)||partial&&['4200A-KXCI-TI','4200A-KXCI-SMU-PULSE'].includes(row?.source));
+   if(!['4200A-KXCI-TI','4200A-KXCI-DO','4200A-KXCI-RD','4200A-KXCI-PMU','4200A-KXCI-SMU-PULSE'].includes(row?.source)||row.sequence!==i+1||
+      !Number.isFinite(row.timeS)||!(pulse?Number.isFinite(row.pulseVoltageV)&&Number.isFinite(row.pulseCurrentA):hasSmuValues)||!row.rawKxciResponse||
       !['complete','partial'].includes(row.measurementCompleteness))
     throw Error('Malformed/mixed/synthetic KXCI original record at '+(i+1));
   }
   const pulseRun=rows[0].source==='4200A-KXCI-PMU';
-  if(rows.some(row=>(row.source==='4200A-KXCI-PMU')!==pulseRun))throw Error('Mixed SMU and PMU records require separate tables');
+  if(rows.some(row=>(row.source==='4200A-KXCI-PMU')!==pulseRun||
+    (row.source==='4200A-KXCI-SMU-PULSE')!==(rows[0].source==='4200A-KXCI-SMU-PULSE')))
+   throw Error('Mixed pulse acquisition sources require separate tables');
   if(pulseRun&&rows.some(row=>row.pulseResource!==rows[0].pulseResource||row.pulseMode!==rows[0].pulseMode||row.pulseProgram!==rows[0].pulseProgram))throw Error('Mixed pulse channels or acquisition modes require separate tables');
   // Numeric acquisition channels stay in original units. Missing measurements
   // are NaN in the numeric DataTable; their null/status/response information
@@ -88,7 +93,7 @@
    transient:false,
    source:source||{name:'KI4200A '+instrument},
    metadata:{instrument:'KI4200A',instrumentSerial:instrument,
-    rawInstrumentResponse:true,...(pulseRun?{}:{pointStatus:statusSummary(rows)}),timeOrigin:pulseRun||rows[0].source!=='4200A-KXCI-TI'?'instrument':'host-elapsed',...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode,pulseProgram:rows[0].pulseProgram||'pulse-sweep'}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
+    rawInstrumentResponse:true,...(pulseRun?{}:{pointStatus:statusSummary(rows)}),timeOrigin:rows[0].source==='4200A-KXCI-SMU-PULSE'?'instrument-after-mpulse':pulseRun||rows[0].source!=='4200A-KXCI-TI'?'instrument':'host-elapsed',...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode,pulseProgram:rows[0].pulseProgram||'pulse-sweep'}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
     acquisition:{runId:id,timestamp:String(startedAt||''),
      finishedAt:String(finishedAt||''),runState,sequenceIndex:0,
      provenance:'kxci-native-acquisition'},

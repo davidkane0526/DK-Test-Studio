@@ -321,6 +321,21 @@ const ctx={
  assert.equal(pulseTiming().secondary.role,'psweep');
  gatePulseRole().spec.onChange({target:{value:'condition'}});
  assert.equal(arbitraryField('secondary.conditionV').control.value,'1.2');
+ pulseType().spec.onChange({target:{value:'pulse-smu'}});
+ assert.equal(pulseTiming().testMode,'smu-sweep');
+ const on=arbitraryField('smu.onMs');
+ assert.equal(on.control.value,'5');
+ const smuPulseRun=record.actions.findLast(row=>row.id==='dkts-run-'+state.activeId);
+ on.spec.onInput({target:{value:'0.05'}});
+ assert.equal(smuPulseRun.element.disabled,true);
+ assert.match(smuPulseRun.element.title,/5–20,000/);
+ on.spec.onInput({target:{value:'10'}});
+ assert.equal(smuPulseRun.element.disabled,false);
+ assert.equal(pulseTiming().smu.onMs,'10');
+ pulseType().spec.onChange({target:{value:'pulse'}});
+ assert.equal(arbitraryField('secondary.conditionV').control.value,'1.2');
+ pulseType().spec.onChange({target:{value:'pulse-smu'}});
+ assert.equal(arbitraryField('smu.onMs').control.value,'10');
  // Adding a DC test exposes its own controls and retains the existing I–V test.
  const oldIv=JSON.stringify(state.pages[0]);
  const beforeDc=record.fields.length;
@@ -336,7 +351,7 @@ const ctx={
   ['Linear Step','Linear Points','Log Points','List']);
  methodFor('D').spec.onChange({target:{value:'points'}});
  const preset=dcFields.find(row=>row.spec.attributes?.['data-dkts-dc-field']==='preset');
- assert.deepEqual(Array.from(preset.spec.options,option=>option.value),['optimized','point-by-point','pulse']);
+ assert.deepEqual(Array.from(preset.spec.options,option=>option.value),['optimized','point-by-point','pulse-smu','pulse']);
  preset.spec.onChange({target:{value:'point-by-point'}});
  assert.ok(record.fields.some(row=>row.spec.attributes?.['data-dkts-dc-field']==='range'&&row.control.value==='auto'));
  const dcPoints=record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='points');
@@ -398,6 +413,9 @@ const ctx={
  assert.ok(!record.fields.slice(beforeTime).some(isSwitchStep));
  const beforeLinearPlan=record.fields.length;
  fieldAt('mode').spec.onChange({target:{value:'linear-step'}});
+ const timeRun=record.actions.findLast(row=>row.id==='dkts-run-'+state.activeId).element;
+ assert.equal(timeRun.disabled,true);
+ assert.match(timeRun.title,/线性步进仅用于规划/);
  assert.ok(record.fields.slice(beforeLinearPlan).some(isSwitchStep));
  assert.ok(!record.fields.slice(beforeLinearPlan).some(row=>row.spec.attributes?.['data-dkts-dc-field']==='time-stop'));
  const timeField=key=>record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']===key);
