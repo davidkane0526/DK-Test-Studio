@@ -2881,6 +2881,32 @@
    wiringPreferences.set({profile:JSON.stringify(profile)});
    ctx.status.set(tr('已保存 RPM 接线。','RPM wiring saved.'));
   }
+  async function runSelfTest(){
+   // Query-only: SP, *IDN?, ID, *OPT?, error queue and one unsupported-command
+   // probe. No source or measure command is sent, so no output gate applies.
+   if(!instrumentIdle())return;
+   const go=await ctx.ui.dialogs.confirm({title:tr('KXCI 自检','KXCI self-check'),
+    message:tr('只发送查询类指令（SP、*IDN?、ID、*OPT?、错误队列）和一条不支持的探测指令，用于确认手册未写明的回复格式。不会打开任何输出。','Sends query-only commands (SP, *IDN?, ID, *OPT?, error queue) plus one unsupported probe command to confirm reply formats the manual leaves open. No output is enabled.'),
+    confirmLabel:tr('开始','Start'),cancelLabel:t('取消')});
+   if(!go)return;
+   instrumentBusy=true;syncInstrumentButtons();
+   try{
+    ctx.status.set(tr('正在执行 KXCI 自检…','Running KXCI self-check…'));
+    const report=await measurementRuntime.selfTest();
+    const mark={pass:'✓',warn:'!',fail:'✗'};
+    const lines=report.findings.map(f=>mark[f.status]+' '+f.summary+(f.raw?'  ['+String(f.raw).slice(0,80)+']':''));
+    const verdict={pass:tr('全部通过','All passed'),warn:tr('通过，有提示','Passed with notes'),fail:tr('存在不符项','Mismatches found')}[report.status];
+    ctx.status.set(tr('KXCI 自检：','KXCI self-check: ')+verdict);
+    const action=await ctx.ui.dialogs.show({title:tr('KXCI 自检 · ','KXCI self-check · ')+verdict,message:report.serial+' · '+report.ranAt,
+     detail:lines.join('\n'),detailOpen:true,defaultAction:'close',cancelAction:'close',
+     actions:[{id:'close',label:tr('关闭','Close'),kind:'secondary'},{id:'save',label:tr('导出原始记录 CSV','Export raw CSV'),kind:'secondary'}]});
+    if(action==='save'){
+     const rows=report.entries.map(e=>({step:e.id,command:e.command,response:e.response,frameHex:e.frameHex,error:e.error,durationMs:e.durationMs}));
+     await ctx.io.saveCsv(rows,'DKTS_KXCI_SelfTest_'+(report.serial||'4200A')+'.csv');
+    }
+   }catch(error){ctx.status.set(tr('KXCI 自检失败：','KXCI self-check failed: ')+String(error.message||error));}
+   finally{instrumentBusy=false;render();}
+  }
   async function showInstrumentDetails(connection){
    const inv=connection.inventory,system=inv?.systemInfo;
    const records=[...(inv?.instrumentInfoRecords||[]),...(inv?.remoteModuleInfoRecords||[])];
@@ -2904,12 +2930,13 @@
      const result=await ctx.ui.dialogs.show({
       title,message:[connection.identity.serial,route?.remoteAddress&&route.remoteAddress+':'+route.remotePort].filter(Boolean).join(' · '),
       detail,detailOpen:true,defaultAction:'cancel',cancelAction:'cancel',
-      actions:[{...cancel,label:tr('关闭','Close')},{id:'modules',label:tr('模块与校准','Modules & calibration'),kind:'secondary'},{id:'wiring',label:tr('接线','Wiring'),kind:'secondary'},advanced,{id:'disconnect',label:tr('断开','Disconnect'),kind:'secondary'}]
+      actions:[{...cancel,label:tr('关闭','Close')},{id:'modules',label:tr('模块与校准','Modules & calibration'),kind:'secondary'},{id:'wiring',label:tr('接线','Wiring'),kind:'secondary'},{id:'selftest',label:tr('KXCI 自检','KXCI self-check'),kind:'secondary'},advanced,{id:'disconnect',label:tr('断开','Disconnect'),kind:'secondary'}]
      });
      if(result==='disconnect')await disconnectInstrument();
      else if(result==='advanced')connectionSettings.open();
      else if(result==='modules')await showInstrumentDetails(connection);
      else if(result==='wiring')await configureWiring(connection);
+     else if(result==='selftest')await runSelfTest();
      return;
     }
     const session=await measurementRuntime.currentTcp();

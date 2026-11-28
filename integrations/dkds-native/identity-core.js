@@ -144,10 +144,39 @@
       if(program.pulseChannel)systemProgram.commands.add(':PMU:EXECUTE');
     }
     function endSystemProgram(){systemProgram=null;}
+    // Query-only commissioning probe. Fixed command list from the protocol
+    // module; never a UI-supplied string and never a source/measure command.
+    let selfTestPending=null;
+    async function selfTest(){
+      if(selfTestPending)return selfTestPending;
+      if(phase!=='connected'||!connection||!identity||pending||inventoryPending||verificationPending)throw Error('必须先验证 4200A 仪器身份');
+      if(systemProgram)throw Error('测量进行中，不能执行自检');
+      if(!Array.isArray(protocol.SELF_TEST_PLAN)||typeof protocol.assessSelfTest!=='function')throw Error('当前 KXCI 协议不支持自检');
+      const id=connection.sessionId;
+      const task=(async()=>{
+        const entries=[];
+        for(const step of protocol.SELF_TEST_PLAN){
+          const item={id:step.id,command:step.command,response:'',frameHex:'',error:'',durationMs:0},started=Date.now();
+          try{
+            const answer=await tcp.exchange({sessionId:id,base64:btoa(step.command+'\0'),responseTerminator:'nul',noReply:false,
+              readTimeoutMs:settings?.timeoutMs||5000,idleTimeoutMs:step.reply?120:30,maxBytes:8192});
+            if(connection?.sessionId!==id)throw Error('自检期间连接发生变化');
+            const frame=atob(answer.base64||'');
+            item.frameHex=Array.from(frame,ch=>ch.charCodeAt(0).toString(16).padStart(2,'0')).join(' ');
+            item.response=decodeKxciFrame(answer.base64);
+          }catch(error){item.error=String(error?.message||error);}
+          finally{item.durationMs=Date.now()-started;entries.push(Object.freeze(item));trace.push({command:step.command,sentAt:new Date().toISOString(),response:item.response,error:item.error,durationMs:item.durationMs});if(trace.length>256)trace.shift();}
+          if(connection?.sessionId!==id)break;
+        }
+        const assessment=protocol.assessSelfTest(entries,identity?.serial||'');
+        return Object.freeze({...assessment,serial:identity?.serial||'',route:status().route,ranAt:new Date().toISOString(),transport:'raw-tcp-nul',entries:Object.freeze(entries)});
+      })();
+      selfTestPending=task;try{return await task;}finally{if(selfTestPending===task)selfTestPending=null;}
+    }
     function measurementTrace(){return trace.map(x=>({...x}));}
     function clearMeasurementTrace(){trace.length=0;}
     async function measurementExchange(text,expectReply=false){
-      if(phase!=='connected'||!connection||!identity||inventoryPending||verificationPending||
+      if(phase!=='connected'||!connection||!identity||inventoryPending||verificationPending||selfTestPending||
          inventory?.physicalModelsVerified!==true||
          inventory?.hardwareLimitsVerified!==true)
         throw Error('仪器及物理模块尚未完成身份核验');
@@ -195,7 +224,7 @@
     }
     async function disconnect(){if(inventoryPending)await inventoryPending.catch(()=>{});if(pending)await pending.catch(()=>{});if(verificationPending)await verificationPending.catch(()=>{});await closeCurrent();phase='disconnected';diagnostic='';settings=null;return status();}
     async function dispose(){await disconnect();tcp.closeAll?.();}
-    return Object.freeze({connect,inspectModules,verifyLiveConnection,disconnect,status,dispose,measurementExchange,measurementTrace,clearMeasurementTrace,beginSystemProgram,endSystemProgram});
+    return Object.freeze({connect,inspectModules,verifyLiveConnection,disconnect,status,dispose,measurementExchange,measurementTrace,clearMeasurementTrace,beginSystemProgram,endSystemProgram,selfTest});
   }
   const api=Object.freeze({createIdentityController,normalizeSettings,summarizeError});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-identity-core',api);

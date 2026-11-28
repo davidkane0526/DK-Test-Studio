@@ -425,6 +425,11 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
     throw Error('SMU 输出关闭未获确认。为避免失去仪器控制连接，软件拒绝断开；请立即在仪器现场检查并手动关闭输出。');
    const result=await controller.disconnect();notify('disconnected');return result;
   }
+  async function selfTest(){
+   if(disposed)throw Error('运行时已关闭');
+   if(runner.status(0).running)throw Error('测量进行中，不能执行自检');
+   const result=await controller.selfTest();notify('self-test-finished',{selfTest:result});return result;
+  }
   function waitForCompletion(){return monitorTask||Promise.resolve(null);}
   async function dispose(){
    if(disposed)return;
@@ -434,7 +439,7 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    await controller.dispose();
    disposed=true;
   }
-  return Object.freeze({connect,inspectModules,connectAndInspect,checkConnection,disconnect,
+  return Object.freeze({connect,inspectModules,connectAndInspect,checkConnection,disconnect,selfTest,
    currentTcp:()=>hasShared()?shared('current'):null,
    prepare,prepareRoutine,start,startRoutine,stop,status,waitForCompletion,dispose,setTopologyProfile,confirmWiring,resolvePulsePort,
    currentRanges:(resource,voltagePeaks)=>hardwareCapabilities.verifiedCurrentRanges(

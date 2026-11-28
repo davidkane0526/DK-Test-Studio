@@ -283,7 +283,56 @@ function parseSystemInfo(value,serial){
  if(serial&&fields.serialno!==serial)throw Error('系统信息序列号不匹配');
  return Object.freeze({serial:fields.serialno,softwareVersion:fields.swver,platformVersion:fields.platformver,clariusVersion:fields.clariusver,raw});
 }
-  const api=Object.freeze({SYSTEM_INFO_REQUEST,portCatalog,topologySignature,confirmTopology,planSmURoutes,resolvePulseResource,parseSystemInfo,IDN_REQUEST,OPTIONS_REQUEST,UL_REQUEST,INSTRUMENT_INFO_REQUEST,REMOTE_MODULE_INFO_REQUEST,GN_RESULT_REQUEST,DE_REQUEST,parseIdentity,parseOptions,parseInstrumentInfo,parseRemoteModuleInfo,parseHardwareInventory});
+  // Query-only commissioning probe (no source/measure command is sent).
+  // It answers the reply formats Rev F leaves open: SP text, *IDN?/ID form,
+  // :ERROR:LAST:GET with and without an error, and whether an unsupported
+  // command raises the SP syntax-error bit (Rev F 3-14, 4-3..4-6).
+  const SELF_TEST_UNSUPPORTED='ZZDKTSPROBE';
+  const SELF_TEST_PLAN=Object.freeze([
+    {id:'sp-idle',command:'SP',reply:true},
+    {id:'idn',command:'*IDN?',reply:true},
+    {id:'id',command:'ID',reply:true},
+    {id:'opt',command:'*OPT?',reply:true},
+    {id:'clear',command:':ERROR:LAST:CLEAR',reply:false},
+    {id:'error-none',command:':ERROR:LAST:GET',reply:true},
+    {id:'sp-clean',command:'SP',reply:true},
+    {id:'probe',command:SELF_TEST_UNSUPPORTED,reply:false},
+    {id:'sp-after-probe',command:'SP',reply:true},
+    {id:'error-after-probe',command:':ERROR:LAST:GET',reply:true},
+    {id:'sp-cleared',command:'SP',reply:true},
+    {id:'clear-final',command:':ERROR:LAST:CLEAR',reply:false}
+  ].map(Object.freeze));
+  function assessSelfTest(entries,expectedSerial=''){
+    const by=Object.fromEntries((entries||[]).map(e=>[e.id,e]));
+    const text=id=>String(by[id]?.response??'').replace(/\0+$/,'').trim().replace(/,\s*$/,'');
+    const ok=id=>Boolean(by[id])&&!by[id].error;
+    const spByte=id=>{const t=text(id);return ok(id)&&/^\d{1,3}$/.test(t)&&Number(t)<=255?Number(t):null;};
+    const findings=[];
+    const add=(id,status,summary,raw)=>findings.push(Object.freeze({id,status,summary,raw:raw??''}));
+    const idle=spByte('sp-idle'),clean=spByte('sp-clean'),after=spByte('sp-after-probe'),cleared=spByte('sp-cleared');
+    add('sp-format',[idle,clean,after,cleared].every(v=>v!==null)?'pass':'fail',
+      [idle,clean,after,cleared].every(v=>v!==null)?'SP 返回十进制状态字节（0–255），与解析器一致':'SP 返回格式与十进制状态字节假设不符',
+      ['sp-idle','sp-clean','sp-after-probe','sp-cleared'].map(text).join(' | '));
+    add('sp-idle-busy',idle!==null&&!(idle&16)?'pass':'warn',idle!==null&&(idle&16)?'仪器 Busy：可能有其他测试在运行':'空闲时 Busy 位为 0',text('sp-idle'));
+    add('syntax-bit',after!==null&&(after&2)&&cleared!==null&&!(cleared&2)?'pass':'fail',
+      after!==null&&(after&2)?(cleared!==null&&!(cleared&2)?'不支持的指令置位 SP 语法错误位 B1，读取后清零':'B1 读取后未清零'):'不支持的指令没有置位 SP 语法错误位 B1；逐条错误检测不可依赖',
+      text('sp-after-probe')+' → '+text('sp-cleared'));
+    let identity=null;try{identity=protocol().parseIdentity(text('idn'),expectedSerial);}catch(e){}
+    add('idn-format',identity?'pass':'fail',identity?'*IDN? 可解析（'+identity.format+'）':'*IDN? 无法被当前解析器接受',text('idn'));
+    add('id-format',ok('id')&&/^KI4200A\b/.test(text('id'))?'pass':'warn',ok('id')&&/^KI4200A\b/.test(text('id'))?'ID 返回 KI4200A 版本串（Rev F 4-4）':'ID 返回与 Rev F 4-4 写法不同',text('id'));
+    let options=null;try{options=protocol().parseOptions(text('opt'));}catch(e){}
+    add('opt-format',options&&!options.unknownModules.length?'pass':'warn',options?(options.unknownModules.length?'*OPT? 含未识别插槽':'*OPT? 全部插槽可识别'):'*OPT? 无法解析',text('opt'));
+    const none=text('error-none'),code=none.match(/\((-?\d+)\)/);
+    add('error-none',ok('error-none')&&(code?Number(code[1])===0:/^ACK$|^no errors?\b/i.test(none)||none==='')?'pass':'warn',
+      '清除后 :ERROR:LAST:GET 返回：'+(none||'空响应')+'（运行器按此判断“无错误”）',none);
+    const err=text('error-after-probe'),errCode=err.match(/\((-?\d+)\)/);
+    add('error-format',errCode&&Number(errCode[1])<0?'pass':'warn',errCode?'错误响应带负数错误码 '+errCode[1]+'（Rev F 3-16）':'错误响应没有 (代码) 格式',err);
+    add('ack',ok('clear')&&ok('clear-final')&&String(by.clear?.response).toUpperCase()==='ACK'?'pass':'fail','写入类指令返回 ACK\\0（Rev F 2-2）',String(by.clear?.response??''));
+    const status=findings.some(f=>f.status==='fail')?'fail':findings.some(f=>f.status==='warn')?'warn':'pass';
+    return Object.freeze({schema:'dkts.kxci.selftest.v1',status,findings:Object.freeze(findings),identity,options});
+  }
+  function protocol(){return api;}
+  const api=Object.freeze({SELF_TEST_PLAN,SELF_TEST_UNSUPPORTED,assessSelfTest,SYSTEM_INFO_REQUEST,portCatalog,topologySignature,confirmTopology,planSmURoutes,resolvePulseResource,parseSystemInfo,IDN_REQUEST,OPTIONS_REQUEST,UL_REQUEST,INSTRUMENT_INFO_REQUEST,REMOTE_MODULE_INFO_REQUEST,GN_RESULT_REQUEST,DE_REQUEST,parseIdentity,parseOptions,parseInstrumentInfo,parseRemoteModuleInfo,parseHardwareInventory});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })();
