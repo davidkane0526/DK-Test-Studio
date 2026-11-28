@@ -93,7 +93,8 @@
    transient:false,
    source:source||{name:'KI4200A '+instrument},
    metadata:{instrument:'KI4200A',instrumentSerial:instrument,
-    rawInstrumentResponse:true,...(pulseRun?{}:{pointStatus:statusSummary(rows)}),timeOrigin:rows[0].source==='4200A-KXCI-SMU-PULSE'?'instrument-after-mpulse':pulseRun||rows[0].source!=='4200A-KXCI-TI'?'instrument':'host-elapsed',...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode,pulseProgram:rows[0].pulseProgram||'pulse-sweep'}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
+    rawInstrumentResponse:true,...(pulseRun?{}:{pointStatus:statusSummary(rows)}),timeOrigin:rows[0].source==='4200A-KXCI-SMU-PULSE'?'instrument-after-mpulse':
+     pulseRun&&rows[0].xSegment!=null?'instrument-per-segment':pulseRun||rows[0].source!=='4200A-KXCI-TI'?'instrument':'host-elapsed',...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode,pulseProgram:rows[0].pulseProgram||'pulse-sweep'}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
     acquisition:{runId:id,timestamp:String(startedAt||''),
      finishedAt:String(finishedAt||''),runState,sequenceIndex:0,
      provenance:'kxci-native-acquisition'},

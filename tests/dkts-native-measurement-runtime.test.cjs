@@ -836,6 +836,45 @@ test('an unacknowledged PMU output-off blocks further runs',async()=>{
  }finally{await runtime.dispose();}
 });
 
+test('PMU amplitude segments use one run and stop when shutdown is uncertain',async()=>{
+ const {modules}=loadModules(),model=modules.get('model');
+ let project=model.setIvType(model.initial(),'pulse');
+ project=model.edit(project,'D',{resource:'PMU1-1'});
+ project=model.editTiming(project,{loadOhms:'1000000',start:'0.5',stop:'1',step:'0.5',
+  xSegments:[{start:'0.3',stop:'0.5',step:'0.2',fixedV:'0.05',basePeakV:''}]});
+ const page=project.pages.find(row=>row.id===project.activeId),endpoint={host:'169.254.111.118',expectedSerial:'1498377'};
+ const secondary={...model.pulseCompanion(page.timing,'G','psweep'),loadOhms:'1000000'};
+ assert.throws(()=>model.timedSummary('pulse',{...page.timing,secondary}),/single sweep channel/);
+ for(const fail of [false,true]){
+  const fixture=makeInstrumentContext(modules,{pmu:true,failPmuOffAck:fail});
+  const runtime=modules.get('measurementRuntime').createRuntime(fixture.ctx,{wait:async()=>{}});
+  try{
+   await runtime.connectAndInspect(endpoint);
+   const prepared=runtime.prepare(page);
+   assert.equal(prepared.canExecute,true,prepared.reason);
+   assert.equal(prepared.pointCount,4);
+   assert.equal(prepared.compiled.pulse.programs.length,2);
+   runtime.start(page,true);
+   const result=await runtime.waitForCompletion();
+   const commands=fixture.commands.map(row=>row.command);
+   assert.equal(commands.filter(cmd=>cmd===':PMU:EXECUTE\0').length,fail?1:2);
+   assert.equal(result.run.shutdown,fail?'unconfirmed':'commands-sent');
+   if(fail){
+    assert.equal(result.run.state,'failed');
+    assert.equal(runtime.prepare(page).canExecute,false);
+   }else{
+    const firstOff=commands.indexOf(':PMU:OUTPUT:STATE 1,0\0');
+    assert.ok(firstOff>commands.indexOf(':PMU:SWEEP:PULSE:AMPLITUDE 1,0.5,1,0.5,0,0\0'));
+    assert.ok(commands.indexOf(':PMU:SWEEP:PULSE:AMPLITUDE 1,0.35,0.55,0.2,0.05,0\0')>firstOff);
+    assert.equal(result.run.state,'completed',result.run.error);
+    assert.deepEqual(Array.from(result.run.rows,row=>row.xSegment),[1,1,2,2]);
+    assert.deepEqual(Array.from(result.run.rows,row=>row.pulseChannelSequence),[1,2,3,4]);
+    assert.equal(fixture.published[0].metadata.timeOrigin,'instrument-per-segment');
+   }
+  }finally{await runtime.dispose();}
+ }
+});
+
 test('PMU time keeps legacy profiles and selects auto edges for the installed hardware and voltages',()=>{
  const {modules}=loadModules(),model=modules.get('model'),capabilities=modules.get('dkts-capabilities');
  const seed=model.validate(model.initial()),legacy=seed.pages.find(page=>page.kind==='time');

@@ -177,7 +177,7 @@ const ctx={
  assert.ok(record.fields.some(row=>row.spec.label==='源极 · S'&&row.control.value==='GNDU'));
  assert.ok(record.fields.some(row=>row.spec.label==='漏极 · D'&&row.control.value==='SMU1'));
  assert.ok(record.fields.some(row=>row.spec.label==='栅极 · G'&&row.control.value==='SMU2'));
- assert.equal(record.fields.some(row=>row.spec.label==='体端 · B'),false);
+ assert.ok(record.fields.some(row=>row.spec.label==='体端 · B'&&row.control.value==='None'));
  assert.deepEqual(record.toolbar.map(row=>row.spec.id),['dkts-workspace-connect','dkts-workspace-scan','dkts-workspace-smu-integration','dkts-workspace-language']);
  assert.ok(record.toolbar.every(row=>row.spec.variant==='quiet'&&row.spec.section==='instrument'));
  assert.deepEqual(Array.from(record.nativeCommands.actions,row=>row.id),record.toolbar.map(row=>row.spec.id));
@@ -188,7 +188,7 @@ const ctx={
  assert.ok(!record.actions.some(row=>row.id==='dkts-return-data-plots'));
  assert.ok(record.actions.some(row=>row.id==='dkts-page-view-page-1'&&row.label==='⚙︎'));
  assert.deepEqual(Array.from(record.fields.find(row=>row.spec.label==='漏极 · D').spec.options,row=>row.value),
-  ['None','GNDU','SMU1','SMU2','SMU3','SMU4']);
+  ['None','GNDU','SMU1','SMU2','SMU3','SMU4','PMU1-1','PMU1-2','PMU2-1','PMU2-2','PMU3-1','PMU3-2','PMU4-1','PMU4-2']);
  assert.ok(record.actions.some(row=>row.id.startsWith('dkts-run-')));
  assert.equal(record.tabs.at(-1).items.length,3);
  assert.deepEqual(Array.from(record.tabs.at(-1).items,row=>row.id),
@@ -342,7 +342,15 @@ const ctx={
  assert.equal(arbitraryField('start').control.value,'0.2');
  assert.equal(arbitraryField('secondary.conditionV').control.value,'1.4');
  assert.match(run().title,/负载/);
+ const segmentAction=id=>record.actions.findLast(row=>row.id===id);
+ segmentAction('pulse-segment-add').onInvoke();
+ arbitraryField('xSegments.0.start').spec.onInput({target:{value:'0.3'}});
+ assert.equal(pulseTiming().xSegments[0].start,'0.3');
+ assert.deepEqual(Array.from(gatePulseRole().spec.options,row=>row.value),['off','condition']);
  setPort('D','SMU1');
+ assert.match(run().title,/多段脉冲扫描/);
+ segmentAction('pulse-segment-remove-1').onInvoke();
+ assert.equal(pulseTiming().xSegments.length,0);
  setPort('G','SMU2');
  assert.equal(arbitraryField('smu.onMs').control.value,'10');
  assert.equal(arbitraryField('smu.gateV').control.value,'1.4');
@@ -361,8 +369,14 @@ const ctx={
   ['Linear Step','Linear Points','Log Points','List']);
  methodFor('D').spec.onChange({target:{value:'points'}});
  const preset=dcFields.find(row=>row.spec.attributes?.['data-dkts-dc-field']==='preset');
- assert.deepEqual(Array.from(preset.spec.options,option=>option.value),['optimized','point-by-point','pulse']);
- preset.spec.onChange({target:{value:'point-by-point'}});
+ assert.deepEqual(Array.from(preset.spec.options,option=>option.value),['optimized','point-by-point','pulse','pulse-sequence']);
+ preset.spec.onChange({target:{value:'pulse-sequence'}});
+ assert.equal(pulseTiming().testMode,'sequence');
+ arbitraryField('arb.segments.1.durationUs').spec.onInput({target:{value:'11'}});
+ pulseType().spec.onChange({target:{value:'optimized'}});
+ assert.equal(state.pages.find(row=>row.id===state.activeId).ivAlternate.arb.blocks[0].segments[1].durationUs,'11');
+ assert.equal(state.portMapping.D,'SMU1');
+ pulseType().spec.onChange({target:{value:'point-by-point'}});
  assert.ok(record.fields.some(row=>row.spec.attributes?.['data-dkts-dc-field']==='range'&&row.control.value==='auto'));
  const dcPoints=record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='points');
  const dcRun=record.actions.findLast(row=>row.id==='dkts-run-'+state.activeId).element;

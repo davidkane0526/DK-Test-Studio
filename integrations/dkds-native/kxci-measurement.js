@@ -414,7 +414,26 @@ function parsePulseBlock(raw,p,offset){
  return {sequence:offset+i+1,cycle:1,point:offset+i+1,timeS:time,source:'4200A-KXCI-PMU',measurementCompleteness:'complete',measurementStatus:'unknown',pulseStatusRaw:f[3],pulseResource:p.resource,pulseMode:p.waveform?'waveform':'spot',pulseProgram:p.arb?'segment-arb':'pulse-sweep',pulseVoltageV:voltage,pulseCurrentA:current,[p.role+'VoltageV']:voltage,[p.role+'CurrentA']:current,rawKxciResponse:record,rawKxciResponses:{[p.resource]:record}};
  });
 }
+async function executePulseSegments(programs,io){
+ let sequence=0,shutdown='not-started';
+ const channelCounts=new Map();
+ for(const [index,program] of programs.entries()){
+  if(io.cancelled())return {state:'stopped',shutdown,error:''};
+  const result=await executePulseTask(program,{
+   ...io,onBatch:rows=>io.onBatch(rows.map(row=>{
+    const count=(channelCounts.get(row.pulseResource)||0)+1;
+    channelCounts.set(row.pulseResource,count);
+    return {...row,xSegment:index+1,pulseChannelSequence:count,sequence:++sequence};
+   }))
+  });
+  if(result.shutdown!=='not-started')shutdown=result.shutdown;
+  if(result.state!=='completed'||result.shutdown!=='commands-sent')
+   return {...result,shutdown,error:result.error?'第 '+(index+1)+' 段：'+result.error:''};
+ }
+ return {state:'completed',shutdown,error:''};
+}
 async function executePulseTask(p,io){
+ if(p.programs)return executePulseSegments(p.programs,io);
  const {command,wait,cancelled,onBatch}=io;
  const integerReply=(s,max)=>{const raw=String(s).trim().replace(/,\s*$/,'');if(!/^\d+$/.test(raw)||Number(raw)>max)throw Error('PMU 状态或点数无效');return Number(raw)};
  const status=async()=>integerReply(await command(p.statusQuery,true),1);
@@ -504,6 +523,24 @@ function compilePulsePair(input,hardware){
  const setup=['SS','ZE',':PMU:INIT 0',...x.setup.filter(c=>shared.test(c)&&!c.startsWith(':PMU:INIT ')),...pSetup,...xSetup,`:PMU:OUTPUT:STATE ${x.pulseChannel},1`,`:PMU:OUTPUT:STATE ${p.pulseChannel},1`];
  const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,...(condition?[]:[p.countQuery])],cleanup:[x.offCommand,p.offCommand,':PMU:ABORT'],channels:[x,p],peak:Math.max(x.peak,p.peak),estimatedRecords:x.estimatedRecords+p.estimatedRecords,resources:[x.resource,p.resource],sweepPoints:waveform?as.points:as.points*bs.points,pairedMode:condition?'fixed-bias':waveform?'parallel-waveform':'nested-spot'};
  return {...main,pulse,channels:{...main.channels,...outer.channels},active:[...main.active,...outer.active],totalPoints:pulse.estimatedRecords,requiresInterlock:main.requiresInterlock||outer.requiresInterlock,canExecute:main.canExecute&&outer.canExecute};
+}
+function compilePulseSegments(input,hardware){
+ const segments=input.summary.segments;
+ if(!Array.isArray(segments)||segments.length<2||segments.length>16||
+    input.secondary&&input.secondary.settings.role!=='condition')
+  throw Error('多段脉冲需要单个扫描通道或固定偏置');
+ const compiled=segments.map(({levels,summary},index)=>{
+  const segment={...input,settings:{...input.settings,...levels,xSegments:[]},summary};
+  try{return segment.secondary?compilePulsePair(segment,hardware):compilePulse(segment,hardware);}
+  catch(error){throw Error('第 '+(index+1)+' 段：'+error.message);}
+ });
+ const first=compiled[0],programs=compiled.map(result=>result.pulse);
+ const totalPoints=compiled.reduce((count,result)=>count+result.totalPoints,0);
+ const commands=key=>[...new Set(programs.flatMap(program=>program[key]))];
+ const pulse={...first.pulse,programs,setup:commands('setup'),reads:commands('reads'),cleanup:commands('cleanup'),
+  estimatedRecords:totalPoints,peak:Math.max(...programs.map(program=>program.peak))};
+ return {...first,pulse,totalPoints,requiresInterlock:compiled.some(result=>result.requiresInterlock),
+  canExecute:compiled.every(result=>result.canExecute)};
 }
 function compileSegmentArb(input,hardware){
  const {inventory,capabilities:h}=hardware,v=input.settings,check=(b,m)=>{if(!b)throw Error(m)};
@@ -718,6 +755,7 @@ async function executeNativeSequence(compiled,io){
       if(mode==='bias-steps')return compileSegmentArb(input,hardware);
       if(mode==='sequence'||mode===undefined&&input.settings?.arb!=null)
         return input.settings.arbPartner?compileSegmentArbPair(input,hardware):compileSegmentArb(input,hardware);
+      if(input.summary?.segments||input.settings?.xSegments?.length)return compilePulseSegments(input,hardware);
       return input.secondary?compilePulsePair(input,hardware):compilePulse(input,hardware);
     }
     const planner=typeof require==='function'

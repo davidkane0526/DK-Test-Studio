@@ -25,6 +25,7 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
  const n=(x,label)=>{check(x!==null&&x!==undefined&&String(x).trim()!==''&&Number.isFinite(Number(x)),label+' 数值无效');return Number(x);};
  const roles={D:'drain',G:'gate',S:'source',B:'body'},ports=Object.fromEntries(page.terminals.map(t=>[t.logical,t]));
  if(page.kind==='dc')ports.B={...ports.B,resource:page.dc.bodyResource};
+ else if(page.kind==='time')ports.B={...ports.B,resource:'None'};
  const terminals=Object.fromEntries(Object.entries(roles).map(([k,r])=>[r,ports[k]?.resource||'None']));
  const active=Object.keys(roles).filter(k=>/^SMU[1-8]$/.test(ports[k]?.resource||''));
  check(Object.keys(roles).every(k=>['None','GNDU'].includes(ports[k]?.resource)||active.includes(k)),'基础执行仅支持 SMU1–8、GNDU 或 None');
@@ -349,6 +350,8 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
     return {ready:false,canExecute:false,reason:connection.inventoryError||'尚未完成实际模块识别'};
    try{
     let input;
+    if(page.kind==='dc'&&page.dc.bodyResource!=='None'&&page.dc.bodyResource!==page.terminals.find(row=>row.logical==='B')?.resource)
+     throw Error('工程体端映射与旧 DC 方案不同，请在工程端口栏确认体端');
     const pmuTime=page.kind==='time'&&page.timing.mode===model.TIME_PMU_MODE;
     const pulse=page.kind==='pulse'?pulseSweepPlan(page):null;
     if(pulse?.needsPort)throw Error('请为漏极分配可执行脉冲的 SMU 或 PMU 端口。');
@@ -369,7 +372,7 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
      input={executionMode:'pulse',settings:v,summary:pmuTime?null:model.timedSummary('pulse',v),resource,wiringConfirmed:true};
      if(v.testMode==='sequence'&&v.arbPartner){const settings={...v,...v.arbPartner,rateHz:v.rateHz,arbPartner:null,secondary:null};input.arbPartner={settings,resource:companion,wiringConfirmed:true};}
      if(v.secondary&&v.testMode==='sweep'){
-      const settings=model.pulseSecondarySettings(v);
+      const settings=model.pulseSecondarySettings({...v,xSegments:[]});
       input.secondary={settings,summary:model.timedSummary('pulse',settings),resource:companion,wiringConfirmed:true};
      }
     }else{

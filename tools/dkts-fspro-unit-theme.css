@@ -248,9 +248,6 @@ html[data-dkds-theme-header-effect="true"] #dktsKeithley4200Page .dkts-dc-termin
 #dktsKeithley4200Page [data-dkts-dc-editor=sweep] .dkts-dc-bottom>*>.dkds-surface-header{
  min-block-size:35px;padding-block:4px
 }
-#dktsKeithley4200Page [data-dkts-editor-kind="dc"] .dkts-fspro-tablist [role="tab"]{
- flex:1 0 auto;min-height:44px;justify-content:center
-}
 #dktsKeithley4200Page .dkts-dc-segment-actions .dkds-action-button{
  display:inline-grid;place-items:center;width:28px;min-width:28px;height:28px;min-height:28px;padding:0;line-height:1
 }
@@ -259,7 +256,6 @@ html[data-dkds-theme-header-effect="true"] #dktsKeithley4200Page .dkts-dc-termin
   border-inline-start:0
  }
  #dktsKeithley4200Page :is(.dkts-dc-segments,.dkts-dc-reference){border-block-start:1px solid var(--dkts-divider)}
- #dktsKeithley4200Page [data-dkts-editor-kind="dc"] .dkts-fspro-tablist [role="tab"]{flex:none;min-width:58px}
 }
 #dktsKeithley4200Page .dkts-time-column-head{background:var(--dkts-soft)}
 #dktsKeithley4200Page .dkts-time-segment:not(.dkts-time-column-head){border-block-end:1px solid var(--dkts-divider)}

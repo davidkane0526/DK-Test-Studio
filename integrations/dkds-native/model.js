@@ -65,7 +65,7 @@
   pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',basePeakV:'',
    start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
    delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
-   pulseCount:'1',mode:'spot',rateHz:'1000000',sampleStepUs:'',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',secondary:null,arb:null,arbPartner:null,biasSteps:null,smu:null,sweepMode:'sweep',testMode:'sweep'})
+   pulseCount:'1',mode:'spot',rateHz:'1000000',sampleStepUs:'',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',secondary:null,arb:null,arbPartner:null,biasSteps:null,smu:null,xSegments:Object.freeze([]),sweepMode:'sweep',testMode:'sweep'})
  });
  function defaultBiasSteps(){
   return {edgeUs:'',loops:'1',segments:['0','1','0'].map((biasV,index)=>({
@@ -237,7 +237,13 @@
   const initial=Object.fromEntries(keys.map(key=>[key,String(values[key])]));
   return {...initial,terminal,role,conditionV:'0',stop:String(values.start),step:'0',currentRangeA:''};
  }
+ const PULSE_SEGMENT_FIELDS=['start','stop','step','fixedV','basePeakV'];
+ function pulseSweepSegments(v){
+  const first=Object.fromEntries(PULSE_SEGMENT_FIELDS.map(key=>[key,v[key]]));
+  return [first,...(v.xSegments||[])];
+ }
  function pmuSweepRequirement(v){
+  if(v.xSegments?.length)return 'segments';
   if(v.terminal!=='D')return 'terminal';
   if(v.secondary&&(v.secondary.terminal!=='G'||v.secondary.role!=='condition'))return 'companion';
   if(v.sweep!=='amplitude'||v.mode!=='spot'||Number(v.fixedV)!==0||Number(v.pulseCount)!==1)return 'shape';
@@ -301,6 +307,23 @@
   const v=timingSettings(kind,settings);
   if(kind==='time')return v.mode===TIME_PMU_MODE?timedSummary('pulse',v.pmu,context):timeSummary(v,context);
   if(kind==='pulse'&&v.testMode==='smu-sweep')return smuPulseSummary(v.smu);
+  if(kind==='pulse'&&v.testMode==='sweep'&&(!Array.isArray(v.xSegments)||v.xSegments.length>15))
+   invalidField('xSegments','Pulse I–V supports up to 16 sweep segments');
+  if(kind==='pulse'&&v.testMode==='sweep'&&v.xSegments.length){
+   if(v.secondary&&v.secondary.role!=='condition')
+    invalidField('xSegments','Multi-segment pulse requires a single sweep channel or Condition');
+   const segments=pulseSweepSegments(v).map((segment,i)=>{
+    if(!segment||Object.keys(segment).length!==PULSE_SEGMENT_FIELDS.length||
+       PULSE_SEGMENT_FIELDS.some(key=>typeof segment[key]!=='string'))invalidField('xSegments','Invalid pulse segment');
+    try{return {levels:segment,summary:timedSummary(kind,{...v,...segment,xSegments:[]},context)};}
+    catch(error){
+     if(i&&PULSE_SEGMENT_FIELDS.includes(error.field))error.field='xSegments.'+(i-1)+'.'+error.field;
+     throw error;
+    }
+   });
+   const points=segments.reduce((count,{summary})=>count+summary.points,0);
+   return {...segments[0].summary,points,totalSweepPoints:points,peakV:Math.max(...segments.map(item=>item.summary.peakV)),segments};
+  }
   if(kind==='pulse'&&['sequence','bias-steps'].includes(v.testMode)){
    const capabilities=window.DKDSPluginModules.require('com.dkts.keithley-4200','dkts-capabilities');
    return v.testMode==='sequence'?capabilities.normalizeArbPair(v):capabilities.normalizeSegmentArb(v,context);
@@ -325,7 +348,7 @@
   const rangeV=n('rangeV'),fixedV=n('fixedV'),start=n('start'),stop=n('stop'),step=n('step');
   if(![10,40].includes(rangeV)||!['1','2'].includes(v.channel)||!['amplitude','base'].includes(v.sweep)||!['spot','waveform'].includes(v.mode))
    throw Error('Invalid PMU range, sweep or acquisition mode');
-  const points=segmentPoints({start,stop,step});
+  const points=atField('step',()=>segmentPoints({start,stop,step}));
   const basePeakV=v.sweep==='base'?(v.basePeakV===''?(points===1?start+fixedV:NaN):n('basePeakV')):null;
   if(v.sweep==='base'&&!Number.isFinite(basePeakV))invalidField('basePeakV','Enter the fixed absolute peak voltage for a multi-point base sweep');
   const peakV=v.sweep==='amplitude'?Math.max(Math.abs(fixedV+start),Math.abs(fixedV+stop),Math.abs(fixedV)):Math.max(Math.abs(basePeakV),Math.abs(start),Math.abs(stop));
@@ -955,6 +978,14 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   if(!legacyMapping&&(!state.portMapping||Object.keys(state.portMapping).length!==4||
      logicalsList.some(logical=>!validResource(state.portMapping[logical]))))
    throw Error('Invalid project port mapping');
+  if(!legacyMapping&&state.portMapping.B==='None'){
+   const assignments=new Set(state.pages.map(p=>(p?.kind==='dc'?p.dc:p?.kind==='pulse'?p.ivAlternate:null)?.bodyResource)
+    .filter(resource=>resource!=='None'&&validDcBody(resource)));
+   if(assignments.size===1){
+    const [resource]=assignments;
+    if(!['S','D','G'].some(key=>state.portMapping[key]===resource))state.portMapping.B=resource;
+   }
+  }
   for(const p of state.pages){
    if(!p.routineId)p.routineId=state.routines[0].id;
    if(!routineIds.has(p.routineId))throw Error('Page references an unknown Routine');
@@ -1312,7 +1343,7 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
  function setIvType(s,value){
   s=validate(s);
   const page=s.pages.find(p=>p.id===s.activeId);
-  const pulseMode=value==='pulse'?'sweep':value==='pulse-smu'?'smu-sweep':null;
+  const pulseMode=value==='pulse'?'sweep':value==='pulse-smu'?'smu-sweep':value==='pulse-sequence'?'sequence':null;
   if(!['dc','pulse'].includes(page.kind)||(!DC_PRESETS.includes(value)&&!pulseMode))
    throw Error('Unknown I–V test type');
   const kind=pulseMode?'pulse':'dc';
@@ -1337,7 +1368,14 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
    page.testType=next.testType;
   }
   if(kind==='dc')page.dc.preset=value;
-  else page.timing.testMode=mode;
+  else{
+   page.timing.testMode=mode;
+   if(mode==='sequence'&&!page.timing.arb)page.timing.arb={loops:'1',segments:[
+    {startV:'0',stopV:'1',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'},
+    {startV:'1',stopV:'1',durationUs:'10',measure:true,measureStartUs:'2',measureStopUs:'8'},
+    {startV:'1',stopV:'0',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'}
+   ]};
+  }
   return validate(s);
  }
  function editDc(s,settings){
@@ -1351,11 +1389,14 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
  }
  function editDcBody(s,resource){
   s=validate(s);
-  const page=s.pages.find(p=>p.id===s.activeId);
-  if(page.kind!=='dc'||!validDcBody(resource))throw Error('Select an SMU, GNDU or None for the DC body terminal');
-  if(resource!=='None'&&page.terminals.some(t=>t.logical!=='B'&&t.resource===resource))
+  if(!validDcBody(resource))throw Error('Select an SMU, GNDU or None for the body terminal');
+  if(resource!=='None'&&['S','D','G'].some(key=>s.portMapping[key]===resource))
    throw Error('Resource already assigned: '+resource);
-  page.dc.bodyResource=resource;
+  s.portMapping.B=resource;
+  for(const page of s.pages){
+   const dc=page.kind==='dc'?page.dc:page.kind==='pulse'?page.ivAlternate:null;
+   if(dc)dc.bodyResource=resource;
+  }
   return validate(s);
  }
  function editTiming(s,changes){
@@ -1561,7 +1602,7 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
     choose(['draincurrenta','id','current','ids','i','draincurrent','y'],'y',axis!=='it');
       if(!x||!y||(axis!=='target'&&x===y))continue;
    const total=Math.min(...(targetCols?Object.values(targetCols):[x,y]).map(c=>Number(c.length)||0));
-   const groupCols=Object.fromEntries((target?.needsVector?[...TARGET_GROUP_KEYS,'sequence']:['cycle','pPoint','pRepeat','xRepeat']).map(k=>[k,cols.find(c=>norm(c)===k.toLowerCase()&&Number(c.length)>=total)]).filter(([,c])=>c));
+   const groupCols=Object.fromEntries((target?.needsVector?[...TARGET_GROUP_KEYS,'sequence']:['cycle','pPoint','pRepeat','xRepeat',...(pulse?['xSegment']:[])]).map(k=>[k,cols.find(c=>norm(c)===k.toLowerCase()&&Number(c.length)>=total)]).filter(([,c])=>c));
    if(!Number.isSafeInteger(total)||total<=0)continue;
    // Span the entire raw table, not just the first 65536 rows. All accesses
    // use the DKDS Data Center bounded column-read interface; no artifacts.get().
@@ -1639,6 +1680,6 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,setIvType,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,smuPulseSummary,pulseSweepSettings,pmuSweepRequirement,pulseCompanion,SMU_PULSE_DEFAULTS,TIME_PMU_MODE,defaultPmuTimeSettings,templateSnapshot,insertSetup,duplicateSetup,reorderTests,pulseSecondarySettings,timeGrid,timePreviewGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,setIvType,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,smuPulseSummary,pulseSweepSettings,pmuSweepRequirement,pulseSweepSegments,pulseCompanion,SMU_PULSE_DEFAULTS,TIME_PMU_MODE,defaultPmuTimeSettings,templateSnapshot,insertSetup,duplicateSetup,reorderTests,pulseSecondarySettings,timeGrid,timePreviewGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();
