@@ -50,7 +50,7 @@ node tools/stage-dkds-host.cjs ../DK-Data-Studio dist/dkts-framework-staging
 - Core 原生工作区现在通过 DKDS `network.tcp` capability 使用通用 TCP 通信，不另建私有 socket 或第二套连接服务；连接后校验 `KI4200A` 身份与序列号，再读取 `*OPT?`、物理模块型号和额定值。
 - KXCI Ethernet 对写入类命令同样返回 `ACK\0`。客户端必须逐条读取并验证 ACK，不能把 ACK 留在 TCP 缓冲区后再读取 `TI` 电流响应。
 - 原生工作区已加入 DC SMU 方案编译、启动确认、停止/关闭、故障状态以及原始 TI 行发布到 DKDS Data Center 的受控代码路径；模拟 TCP 回归通过不代表真实仪器输出已验收。
-- Tektronix 官方索引当前列出 KXCI Rev F（2026-10-09），但正文尚未取得并完成 Rev E→F 逐项核对。当前 `safetyPolicies.kxci.allowInstrumentOutput=false`，因此**真实电压输出被明确禁止**。逐点 `DV/TI` 已通过 DKDS `ui.dom.timeout()` 使用 Core 生命周期管理的延时服务，停止时取消待执行定时器；该方式仍是主机步进模式，不得声称可实现硬件内部 20 ns 扫描。
+- KXCI Rev F（4200A-KXCI-907-01F）SMU 第 2–5 节已于 2026-11-28 逐条核对。门禁分两路：用户模式逐点 `DV/TI` 受 `safetyPolicies.kxci.allowInstrumentOutput` 控制，当前为 `false`；Optimized DC（System Mode，`ME1` 原生任务）受 `smuSystemModeManualVerified` 与 `allowSystemModeOutput` 控制，当前均为 `true`，在模块身份/额定值核验通过且不需要高压互锁（≤ 21 V）时允许受控实机输出（R-20261128-001）。PMU、Segment Arb 与多通道原生列表仍各自关闭。**用户模式逐点真实电压输出仍被禁止。**逐点 `DV/TI` 已通过 DKDS `ui.dom.timeout()` 使用 Core 生命周期管理的延时服务，停止时取消待执行定时器；该方式仍是主机步进模式，不得声称可实现硬件内部 20 ns 扫描。
 
 ## 原始数据和仪器安全
 不同来源的数据明确标记 instrument-raw、derived 或 imported/preview；软件规划曲线不能冒充 4200A 测量曲线。仪器输出必须通过实际模块检测、端口互斥、量程/功率、联锁、异常停止和原始数据采集验证。CI 构建成功不代表仪器现场验收。

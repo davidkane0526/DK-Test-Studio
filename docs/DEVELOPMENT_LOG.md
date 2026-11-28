@@ -1027,3 +1027,11 @@ Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive readi
 - 工程树右键可批量复制、另存模板。新测试紧邻原测试下方，复制流程紧邻原流程。流程设置提供上移与下移后应用，顺序用于显示与执行。模板库通过宿主设置持久保存，三个组独立折叠。模板记录配置，使用时重新分配 ID 与所在工程约束。
 - Node 275/275、原生插件和模拟宿主、同源构建通过。Chromium 在 1387、744、390 px 检查图窗菜单、轴切换、实测历史未改变、右侧提示、校验位置及批量复制和排序。实际下载 CSV 核对三行，以刷新验证两个用户模板都保留。
 - 原生插件 0.8.39，开发编号 a226。交付同 SHA Core 网页和源码 ZIP。本轮未连接物理仪器。
+
+## 2026-11-28 · KXCI Rev F 指令核对与门禁文档更正
+
+- R-20261128-001，基线 `cf66ba0`。依据用户上传的 4200A-KXCI-907-01F（2026 年 9 月）第 2–5 节，逐条核对 `kxci-measurement.js`、`kxci-protocol.js` 生成的 SMU 指令。US/DV/TI/TV、EM/BC/IT/RS/EC/RG、DE/CH、VR/VP/VL/VC/IC/ST/RT/FS/CM、DT/HT、SM/DM/LI/WT/IN/NR、MD/ME、RD/DO、RP 的语法、参数顺序与取值范围一致。
+- 核对发现代码中 System Mode 已经可以输出（`allowSystemModeOutput=true`），而 README 与架构文档仍写「生产输出由 allowInstrumentOutput=false 禁止」。按用户决定保留许可，只更正上述三份文档。未修改任何代码、开关或测试。
+- 待批准修复（未实施）：(1) DO 时间戳名用 `V<n>T`，RD 用 `CH<n>T`，Rev F 5-45/5-56 示例为 `CH1T`；(2) 停止/收尾仅在用 RPM 时发送 `SS`+`ZE`，Rev F 未说明 ME4 后自动待机；(3) `*IDN?` 解析与 Rev F 4-4 的 `KEITHLEY INSTRUMENTS,MODEL nnnn,...` 格式不同；(4) RI 1 A 档 Rev F 未列出；(5) 注释仍引用 Rev E。
+- 待实机确认：TI/TV 响应是否含空格、SP 返回文本格式、HiSLIP 与原始 TCP 1225、无错误时 `:ERROR:LAST:GET` 返回。PMU/PGU（第 7 节）与 CVU（第 6 节）未在本次范围。
+- 仅文档变更，未运行测试，未连接物理 4200A，未构建预览或 ZIP。
