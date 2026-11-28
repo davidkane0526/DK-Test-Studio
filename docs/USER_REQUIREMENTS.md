@@ -569,3 +569,9 @@ PR #8 旧宿主分支安全功能应与新 Core 验证一致后由归档记录�
 - 2026-11-28，用户在 KXCI Rev F 核对报告的决策卡上选择「保留，只改文档」，问题为「System Mode 已开放的输出许可要怎么处理？」。
 - 保留 `smuSystemModeManualVerified=true`、`allowSystemModeOutput=true`：Optimized DC（System Mode）在模块身份/额定值核验通过、无需高压互锁时允许受控实机输出。用户模式逐点 DV/TI 继续由 `allowInstrumentOutput=false` 禁止。本条就 System Mode 取代 R-20261116-005 中「Rev F 全文核对并实机验收前不得输出」的限制，其余条件不变。
 - **验收标准**：README、`integrations/dkds-native/README.md`、`docs/ARCHITECTURE_TARGET.md` 中关于输出门禁的现行描述与代码一致；不修改任何门禁代码或开关。
+
+## R-20261128-002 · 在开发分支实现 Rev F 修复并扩展功能
+
+- 2026-11-28 原话：「1.新建一个分支用于你的开发 2.实现你的提议并优化、丰富项目功能」。用户明确授权本次使用开发分支 `claude/project-thread-wntzw6`，就本任务取代 AGENTS.md 第 8 条「只用 main」；合并前由用户确认。
+- 先实现 Rev F 核对报告中的修复：DO 时间戳 `CH<n>T`、收尾始终 `SS`+`ZE`、`*IDN?` 手册格式、TI/TV 可选空格、RI 1 A 档、HT 范围与 Rev F 注释。真实输出开关保持现状，不放宽。功能扩展先列提案，用户确认后再做。
+- **验收标准**：每项修复有对应回归测试；不改变任何 `safetyPolicies.kxci` 开关；通过 PR 交付。

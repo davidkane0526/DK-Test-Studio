@@ -19,6 +19,9 @@
     let manufacturer='',model='',serial='',version='',format='';
     if(parts[0]==='KEITHLEY INSTRUMENTS'&&parts[1]==='KI4200A'&&parts.length>=3){
       manufacturer=parts[0];model=parts[1];serial=parts[2]||'';version=parts[3]||'';format='manufacturer-prefixed';
+    }else if(parts[0]==='KEITHLEY INSTRUMENTS'&&/^MODEL\s+4200A(?:-SCS)?$/.test(parts[1]||'')&&parts.length>=3){
+      // Rev F 4-4: KEITHLEY INSTRUMENTS,MODEL nnnn,serial,firmware.
+      manufacturer=parts[0];model='KI4200A';serial=parts[2]||'';version=parts[3]||'';format='manual-model-prefixed';
     }else if(parts[0]==='KI4200A'&&parts.length>=2){
       manufacturer='KEITHLEY INSTRUMENTS';model=parts[0];serial=parts[1]||'';version=parts[2]||'';format='compact';
     }else throw Error('仪器身份不匹配：'+(raw||'空响应'));

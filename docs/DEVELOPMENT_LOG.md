@@ -1035,3 +1035,10 @@ Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive readi
 - 待批准修复（未实施）：(1) DO 时间戳名用 `V<n>T`，RD 用 `CH<n>T`，Rev F 5-45/5-56 示例为 `CH1T`；(2) 停止/收尾仅在用 RPM 时发送 `SS`+`ZE`，Rev F 未说明 ME4 后自动待机；(3) `*IDN?` 解析与 Rev F 4-4 的 `KEITHLEY INSTRUMENTS,MODEL nnnn,...` 格式不同；(4) RI 1 A 档 Rev F 未列出；(5) 注释仍引用 Rev E。
 - 待实机确认：TI/TV 响应是否含空格、SP 返回文本格式、HiSLIP 与原始 TCP 1225、无错误时 `:ERROR:LAST:GET` 返回。PMU/PGU（第 7 节）与 CVU（第 6 节）未在本次范围。
 - 仅文档变更，未运行测试，未连接物理 4200A，未构建预览或 ZIP。
+
+## 2026-11-28 · KXCI Rev F 核对修复（分支 claude/project-thread-wntzw6）
+
+- R-20261128-002，基线 `0b83f1f`。依据 Rev F 5-45/5-56，System Mode 最终读数与实时预览统一用 `DO/RD 'CH<n>T'` 取时间戳，原 `V<n>T` 无手册依据。依据 5-20/5-26，停止与收尾在 `ME4` 后始终发送 `SS`+`ZE`（ME4 未确认时也尝试），再把 RPM 切回 pulse 并 `DE`/`CHn` 清除通道定义；白名单同步。
+- `*IDN?` 额外接受 Rev F 4-4 的 `KEITHLEY INSTRUMENTS,MODEL 4200A[-SCS],serial,fw`，其他型号仍拒绝。TI/TV 解析允许字段间与指数前可选空格（5-2/5-41/5-42），通道与状态校验不变。用户模式固定量程超过 100 mA 时拒绝（5-51 RI 未列 1 A），传输层 RI 上限同步降为 0.1 A。`compileSystemPlan` 内增加 HT 0–655.3 s 校验（5-16）。注释改引 Rev F 页码。
+- 新增 `tests/dkts-kxci-rev-f-fixes.test.cjs` 8 项；`dkts-system-mode-review`、`dkts-native-measurement-runtime` 的模拟仪器改为 `CH1T` 并接受 `ZE`。`node --test tests/*.test.cjs` 282 项：274 通过、2 跳过、6 失败，6 项失败与基线相同，均因容器缺少 `node_modules` 中的 D3 7.9.0（未运行 `npm install`）。
+- 未改动 `safetyPolicies.kxci` 任何开关；未连接物理 4200A；未构建预览、ZIP 或安装包；未提升版本号。
