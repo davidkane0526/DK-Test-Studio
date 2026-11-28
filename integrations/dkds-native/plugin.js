@@ -26,7 +26,7 @@
 
   const store=ctx.state.create(model.initial(),{projectSlice:'settings'});
   const targetPlotKeys=[];
-  let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSelections=['','','',''],frameKinds=['iv','transfer','it','raw'],frameGroup=null,frameTableHosts=[],framePlotHosts=[],frameTables=[],frameLayout='4',nav=null,parameters=null,dataNote=null,pad=null,portPopover=null,editorTabs=null,editorHeading=null,terminalRegion=null;
+  let wb=null,plot=null,plotView=null,plots=[],plotViews=[],frameCards=[],frameSelections=['','','',''],frameKinds=['iv','transfer','it','raw'],frameGroup=null,frameTableHosts=[],framePlotHosts=[],frameTables=[],frameTableEmpty=[],frameLayout='4',nav=null,parameters=null,dataNote=null,pad=null,portPopover=null,editorTabs=null,editorHeading=null,terminalRegion=null;
   let editorSection='sweep',editorOpen=false,plotScope='project',workRegion=null,editorRegion=null,plotRegion=null,projectSurface=null;
   let instrumentBusy=false,connectionDialogOpen=false;
   let smuIntegrationPopover=null;
@@ -186,8 +186,15 @@
    const available=sources();
    for(let index=0;index<frameTables.length;index++){
     const raw=frameKinds[index]==='raw';
-    if(frameTableHosts[index]?.style)frameTableHosts[index].style.display=raw?'':'none';
+    // An empty raw table renders no rows and only stray column chrome; show the
+    // same centred empty message the scientific plots use instead.
+    const showTable=hasRows=>{
+     if(frameTableHosts[index]?.style)frameTableHosts[index].style.display=raw&&hasRows?'':'none';
+     const empty=frameTableEmpty[index];
+     if(empty){empty.textContent=tr('暂无可显示的数据','No data to display');if(empty.style)empty.style.display=raw&&!hasRows?'':'none';}
+    };
     if(framePlotHosts[index]?.style)framePlotHosts[index].style.display=raw?'none':'';
+    showTable(false);
     if(!raw)continue;
     const ref=frameSelections[index]
      ?available.find(item=>item.artifactId===frameSelections[index])
@@ -197,6 +204,7 @@
     if(!Array.isArray(cols)||!cols.length){frameTables[index].setData([],[]);continue;}
     const count=Math.min(200,...cols.map(col=>Number(col.length)||0));
     if(count<1){frameTables[index].setData([],[]);continue;}
+    showTable(true);
     const slices=cols.map(col=>ctx.data.artifacts.readColumnRange(ref.artifactId,
      col.id||col.key,{start:0,limit:count}));
     const rows=Array.from({length:count},(_,i)=>Object.fromEntries(cols.map((col,c)=>
@@ -909,6 +917,9 @@
 
   function createPlanPlot(host,page,title,xTitle,yTitle,getData,displayItems){
    const card=units.panel.create(host,{variant:'plot-card',header:false,sizing:'content',className:'dkts-plan-plot-card'});
+   // The Core plot card keeps a 340px minimum: let the plot fill it rather than
+   // leave a blank band under the axes.
+   if(card.body)units.layout.apply(card.body,{variant:'identity',geometry:{display:'flex',flexDirection:'column',flex:'1 1 auto',minHeight:'0'}});
    const header=units.header.create(card.body,{kind:'plot',variant:'plot',title,actionHost:true});
    const actions=dcLayout(header.actions,'dkts-frame-actions');
    units.action.create(actions,{id:'dkts-plan-display',label:tr('显示','View'),menu:true,variant:'quiet',items:displayItems});
@@ -1421,9 +1432,9 @@
    }catch{}
    refreshParameterIssue(page);
   }
-  function dcInput(host,label,value,change,{key,terminal,path,disabled=false,kind='input',readOnly=false,help}={}){
+  function dcInput(host,label,value,change,{key,terminal,path,disabled=false,kind='input',readOnly=false,help,placeholder}={}){
    return fsproField(host,{kind,label,value,disabled,readOnly,
-    attributes:{...(key?{'data-dkts-dc-field':key}:{}),...(terminal?{'aria-label':terminal+(label?' '+label:'')}:{}),
+    attributes:{...(key?{'data-dkts-dc-field':key}:{}),...(placeholder?{placeholder}:{}),...(terminal?{'aria-label':terminal+(label?' '+label:'')}:{}),
      ...(path?{'data-dkts-parameter-path':path}:{}),
      ...(help?{'data-dkds-tooltip':help}:{})},
     onInput:change?event=>{
@@ -1625,9 +1636,9 @@
     const line=dcLayout(limits,'dkts-dc-limit-row'),row=dc.terminals[logical],ground=resource==='GNDU';
     units.note.create(line,{variant:'meta',text:logical});
     dcInput(line,false,ground?'':row.limitI,value=>{row.limitI=value;},
-     {key:'limitI',path:logical+'.limitI',terminal:logical+' I (A)',readOnly:ground});
+     {key:'limitI',path:logical+'.limitI',terminal:logical+' I (A)',readOnly:ground,placeholder:ground?'—':undefined});
     dcInput(line,false,ground?'':row.limitV,value=>{row.limitV=value;},
-     {key:'limitV',path:logical+'.limitV',terminal:logical+' V (V)',readOnly:ground});
+     {key:'limitV',path:logical+'.limitV',terminal:logical+' V (V)',readOnly:ground,placeholder:ground?'—':undefined});
    }
    renderVariablesPanel(bottom,p,'fill');
    renderDcSpecs(bottom,p,s.specs.filter(spec=>spec.deviceId===s.activeDeviceId));
@@ -2359,8 +2370,11 @@
    ctx.status.set('已通过 DKDS 导出 '+rows.length+' 条原始数据（未抽稀）');
    return true;
   }
+  // Phones stack the frames: two 170px columns clipped titles and hid the Data menu.
+  const narrowPlots=()=>Number(globalThis.innerWidth)>0&&globalThis.innerWidth<=620;
   function applyFrameLayout(){
-   frameGroup?.setColumns?.(frameLayout==='1'?1:2);
+   frameGroup?.setColumns?.(frameLayout==='1'||narrowPlots()?1:2);
+   plotRegion?.setAttribute?.('data-dkts-plot-columns',frameLayout==='1'||narrowPlots()?'1':'2');
    for(let i=0;i<frameCards.length;i++)if(frameCards[i]?.style)
     frameCards[i].style.display=frameLayout==='1'&&i>0||frameLayout==='2'&&i>1?'none':'';
   }
@@ -2421,6 +2435,11 @@
    });
    return open;
   }
+  // Template entries read as a left-aligned list, like the navigation tree.
+  const alignTemplateEntry=action=>{
+   if(action?.element)units.layout.apply(action.element,{variant:'identity',geometry:{alignSelf:'stretch',justifyContent:'flex-start'}});
+   return action;
+  };
   const savedTemplates=()=>{
    const rows=userTemplates.get('items');
    return Array.isArray(rows)?rows:[];
@@ -2643,6 +2662,9 @@
       syncGroup();
      }}).element;
     if(button&&group.insertBefore)group.insertBefore(button,list);
+    // Core action units default to align-self:end and centred text, which pushed
+    // the group toggle to the right; keep it flush with the navigation tree.
+    if(button)units.layout.apply(button,{variant:'identity',geometry:{alignSelf:'flex-start',justifyContent:'flex-start'}});
     function syncGroup(){
      list.hidden=collapsed;
      button?.setAttribute('aria-expanded',String(!collapsed));
@@ -2650,13 +2672,13 @@
     }
     syncGroup();
     if(key==='builtIn'){
-     for(const kind of newTestKinds)units.action.create(list,{id:'library-'+kind.id,label:t(kind.label),
-      variant:'quiet',direct:true,onInvoke:()=>openTestType(kind.id)});
+     for(const kind of newTestKinds)alignTemplateEntry(units.action.create(list,{id:'library-'+kind.id,label:t(kind.label),
+      variant:'quiet',direct:true,onInvoke:()=>openTestType(kind.id)}));
     }else{
      const rows=templates.filter(item=>item.kind===key);
      if(!rows.length)units.note.create(list,{variant:'meta',text:tr('暂无模板','No templates')});
-     for(const [index,setup] of rows.entries())units.action.create(list,{id:'dkts-user-template-'+key+'-'+index,
-      label:setup.name,variant:'quiet',direct:true,onInvoke:()=>useSetupTemplate(setup)});
+     for(const [index,setup] of rows.entries())alignTemplateEntry(units.action.create(list,{id:'dkts-user-template-'+key+'-'+index,
+      label:setup.name,variant:'quiet',direct:true,onInvoke:()=>useSetupTemplate(setup)}));
     }
    }
    renderEditor(p,s);
@@ -3198,6 +3220,8 @@
    const rawHost=units.layout.create(graphic.body,{variant:'scroll-pane'});
    rawHost?.setAttribute?.('data-dkts-raw-host','true');
    frameTableHosts.push(rawHost);
+   frameTableEmpty.push(units.emptyState.create(graphic.body,{className:'dkts-frame-raw-empty',
+    message:tr('暂无可显示的数据','No data to display')}).element);
    frameTables.push(units.table.mount('dkts-frame-'+(index+1)+'-raw',rawHost,{
     variant:'standard',persistKey:'dkts-frame-'+(index+1)+'-raw',
     appearance:{density:'compact',stripe:'subtle'},columns:[],rows:[]}));
@@ -3229,6 +3253,7 @@
      if(layoutField.control.options?.[i])layoutField.control.options[i].text=t(key);
    }
    for(const update of graphUpdates)update();
+   refreshRawTables();
    for(const plot of plots)plot?.requestRender?.('language');
   };
   updateGraphLanguage();
@@ -3252,6 +3277,7 @@
    render();
   });
   window.addEventListener?.('resize',updateEditorLayout);
+  window.addEventListener?.('resize',applyFrameLayout);
   render();refreshData();
   function showOfflineStatus(){ctx.status.set(tr('DK Test Studio · 4200A 离线','DK Test Studio · 4200A offline'));}
   const isInstrumentSession=(session,saved)=>session&&!session.owner&&
@@ -3273,7 +3299,7 @@
    }catch(error){ctx.status.set(String(error.message||error));}
   }
   void restoreInstrument();
-  return {deactivate(){routineSettings?.close();closeTimeTimingTip();treeMenu?.dispose?.();projectSurface?.dispose();disposeTimePreview?.();window.removeEventListener?.('resize',updateEditorLayout);
+  return {deactivate(){routineSettings?.close();closeTimeTimingTip();treeMenu?.dispose?.();projectSurface?.dispose();disposeTimePreview?.();window.removeEventListener?.('resize',updateEditorLayout);window.removeEventListener?.('resize',applyFrameLayout);
    pad?.close?.();portPopover?.close?.();smuIntegrationPopover?.close?.();off?.();offProjectRestore?.();offTcp?.();stopConnectionCheck?.();
    void measurementRuntime.dispose().catch(()=>{});
    for(const item of plots)item?.dispose?.();

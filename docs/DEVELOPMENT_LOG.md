@@ -1055,3 +1055,12 @@ Rev F §7-7–7-9: COUNT? and DATA:GET permit in-progress, non-destructive readi
 - **7 原生对数与多 VAR2**（5-22/23/24）：Optimized 对数扫描在跨度恰好是整数个仪器对数步且计划电平与该网格一致时，用 `VR/IR` 2/3/4（每十倍频 10/25/50 点），否则保留精确的 VL/IL 列表。Optimized 可设最多 4 个 Psweep 源，附加源排在主 VAR2 之后定义（CH 函数 2），用 `VP/IP …,FF`（2–4）步进；模型、计划规范化与编译三处都要求单段线性、步数一致、≤32 步，不能与 Generator 组合。
 - 测试：新增 `tests/dkts-kxci-extensions.test.cjs` 19 项、数据中心测试 1 项。`node --test tests/*.test.cjs` 301 项：293 通过、2 跳过、6 失败，失败与基线相同（容器缺 D3）；`tests/test-dkds-native-host.cjs` 通过。
 - 未改动 `safetyPolicies.kxci` 任何开关；未合并 PR；未连接物理 4200A，自检、OV/OS/OD/SR/RK/RF、VR 对数网格与 VP 多源索引都还需要实机验收；未提升版本号，未构建预览或 ZIP。
+
+## 2026-11-28 · 界面与细节优化（分支 claude/project-thread-iv8r9j）
+
+- R-20261128-004，基线 PR #24 `afdcc95`。用固定 DKDS `20f0568` 构建同源 Core 预览，Chromium 在 1440、900、390 px 截图检查图窗区、DC 页和时间扫描页。
+- 图窗：「数据表」图窗无数据时用 Core `emptyState` 显示「暂无可显示的数据」，隐藏空表格（原手机上残留孤立「▾」），切换语言时同步刷新；视口 ≤620 px 时 PlotGroup 改为单列，行高 ≥232 px。
+- 侧栏：测试模板分组按钮与模板项通过 `units.layout.apply` 左对齐（原被 Core action 的 `align-self:end`、居中排布覆盖；插件层级低于 Core structure 层，单靠选择器优先级无效）。
+- DC 页：只读输入框改用 Core 字段令牌显示为透明底、弱化文字；GNDU 行限值占位「—」；容器 ≤440 px 时端子身份、模式/方法、段值上下排列，「Linear Step」等不再截断；≤620 px 时取消 DC 编辑页两侧固定滚动条槽，与时间扫描页同为 7 px 边距。
+- 时间扫描：偏置预览图卡正文改为纵向弹性布局，图表填满 Core 图卡 340 px 最小高度，消除底部空白。
+- 测试：`npm install` 后 `npm test` 300 通过、0 失败（2 跳过）。未改动 `safetyPolicies.kxci`、KXCI、测试计划或 PMU 时序逻辑；未连接物理 4200A；未在 Electron 或 Android 真机复核，截图只代表浏览器同源预览。
