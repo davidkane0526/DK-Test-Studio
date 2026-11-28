@@ -1278,7 +1278,11 @@
    return ({reference:'Ref Node',referenceV:'Ref (V)',outputs:'Outputs',
     sampleStepS:tr('计划采样步长','Planned Sampling Step'),switchStepS:tr('切换步长','Switching Step'),
     integrationPreset:tr('策略 · SMU 积分档','Strategy · SMU integration preset'),
-    cycles:tr('循环次数','Cycles'),roles:tr('扫描角色','Scan role')}[path]||'');
+    cycles:tr('循环次数','Cycles'),roles:tr('扫描角色','Scan role'),
+    powerOrder:tr('策略 · 上电顺序','Strategy · Power-on order'),powerDelays:tr('策略 · 上电延时','Strategy · Power-on delays'),
+    sourceRange:tr('策略 · 源量程','Strategy · Source range'),rangeSkip:tr('策略 · 跳过量程','Strategy · Skipped ranges'),
+    customDelayFactor:tr('策略 · 延时系数','Strategy · Delay factor'),customFilterFactor:tr('策略 · 滤波系数','Strategy · Filter factor'),
+    customPlc:tr('策略 · 积分 PLC','Strategy · Integration PLC'),rangeDelay:tr('策略 · 分量程延时','Strategy · Per-range delay')}[path]||'');
   }
   function checkedPlan(page,settings){
    if(page.kind==='dc'){
@@ -1664,18 +1668,36 @@
    dcSelect(row,tr('设置','Setting'),settings.mode,[{value:'global',label:'Global Setting'},
     {value:'local',label:'Local Setting'}],value=>{settings.mode=value;redraw();},{key:'strategy'});
    if(settings.mode==='local'){
-    const speeds=[{value:'fast',label:tr('快速','Fast')},{value:'normal',label:tr('标准','Normal')},{value:'quiet',label:tr('低噪声','Quiet')}];
+    const speeds=[{value:'fast',label:tr('快速','Fast')},{value:'normal',label:tr('标准','Normal')},{value:'quiet',label:tr('低噪声','Quiet')},{value:'custom',label:tr('自定义','Custom')}];
     if(settings.integrationPreset==='legacy')speeds.push({value:'legacy',label:tr('旧积分设置 · ','Legacy integration · ')+settings.integration+' s'});
     dcSelect(row,tr('测量速度','Measurement speed'),settings.integrationPreset||'normal',speeds,
      value=>{settings.integrationPreset=value;if(value!=='legacy')settings.integration='';redraw();},{key:'integration',path:'integration'});
     dcInput(row,tr('延迟时间 (s)','Delay time (s)'),settings.delay,
      value=>{settings.delay=value;},{key:'delay',path:'delay',help:'Default: blank'});
+    if(settings.integrationPreset==='custom'){
+     // Rev F 5-47 IT4 and 5-50 RF.
+     dcInput(row,tr('延时因子','Delay factor'),settings.customDelayFactor,value=>{settings.customDelayFactor=value;},{key:'customDelayFactor',path:'customDelayFactor',help:'0–100 · IT4'});
+     dcInput(row,tr('滤波因子','Filter factor'),settings.customFilterFactor,value=>{settings.customFilterFactor=value;},{key:'customFilterFactor',path:'customFilterFactor',help:'0–100 · IT4'});
+     dcInput(row,tr('A/D 积分 (PLC)','A/D integration (PLC)'),settings.customPlc,value=>{settings.customPlc=value;},{key:'customPlc',path:'customPlc',help:'0.01–10 · IT4'});
+     dcInput(row,tr('按量程延时因子','Per-range delay factor'),settings.rangeDelay,value=>{settings.rangeDelay=value;},{key:'rangeDelay',path:'rangeDelay',help:tr('量程:因子，逗号分隔，例如 1e-9:2 · RF','range:factor, comma-separated, e.g. 1e-9:2 · RF')});
+    }
    }else{
     units.note.create(panel,{variant:'meta',text:tr('全局 SMU 积分档在顶栏「端口」右侧设置。','Set the global SMU integration in the top toolbar, next to Ports.')});
    }
    if(dc.preset==='optimized'||dc.preset==='point-by-point'){
     dcInput(row,tr('首点保持 (s)','Hold time (s)'),settings.hold,value=>{settings.hold=value;},
      {key:'hold',path:'hold',help:'Default: blank'});
+   }
+   dcSelect(row,tr('源量程','Source range'),settings.sourceRange||'auto',[
+    {value:'auto',label:tr('自动','Auto')},{value:'best',label:tr('最佳固定档','Best fixed')}
+   ],value=>{settings.sourceRange=value;},{key:'sourceRange',path:'sourceRange',help:tr('最佳固定档按计划最大值选定，扫描中不切档 · SR','Best fixed is chosen from the planned maximum and never switches mid-sweep · SR')});
+   dcInput(row,tr('自动量程跳过档位 (A)','Autorange skip (A)'),settings.rangeSkip,value=>{settings.rangeSkip=value;},
+    {key:'rangeSkip',path:'rangeSkip',help:tr('仅限 1 mA 以下，逗号分隔，例如 1e-12,1e-11。仪器保持此设置直到复位 · RK','Below 1 mA only, comma-separated, e.g. 1e-12,1e-11. Persists until instrument reset · RK')});
+   if(dc.preset==='optimized'){
+    dcInput(row,tr('上电顺序','Power-on order'),settings.powerOrder,value=>{settings.powerOrder=value;},
+     {key:'powerOrder',path:'powerOrder',help:tr('端子字母，逗号分隔，例如 G,D；留空为默认 · OS','Terminal letters, comma-separated, e.g. G,D; blank = default · OS')});
+    dcInput(row,tr('上电延时 (s)','Power-on delays (s)'),settings.powerDelays,value=>{settings.powerDelays=value;},
+     {key:'powerDelays',path:'powerDelays',help:tr('按上电顺序，每项 0–1 s · OD','In power-on order, 0–1 s each · OD')});
    }
    if(dc.preset==='point-by-point'){
     dcSelect(row,tr('超限处理','On limit'),settings.onLimit,[

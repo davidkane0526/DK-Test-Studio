@@ -118,3 +118,70 @@ test('user mode clamps every SMU with OV before the first DV and releases after 
  const lastOff=sent.map((c,i)=>/^DV[1-9]$/.test(c)?i:-1).filter(i=>i>=0).at(-1);
  assert.ok(sent.slice(lastOff).some(c=>/^OV [1-9],221$/.test(c)));
 });
+
+function withStrategy(m,preset,patch){const p=dcPage(m,preset);Object.assign(p.dc.strategy,patch);return p;}
+
+test('Rev F 5-16/17: power-on order OS/OD follows the listed terminals and is restored',()=>{
+ const {m,r,k,hardware}=loadNative();
+ const input=r.pageToBasicProgram(withStrategy(m,'optimized',{powerOrder:'G,D',powerDelays:'0.01,0.02'}),m);
+ const c=k.compileSweep(input,hardware),s=c.system.setup;
+ const os=s.find(x=>/^OS /.test(x)),od=s.find(x=>/^OD /.test(x));
+ const g=c.channels.gate??c.channels.G,d=c.channels.drain??c.channels.D;
+ assert.ok(os&&os.startsWith('OS '+g+','+d),os);
+ assert.match(od,/^OD 0\.01,0\.02/);
+ assert.ok(s.indexOf(os)>s.indexOf('SS'));
+ assert.ok(c.system.cleanup.some(x=>/^OS /.test(x))&&c.system.cleanup.some(x=>/^OD 0(,0)*$/.test(x)));
+});
+
+test('power-on order is rejected outside Optimized mode and for unknown terminals',()=>{
+ const {m}=loadNative();
+ const bad=withStrategy(m,'point-by-point',{powerOrder:'G,D'});
+ assert.throws(()=>m.dcSummary(bad),/Optimized/);
+ const unknown=withStrategy(m,'optimized',{powerOrder:'Q'});
+ assert.throws(()=>m.dcSummary(unknown),/distinct mapped/);
+});
+
+test('Rev F 5-37: best fixed source range uses SR ch,2 in System Mode and is restored to auto',()=>{
+ const {m,r,k,hardware}=loadNative();
+ const c=k.compileSweep(r.pageToBasicProgram(withStrategy(m,'optimized',{sourceRange:'best'}),m),hardware);
+ const sr=c.system.setup.filter(x=>/^SR /.test(x));
+ assert.equal(sr.length,c.active.filter(role=>c.system.setup.some(x=>x==='SR '+c.channels[role]+',2')).length);
+ assert.ok(sr.length>0&&sr.every(x=>/,2$/.test(x)));
+ assert.ok(c.system.cleanup.some(x=>/^SR \d,0$/.test(x)));
+ const auto=k.compileSweep(r.pageToBasicProgram(dcPage(m),m),hardware);
+ assert.ok(!auto.system.setup.some(x=>/^SR /.test(x)));
+});
+
+test('user mode best source range picks DV range code 1 (20 V) for low-voltage sweeps',async()=>{
+ const {m,r,k,hardware}=loadNative(),{sent,controller}=fakeController();
+ const runner=k.createRunner({controller,execution:{begin:()=>({end(){}})},wait:()=>Promise.resolve()});
+ runner.start(r.pageToBasicProgram(withStrategy(m,'point-by-point',{sourceRange:'best'}),m),hardware,'CONFIRM_WIRING_AND_OUTPUT');
+ const result=await runner.waitForCompletion();
+ assert.equal(result.state,'completed',result.error);
+ assert.ok(sent.some(c=>/^DV[1-9],1,/.test(c)),sent.filter(c=>/^DV/.test(c)).join(' '));
+});
+
+test('Rev F 5-47/5-50/5-52: custom speed sends IT4, RF and RK with validated parameters',()=>{
+ const {m,r,k,hardware}=loadNative();
+ const p=withStrategy(m,'optimized',{mode:'local',integrationPreset:'custom',customDelayFactor:'1.5',customFilterFactor:'0',customPlc:'2',rangeSkip:'1e-9 1e-10',rangeDelay:'1e-9:3'});
+ const c=k.compileSweep(r.pageToBasicProgram(p,m),hardware),s=c.system.setup;
+ assert.ok(s.includes('IT4,1.5,0,2'),s.join(' | '));
+ assert.ok(s.some(x=>/^RK \d,1E-9,1E-10$|^RK \d,1E-09,1E-10$|^RK \d,1e-9,1e-10$/i.test(x)),s.filter(x=>/^RK/.test(x)).join(' '));
+ assert.ok(s.some(x=>/^RF \d,1E-0?9,3$/i.test(x)),s.filter(x=>/^RF/.test(x)).join(' '));
+});
+
+test('custom speed fields are range-checked and per-range delays need custom speed',()=>{
+ const {m}=loadNative(),root=m.validate(m.initial());
+ assert.throws(()=>m.dcSummary(withStrategy(m,'optimized',{mode:'local',integrationPreset:'custom',customPlc:'20'})),/PLC/);
+ assert.throws(()=>m.dcSummary(withStrategy(m,'optimized',{rangeDelay:'1e-9:2'})),/Custom/);
+ assert.throws(()=>m.dcSummary(withStrategy(m,'optimized',{rangeSkip:'1e-2'})),/below 1 mA/);
+});
+
+test('transport whitelist accepts the new modeless commands and rejects out-of-range forms',async()=>{
+ const {tcp}=fakeInstrument();
+ const c=createIdentityController(tcp,protocol);
+ await c.connect({host:'10.0.0.5'});
+ c.beginSystemProgram({setup:[],reads:[],cleanup:[],rdNames:[],count:1});
+ for(const bad of ['OV 1,300','IT4,1,1,50','DV1,1,30,0.001','RK 1,1E-2'])
+  await assert.rejects(()=>c.measurementExchange(bad),undefined,bad);
+});

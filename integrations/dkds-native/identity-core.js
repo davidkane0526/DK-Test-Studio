@@ -187,11 +187,17 @@
       const systemAllowed=Boolean(systemProgram&&(systemProgram.commands.has(cmd)||blockAllowed||(rd&&systemProgram.rdNames.has(rd[1])&&Number(rd[2])<=systemProgram.count)));
       const systemRead=Boolean(systemAllowed&&(systemProgram.reads.has(cmd)||rd||blockAllowed));
       const n='(?:0|[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[Ee][+-]?\\d+)?)';
-      const dv=new RegExp('^DV([1-9]),0,('+n+'),('+n+')$').exec(cmd);
+      const dv=new RegExp('^DV([1-9]),([0-2]),('+n+'),('+n+')$').exec(cmd);
       const ri=new RegExp('^RI ([1-9]),('+n+'),('+n+')$').exec(cmd);
       const rg=new RegExp('^RG ([1-9]),('+n+')$').exec(cmd);
       const ov=new RegExp('^OV ([1-9]),('+n+')$').exec(cmd);
-      if(dv&&!(Math.abs(Number(dv[2]))<=210&&Number(dv[3])>0&&Number(dv[3])<=1.05))
+      const it4=new RegExp('^IT4,('+n+'),('+n+'),('+n+')$').exec(cmd);
+      const rk=new RegExp('^RK ([1-9])((?:,'+n+'){1,9})$').exec(cmd);
+      const rf=new RegExp('^RF ([1-9]),('+n+'),('+n+')$').exec(cmd);
+      if(it4&&!(Number(it4[1])>=0&&Number(it4[1])<=100&&Number(it4[2])>=0&&Number(it4[2])<=100&&Number(it4[3])>=0.01&&Number(it4[3])<=10))throw Error('KXCI IT4 参数越界');
+      if(rk&&!rk[2].slice(1).split(',').map(Number).every(v=>v>=1e-12*0.999&&v<=1e-4*1.001))throw Error('KXCI RK 参数越界');
+      if(rf&&!(Number(rf[2])>=1e-12*0.999&&Number(rf[2])<=1.001&&Number(rf[3])>=0&&Number(rf[3])<=100))throw Error('KXCI RF 参数越界');
+      if(dv&&!(Math.abs(Number(dv[3]))<=210&&Number(dv[4])>0&&Number(dv[4])<=1.05&&(dv[2]!=='1'||Math.abs(Number(dv[3]))<=21)))
         throw Error('KXCI DV 指令值越过绝对硬件边界');
       if(ri&&!(Number(ri[2])>0&&Number(ri[2])<=0.1&&Number(ri[3])>0&&Number(ri[3])<=1.05))
         throw Error('KXCI RI 参数越界');
@@ -200,7 +206,7 @@
       if(ov&&!(Number(ov[2])>=0&&Number(ov[2])<=221))
         throw Error('KXCI OV 参数越界');
       if(!systemAllowed&&!['US','DE','EM 1,0','BC','SP',':ERROR:LAST:CLEAR',':ERROR:LAST:GET'].includes(cmd)&&
-         !/^DV[1-9]$/.test(cmd)&&!/^TI[1-9]$/.test(cmd)&&!/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)&&!/^IT[123]$/.test(cmd)&&!dv&&!ri&&!rg&&!ov)
+         !/^DV[1-9]$/.test(cmd)&&!/^TI[1-9]$/.test(cmd)&&!/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)&&!/^IT[123]$/.test(cmd)&&!dv&&!ri&&!rg&&!ov&&!it4&&!rk&&!rf)
         throw Error('禁止非测量白名单 KXCI 指令');
       if(expectReply&&!(systemRead||/^TI[1-9]$/.test(cmd)||/^TV(?:[1-4]|[7-9]|10)$/.test(cmd)||['SP',':ERROR:LAST:GET'].includes(cmd)))
         throw Error('此 KXCI 指令没有测量响应');

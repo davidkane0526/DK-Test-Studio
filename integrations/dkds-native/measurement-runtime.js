@@ -44,7 +44,12 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
   check(hold>=0&&hold<=655.3,'HT 允许 0–655.3 s');
   check(dc.preset==='optimized'||hold===0,'逐点模式 Hold 尚未接入');
   const speed=dc.strategy.integrationPreset??(text(dc.strategy.integration)?'legacy':'normal');
-  const integration=dc.strategy.mode==='global'?SMU_INTEGRATION[globalIntegration]:{fast:'IT1',normal:'IT2',quiet:'IT3'}[speed];
+  const ext=info.strategy||{powerOrder:[],powerDelays:[],sourceRange:'auto',rangeSkip:[],custom:null,rangeDelay:[]};
+  const fmt=x=>String(Number(x.toPrecision(6)));
+  const integration=dc.strategy.mode==='global'?SMU_INTEGRATION[globalIntegration]:ext.custom?
+   'IT4,'+[ext.custom.delayFactor,ext.custom.filterFactor,ext.custom.plc].map(fmt).join(','):{fast:'IT1',normal:'IT2',quiet:'IT3'}[speed];
+  var smuStrategy=Object.freeze({powerOrder:Object.freeze(ext.powerOrder.map(k=>roles[k])),powerDelaysS:Object.freeze(ext.powerDelays.slice()),
+   sourceRange:ext.sourceRange,rangeSkipA:Object.freeze(ext.rangeSkip.slice()),rangeDelay:Object.freeze(ext.rangeDelay.map(Object.freeze))});
   check(integration,'旧积分秒数未确认电源频率，请重新选择测量速度');
   const delay=dc.strategy.mode==='local'&&dc.strategy.delay.trim()?n(dc.strategy.delay,'Delay')*1000:0;
   check(dc.reference==='GND'||ports[dc.reference]?.resource==='GNDU','仅支持接地参考');
@@ -100,7 +105,7 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
     const range=x.segments[0].rangeA;axes.X={...x,segments:master.map(z=>current?{startA:z,stopA:z,stepA:0,rangeA:range,delayMs:delay}:segment(z,z,0,range,delay))};delete axes.P;
    }
   }
-  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,systemIntegration:integration,requestedOutputs:info.outputs,plotSignals,dcList,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,listFollowers:followers,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
+  return {kind:'iv',pageKind:'dc',executionMode:dc.preset==='optimized'?'system':'user',systemHoldS:hold,systemIntegration:integration,smuStrategy,requestedOutputs:info.outputs,plotSignals,dcList,sweepProgram:{terminals,fixedVoltages,fixedCurrents,sourceModes,portSettings,generators,listFollowers:followers,loops:n(page.sweep.loops,'循环'),xSweep:axes.X,pSweep:axes.P?{...axes.P,enabled:true}:disabled}};
  }
  if(page.kind==='time'){
   const t=page.timing,summary=model.timedSummary('time',t);

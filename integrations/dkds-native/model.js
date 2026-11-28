@@ -458,7 +458,7 @@
     limitI:'0.01',limitV:'1',segments:[{method:key===axis?'step':'constant',
      value:'0',start:'0',stop:'1',step:'0.1',points:'11',list:'0, 0.1, 0.2',formula:'getx()',range:'auto'}]
    }])),target:{formula:'',x:'',y:'',h:'',p:''},
-   strategy:{mode:'global',integrationPreset:'normal',integration:'',delay:'',hold:'',onLimit:'stop',direction:'forward'},specIds:p.associateSpecId?[p.associateSpecId]:[]};
+   strategy:{mode:'global',integrationPreset:'normal',integration:'',delay:'',hold:'',onLimit:'stop',direction:'forward',...STRATEGY_EXTENSIONS},specIds:p.associateSpecId?[p.associateSpecId]:[]};
  }
  function dcOutputs(p,settings=p.dc){
   return dcTerminals(p,settings).filter(t=>t.resource!=='GNDU').flatMap(t=>
@@ -680,6 +680,53 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   return result;
  }
  // Preserve the roles, range values and expression polarity of saved DC pages.
+ // Rev F SMU strategy extensions (R-20261128-003): power-on order OS/OD
+ // (5-16/17), fixed source range SR (5-37), custom speed IT4 (5-47), range
+ // skip RK (5-52) and per-range delay factor RF (5-50). Blank = instrument default.
+ const STRATEGY_EXTENSIONS=Object.freeze({powerOrder:'',powerDelays:'',sourceRange:'auto',customDelayFactor:'1',customFilterFactor:'1',customPlc:'1',rangeSkip:'',rangeDelay:''});
+ const SMU_RANGE_VALUES=Object.freeze([1,1e-1,1e-2,1e-3,1e-4,1e-5,1e-6,1e-7,1e-8,1e-9,1e-10,1e-11,1e-12]);
+ function parseNumberList(raw,label){
+  const text=String(raw||'').trim();if(!text)return [];
+  return text.split(/[\s,]+/).filter(Boolean).map(token=>{const n=Number(token);if(!Number.isFinite(n))throw Error(label+' contains a non-numeric value: '+token);return n;});
+ }
+ function matchRange(value){return SMU_RANGE_VALUES.find(r=>Math.abs(r-value)<=r*1e-9)??null;}
+ function dcStrategyExtensions(p,dc,smuLogicals){
+  const s=dc.strategy,out={};
+  const order=String(s.powerOrder||'').trim().toUpperCase();
+  out.powerOrder=order?atField('powerOrder',()=>{
+   const keys=order.split(/[\s,]+/).filter(Boolean);
+   if(keys.some(k=>!smuLogicals.includes(k))||new Set(keys).size!==keys.length)throw Error('Power-on order must list distinct mapped SMU terminals, e.g. G,D');
+   return keys;
+  }):[];
+  out.powerDelays=atField('powerDelays',()=>{
+   const list=parseNumberList(s.powerDelays,'Power-on delays');
+   if(list.some(v=>v<0||v>1))throw Error('Each power-on delay must be between 0 and 1 s');
+   if(list.length>Math.max(0,(out.powerOrder.length||smuLogicals.length)))throw Error('More power-on delays than SMUs in the sequence');
+   return list;
+  });
+  if((out.powerOrder.length||out.powerDelays.length)&&dc.preset!=='optimized')invalidField('powerOrder','Power-on order runs only in Optimized (instrument-native) mode');
+  if(!['auto','best'].includes(s.sourceRange))invalidField('sourceRange','Source range must be Auto or Best fixed');
+  out.sourceRange=s.sourceRange;
+  out.rangeSkip=atField('rangeSkip',()=>{
+   const list=parseNumberList(s.rangeSkip,'Skipped ranges').map(v=>{const r=matchRange(v);if(r===null)throw Error('Skipped range '+v+' A is not an SMU/PA current range');return r;});
+   if(new Set(list).size!==list.length)throw Error('Skipped ranges must be distinct');
+   if(list.some(r=>r>=1e-3))throw Error('Only ranges below 1 mA may be skipped');
+   return list;
+  });
+  const custom=s.mode==='local'&&s.integrationPreset==='custom';
+  if(custom){
+   const num=(key,min,max,label)=>atField(key,()=>{const v=numeric(s[key],label);if(v<min||v>max)throw Error(label+' must be between '+min+' and '+max);return v;});
+   out.custom={delayFactor:num('customDelayFactor',0,100,'Delay factor'),filterFactor:num('customFilterFactor',0,100,'Filter factor'),plc:num('customPlc',0.01,10,'A/D integration (PLC)')};
+  }else out.custom=null;
+  out.rangeDelay=atField('rangeDelay',()=>{
+   const text=String(s.rangeDelay||'').trim();if(!text)return [];
+   if(!custom)throw Error('Per-range delay factors require the Custom measurement speed');
+   const rows=text.split(/[\s,]+/).filter(Boolean).map(pair=>{const m=/^([^:]+):([^:]+)$/.exec(pair);if(!m)throw Error('Use range:factor pairs, e.g. 1e-9:2');const r=matchRange(Number(m[1])),f=Number(m[2]);if(r===null)throw Error('Unknown current range '+m[1]);if(!Number.isFinite(f)||f<0||f>100)throw Error('Delay factor must be 0–100');return {rangeA:r,factor:f};});
+   if(new Set(rows.map(r=>r.rangeA)).size!==rows.length)throw Error('Each range may appear once');
+   return rows;
+  });
+  return out;
+ }
  function migrateDcPreset(dc){
   if(dc.preset===undefined)dc.preset='optimized';
   if(dc.strategy){
@@ -687,6 +734,7 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
    if(dc.strategy.hold===undefined)dc.strategy.hold='';
    if(dc.strategy.onLimit===undefined)dc.strategy.onLimit='stop';
    if(dc.strategy.direction===undefined)dc.strategy.direction='forward';
+   for(const [key,value] of Object.entries(STRATEGY_EXTENSIONS))if(dc.strategy[key]===undefined)dc.strategy[key]=value;
   }
   for(const terminal of Object.values(dc.terminals||{}))
    if(Array.isArray(terminal?.segments))
@@ -700,7 +748,8 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
      !Array.isArray(dc.specIds)||dc.specIds.length>100||new Set(dc.specIds).size!==dc.specIds.length||
      !dc.target||!['formula','x','y','h','p'].every(key=>text(dc.target[key],key==='formula'?4096:256))||
      !dc.strategy||!['global','local'].includes(dc.strategy.mode)||
-     !['fast','normal','quiet','legacy'].includes(dc.strategy.integrationPreset??(dc.strategy.integration?.trim()?'legacy':'normal'))||!text(dc.strategy.integration)||!text(dc.strategy.delay)||!text(dc.strategy.hold)||
+     !['fast','normal','quiet','legacy','custom'].includes(dc.strategy.integrationPreset??(dc.strategy.integration?.trim()?'legacy':'normal'))||!text(dc.strategy.integration)||!text(dc.strategy.delay)||!text(dc.strategy.hold)||
+     !Object.keys(STRATEGY_EXTENSIONS).every(key=>dc.strategy[key]===undefined||text(dc.strategy[key]))||
      !['stop','skip'].includes(dc.strategy.onLimit)||!['forward','forward-reverse'].includes(dc.strategy.direction))
    throw Error('Invalid DC test parameters');
   for(const key of ['D','G','S','B']){
@@ -813,7 +862,8 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
      invalidField(key,'Enter a positive integration time and a nonnegative delay, or leave them blank for Default');
    }
   }
-  return {x:assigned('X')[0].logical,p:assigned('P')[0]?.logical||null,outputs,preset:dc.preset};
+  const strategy=dcStrategyExtensions(p,{...dc,strategy:{...STRATEGY_EXTENSIONS,...dc.strategy}},smus.map(t=>t.logical));
+  return {x:assigned('X')[0].logical,p:assigned('P')[0]?.logical||null,outputs,preset:dc.preset,strategy};
  }
 
  const initial=()=>({schema:1,sequence:ROUTINE_DEFAULTS.length,activeId:'page-1',smuIntegration:'medium',

@@ -125,6 +125,23 @@ function compileSystemPlan(compiled,input,inventory){
  }
  setup.push('SS');
  if(compiled.overvoltage)for(const r of active)setup.push('OV '+channels[r]+','+fmt(compiled.overvoltage[r]));
+ const strategy=input.smuStrategy||null;
+ // Rev F 5-37 SR: 2 = best fixed source range from the sweep maxima.
+ const bestRange=strategy?.sourceRange==='best';
+ if(strategy&&!['auto','best'].includes(strategy.sourceRange||'auto'))throw Error('源量程设置无效');
+ if(bestRange)for(const r of active)setup.push('SR '+channels[r]+',2');
+ // Rev F 5-16/5-17 OS/OD: power-on order (listed roles first, then the rest
+ // in channel order) and delays in that order.
+ const order=strategy?.powerOrder||[],delaysS=strategy?.powerDelaysS||[];
+ const sequenced=order.length||delaysS.length;
+ if(sequenced){
+  assert(order.every(r=>active.includes(r))&&new Set(order).size===order.length,'上电顺序包含未启用的端子');
+  assert(delaysS.every(v=>Number.isFinite(v)&&v>=0&&v<=1),'上电延时 0–1 s');
+  const seq=[...order,...active.filter(r=>!order.includes(r)).sort((a,b)=>channels[a]-channels[b])].map(r=>channels[r]);
+  assert(delaysS.length<=seq.length,'上电延时多于 SMU 数');
+  setup.push('OS '+seq.join(','));
+  if(delaysS.length)setup.push('OD '+delaysS.map(fmt).join(','));
+ }
  if(rpmRoutes.length){
   setup.push('ZE');
   for(const route of rpmRoutes)setup.push(':PMU:OUTPUT:STATE '+route.pulseChannel+',0','RP '+route.pmu+', 2');
@@ -178,7 +195,8 @@ function compileSystemPlan(compiled,input,inventory){
   setup.push('RG '+channels[r]+','+fmt(floor));
  }
  const integration=timing?.integration||input.systemIntegration||'IT2';
- assert(['IT1','IT2','IT3'].includes(integration),'测量速度无效');
+ assert(validIntegration(integration),'测量速度无效');
+ setup.push(...rangeTuningCommands(strategy,active,channels,integration));
  setup.push('EC 1',integration,'RS 7','SM','DM2');
  if(timing)setup.push('WT '+fmt(timing.startS),'IN '+fmt(timing.intervalS),'NR '+count);
  const available=active.flatMap(r=>[{name:'V'+channels[r],role:r,quantity:'V'},{name:'I'+channels[r],role:r,quantity:'I'}]);
@@ -196,7 +214,9 @@ function compileSystemPlan(compiled,input,inventory){
  const reads=[...signals.map(s=>"DO '"+s.name+"'"),"DO '"+timestamp+"'"];
  // Rev F 5-20 ST standby only applies when a test completes; 5-26 ZE turns all
  // SMU outputs off. Always send SS+ZE after ME4, then return RPMs to pulse.
- const release=compiled.overvoltage?active.map(r=>'OV '+channels[r]+','+OV_RELEASE):[];
+ const release=[...(compiled.overvoltage?active.map(r=>'OV '+channels[r]+','+OV_RELEASE):[]),
+  ...(bestRange?active.map(r=>'SR '+channels[r]+',0'):[]),
+  ...(sequenced?['OS '+active.map(r=>channels[r]).sort((a,b)=>a-b).join(','),'OD '+active.map(()=>'0').join(',')]:[])];
  const cleanup=['MD','ME4','SS','ZE',...release,...rpmRoutes.map(r=>'RP '+r.pmu+', 0'),'DE',...active.map(r=>'CH'+channels[r])];
  // Only these exact validated setup/read/stop strings may pass the internal
  // transport lease. RD indices are separately bounded by count.
@@ -646,14 +666,46 @@ async function executeNativeSequence(compiled,io){
       Object.freeze(Object.fromEntries(active.map(role=>[role,overvoltageLimit(peakByRole[role])])));
     const requiresInterlock=highestV>21||active.some(role=>
       plan.limitsByRole?.[role]?.segmentLimits?.some(s=>s.requiresInterlock));
+    const strategy=input.smuStrategy||null;
+    if(input.executionMode!=='system'&&(strategy?.powerOrder?.length||strategy?.powerDelaysS?.length))
+      throw Error('上电顺序 OS/OD 只在 Optimized 原生模式执行');
+    // Rev F 5-40 DV range code: 0 auto, 1 = 20 V, 2 = 200 V. Best fixed picks
+    // the lowest range covering the planned peak (20 V range up to 21 V).
+    const sourceRangeCode=Object.freeze(Object.fromEntries(active.map(role=>[role,
+      strategy?.sourceRange==='best'&&plan.sourceModes?.[role]!=='current'?(peakByRole[role]<=21?1:2):0])));
     const base={plan,channels,active,overvoltage};
     const system=input.executionMode==='system'?compileSystemPlan(base,input,hardware.inventory):null;
-    return Object.freeze({plan,channels,active,system,overvoltage,physicalVerified,
+    const rangeTuning=input.executionMode==='system'?[]:rangeTuningCommands(strategy,active,channels,input.systemIntegration||'IT2');
+    return Object.freeze({plan,channels,active,system,overvoltage,sourceRangeCode,rangeTuning:Object.freeze(rangeTuning),physicalVerified,
       capabilityVerified:limitRoles,requiresInterlock,
       canExecute:physicalVerified&&limitRoles&&!requiresInterlock,
       commandMode:system?'KXCI-SYSTEM-ME1':'KXCI-US-DV-TI',measurementChannel:channels.drain,
       totalPoints:plan.totalPoints,integration:input.systemIntegration||'IT2',timeProgram:input.timeProgram||null});
   }
+// Rev F 5-47: IT1/IT2/IT3 presets or IT4,delayFactor,filterFactor,PLC.
+function validIntegration(value){
+ const s=String(value||'');
+ if(['IT1','IT2','IT3'].includes(s))return true;
+ const m=/^IT4,([^,]+),([^,]+),([^,]+)$/.exec(s);if(!m)return false;
+ const [d,f,p]=m.slice(1).map(Number);
+ return [d,f,p].every(Number.isFinite)&&d>=0&&d<=100&&f>=0&&f<=100&&p>=0.01&&p<=10;
+}
+const SMU_SKIPPABLE=Object.freeze([1e-4,1e-5,1e-6,1e-7,1e-8,1e-9,1e-10,1e-11,1e-12]);
+// Modeless per-SMU range tuning shared by both modes: RK (5-52) and RF (5-50).
+function rangeTuningCommands(strategy,active,channels,integration){
+ const out=[];if(!strategy)return out;
+ const skip=strategy.rangeSkipA||[],delays=strategy.rangeDelay||[];
+ if(skip.some(r=>!SMU_SKIPPABLE.some(v=>Math.abs(v-r)<=v*1e-9)))throw Error('RK 只允许跳过 1 mA 以下的电流档');
+ if(delays.length&&!/^IT4,/.test(integration))throw Error('RF 按量程延时因子需要自定义测量速度 IT4');
+ for(const r of active){
+  if(skip.length)out.push('RK '+channels[r]+','+skip.map(systemNumber).join(','));
+  for(const row of delays){
+   if(!(row.factor>=0&&row.factor<=100))throw Error('RF 延时因子 0–100');
+   out.push('RF '+channels[r]+','+systemNumber(row.rangeA)+','+systemNumber(row.factor));
+  }
+ }
+ return out;
+}
 function overvoltageLimit(peakV){
  const v=Number(peakV);if(!Number.isFinite(v)||v<0)throw Error('OV 计划电压无效');
  return Math.min(221,Math.ceil((v*1.1+0.5)*10-1e-9)/10);
@@ -796,7 +848,7 @@ function parseTv(raw,channel){
         await command('BC');
         // IT2 is the documented medium/default preset. Do not inherit IT1/IT3 from a previous run.
         const integration=timing?.integration||j.compiled.integration||'IT2';
-        if(!['IT1','IT2','IT3'].includes(integration))throw Error('测量速度无效');
+        if(!validIntegration(integration))throw Error('测量速度无效');
         await command(integration);
         await verifyError();
         // Rev F 5-48: clamp each SMU before any DV turns it on.
@@ -805,6 +857,7 @@ function parseTv(raw,channel){
           await verifyError();
           j.overvoltageSet=true;
         }
+        for(const cmd of j.compiled.rangeTuning||[]){await command(cmd);await verifyError();}
         for(const point of points(plan)){
           if(j.cancelled)break;
           for(const role of j.compiled.active){
@@ -818,7 +871,7 @@ function parseTv(raw,channel){
               setting.rangeMode==='fixed'?Number(setting.rangeA):null;
             const compliance=setting.complianceMode==='custom'?
               setting.complianceA:(selected??setting.complianceA);
-            const code='DV'+ch+',0,'+numeric(voltage)+','+numeric(compliance);
+            const code='DV'+ch+','+(j.compiled.sourceRangeCode?.[role]??0)+','+numeric(voltage)+','+numeric(compliance);
             if(lastCommands[role]!==code){
               outputAttempted=true;
               await command(code);
