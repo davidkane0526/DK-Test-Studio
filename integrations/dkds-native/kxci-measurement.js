@@ -921,10 +921,23 @@ function parseTv(raw,channel){
       if(controller.status().phase!=='connected')
         throw Error('4200A 未连接');
       const compiled=compileSweep(input,hardware);
-      if([compiled,...(compiled.stages||[]).map(s=>s.compiled)].some(c=>c.system?.timeList?.multiChannel||c.system?.dcList?.multiChannel)&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowMultiChannelListOutput!==true)throw Error('多通道原生列表尚待实机验收');
-      if(compiled.stages){const policy=hardware.capabilities?.DATABASE?.safetyPolicies?.kxci||{};for(const s of compiled.stages){const c=s.compiled;if(c.pulse?(policy.allowPulseModeOutput!==true||policy.pmuModeManualVerified!==true||(c.pulse.arb&&(policy.allowSegmentArbOutput!==true||policy.segmentArbManualVerified!==true))):(policy.allowSystemModeOutput!==true||policy.smuSystemModeManualVerified!==true))throw Error('流程阶段 '+s.scope.pageName+' 尚未开放真实输出');}}
-      if(compiled.pulse&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowPulseModeOutput!==true)throw Error('PMU 尚待受控实机验收');
-      if(compiled.pulse?.arb&&hardware.capabilities?.DATABASE?.safetyPolicies?.kxci?.allowSegmentArbOutput!==true)throw Error('自定义时序尚待受控实机验收');
+      const policy=hardware.capabilities?.DATABASE?.safetyPolicies?.kxci||{};
+      const stages=compiled.stages||[];
+      if([compiled,...stages.map(stage=>stage.compiled)].some(c=>c.system?.timeList?.multiChannel||c.system?.dcList?.multiChannel)&&policy.allowMultiChannelListOutput!==true)
+        throw Error('多通道原生列表尚待实机验收');
+      function checkPulsePolicy(pulse,context=''){
+        if(policy.allowPulseModeOutput!==true||policy.pmuModeManualVerified!==true)
+          throw Error(context+'当前策略未开放 PMU 实机输出');
+        if(pulse.arb&&(policy.allowSegmentArbOutput!==true||policy.segmentArbManualVerified!==true))
+          throw Error(context+'当前策略未开放 Segment Arb 实机输出');
+      }
+      for(const stage of stages){
+        const context='流程阶段 '+stage.scope.pageName+'：';
+        if(stage.compiled.pulse)checkPulsePolicy(stage.compiled.pulse,context);
+        else if(policy.allowSystemModeOutput!==true||policy.smuSystemModeManualVerified!==true)
+          throw Error(context+'当前策略未开放 System Mode 实机输出');
+      }
+      if(compiled.pulse)checkPulsePolicy(compiled.pulse);
       if(!compiled.capabilityVerified||!compiled.physicalVerified)
         throw Error('实际模块型号及其理论额定值尚未完整核验');
       if(compiled.requiresInterlock)

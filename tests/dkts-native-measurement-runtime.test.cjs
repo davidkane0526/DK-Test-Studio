@@ -37,7 +37,7 @@ function makeInstrumentContext(modules,options={}){
  const instrumentInfo=[
   'slotno:1,name:SMU1,model:KISMU4200,serialno:SMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
   'slotno:2,name:SMU2,model:KISMU4200,serialno:SMU002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
-  ...(options.pmu?['slotno:3,name:PMU1,model:4225-PMU,serialno:PMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026']:[])
+  ...(options.pmu?['slotno:3,name:PMU1,model:'+(options.pmuModel||'4225-PMU')+',serialno:PMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026']:[])
  ].join(',');
  const remoteInfo='';
  const reply=value=>({base64:Buffer.from(value,'ascii').toString('base64')});
@@ -58,6 +58,7 @@ function makeInstrumentContext(modules,options={}){
     if(command==='*IDN?\0')return reply('KI4200A,1498377,V1.14\0');
     if(command==='*OPT?\0')return reply(options.pmu?'SMU1,SMU2,PMU1\0':'SMU1,SMU2\0');
     if(options.pmu){
+     if(options.failPmuOffAck&&command===':PMU:OUTPUT:STATE 1,0\0')return reply('');
      if(command===':PMU:EXECUTE\0'){pulseBusy=true;return reply('ACK\0');}
      if(command===':PMU:TEST:STATUS?\0'){
       if(pulseBusy){pulseBusy=false;return reply('1\0');}
@@ -268,7 +269,7 @@ test('native runtime refuses disconnect when a final SMU-off ACK is unconfirmed'
   const final=await runtime.waitForCompletion();
   assert.equal(final.run.state,'failed');
   assert.equal(final.run.shutdown,'unconfirmed');
-  await assert.rejects(()=>runtime.disconnect(),/SMU 输出关闭未获确认/);
+  await assert.rejects(()=>runtime.disconnect(),/仪器输出关闭未获确认/);
   assert.equal(runtime.status().connection.phase,'connected');
   assert.equal(fake.closed,false,'the controller must not close a session after an unconfirmed SMU-off ACK');
   assert.equal(runtime.prepare(page).canExecute,false);
@@ -444,6 +445,9 @@ test('segmented pulse uses the verified PMU port, exact hold profile and origina
  assert.deepEqual(Array.from(preview.segments,s=>[s.startV,s.stopV]),[[0,0],[0,.8],[.8,.8],[.8,0],[0,0]]);
  assert.deepEqual({...preview.segments[2].window},{startTicks:802,endTicks:3002});
  const hardware=modules.get('dkts-kxci-measurement');
+ const blockedDatabase=JSON.parse(JSON.stringify(capabilities.DATABASE));
+ blockedDatabase.safetyPolicies.kxci.allowSegmentArbOutput=false;
+ modules.set('dkts-capabilities',{...capabilities,DATABASE:blockedDatabase});
  const fake=makeInstrumentContext(modules,{pmu:true});
  const blocked=runtimeModule.createRuntime(fake.ctx,{wait:async()=>{}});
  const endpoint={host:'169.254.111.118',port:1225,expectedSerial:'1498377'};
@@ -452,13 +456,10 @@ test('segmented pulse uses the verified PMU port, exact hold profile and origina
   const check=blocked.prepare(page);
   assert.equal(check.ready,true,check.reason);
   assert.equal(check.canExecute,false);
-  assert.throws(()=>blocked.start(page,true),/实机验收/);
+  assert.throws(()=>blocked.start(page,true),/未开放/);
   assert.ok(fake.commands.every(row=>!row.command.startsWith(':PMU:')));
  }finally{await blocked.dispose();}
- // Only the test fixture can simulate commissioning approval.
- const DATABASE=JSON.parse(JSON.stringify(capabilities.DATABASE));
- Object.assign(DATABASE.safetyPolicies.kxci,{allowPulseModeOutput:true,allowSegmentArbOutput:true});
- modules.set('dkts-capabilities',{...capabilities,DATABASE});
+ modules.set('dkts-capabilities',capabilities);
  const commissioned=makeInstrumentContext(modules,{pmu:true});
  const runtime=runtimeModule.createRuntime(commissioned.ctx,{wait:async()=>{}});
  try{
@@ -527,6 +528,9 @@ test('Pulse I–V switches from DC, restores both configurations, and publishes 
  const page=project.pages.find(p=>p.id===id);
  assert.equal(page.timing.start,'0.5');
  const endpoint={host:'169.254.111.118',port:1225,expectedSerial:'1498377'};
+ const blockedDatabase=JSON.parse(JSON.stringify(capabilities.DATABASE));
+ blockedDatabase.safetyPolicies.kxci.allowPulseModeOutput=false;
+ modules.set('dkts-capabilities',{...capabilities,DATABASE:blockedDatabase});
  const guarded=makeInstrumentContext(modules,{pmu:true});
  const blocked=runtimeModule.createRuntime(guarded.ctx,{wait:async()=>{}});
  try{
@@ -534,12 +538,10 @@ test('Pulse I–V switches from DC, restores both configurations, and publishes 
   const prepared=blocked.prepare(page);
   assert.equal(prepared.ready,true,prepared.reason);
   assert.equal(prepared.canExecute,false);
-  assert.throws(()=>blocked.start(page,true),/实机验收/);
+  assert.throws(()=>blocked.start(page,true),/未开放/);
   assert.ok(guarded.commands.every(row=>!row.command.startsWith(':PMU:')));
  }finally{await blocked.dispose();}
- const database=JSON.parse(JSON.stringify(capabilities.DATABASE));
- database.safetyPolicies.kxci.allowPulseModeOutput=true;
- modules.set('dkts-capabilities',{...capabilities,DATABASE:database});
+ modules.set('dkts-capabilities',capabilities);
  const fixture=makeInstrumentContext(modules,{pmu:true});
  const runtime=runtimeModule.createRuntime(fixture.ctx,{wait:async()=>{}});
  try{
@@ -547,6 +549,8 @@ test('Pulse I–V switches from DC, restores both configurations, and publishes 
   const prepared=runtime.prepare(page);
   assert.equal(prepared.canExecute,true,prepared.reason);
   assert.equal(prepared.compiled.pulse.expected,2);
+  assert.throws(()=>runtime.start(page,false),/确认接线/);
+  assert.ok(fixture.commands.every(row=>!row.command.startsWith(':PMU:')));
   assert.ok(prepared.compiled.pulse.setup.includes(':PMU:SWEEP:PULSE:AMPLITUDE 1,0.5,1,0.5,0,0'));
   const spotWindow=prepared.compiled.pulse.setup.find(command=>command.startsWith(':PMU:TIMES:PIV 1,'));
   assert.ok(spotWindow,prepared.compiled.pulse.setup.join('\n'));
@@ -562,6 +566,68 @@ test('Pulse I–V switches from DC, restores both configurations, and publishes 
   const commands=fixture.commands.map(row=>row.command);
   assert.ok(commands.includes(':PMU:EXECUTE\0'));
   assert.ok(commands.indexOf(':PMU:OUTPUT:STATE 1,0\0')<commands.lastIndexOf(':PMU:DATA:GET 1,0,2,VH,IH,TH,SH\0'));
+ }finally{await runtime.dispose();}
+});
+
+test('PMU commissioning blocks unchecked hardware and peaks above 21 V',async()=>{
+ const {modules}=loadModules(),model=modules.get('model');
+ const runtimeModule=modules.get('measurementRuntime');
+ let project=model.setIvType(model.initial(),'pulse');
+ project=model.edit(project,'D',{resource:'PMU1-1'});
+ project=model.editTiming(project,{rangeV:'40',start:'20',stop:'21',step:'1',loadOhms:'1000000',currentRangeA:'0.01'});
+ const page=project.pages.find(row=>row.id===project.activeId);
+ const overvoltage={...page,timing:{...page.timing,stop:'22'}};
+ const segmentProject=model.editPage(project,{kind:'time'});
+ const segment=segmentProject.pages.find(row=>row.id===segmentProject.activeId);
+ const bias=model.defaultPmuTimeSettings();
+ Object.assign(bias,{loadOhms:'1000000',currentRangeA:'0.01'});
+ bias.biasSteps.segments[1].biasV='22';
+ segment.timing={...segment.timing,mode:model.TIME_PMU_MODE,pmu:bias};
+ const endpoint={host:'169.254.111.118',port:1225,expectedSerial:'1498377'};
+ const verified=makeInstrumentContext(modules,{pmu:true});
+ const runtime=runtimeModule.createRuntime(verified.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect(endpoint);
+  const control=runtime.prepare(page);
+  assert.equal(control.canExecute,true,control.reason);
+  assert.equal(control.compiled.pulse.peak,21);
+  for(const candidate of [overvoltage,segment]){
+   const prepared=runtime.prepare(candidate);
+   assert.equal(prepared.ready,true,prepared.reason);
+   assert.equal(prepared.canExecute,false);
+   assert.match(prepared.reason,/高压互锁/);
+   assert.throws(()=>runtime.start(candidate,true),/高压互锁/);
+  }
+  assert.ok(verified.commands.every(row=>!row.command.startsWith(':PMU:')));
+ }finally{await runtime.dispose();}
+ const unknown=makeInstrumentContext(modules,{pmu:true,pmuModel:'Unrecognized-PMU'});
+ const unchecked=runtimeModule.createRuntime(unknown.ctx,{wait:async()=>{}});
+ try{
+  await unchecked.connectAndInspect(endpoint);
+  assert.equal(unchecked.prepare(page).canExecute,false);
+  assert.throws(()=>unchecked.start(page,true),/核验|额定值|模块/);
+  assert.ok(unknown.commands.every(row=>!row.command.startsWith(':PMU:')));
+ }finally{await unchecked.dispose();}
+});
+
+test('an unacknowledged PMU output-off blocks further runs',async()=>{
+ const {modules}=loadModules(),model=modules.get('model');
+ let project=model.setIvType(model.initial(),'pulse');
+ project=model.edit(project,'D',{resource:'PMU1-1'});
+ project=model.editTiming(project,{start:'0.5',step:'0.5',loadOhms:'1000000',currentRangeA:'0.01'});
+ const page=project.pages.find(row=>row.id===project.activeId);
+ const mock=makeInstrumentContext(modules,{pmu:true,failPmuOffAck:true});
+ const runtime=modules.get('measurementRuntime').createRuntime(mock.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect({host:'169.254.111.118',port:1225,expectedSerial:'1498377'});
+  runtime.start(page,true);
+  const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'failed');
+  assert.equal(result.run.shutdown,'unconfirmed');
+  assert.match(runtime.prepare(page).reason,/输出关闭未获确认/);
+  assert.throws(()=>runtime.start(page,true),/输出关闭未获确认/);
+  await assert.rejects(runtime.disconnect(),/仪器输出关闭未获确认/);
+  assert.equal(mock.commands.filter(row=>row.command===':PMU:EXECUTE\0').length,1);
  }finally{await runtime.dispose();}
 });
 

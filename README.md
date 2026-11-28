@@ -14,7 +14,7 @@
 - Windows 原生 Electron Core 工作区与多图窗的启动/截图回归在 `8533798df` 通过；Windows Portable 打包、Android API 36 模拟器和 APK 完整 CI 仍应以各次 Actions 最终结果为准。OPPO 平板及真实仪器未验收。
 - `npm start` 现在运行 `tools/launch-core-mainline.cjs`：若未设置 `DKTS_DKDS_SOURCE`，会在 DKTS 自己的 `.dkts-cache/` 内获取固定 SHA 的只读 DKDS 上游，暂存真实 Core、执行原生构建并启动 Electron；不会修改用户的 DKDS checkout。`npm run start:legacy` 和 `npm run dist:win:legacy` 保留旧壳作历史对照，**不作为新架构正式发布入口**。新 Core 构建由 [只读 Core 工作流](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 构建。
 - 当前改为**单一 DKTS 原生应用身份**：Windows/Android 共用 `V0.3.32 aNNN`，Android 包名为 `studio.dk.test`，使用原 DKTS 固定签名；不再发布 `studio.dk.test.corepreview` 第二套应用。一个 Release 同时包含 Windows Portable、固定签名 APK、硬件能力数据库和校验清单。CSS-only 修改额外把 `DKDS-UI-bundle.json` 放进同一个 Release，且仍会构建完整 EXE/APK。旧 `a159` 等 Core Preview Release 仅保留为历史记录，不再是当前更新源。真实设备安装、热更/全量升级与回退仍待 OPPO/Windows 实机验收。
-- 当前源码为 `V0.3.53`，原生插件版本 0.8.39。流程按所含测试类型提供图形选项，单项测试按自身模式提供图形。时间扫描、保持特性与脉冲扫描均可编辑、保存和校验方案。仪器执行路径和实机验收见 [P0 原厂指令审计](docs/P0_ORIGINAL_COMMAND_AUDIT.md)。
+- 当前源码为 `V0.3.53`，原生插件版本 0.8.40。流程按所含测试类型提供图形选项，单项测试按自身模式提供图形。时间扫描、保持特性与脉冲扫描均可编辑、保存和校验方案。仪器执行路径和实机验收见 [P0 原厂指令审计](docs/P0_ORIGINAL_COMMAND_AUDIT.md)。
 - 本轮 UI 阶段 `npm test` **224/224 通过**；DKTS 派生 Unit 与七标签/七列表格契约已加入。当前 Web FS-Pro 与 Core 原生宿主仍使用不同的渲染器，尚未完成真正共享的 UI renderer/DOM/CSS 抽取，因此不能称为像素级一致或 UI 最终完成。真实 Core 插件目录校验 12/12 通过；DKDS SDK 单插件 validator/runtime 均通过，64 个 canonical layout cases 通过；控件几何由 DKTS 派生 Field Unit 变体负责。Chromium 本地截图进程在当前云端环境挂起，尚未取得四视口真实截图，因此 UI 尚未签收。当前 GitHub 仍只有 `main`，本轮未推送。
 - V0.3.20 a200 本轮优化 PlotView 标题栏，图形类型改为带选中标记的 DKDS 原生“显示”菜单；数据源和原始 CSV 仍在“数据”菜单。980px 及以下标题栏收敛 S/D/G/B 为单一端口 Popover；数值、页面名称/备注、变量单位的无变化编辑不再触发工作区刷新；Sweep 删除重复说明。已完成 DKDS SDK 插件验证与离线 CSS 几何检查；真实 Windows/Android 视觉验收仍待执行。
 
@@ -50,7 +50,7 @@ node tools/stage-dkds-host.cjs ../DK-Data-Studio dist/dkts-framework-staging
 - Core 原生工作区现在通过 DKDS `network.tcp` capability 使用通用 TCP 通信，不另建私有 socket 或第二套连接服务；连接后校验 `KI4200A` 身份与序列号，再读取 `*OPT?`、物理模块型号和额定值。
 - KXCI Ethernet 对写入类命令同样返回 `ACK\0`。客户端必须逐条读取并验证 ACK，不能把 ACK 留在 TCP 缓冲区后再读取 `TI` 电流响应。
 - 原生工作区已加入 DC SMU 方案编译、启动确认、停止/关闭、故障状态以及原始 TI 行发布到 DKDS Data Center 的受控代码路径；模拟 TCP 回归通过不代表真实仪器输出已验收。
-- KXCI Rev F（4200A-KXCI-907-01F）SMU 第 2–5 节已于 2026-11-28 逐条核对。门禁分两路：用户模式逐点 `DV/TI` 受 `safetyPolicies.kxci.allowInstrumentOutput` 控制，当前为 `false`；Optimized DC（System Mode，`ME1` 原生任务）受 `smuSystemModeManualVerified` 与 `allowSystemModeOutput` 控制，当前均为 `true`，在模块身份/额定值核验通过且不需要高压互锁（≤ 21 V）时允许受控实机输出（R-20261128-001）。PMU、Segment Arb 与多通道原生列表仍各自关闭。**用户模式逐点真实电压输出仍被禁止。**逐点 `DV/TI` 已通过 DKDS `ui.dom.timeout()` 使用 Core 生命周期管理的延时服务，停止时取消待执行定时器；该方式仍是主机步进模式，不得声称可实现硬件内部 20 ns 扫描。
+- KXCI Rev F（4200A-KXCI-907-01F）SMU 第 2–5 节已于 2026-11-28 逐条核对。门禁分两路：用户模式逐点 `DV/TI` 受 `safetyPolicies.kxci.allowInstrumentOutput` 控制，当前为 `false`；Optimized DC（System Mode，`ME1` 原生任务）受 `smuSystemModeManualVerified` 与 `allowSystemModeOutput` 控制，当前均为 `true`，在模块身份/额定值核验通过且不需要高压互锁（≤ 21 V）时允许受控实机输出（R-20261128-001）。标准 PMU 脉冲与 Segment Arb 已开放受控实机验收（R-20261128-008）。实装模块、接线和额定值核验通过，方案峰值不超过 21 V，且操作员确认后才会出源。多通道 SMU 原生列表仍关闭。**用户模式逐点真实电压输出仍被禁止。**逐点 `DV/TI` 已通过 DKDS `ui.dom.timeout()` 使用 Core 生命周期管理的延时服务，停止时取消待执行定时器；该方式仍是主机步进模式，不得声称可实现硬件内部 20 ns 扫描。
 
 ## 原始数据和仪器安全
 不同来源的数据明确标记 instrument-raw、derived 或 imported/preview；软件规划曲线不能冒充 4200A 测量曲线。仪器输出必须通过实际模块检测、端口互斥、量程/功率、联锁、异常停止和原始数据采集验证。CI 构建成功不代表仪器现场验收。

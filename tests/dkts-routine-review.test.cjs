@@ -1,4 +1,17 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),k=require('../integrations/dkds-native/kxci-measurement.js'),h=require('../integrations/dkds-native/hardware-capabilities.js');
 const input={"executionMode":"routine","repeat":2,"stages":[{"scope":{"pageId":"dc","routineId":"routine","pageName":"DC"},"input":{"kind":"iv","pageKind":"dc","executionMode":"system","systemHoldS":0,"systemIntegration":"IT2","requestedOutputs":["Id"],"sweepProgram":{"terminals":{"drain":"SMU1","gate":"SMU2","source":"GNDU"},"fixedVoltages":{"gate":0},"fixedCurrents":{},"sourceModes":{"drain":"voltage","gate":"voltage"},"portSettings":{"drain":{"rangeMode":"auto","rangeA":"1e-6","complianceMode":"custom","complianceA":0.01},"gate":{"rangeMode":"auto","rangeA":"1e-6","complianceMode":"custom","complianceA":0.01}},"generators":{},"loops":1,"xSweep":{"terminal":"drain","segments":[{"startV":0,"stopV":0.1,"stepV":0.1,"rangeA":"auto","delayMs":0}],"repeats":1,"delayMs":0},"pSweep":{"enabled":false,"terminal":"gate"}}}},{"scope":{"pageId":"pmu","routineId":"routine","pageName":"Pulse"},"input":{"executionMode":"pulse","settings":{"terminal":"D","channel":"1","rangeV":"10","loadOhms":"1000000","sweep":"amplitude","fixedV":"0","basePeakV":"","start":"0.1","stop":"0.1","step":"0","widthUs":"500","periodUs":"1000","riseUs":"10","fallUs":"10","delayUs":"0","holdUs":"0","baseDelayUs":"0","windowStartUs":"100","windowTimeUs":"300","pulseCount":"1","mode":"spot","rateHz":"1000000","currentRangeA":"","rangePolicy":"fixed","prePercent":"0","postPercent":"0","secondary":null,"arb":null,"arbPartner":null,"testMode":"sweep"},"summary":{"points":1,"pulseCount":1,"rateHz":1000000,"rangeV":10,"peakV":0.1,"basePeakV":null,"captureWindowS":0.0003,"windowS":0.0003,"loadOhms":1000000},"resource":"PMU1-1","wiringConfirmed":true}}]},hardware={inventory:{"physicalModelsVerified":true,"hardwareLimitsVerified":true,"slots":[{"family":"SMU","channel":1,"type":"SMU","physicalType":"SMU","physicalIdentityVerified":true,"ratingsVerified":true,"powerClass":"medium","preamplifier":false},{"family":"SMU","channel":2,"type":"SMU","physicalType":"SMU","physicalIdentityVerified":true,"ratingsVerified":true,"powerClass":"medium","preamplifier":false},{"family":"PMU","channel":1,"type":"PMURPM","rpmCount":2,"rpmChannels":[1,2],"physicalIdentityVerified":true,"ratingsVerified":true}]},capabilities:h};
-test('compile ordered native routine and refuse unopened pulse gate',()=>{const c=k.compileSweep(input,hardware);assert.equal(c.totalPoints,6);assert.equal(c.stages.length,2);const runner=k.createRunner({controller:{status:()=>({phase:'connected'}),measurementExchange:async()=>''},execution:{begin:()=>assert.fail('no lease before policy check')},wait:async()=>{}});assert.throws(()=>runner.start(input,hardware,'CONFIRM_WIRING_AND_OUTPUT'),/尚未开放真实输出/);});
+test('compile an ordered native routine and block PMU when its gate is closed',()=>{
+ const compiled=k.compileSweep(input,hardware);
+ assert.equal(compiled.totalPoints,6);
+ assert.equal(compiled.stages.length,2);
+ const database=JSON.parse(JSON.stringify(h.DATABASE));
+ database.safetyPolicies.kxci.allowPulseModeOutput=false;
+ const blocked={...hardware,capabilities:{...h,DATABASE:database}};
+ const runner=k.createRunner({
+  controller:{status:()=>({phase:'connected'}),measurementExchange:async()=>''},
+  execution:{begin:()=>assert.fail('no lease before policy check')},
+  wait:async()=>{}
+ });
+ assert.throws(()=>runner.start(input,blocked,'CONFIRM_WIRING_AND_OUTPUT'),/流程阶段 Pulse.*未开放 PMU/);
+});

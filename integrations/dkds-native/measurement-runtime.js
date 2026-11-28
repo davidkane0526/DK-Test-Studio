@@ -305,7 +305,7 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
     const protocolPolicy=hardwareCapabilities.DATABASE?.safetyPolicies?.kxci||{};
     const protocolVerified=compiled.pulse?protocolPolicy.pmuModeManualVerified===true&&protocolPolicy.allowPulseModeOutput===true&&(!compiled.pulse.arb||protocolPolicy.segmentArbManualVerified===true&&protocolPolicy.allowSegmentArbOutput===true):compiled.system?protocolPolicy.smuSystemModeManualVerified===true&&protocolPolicy.allowSystemModeOutput===true&&(!(compiled.system.timeList?.multiChannel||compiled.system.dcList?.multiChannel)||protocolPolicy.allowMultiChannelListOutput===true):protocolPolicy.latestOfficialContentVerified===true&&protocolPolicy.allowInstrumentOutput===true;
     let reason='';
-    if(!protocolVerified)reason=compiled.pulse?'脉冲方案已转换；等待受控实机验收后开放输出':'Rev F 已取得；当前执行模式尚未取得输出许可';
+    if(!protocolVerified)reason=compiled.pulse?'当前策略未开放此 PMU 模式的实机输出':'Rev F 已取得；当前执行模式尚未取得输出许可';
     else if(!executionAdapterAvailable)reason='当前 DKDS 宿主缺少生命周期管理的查询/停止调度器';
     else if(!compiled.physicalVerified)reason='实际模块型号、序列号或附件身份尚未完整核验';
     else if(!compiled.capabilityVerified)reason='一个或多个活动 SMU 的额定值尚未核验';
@@ -424,7 +424,7 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    }
    const finalRun=runner.status(0);
    if(finalRun.shutdown==='unconfirmed')
-    throw Error('SMU 输出关闭未获确认。为避免失去仪器控制连接，软件拒绝断开；请立即在仪器现场检查并手动关闭输出。');
+    throw Error('仪器输出关闭未获确认。为避免失去仪器控制连接，软件拒绝断开；请立即在仪器现场检查并手动关闭输出。');
    const result=await controller.disconnect();notify('disconnected');return result;
   }
   function waitForCompletion(){return monitorTask||Promise.resolve(null);}
