@@ -579,9 +579,32 @@ function compileSegmentArb(input,hardware){
  for(let i=0;i<list.length;i+=64)setup.push(':PMU:SARB:WFM:SEQ:LIST'+(i?':ADD':'')+' '+ch+','+list.slice(i,i+64).join(','));
  setup.push(cmd('OUTPUT:STATE',ch,1));
  const countQuery=cmd('DATA:COUNT?',ch),statusQuery=':PMU:TEST:STATUS?',fields=waveform?'V,I,T,S':'VH,IH,TH,SH',offCommand=cmd('OUTPUT:STATE',ch,0);
- const pulse=Object.freeze({setup,reads:[countQuery,statusQuery],cleanup:[offCommand,':PMU:ABORT'],rdNames:[],count:65536,pulseChannel:ch,fields,countQuery,statusQuery,offCommand,resource:input.resource,role,waveform,expected:s.points?(waveform?null:s.records):0,skipRead:s.points===0,peak:s.peakV,estimatedRecords:s.estimatedRecords,arb:true,sequenceLoops:s.loops,sequenceCount:blocks.length,sequenceSchedule:blocks.map((b,i)=>({sequence:i+1,loops:b.loops,segments:b.segments.length})),durationTicksExact:s.durationTicksExact,rangeV:s.rangeV,card,segments:s.segments});
+ const pulse=Object.freeze({setup,reads:[countQuery,statusQuery],cleanup:[offCommand,':PMU:ABORT'],rdNames:[],count:65536,pulseChannel:ch,fields,countQuery,statusQuery,offCommand,resource:input.resource,role,waveform,expected:s.points?(waveform?null:s.records):0,skipRead:s.points===0,peak:s.peakV,estimatedRecords:s.estimatedRecords,arb:true,sequenceLoops:s.loops,sequenceCount:blocks.length,sequenceSchedule:blocks.map((b,i)=>({sequence:i+1,loops:b.loops,segments:b.segments.length})),durationTicksExact:s.durationTicksExact,rangeV:s.rangeV,card,segments:s.segments,pund:s.pund||null});
  const physicalVerified=inventory?.physicalModelsVerified===true&&inventory?.hardwareLimitsVerified===true;
- return Object.freeze({plan:{kind:'pulse'},pulse,physicalVerified,capabilityVerified:true,requiresInterlock:s.peakV>21,canExecute:physicalVerified&&s.peakV<=21,channels:{[role]:ch},active:[role],totalPoints:s.estimatedRecords,commandMode:'KXCI-PMU-SARB'});
+ return Object.freeze({plan:{kind:s.pund?'pund':'pulse'},pulse,physicalVerified,capabilityVerified:true,requiresInterlock:s.peakV>21,canExecute:physicalVerified&&s.peakV<=21,channels:{[role]:ch},active:[role],totalPoints:s.estimatedRecords,commandMode:s.pund?'KXCI-PMU-SARB-PUND':'KXCI-PMU-SARB'});
+}
+// PUND rows: the four read pulses have identical timing, so a complete waveform
+// capture splits into 4 x loops equal blocks in acquisition order (P, U, N, D).
+// Charge integrates the measured current over positive instrument-time steps only,
+// so a timestamp that restarts at a segment boundary does not add a negative area.
+function labelPund(rows,pund){
+ const names=pund?.pulses||['P','U','N','D'],loops=Number(pund?.loops)||1,blocks=names.length*loops;
+ if(!Array.isArray(rows)||!rows.length)return {rows:rows||[],summary:Object.freeze({labelled:false,reason:'没有实测数据'})};
+ if(rows.length%blocks!==0)return {rows,summary:Object.freeze({labelled:false,reason:'实测 '+rows.length+' 点不能均分为 '+blocks+' 个读脉冲，未标注'})};
+ const size=rows.length/blocks,charges=new Array(blocks).fill(0);
+ const out=rows.map((row,i)=>{const k=Math.floor(i/size);return {...row,pulsePund:names[k%names.length],pulsePundIndex:k+1};});
+ for(let i=1;i<out.length;i++){
+  const a=out[i-1],b=out[i];if(a.pulsePundIndex!==b.pulsePundIndex)continue;
+  const dt=b.timeS-a.timeS;if(dt>0)charges[b.pulsePundIndex-1]+=0.5*(a.pulseCurrentA+b.pulseCurrentA)*dt;
+ }
+ const area=pund?.areaUm2>0?pund.areaUm2*1e-8:null,uc=q=>area?q/area*1e6:null;
+ const cycles=[];for(let c=0;c<loops;c++){
+  const [qp,qu,qn,qd]=charges.slice(c*4,c*4+4),pos=qp-qu,neg=qn-qd;
+  cycles.push(Object.freeze({cycle:c+1,chargeC:Object.freeze({P:qp,U:qu,N:qn,D:qd}),switchingChargePositiveC:pos,switchingChargeNegativeC:neg,
+   switchingPolarizationPositiveUcPerCm2:uc(pos),switchingPolarizationNegativeUcPerCm2:uc(neg)}));
+ }
+ return {rows:out,summary:Object.freeze({labelled:true,samplesPerPulse:size,areaUm2:pund?.areaUm2??null,cycles:Object.freeze(cycles),
+  method:'trapezoid over instrument timestamps; switching charge = Q(P) - Q(U) and Q(N) - Q(D)'})};
 }
 function compileSegmentArbPair(input,hardware){
  const summary=hardware.capabilities.normalizeArbPair(input.settings);
@@ -640,7 +663,7 @@ async function executeNativeSequence(compiled,io){
     if(input.executionMode==='routine')return compileNativeSequence(input,hardware);
     if(input.executionMode==='pulse'){
       const mode=input.settings?.testMode;
-      if(mode==='bias-steps')return compileSegmentArb(input,hardware);
+      if(mode==='bias-steps'||mode==='pund')return compileSegmentArb(input,hardware);
       if(mode==='sequence'||mode===undefined&&input.settings?.arb!=null)
         return input.settings.arbPartner?compileSegmentArbPair(input,hardware):compileSegmentArb(input,hardware);
       return input.secondary?compilePulsePair(input,hardware):compilePulse(input,hardware);
@@ -1083,7 +1106,7 @@ function parseTv(raw,channel){
     }
     return Object.freeze({start,stop,status:publicState,waitForCompletion,dispose});
   }
-  const api=Object.freeze({overvoltageLimit,nativeLogSweep,compileSweep,compileNativeSequence,executeNativeSequence,points,parseTi,parseTv,voltageTrigger,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,compileSegmentArbPair,parsePulseBlock,executePulseTask});
+  const api=Object.freeze({overvoltageLimit,nativeLogSweep,compileSweep,compileNativeSequence,executeNativeSequence,points,parseTi,parseTv,voltageTrigger,parseStatusByte,createRunner,compileSystemPlan,parseSystemValues,systemRows,executeSystemTask,systemNumber,acquiredColumnPrefix,compilePulse,compilePulsePair,compileSegmentArb,compileSegmentArbPair,parsePulseBlock,executePulseTask,labelPund});
   if(typeof window!=='undefined'&&window.DKDSPluginModules)
     window.DKDSPluginModules.define('com.dkts.keithley-4200','dkts-kxci-measurement',api);
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

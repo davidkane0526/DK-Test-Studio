@@ -408,7 +408,49 @@ function expandBiasSteps(settings,{withRpm=false}={}){
  transitionTo(0);
  return {segments,loops:plan.loops,transitionUs:[...transitionTimes].sort((a,b)=>a-b)};
 }
+// PUND (Positive-Up-Negative-Down) as one Segment Arb sequence (Rev F 7-41..7-60).
+// Waveform capture on the rise, top and fall of each of the four read pulses.
+const PUND_PULSES=Object.freeze(['P','U','N','D']);
+function pundNumber(v,key,label){
+ const x=Number(v[key]);
+ if(v[key]==null||String(v[key]).trim()===''||!Number.isFinite(x))throw Object.assign(Error(label+' 无效'),{field:key});
+ return x;
+}
+function pundVoltageRange(v){
+ const amplitude=Math.abs(pundNumber(v,'amplitudeV','PUND 幅值'));
+ if(v.rangeV!=='auto'&&v.rangeV!=null)return Number(v.rangeV);
+ for(const range of getModuleCapability('PMU').output.rangesV){
+  const max=v.loadOhms===''||v.loadOhms==null?range:getPulseOutputLimits('pmu',range,v.loadOhms).maxVoltageV;
+  if(amplitude<=max+1e-12)return range;
+ }
+ throw Object.assign(Error('PUND 幅值超过 PMU 在当前负载下的输出能力'),{field:'amplitudeV'});
+}
+function pundArea(v){
+ if(v.areaUm2===''||v.areaUm2==null)return null;
+ const area=pundNumber(v,'areaUm2','电极面积');
+ if(!(area>0))throw Object.assign(Error('电极面积须大于 0'),{field:'areaUm2'});
+ return area;
+}
+function expandPund(v){
+ const amplitude=pundNumber(v,'amplitudeV','PUND 幅值'),rise=pundNumber(v,'riseUs','边沿时间'),width=pundNumber(v,'widthUs','脉冲平顶'),gap=pundNumber(v,'delayUs','脉冲间隔');
+ if(!(amplitude>0))throw Object.assign(Error('PUND 幅值须大于 0'),{field:'amplitudeV'});
+ if(!(rise>0))throw Object.assign(Error('边沿时间须大于 0'),{field:'riseUs'});
+ if(!(width>0))throw Object.assign(Error('脉冲平顶须大于 0'),{field:'widthUs'});
+ if(!(gap>0))throw Object.assign(Error('脉冲间隔须大于 0'),{field:'delayUs'});
+ const preset=String(v.preset??'1');
+ if(!['0','1'].includes(preset))throw Object.assign(Error('预置脉冲选项无效'),{field:'preset'});
+ const seg=(a,b,t,measure)=>({startV:a,stopV:b,durationUs:String(t),measure,measureStartUs:'0',measureStopUs:String(t)});
+ const pulse=(level,measure)=>[seg(0,level,rise,measure),seg(level,level,width,measure),seg(level,0,rise,measure),seg(0,0,gap,false)];
+ // The optional negative preset pulse writes a known state before P and is not measured.
+ const segments=[seg(0,0,gap,false),...(preset==='1'?pulse(-amplitude,false):[]),...pulse(amplitude,true),...pulse(amplitude,true),...pulse(-amplitude,true),...pulse(-amplitude,true)];
+ return {loops:v.loops??'1',segments,preset:preset==='1',amplitudeV:amplitude};
+}
 function normalizeSegmentArb(settings,context){
+ if(settings?.testMode==='pund'){
+  const rangeV=pundVoltageRange(settings),arb=expandPund(settings);
+  const summary=normalizeSegmentArb({...settings,testMode:'sequence',rangeV:String(rangeV),mode:'waveform',secondary:null,arbPartner:null,arb:{loops:arb.loops,segments:arb.segments}});
+  return Object.freeze({...summary,pund:Object.freeze({pulses:PUND_PULSES,amplitudeV:arb.amplitudeV,preset:arb.preset,measuredSegmentsPerPulse:3,loops:summary.loops,areaUm2:pundArea(settings)})});
+ }
  if(settings?.testMode==='bias-steps'){
   const rangeV=segmentArbVoltageRange(settings),rateHz=segmentArbSampleRate(settings);
   const arb=expandBiasSteps({...settings,rangeV},context);
@@ -641,7 +683,7 @@ function segmentArbPreview(settings,blockIndex=0,context){
     });
   }
   function exportDatabase() { return JSON.parse(JSON.stringify(DATABASE)); }
-  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, normalizeSegmentArb, normalizeArbPair, segmentArbPreview, segmentArbSampleRate, segmentArbVoltageRange, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
+  const api = Object.freeze({ DATABASE, exportDatabase, getModuleCapability, getSmuLimits, verifiedCurrentRanges, getSourceLimits, getPulseOutputLimits, getSegmentArbLimits, normalizeSegmentArb, normalizeArbPair, expandPund, pundVoltageRange, segmentArbPreview, segmentArbSampleRate, segmentArbVoltageRange, getPmuCurrentRanges, getPmuCaptureBudget, getPulseTimingRecommendation, calculateChassisPower, getCvuCapabilities });
   if (typeof window !== 'undefined') {
     window.DKTSHardwareCapabilities = api;
     if (window.DKDSPluginModules) window.DKDSPluginModules.define('com.dkts.keithley-4200', 'dkts-capabilities', api);

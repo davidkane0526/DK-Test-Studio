@@ -48,7 +48,7 @@
   return Object.freeze({compliancePoints,unknownPoints,complianceByRole:Object.freeze(byRole),firstComplianceSequence:first<0?null:rows[first].sequence});
  }
  const safeId=value=>String(value||'').trim();
- function publishRaw(ctx,{runId,rows,serial,startedAt,finishedAt,runState,source,scope}={}){
+ function publishRaw(ctx,{runId,rows,serial,startedAt,finishedAt,runState,source,scope,pundSummary}={}){
   if(!ctx?.data?.model?.createTable||!ctx?.data?.artifacts?.publish)
    throw Error('DKDS Data Center model/Artifact publication is unavailable');
   if(!['completed','stopped','failed'].includes(runState))
@@ -91,7 +91,7 @@
    transient:false,
    source:source||{name:'KI4200A '+instrument},
    metadata:{instrument:'KI4200A',instrumentSerial:instrument,
-    rawInstrumentResponse:true,...(pulseRun?{}:{pointStatus:statusSummary(rows)}),timeOrigin:pulseRun||rows[0].source!=='4200A-KXCI-TI'?'instrument':'host-elapsed',...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode,pulseProgram:rows[0].pulseProgram||'pulse-sweep'}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),
+    rawInstrumentResponse:true,...(pulseRun?{}:{pointStatus:statusSummary(rows)}),timeOrigin:pulseRun||rows[0].source!=='4200A-KXCI-TI'?'instrument':'host-elapsed',...(pulseRun?{pulseResource:rows[0].pulseResource,pulseMode:rows[0].pulseMode,pulseProgram:rows[0].pulseProgram||'pulse-sweep'}:{}),...(scope?.pageId&&scope?.routineId?{dktsScope:{...scope}}:{}),...(pulseRun&&pundSummary?{pund:pundSummary}:{}),
     acquisition:{runId:id,timestamp:String(startedAt||''),
      finishedAt:String(finishedAt||''),runState,sequenceIndex:0,
      provenance:'kxci-native-acquisition'},

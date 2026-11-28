@@ -300,7 +300,11 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    try{
     let input;
     const pmuTime=page.kind==='time'&&page.timing.mode===model.TIME_PMU_MODE;
-    if(page.kind==='pulse'||pmuTime){
+    if(page.kind==='pund'){
+     const v=page.timing,resource=resolvePulsePort(page.terminals.find(t=>t.logical===v.terminal)?.resource,v.channel);
+     protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,[]);
+     input={executionMode:'pulse',settings:v,summary:null,resource,wiringConfirmed:true};
+    }else if(page.kind==='pulse'||pmuTime){
      const v=pmuTime?{...page.timing.pmu,rangeV:'auto'}:page.timing,resource=resolvePulsePort(page.terminals.find(t=>t.logical===v.terminal)?.resource,v.channel);
      protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,[]);
      input={executionMode:'pulse',settings:v,summary:pmuTime?null:model.timedSummary('pulse',v),resource,wiringConfirmed:true};
@@ -350,14 +354,16 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
   async function monitor(runId,serial,route,scope){
    try{
     const current=await runner.waitForCompletion();
-    const rows=collectRows();
+    let rows=collectRows(),pundSummary=null;
+    // PUND labelling only adds columns; raw readings and timestamps stay unchanged.
+    if(scope?.pund&&rows.length){const labelled=measurement.labelPund(rows,scope.pund);rows=labelled.rows;pundSummary=labelled.summary;}
     let published=null,publishError='';
     if(rows.length){
      try{
       const connection=controller.status();
       published=(scope?.routineSequence?measurementData.publishSequence:measurementData.publishRun)(ctx,{
        runId,rows,serial,stageResults:current.stageResults,startedAt:current.startedAt,
-       finishedAt:current.finishedAt,runState:current.state,scope,
+       finishedAt:current.finishedAt,runState:current.state,scope:scope?.pund?Object.fromEntries(Object.entries(scope).filter(([key])=>key!=='pund')):scope,pundSummary,
        source:{name:'KI4200A '+serial,model:'KI4200A',serial,
         firmware:connection.identity?.version||'',transport:'KXCI TCP',route}
       });
@@ -365,8 +371,8 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
      }catch(error){publishError=String(error?.message||error);}
     }
     const pointStatus=rows.length&&rows[0].source!=='4200A-KXCI-PMU'&&typeof measurementData.statusSummary==='function'?measurementData.statusSummary(rows):null;
-    notify('measurement-finished',{rows:rows.length,published,publishError,pointStatus,commandTrace:controller.measurementTrace()});
-    return Object.freeze({run:current,rows:rows.length,published,publishError,pointStatus});
+    notify('measurement-finished',{rows:rows.length,published,publishError,pointStatus,pundSummary,commandTrace:controller.measurementTrace()});
+    return Object.freeze({run:current,rows:rows.length,published,publishError,pointStatus,pundSummary});
    }catch(error){
     const failure=String(error?.message||error);
     try{ctx.status.set('测量结果处理失败：'+failure);}catch{}
@@ -414,7 +420,7 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    const initial=runner.start(prepared.input,{
     inventory:connection.inventory,capabilities:hardwareCapabilities
    },'CONFIRM_WIRING_AND_OUTPUT');
-   monitorTask=monitor(runId,serial,connection.route,{pageId:page.id,routineId:page.routineId,pageName:page.name});
+   monitorTask=monitor(runId,serial,connection.route,{pageId:page.id,routineId:page.routineId,pageName:page.name,...(prepared.compiled.pulse?.pund?{pund:prepared.compiled.pulse.pund}:{})});
    notify('measurement-started');
    return Object.freeze({...initial,runId,prepared:{pointCount:prepared.pointCount,
     channels:prepared.channels,active:prepared.active}});

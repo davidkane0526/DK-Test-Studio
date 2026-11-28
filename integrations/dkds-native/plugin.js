@@ -95,7 +95,9 @@
      else if(update.published){
       const ps=update.pointStatus,roles={drain:'D',gate:'G',source:'S',body:'B'};
       const hit=ps?.compliancePoints?'；其中 '+ps.compliancePoints+' 点触及限流（'+Object.entries(ps.complianceByRole).map(([r,n])=>(roles[r]||r)+' '+n).join('，')+'，首次在第 '+ps.firstComplianceSequence+' 点）':'';
-      ctx.status.set('测量 '+run.state+'；'+update.rows+' 行 KXCI 原始数据已写入 DKDS Data Center'+hit);
+      const pund=update.pundSummary,c=pund?.cycles?.[0];
+      const pundText=!pund?'':pund.labelled?'；PUND 开关电荷 +'+c.switchingChargePositiveC.toExponential(3)+' C / '+c.switchingChargeNegativeC.toExponential(3)+' C'+(c.switchingPolarizationPositiveUcPerCm2!=null?'（'+c.switchingPolarizationPositiveUcPerCm2.toFixed(2)+' / '+c.switchingPolarizationNegativeUcPerCm2.toFixed(2)+' µC/cm²）':'')+(pund.cycles.length>1?'，共 '+pund.cycles.length+' 个循环，详见数据表元数据':''):'；PUND 未标注：'+pund.reason;
+      ctx.status.set('测量 '+run.state+'；'+update.rows+' 行 KXCI 原始数据已写入 DKDS Data Center'+hit+pundText);
      }
      else ctx.status.set('测量 '+run.state+'；没有可发布的实际 TI 采样行');
      refreshData();
@@ -367,7 +369,7 @@
    if(!page)return;
    const issue=pageParameterIssue(page);
    if(issue){ctx.status.set(issue.message);return;}
-   if(page.kind==='dc'||page.kind==='time'||page.kind==='pulse'){
+   if(page.kind==='dc'||page.kind==='time'||page.kind==='pulse'||page.kind==='pund'){
     const prepared=measurementRuntime.prepare(page);
     if(!prepared.canExecute){
      await ctx.ui.dialogs.alert({title:tr('执行前检查','Execution preflight'),message:prepared.reason||'执行前检查未通过'});
@@ -705,7 +707,7 @@
   }
   function pulsePort(page,values){
    const mapped=page.terminals.find(term=>term.logical===values.terminal)?.resource||'None';
-   const resource=page.kind==='pulse'||values.testMode==='bias-steps'?measurementRuntime.resolvePulsePort(mapped,values.channel):mapped;
+   const resource=page.kind==='pulse'||page.kind==='pund'||values.testMode==='bias-steps'?measurementRuntime.resolvePulsePort(mapped,values.channel):mapped;
    const inventory=measurementRuntime.status().connection.inventory;
    const match=/^(SMU|PMU)([1-9])(?:-([12]))?$/.exec(resource);
    const slot=inventory?.slots?.find(row=>row.family===match?.[1]&&row.channel===Number(match?.[2]));
@@ -766,6 +768,7 @@
      options.push([values.currentRangeA,values.currentRangeA+' A · '+tr('待核验','Unverified')]);
     return options;
    };
+   if(p.kind==='pund'){renderPundTiming(host,p,{values,put,panel,select,resource,match,slot,pmuVerified,withRpm});return;}
    if(pulse&&editorSection==='sweep'){
     const modePanel=panel('扫描类型','Sweep type');
     fsproField(modePanel,{kind:'select',label:tr('测试方式','Test mode'),value:values.testMode,attributes:{'data-dkts-timing-field':'testMode'},
@@ -920,6 +923,60 @@
    refreshTimingSummary();
   }
 
+  // PUND: one PMU channel, one Segment Arb sequence. Uses the same compiler, gates and
+  // Data Center path as the custom sequence; only the parameter form is specific.
+  function renderPundTiming(host,p,{values,put,panel,select,resource,match,slot,pmuVerified,withRpm}){
+   const plan=()=>{try{return model.timedSummary('pund',values,{withRpm:pmuVerified&&withRpm});}catch{return null;}};
+   let summary=null;
+   const fields=(target,specs)=>{
+    for(const [key,zh,en] of specs)scalarField(target,tr(zh,en),values[key],value=>{put(key,value);refreshSummary();},false,
+     {'data-dkts-timing-field':key,'data-dkts-parameter-path':key},false,true);
+   };
+   if(editorSection==='sweep'){
+    const input=panel('输入设置','Input settings');
+    select(input,'terminal',tr('端子','Terminal'),['S','D','G'].map(key=>[key,t(logicalNames[key])+' · '+pulsePort(p,{...values,terminal:key}).resource]));
+    if(!match?.[3])select(input,'channel',tr('卡内通道','Card channel'),[['1','CH1'],['2','CH2']]);
+    fields(input,[['loadOhms','DUT 与互连等效负载 (Ω)','DUT and interconnect load (Ω)']]);
+    const wave=panel('PUND 波形','PUND waveform');
+    fields(wave,[['amplitudeV','读脉冲幅值 |V| (V)','Read pulse amplitude |V| (V)'],['riseUs','上升/下降时间 (µs)','Rise/fall time (µs)'],
+     ['widthUs','脉冲平顶 (µs)','Pulse top (µs)'],['delayUs','脉冲间隔 (µs)','Pulse gap (µs)'],['loops','循环次数','Cycles']]);
+    select(wave,'preset',tr('预置负脉冲','Negative preset pulse'),[['1',tr('开启（不测量）','On (not measured)')],['0',tr('关闭','Off')]]);
+   }else if(editorSection==='target'){
+    const event=panel('测量事件','Measure event');
+    units.note.create(event,{variant:'meta',text:tr('P、U、N、D 四个读脉冲的上升、平顶和下降都以波形方式采集。',
+     'The rise, top and fall of the P, U, N and D read pulses are captured as waveforms.')});
+    fields(event,[['rateHz','采样率 (Sa/s)','Sample rate (Sa/s)'],['areaUm2','电极面积 (µm²，可空)','Electrode area (µm², optional)']]);
+    const result=plan(),ranges=pmuVerified&&result?hardware.getPmuCurrentRanges(result.rangeV,withRpm):[];
+    const options=ranges.map(range=>[String(range),String(range)+' A']);
+    if(!values.currentRangeA)options.unshift(['',tr('请选择固定电流档','Select a fixed range')]);
+    else if(!ranges.includes(Number(values.currentRangeA)))options.push([values.currentRangeA,values.currentRangeA+' A · '+tr('待核验','Unverified')]);
+    select(event,'currentRangeA',tr('电流档（固定）','Current range (fixed)'),options);
+   }else{
+    const strategy=panel('仪器与调度','Instrument and scheduling');
+    select(strategy,'rangeV',tr('PMU 电压档','PMU voltage range'),[['auto',tr('自动','Auto')],['10','10 V'],['40','40 V']]);
+    units.note.create(strategy,{variant:'meta',text:tr(
+     'PUND 以一个 Segment Arb 序列下发（KXCI :PMU:SARB），与自定义时序共用实机输出门禁。电荷按仪器时间戳梯形积分，开关电荷 = Q(P) − Q(U)、Q(N) − Q(D)。',
+     'PUND is sent as one Segment Arb sequence (KXCI :PMU:SARB) and shares the custom-sequence output gate. Charge integrates current over instrument timestamps; switching charge = Q(P) − Q(U) and Q(N) − Q(D).')});
+   }
+   summary=panel('方案校验','Plan checks');
+   refreshSummary();
+   function refreshSummary(){
+   if(!summary)return;
+   summary.replaceChildren();
+   try{
+    const result=model.timedSummary('pund',values,{withRpm:pmuVerified&&withRpm});
+    units.note.create(summary,{variant:'meta',text:`${result.segments.length} ${tr('段','segments')} · ${result.rangeV} V · ${(result.durationS*1e6).toLocaleString(language)} µs · ${tr('预计采样点','Estimated samples')} ${result.estimatedRecords}`});
+    units.note.create(summary,{variant:'meta',text:resource+(slot?.physicalIdentityVerified===true?' · '+String(slot.physicalModel||slot.family)+(withRpm?' + RPM':''):' · '+tr('模块待核验','Module unverified'))});
+    let reason='';
+    if(result.loadOhms===null)reason=tr('填写负载后才能校核 DUT 端电压。','Enter the load to check the voltage at the DUT.');
+    else if(!pmuVerified)reason=tr('请为该端子选择脉冲通道，或在仪器连接菜单确认 RPM 接线。','Select a pulse channel for this terminal or confirm its RPM wiring in the instrument menu.');
+    else if(!values.currentRangeA)reason=tr('Segment Arb 需要固定电流档。','Segment Arb needs a fixed current range.');
+    else if(!hardware.getPmuCurrentRanges(result.rangeV,withRpm).includes(Number(values.currentRangeA)))
+     reason=tr('请选择与该 PMU 通道及 RPM 配置匹配的电流档。','Select a current range for this PMU channel and RPM configuration.');
+    if(reason)units.note.create(summary,{variant:'warning',text:reason});
+   }catch(error){units.note.create(summary,{variant:'warning',text:String(error.message||error)});}
+   }
+  }
   function createPlanPlot(host,page,title,xTitle,yTitle,getData,displayItems){
    const card=units.panel.create(host,{variant:'plot-card',header:false,sizing:'content',className:'dkts-plan-plot-card'});
    const header=units.header.create(card.body,{kind:'plot',variant:'plot',title,actionHost:true});
@@ -1338,6 +1395,11 @@
        {field:'segments.'+index+'.'+key+'.'+term.logical});
      }
    }
+   if(page.kind==='pund'){
+    const port=pulsePort(page,settings);
+    if(port.pmuVerified&&settings.currentRangeA&&!hardware.getPmuCurrentRanges(result.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))
+     throw Object.assign(Error(tr('该电流档与实装 PMU/RPM 不匹配。','This range is incompatible with installed PMU/RPM.')),{field:'currentRangeA'});
+   }
    if(page.kind==='pulse'){
     if(settings.testMode!=='sweep'){const port=pulsePort(page,settings);if(port.pmuVerified&&settings.currentRangeA&&!hardware.getPmuCurrentRanges(settings.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))throw Object.assign(Error(tr('该电流档与实装 PMU/RPM 不匹配。','This range is incompatible with installed PMU/RPM.')),{field:'currentRangeA'});return result;}
     const issue=pulseCompatibility(settings,result);
@@ -1514,7 +1576,7 @@
    }
    dcInput(refs,'Ref (V)','0',null,{readOnly:true,key:'referenceV'});
    const signal=timing?.terminal?.toLowerCase();
-   const outputs=p.kind==='time'?timePageOutputs(timing):p.kind==='pulse'?'I'+signal+', V'+signal:
+   const outputs=p.kind==='time'?timePageOutputs(timing):p.kind==='pulse'||p.kind==='pund'?'I'+signal+', V'+signal:
     p.kind==='retention'?'I'+signal:p.targets.map(target=>target.name).join(', ');
    parameterOutputs=dcInput(refs,'Outputs',outputs,null,{readOnly:true,key:'outputs',
     help:tr('在「目标」中设置测量输出。','Configure measurement outputs on the Target tab.')});

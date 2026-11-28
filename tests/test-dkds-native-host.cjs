@@ -6,7 +6,7 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const dir=path.resolve(__dirname,'../integrations/dkds-native');
 const registry=new Map(),definitions=[];
 const sandbox={
- window:{matchMedia:()=>({matches:false}),DKDSPluginModules:{define:(id,name,value)=>registry.set(id+':'+name,value)}},
+ window:{matchMedia:()=>({matches:false}),DKDSPluginModules:{define:(id,name,value)=>registry.set(id+':'+name,value),require:(id,name)=>registry.get(id+':'+name)}},
  DKDSPlugins:{define:(manifest,activate)=>definitions.push({manifest,activate})},
  console
 };
@@ -290,6 +290,29 @@ const ctx={
   ['kind-it','kind-vt','kind-raw']);
  record.actions.findLast(row=>row.id==='library-pulse').onInvoke();
  assert.ok(record.fields.some(row=>row.spec.attributes?.['data-dkts-timing-field']==='widthUs'));
+ // Rev F pulse options and the PUND editor render through the same timing panels.
+ const timingFieldAfter=(start,key)=>record.fields.slice(start).findLast(row=>row.spec.attributes?.['data-dkts-timing-field']===key);
+ const beforePulseOptions=0;
+ for(const key of ['dualSweep','llec','connectionComp'])assert.ok(timingFieldAfter(beforePulseOptions,key),key);
+ assert.deepEqual(Array.from(timingFieldAfter(0,'connectionComp').spec.options,o=>o.value),['off','short','offset','both']);
+ const beforePulseTarget=record.fields.length;
+ record.tabs.at(-1).onChange('target');
+ assert.ok(timingFieldAfter(beforePulseTarget,'average'));
+ assert.ok(timingFieldAfter(beforePulseTarget,'acquireLow'));
+ record.tabs.at(-1).onChange('sweep');
+ const beforePund=record.fields.length;
+ record.actions.findLast(row=>row.id==='library-pund').onInvoke();
+ assert.equal(state.pages.find(row=>row.id===state.activeId).kind,'pund');
+ for(const key of ['terminal','loadOhms','amplitudeV','riseUs','widthUs','delayUs','loops','preset'])assert.ok(timingFieldAfter(beforePund,key),key);
+ timingFieldAfter(beforePund,'amplitudeV').spec.onInput({target:{value:'4'}});
+ assert.equal(state.pages.find(row=>row.id===state.activeId).timing.amplitudeV,'4');
+ const beforePundTarget=record.fields.length;
+ record.tabs.at(-1).onChange('target');
+ for(const key of ['rateHz','areaUm2','currentRangeA'])assert.ok(timingFieldAfter(beforePundTarget,key),key);
+ const beforePundStrategy=record.fields.length;
+ record.tabs.at(-1).onChange('strategy');
+ assert.deepEqual(Array.from(timingFieldAfter(beforePundStrategy,'rangeV').spec.options,o=>o.value),['auto','10','40']);
+ record.tabs.at(-1).onChange('sweep');
  // Adding a DC test exposes its own controls and retains the existing I–V test.
  const oldIv=JSON.stringify(state.pages[0]);
  const beforeDc=record.fields.length;

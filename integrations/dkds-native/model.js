@@ -60,7 +60,10 @@
   pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',basePeakV:'',
    start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
    delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
-   pulseCount:'1',mode:'spot',rateHz:'1000000',sampleStepUs:'',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',dualSweep:'0',average:'0',acquireLow:'0',llec:'0',connectionComp:'off',secondary:null,arb:null,arbPartner:null,biasSteps:null,testMode:'sweep'})
+   pulseCount:'1',mode:'spot',rateHz:'1000000',sampleStepUs:'',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',dualSweep:'0',average:'0',acquireLow:'0',llec:'0',connectionComp:'off',secondary:null,arb:null,arbPartner:null,biasSteps:null,testMode:'sweep'}),
+  // PUND on one PMU channel as a single Segment Arb sequence; amplitude is the magnitude of the four read pulses.
+  pund:Object.freeze({testMode:'pund',terminal:'D',channel:'1',rangeV:'auto',loadOhms:'',amplitudeV:'5',riseUs:'1',widthUs:'10',delayUs:'10',
+   preset:'1',loops:'1',mode:'waveform',rateHz:'10000000',currentRangeA:'',areaUm2:''})
  });
  function defaultBiasSteps(){
   return {edgeUs:'',loops:'1',segments:['0','1','0'].map((biasV,index)=>({
@@ -208,6 +211,7 @@
     ...segment,listPoints:segment.listPoints??'1',currentBias:{...timeTerminalDefaults('0'),...segment.currentBias}
    }));
   }
+  if(kind==='pund'&&(values.testMode!=='pund'||values.mode!=='waveform'))throw Error('PUND uses waveform capture in its own test mode');
   if(kind==='pulse'){
    if(settings?.testMode===undefined&&settings?.arb!=null)values.testMode='sequence';
    if(!['sweep','sequence','bias-steps'].includes(values.testMode))throw Error('Invalid pulse test mode');
@@ -225,6 +229,10 @@
   if(!defaults)return null;
   const v=timingSettings(kind,settings);
   if(kind==='time')return v.mode===TIME_PMU_MODE?timedSummary('pulse',v.pmu,pmuContext):timeSummary(v);
+  if(kind==='pund'){
+   if(!['S','D','G'].includes(v.terminal)||!['1','2'].includes(v.channel))throw Error('Select a Source, Drain or Gate terminal and a card channel');
+   return window.DKDSPluginModules.require('com.dkts.keithley-4200','dkts-capabilities').normalizeSegmentArb(v,pmuContext);
+  }
   if(kind==='pulse'&&['sequence','bias-steps'].includes(v.testMode)){
    const capabilities=window.DKDSPluginModules.require('com.dkts.keithley-4200','dkts-capabilities');
    return v.testMode==='sequence'?capabilities.normalizeArbPair(v):capabilities.normalizeSegmentArb(v,pmuContext);

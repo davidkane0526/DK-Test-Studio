@@ -58,6 +58,9 @@ function makeInstrumentContext(modules,options={}){
     if(command==='*IDN?\0')return reply('KI4200A,1498377,V1.14\0');
     if(command==='*OPT?\0')return reply(options.pmu?'SMU1,SMU2,PMU1\0':'SMU1,SMU2\0');
     if(options.pmu){
+     if(options.pund&&command===':PMU:DATA:COUNT? 1\0')return reply('8\0');
+     if(options.pund&&command===':PMU:DATA:GET 1,0,8,V,I,T,S\0')return reply(options.pund+'\0');
+     if(options.pund&&/^:PMU:DATA:GET 1,8,/.test(command))return reply('\0');
      if(command===':PMU:EXECUTE\0'){pulseBusy=true;return reply('ACK\0');}
      if(command===':PMU:TEST:STATUS?\0'){
       if(pulseBusy){pulseBusy=false;return reply('1\0');}
@@ -570,4 +573,63 @@ test('test and routine duplication preserve settings and order with fresh projec
  const restored=model.insertSetup(base,{...template,name:'工作模板'});
  assert.equal(restored.routines.at(-1).name,'工作模板');
  assert.deepEqual(Array.from(restored.pages.slice(2),row=>row.kind),['dc','dc','dc','time']);
+});
+
+test('PUND page compiles to one Segment Arb sequence, stays gated and labels P/U/N/D readings',async()=>{
+ const {modules}=loadModules(),model=modules.get('model'),runtimeModule=modules.get('measurementRuntime');
+ let project=model.editPage(model.initial(),{kind:'pund'});
+ project=model.edit(project,'D',{resource:'PMU1-1'});
+ project=model.editTiming(project,{loadOhms:'1000000',currentRangeA:'0.01',amplitudeV:'3',riseUs:'1',widthUs:'5',delayUs:'10',rateHz:'1000000',areaUm2:'10000'});
+ const page=project.pages.find(p=>p.id===project.activeId);
+ assert.equal(page.kind,'pund');assert.equal(page.timing.testMode,'pund');
+ const capabilities=modules.get('dkts-capabilities');
+ const fake=makeInstrumentContext(modules,{pmu:true});
+ const blocked=runtimeModule.createRuntime(fake.ctx,{wait:async()=>{}});
+ const endpoint={host:'169.254.111.118',port:1225,expectedSerial:'1498377'};
+ try{
+  await blocked.connectAndInspect(endpoint);
+  const check=blocked.prepare(page);
+  assert.equal(check.ready,true,check.reason);
+  // PUND shares the Segment Arb gate, which stays closed in the shipped database.
+  assert.equal(check.canExecute,false);
+  assert.match(check.reason,/实机验收/);
+  assert.equal(check.compiled.commandMode,'KXCI-PMU-SARB-PUND');
+  const setup=check.compiled.pulse.setup;
+  assert.deepEqual(Array.from(setup.slice(0,3)),['SS','ZE',':PMU:INIT 1']);
+  assert.ok(setup.includes(':PMU:MEASURE:RANGE 1,2,0.01'));
+  // lead gap, preset pulse (4 segments), then P, U, N, D (4 segments each).
+  assert.ok(setup.includes(':PMU:SARB:SEQ:STARTV 1,1,0,0,-3,-3,0,0,3,3,0,0,3,3,0,0,-3,-3,0,0,-3,-3,0'));
+  assert.ok(setup.includes(':PMU:SARB:SEQ:STOPV 1,1,0,-3,-3,0,0,3,3,0,0,3,3,0,0,-3,-3,0,0,-3,-3,0,0'));
+  assert.ok(setup.includes(':PMU:SARB:SEQ:MEAS:TYPE 1,1,0,0,0,0,0,2,2,2,0,2,2,2,0,2,2,2,0,2,2,2,0'));
+  assert.ok(setup.includes(':PMU:SARB:WFM:SEQ:LIST 1,1,1'));
+  assert.equal(setup.at(-1),':PMU:OUTPUT:STATE 1,1');
+  assert.throws(()=>blocked.start(page,true),/实机验收/);
+  assert.ok(fake.commands.every(row=>!row.command.startsWith(':PMU:')));
+ }finally{await blocked.dispose();}
+ const DATABASE=JSON.parse(JSON.stringify(capabilities.DATABASE));
+ Object.assign(DATABASE.safetyPolicies.kxci,{allowPulseModeOutput:true,allowSegmentArbOutput:true});
+ modules.set('dkts-capabilities',{...capabilities,DATABASE});
+ const rows=['0,1E-3,0,0','0,1E-3,0.000001,0','0,2E-4,0.000002,0','0,2E-4,0.000003,0','0,-1E-3,0.000004,0','0,-1E-3,0.000005,0','0,-2E-4,0.000006,0','0,-2E-4,0.000007,0'];
+ const commissioned=makeInstrumentContext(modules,{pmu:true,pund:rows.join(';')});
+ const runtime=runtimeModule.createRuntime(commissioned.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect(endpoint);
+  runtime.start(page,true);
+  const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'completed',result.run.error);
+  assert.equal(result.rows,8);
+  const summary=result.pundSummary;
+  assert.equal(summary.labelled,true);assert.equal(summary.samplesPerPulse,2);
+  const c=summary.cycles[0];
+  assert.ok(Math.abs(c.switchingChargePositiveC-8e-10)<1e-18);
+  assert.ok(Math.abs(c.switchingChargeNegativeC+8e-10)<1e-18);
+  // 1e4 µm² = 1e-4 cm²: 8e-10 C -> 8 µC/cm².
+  assert.ok(Math.abs(c.switchingPolarizationPositiveUcPerCm2-8)<1e-9);
+  const table=commissioned.published[0];
+  assert.deepEqual(Array.from(table.columns.find(col=>col.key==='pulsePund').values),['P','P','U','U','N','N','D','D']);
+  assert.equal(table.metadata.pund.cycles[0].cycle,1);
+  assert.equal(table.metadata.dktsScope.pund,undefined);
+  // Raw readings are unchanged by labelling.
+  assert.deepEqual(Array.from(table.columns.find(col=>col.key==='rawKxciResponse').values),rows);
+ }finally{await runtime.dispose();}
 });
