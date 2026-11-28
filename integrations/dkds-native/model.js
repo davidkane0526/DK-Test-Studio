@@ -65,7 +65,7 @@
   pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',basePeakV:'',
    start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
    delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
-   pulseCount:'1',mode:'spot',rateHz:'1000000',sampleStepUs:'',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',secondary:null,arb:null,arbPartner:null,biasSteps:null,smu:null,testMode:'sweep'})
+   pulseCount:'1',mode:'spot',rateHz:'1000000',sampleStepUs:'',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',secondary:null,arb:null,arbPartner:null,biasSteps:null,smu:null,sweepMode:'sweep',testMode:'sweep'})
  });
  function defaultBiasSteps(){
   return {edgeUs:'',loops:'1',segments:['0','1','0'].map((biasV,index)=>({
@@ -221,6 +221,8 @@
    if(settings?.testMode===undefined&&settings?.arb!=null)values.testMode='sequence';
    if(!['sweep','sequence','bias-steps','smu-sweep'].includes(values.testMode))throw Error('Invalid pulse test mode');
    if(values.smu!=null||values.testMode==='smu-sweep')values.smu={...SMU_PULSE_DEFAULTS,...values.smu};
+   if(values.testMode==='sweep'||values.testMode==='smu-sweep')values.sweepMode=values.testMode;
+   else if(values.sweepMode!=='smu-sweep')values.sweepMode='sweep';
    if(values.testMode==='sequence'&&values.arb==null)throw Error('Missing custom sequence');
   }
   if(kind==='pulse'&&Object.hasOwn(values,'windowStopUs')){
@@ -228,6 +230,39 @@
    delete values.windowStopUs;
   }
   return values;
+ }
+ function pulseCompanion(values,terminal,role){
+  const keys=['channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs',
+   'windowStartUs','windowTimeUs','currentRangeA','sweep','basePeakV','rangePolicy','prePercent','postPercent'];
+  const initial=Object.fromEntries(keys.map(key=>[key,String(values[key])]));
+  return {...initial,terminal,role,conditionV:'0',stop:String(values.start),step:'0',currentRangeA:''};
+ }
+ function pmuSweepRequirement(v){
+  if(v.terminal!=='D')return 'terminal';
+  if(v.secondary&&(v.secondary.terminal!=='G'||v.secondary.role!=='condition'))return 'companion';
+  if(v.sweep!=='amplitude'||v.mode!=='spot'||Number(v.fixedV)!==0||Number(v.pulseCount)!==1)return 'shape';
+  const defaults=TIMED_DEFAULTS.pulse;
+  const timing=['widthUs','periodUs','riseUs','fallUs','delayUs','holdUs','baseDelayUs','windowStartUs','windowTimeUs',
+   'rateHz','sampleStepUs','prePercent','postPercent'];
+  return timing.some(key=>v[key]!==defaults[key]&&(
+   String(v[key]).trim()===''||String(defaults[key]).trim()===''||Number(v[key])!==Number(defaults[key])
+  ))?'timing':'';
+ }
+ function pulseSweepSettings(values,mode){
+  if(values.testMode===mode)return values;
+  if(mode==='smu-sweep'){
+   const gate=values.secondary?.terminal==='G'&&values.secondary.role==='condition';
+   const smu={...SMU_PULSE_DEFAULTS,...values.smu,start:values.start,stop:values.stop,step:values.step,
+    gateRole:gate?'condition':'off'};
+   if(gate)smu.gateV=values.secondary.conditionV;
+   return {...values,testMode:mode,sweepMode:mode,smu};
+  }
+  const {start,stop,step,gateRole,gateV}={...SMU_PULSE_DEFAULTS,...values.smu};
+  const secondary=gateRole==='condition'?{
+   ...(values.secondary?.terminal==='G'?values.secondary:pulseCompanion(values,'G','condition')),
+   role:'condition',conditionV:gateV
+  }:null;
+  return {...values,testMode:mode,sweepMode:mode,terminal:'D',start,stop,step,secondary};
  }
  function pulseSecondarySettings(v){
   const secondary=v.secondary;
@@ -1277,17 +1312,22 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
  function setIvType(s,value){
   s=validate(s);
   const page=s.pages.find(p=>p.id===s.activeId);
-  const pulseMode={pulse:'sweep','pulse-smu':'smu-sweep'}[value];
+  const pulseMode=value==='pulse'?'sweep':value==='pulse-smu'?'smu-sweep':null;
   if(!['dc','pulse'].includes(page.kind)||(!DC_PRESETS.includes(value)&&!pulseMode))
    throw Error('Unknown I–V test type');
   const kind=pulseMode?'pulse':'dc';
+  let mode=pulseMode;
+  if(value==='pulse'){
+   const timings=page.kind==='pulse'?page.timing:page.ivAlternate;
+   if(timings?.testMode==='smu-sweep'||timings?.sweepMode==='smu-sweep')mode='smu-sweep';
+  }
   if(page.kind!==kind){
    const previous=KINDS.find(row=>row.id===page.kind),next=KINDS.find(row=>row.id===kind);
    if(page.name===previous.label||(page.kind==='pulse'&&page.name==='脉冲扫描'))page.name=next.label;
    const alternate=page.ivAlternate;
    page.ivAlternate=kind==='pulse'?page.dc:page.timing;
    if(kind==='pulse'){
-    page.timing={...alternate,testMode:pulseMode};
+    page.timing={...alternate,testMode:mode};
     delete page.dc;
    }else{
     page.dc=alternate||defaultDc(page);
@@ -1297,7 +1337,7 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
    page.testType=next.testType;
   }
   if(kind==='dc')page.dc.preset=value;
-  else page.timing.testMode=pulseMode;
+  else page.timing.testMode=mode;
   return validate(s);
  }
  function editDc(s,settings){
@@ -1599,6 +1639,6 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,setIvType,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,smuPulseSummary,SMU_PULSE_DEFAULTS,TIME_PMU_MODE,defaultPmuTimeSettings,templateSnapshot,insertSetup,duplicateSetup,reorderTests,pulseSecondarySettings,timeGrid,timePreviewGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,setIvType,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,smuPulseSummary,pulseSweepSettings,pmuSweepRequirement,pulseCompanion,SMU_PULSE_DEFAULTS,TIME_PMU_MODE,defaultPmuTimeSettings,templateSnapshot,insertSetup,duplicateSetup,reorderTests,pulseSecondarySettings,timeGrid,timePreviewGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();

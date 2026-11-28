@@ -40,7 +40,7 @@ function makeInstrumentContext(modules,options={}){
   'slotno:2,name:SMU2,model:KISMU4200,serialno:SMU002,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026',
   ...(options.pmu?['slotno:3,name:PMU1,model:'+(options.pmuModel||'4225-PMU')+',serialno:PMU001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026']:[])
  ].join(',');
- const remoteInfo='';
+ const remoteInfo=options.rpm?'slotno:3,name:RPM1-1,model:KIRPM4225,serialno:RPM001,hwver:1.0,fwver:1.0,caldate:Jan 01, 2025,caldue:Jan 01, 2026':'';
  const reply=value=>({base64:Buffer.from(value,'ascii').toString('base64')});
  const timerState={scheduled:0,cancelled:0,fired:0};
  const ctx={
@@ -57,7 +57,7 @@ function makeInstrumentContext(modules,options={}){
     const command=Buffer.from(payload.base64||'','base64').toString('ascii');
     commands.push({command,noReply:payload.noReply===true});
     if(command==='*IDN?\0')return reply('KI4200A,1498377,V1.14\0');
-    if(command==='*OPT?\0')return reply(options.pmu?'SMU1,SMU2,PMU1\0':'SMU1,SMU2\0');
+    if(command==='*OPT?\0')return reply(options.rpm?'SMU1,SMU2,PMU1RPM1\0':options.pmu?'SMU1,SMU2,PMU1\0':'SMU1,SMU2\0');
     if(options.pmu){
      if(options.failPmuOffAck&&command===':PMU:OUTPUT:STATE 1,0\0')return reply('');
      if(command===':PMU:EXECUTE\0'){pulseBusy=true;return reply('ACK\0');}
@@ -666,6 +666,60 @@ test('SMU Pulse I–V uses the installed LPT module and publishes only returned 
  }finally{await api.dispose();}
 });
 
+test('one Pulse I–V resolves explicit ports and verified RPM without discarding configured scan intent',async()=>{
+ const {modules}=loadModules(),model=modules.get('model');
+ let project=model.setIvType(model.initial(),'pulse');
+ const page=()=>project.pages.find(row=>row.id===project.activeId);
+ project=model.editTiming(project,{loadOhms:'1000000',start:'0.2',stop:'1',step:'0.2'});
+ const endpoint={host:'169.254.111.118',expectedSerial:'1498377'};
+ const fixture=makeInstrumentContext(modules,{pmu:true});
+ const runtime=modules.get('measurementRuntime').createRuntime(fixture.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect(endpoint);
+  let result=runtime.prepare(page());
+  assert.equal(result.input.executionMode,'smu-pulse');
+  assert.equal(result.input.settings.start,0.2);
+  project=model.editTiming(project,{widthUs:'50',windowStartUs:'10',windowTimeUs:'20'});
+  result=runtime.prepare(page());
+  assert.equal(result.canExecute,false);
+  assert.match(result.reason,/需要 4225/);
+  assert.ok(fixture.commands.every(({command})=>!command.startsWith('EX DKTSsmu')&&!command.startsWith(':PMU:')));
+  project=model.edit(project,'D',{resource:'PMU1-1'});
+  result=runtime.prepare(page());
+  assert.equal(result.input.executionMode,'pulse');
+  assert.equal(result.input.settings.widthUs,'50');
+  assert.equal(result.input.settings.start,'0.2');
+  project=model.editTiming(project,{testMode:'smu-sweep',smu:{start:'0.3',stop:'0.9',step:'0.3',onMs:'10',gateRole:'condition',gateV:'1.4'}});
+  assert.match(runtime.prepare(page()).reason,/独立 SMU/);
+  project=model.edit(project,'G',{resource:'PMU1-2'});
+  project=model.editTiming(project,{secondary:{...model.pulseCompanion(page().timing,'G','condition'),loadOhms:'1000000'}});
+  result=runtime.prepare(page());
+  assert.equal(result.canExecute,true,result.reason);
+  assert.equal(result.input.settings.start,'0.3');
+  assert.equal(result.input.secondary.settings.fixedV,'1.4');
+  assert.equal(result.input.settings.widthUs,'50');
+  project=model.edit(project,'D',{resource:'SMU1'});
+  assert.match(runtime.prepare(page()).reason,/栅极|核对 SMU 脉冲端口/);
+  project=model.edit(project,'G',{resource:'SMU2'});
+  result=runtime.prepare(page());
+  assert.equal(result.input.settings.onMs,10);
+  assert.equal(result.input.settings.gateV,1.4);
+ }finally{await runtime.dispose();}
+ const routed=makeInstrumentContext(modules,{pmu:true,rpm:true});
+ const rpmRuntime=modules.get('measurementRuntime').createRuntime(routed.ctx,{wait:async()=>{}});
+ try{
+  project=model.setIvType(model.initial(),'pulse');
+  project=model.editTiming(project,{loadOhms:'1000000'});
+  await rpmRuntime.connectAndInspect(endpoint);
+  assert.match(rpmRuntime.prepare(page()).reason,/确认 RPM 接线/);
+  rpmRuntime.confirmWiring([{pmu:'PMU1-1',smu:'SMU1'}]);
+  const prepared=rpmRuntime.prepare(page());
+  assert.equal(prepared.canExecute,true,prepared.reason);
+  assert.equal(prepared.input.resource,'PMU1-1');
+  assert.equal(prepared.compiled.pulse.withRpm,true);
+ }finally{await rpmRuntime.dispose();}
+});
+
 test('Pulse I–V can accompany Xsweep with a constant gate bias and records only measured X data',async()=>{
  const {modules}=loadModules(),model=modules.get('model');
  let project=model.setIvType(model.initial(),'pulse');
@@ -683,7 +737,10 @@ test('Pulse I–V can accompany Xsweep with a constant gate bias and records onl
   assert.deepEqual(Array.from(runtime.pulseRouting(currentPage()).issues,item=>item.logical+' '+item.mapped),
    ['D SMU1','G SMU2']);
   await runtime.connectAndInspect(endpoint);
-  assert.match(runtime.prepare(currentPage()).reason,/D · SMU 1、G · SMU 2 为独立 SMU/);
+  const nativeSmU=runtime.prepare(currentPage());
+  assert.equal(nativeSmU.canExecute,true,nativeSmU.reason);
+  assert.equal(nativeSmU.input.executionMode,'smu-pulse');
+  assert.equal(nativeSmU.input.settings.gateV,1.2);
   project=model.edit(project,'D',{resource:'PMU1-1'});
   assert.equal(model.timedSummary('pulse',currentPage().timing).totalSweepPoints,2);
   const unsupported=runtime.prepare(currentPage());

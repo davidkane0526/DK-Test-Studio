@@ -221,12 +221,12 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    return pending;
   };
  }
- function smuPulsePorts(page,settings){
+ function smuPulsePorts(page,settings,resolve=resource=>resource){
   const port=logical=>page.terminals.find(row=>row.logical===logical)?.resource||'None';
   const drain=port('D'),gate=settings.gate?port('G'):'None';
   const invalid=[];
-  if(!/^SMU[1-8]$/.test(drain))invalid.push('D');
-  if(settings.gate&&(!/^SMU[1-8]$/.test(gate)||gate===drain))invalid.push('G');
+  if(!/^SMU[1-8]$/.test(drain)||resolve(drain)!==drain)invalid.push('D');
+  if(settings.gate&&(!/^SMU[1-8]$/.test(gate)||gate===drain||resolve(gate)!==gate))invalid.push('G');
   if(port('S')!=='GNDU')invalid.push('S');
   return {drain,gate,invalid};
  }
@@ -284,6 +284,20 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
   let topologyProfile=null;
   function setTopologyProfile(profile){if(runner.status(0).running)throw Error('测量期间不能更改接线');topologyProfile=profile||null;}
   function resolvePulsePort(resource,legacyChannel){const c=controller.status();return protocol.resolvePulseResource(c.inventory,c.identity?.serial,topologyProfile,resource,legacyChannel);}
+  function pulseSweepPlan(page,settings=page.timing){
+   if(!['sweep','smu-sweep'].includes(settings.testMode))return {settings,resource:null};
+   const logical=settings.testMode==='smu-sweep'?'D':settings.terminal;
+   const mapped=page.terminals.find(row=>row.logical===logical)?.resource||'None';
+   const resource=resolvePulsePort(mapped,settings.channel);
+   const pmu=/^PMU[1-9](?:-[12])?$/.test(resource);
+   const smu=/^SMU[1-8]$/.test(resource);
+   const requiresPmu=smu&&settings.testMode==='sweep'?model.pmuSweepRequirement(settings):'';
+   const mode=pmu||requiresPmu?'sweep':smu?'smu-sweep':settings.testMode;
+   const needsPort=!pmu&&!smu&&(mode==='smu-sweep'||!model.pmuSweepRequirement(settings));
+   return {settings:model.pulseSweepSettings(settings,mode),resource,requiresPmu,needsPort,
+    switched:mode!==settings.testMode};
+  }
+  function smuPulseRouting(page,settings){return smuPulsePorts(page,settings,resolvePulsePort);}
   function pulseRouting(page,settings=page.timing){
    const connection=controller.status(),inventory=connection.inventory;
    const companion=settings.testMode==='sequence'?settings.arbPartner:settings.testMode==='sweep'?settings.secondary:null;
@@ -336,15 +350,18 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
    try{
     let input;
     const pmuTime=page.kind==='time'&&page.timing.mode===model.TIME_PMU_MODE;
-    if(page.kind==='pulse'&&page.timing.testMode==='smu-sweep'){
-     const settings=model.timedSummary('pulse',page.timing);
-     const {drain,gate,invalid}=smuPulsePorts(page,settings);
+    const pulse=page.kind==='pulse'?pulseSweepPlan(page):null;
+    if(pulse?.needsPort)throw Error('请为漏极分配可执行脉冲的 SMU 或 PMU 端口。');
+    if(pulse?.requiresPmu)throw Error('当前脉冲参数需要 4225-PMU。请核对端口或修改扫描参数。');
+    if(pulse?.settings.testMode==='smu-sweep'){
+     const settings=model.timedSummary('pulse',pulse.settings);
+     const {drain,gate,invalid}=smuPulseRouting(page,settings);
      if(invalid.length)throw Error('核对 SMU 脉冲端口：'+invalid.join('、')+'。活动漏极和栅极使用独立 SMU，源极使用 GNDU。');
      const routes=protocol.planSmURoutes(connection.inventory,connection.identity.serial,topologyProfile,[drain,gate]);
      if(routes.length)throw Error('本 SMU 脉冲模块需要 SMU 直连 DUT，暂不支持通过 RPM 输出');
      input={executionMode:'smu-pulse',settings,drain,gate};
     }else if(page.kind==='pulse'||pmuTime){
-     const v=pmuTime?{...page.timing.pmu,rangeV:'auto'}:page.timing;
+     const v=pmuTime?{...page.timing.pmu,rangeV:'auto'}:pulse.settings;
      const routing=pulseRouting(page,v);
      if(routing.issues.length)throw Error(pulseRouteMessage(routing.issues));
      const [resource,companion]=routing.resources;
@@ -503,7 +520,7 @@ function pageToBasicProgram(page, model, globalIntegration='medium'){
   }
   return Object.freeze({connect,inspectModules,connectAndInspect,checkConnection,disconnect,
    currentTcp:()=>hasShared()?shared('current'):null,
-   prepare,prepareRoutine,start,startRoutine,stop,status,waitForCompletion,dispose,setTopologyProfile,confirmWiring,resolvePulsePort,pulseRouting,
+   prepare,prepareRoutine,start,startRoutine,stop,status,waitForCompletion,dispose,setTopologyProfile,confirmWiring,resolvePulsePort,pulseRouting,pulseSweepPlan,smuPulseRouting,
    currentRanges:(resource,voltagePeaks)=>hardwareCapabilities.verifiedCurrentRanges(
     controller.status(),resource,voltagePeaks)});
  }

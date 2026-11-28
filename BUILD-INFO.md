@@ -6,7 +6,7 @@
 - **Previous UI source ZIP SHA-256:** `1d419c99922a00868ebd877486768a61b57d2274f2c69fb5f67c2379adf8c077`
 - **Pinned read-only DKDS source:** `20f056851a61d2144e9524c3ed568628d4b8557c`
 - **Pinned DKDS ZIP SHA-256:** `ebf283772098f0de6182c7472c9360dec88ec40de13248bd930cc2b54af73225`
-- **DKTS native plugin:** `0.8.43` (Plugin API 1.19; not the DKTS application version)
+- **DKTS native plugin:** `0.8.44` (Plugin API 1.19; not the DKTS application version)
 - **Provisional staged Android versionCode:** `100226` (real final number is workflow-assigned)
 
 ## This round (2026-11-14)

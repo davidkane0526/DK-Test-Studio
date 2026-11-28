@@ -805,6 +805,7 @@
 }
 
 #dktsKeithley4200Page [data-dkts-editor-kind="pulse"]{container-name:dkts-dc-page dkts-pulse-page}
+#dktsKeithley4200Page .dkts-pulse-path{padding:7px var(--dkts-dc-column-padding)}
 #dktsKeithley4200Page .dkts-dc-input-panel .dkts-parameter-issue{margin:8px 12px}
 #dktsKeithley4200Page .dkts-pulse-channel-panel>[data-dkds-unit-panel-body=true]{display:grid;gap:8px;padding:8px 14px 10px}
 #dktsKeithley4200Page .dkts-pulse-channel{

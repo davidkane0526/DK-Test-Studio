@@ -1,10 +1,10 @@
 # 在 Keithley 4200A 安装 DKTS SMU 脉冲用户模块
 
-新版 Windows DKTS 的「类型 → Pulse I–V · SMU」通过 KXCI 调用 4200A 上的 `DKTSsmu/Smupulse`。Windows 插件和仪器上的 KULT 用户库都需要安装。这份目录是仪器端 C 源码。
+新版 Windows DKTS 的「类型 → Pulse I–V」匹配直连 SMU 时，通过 KXCI 调用 4200A 上的 `DKTSsmu/Smupulse`。Windows 插件和仪器上的 KULT 用户库都需要安装。这份目录是仪器端 C 源码。
 
 1. 在 4200A 上，用与实装 Clarius 配套的 KULT 创建用户库 `DKTSsmu` 和模块 `Smupulse`，返回类型为 `int`。使用以下顺序添加参数。
 2. 保留 KULT 自动生成的函数声明和 `keithley.h`。将 [Smupulse.c](Smupulse.c) 最外层花括号之间的函数体复制到代码区。在 Description 中单独一行写入 `DKTS_SMU_PULSE_ABI_1`。
-3. 保存后执行 KULT 的「Build Library」，确认无构建错误。重新启动仪器上的 KXCI。在 Windows DKTS 装入 0.8.43 插件并重启。核验 4200A 型号及接线后打开对应测试，单项运行前由 DKTS 查询模块描述。
+3. 保存后执行 KULT 的「Build Library」，确认无构建错误。重新启动仪器上的 KXCI。在 Windows DKTS 装入 0.8.44 插件并重启。核验 4200A 型号及接线后打开对应测试，单项运行前由 DKTS 查询模块描述。
 4. 实机验收时记录漏极和栅极的物理波形、实际保持时间、不同量程下的读数、正常结束和停止后的关断。初次验收用已知负载。记录 `GD`、`EX`、`SP`、`GN`、`AB` 和关断的实际响应，方便核对该固件的 KXCI 行为。
 
 | 名称 | 类型 | 方向 | 说明 |
