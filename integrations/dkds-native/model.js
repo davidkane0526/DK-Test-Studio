@@ -60,7 +60,7 @@
   pulse:Object.freeze({terminal:'D',channel:'1',rangeV:'10',loadOhms:'',sweep:'amplitude',fixedV:'0',basePeakV:'',
    start:'0.1',stop:'1',step:'0.1',widthUs:'500',periodUs:'1000',riseUs:'10',fallUs:'10',
    delayUs:'0',holdUs:'0',baseDelayUs:'0',windowStartUs:'100',windowTimeUs:'300',
-   pulseCount:'1',mode:'spot',rateHz:'1000000',sampleStepUs:'',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',secondary:null,arb:null,arbPartner:null,biasSteps:null,testMode:'sweep'})
+   pulseCount:'1',mode:'spot',rateHz:'1000000',sampleStepUs:'',currentRangeA:'',rangePolicy:'fixed',prePercent:'0',postPercent:'0',dualSweep:'0',average:'0',acquireLow:'0',llec:'0',connectionComp:'off',secondary:null,arb:null,arbPartner:null,biasSteps:null,testMode:'sweep'})
  });
  function defaultBiasSteps(){
   return {edgeUs:'',loops:'1',segments:['0','1','0'].map((biasV,index)=>({
@@ -272,6 +272,15 @@
   if(v.mode==='waveform'&&(pre*duration>delay+1e-9||post*duration>period-delay-duration+1e-9))throw Error('Waveform pre/post capture exceeds available base time');
   const captureWindowS=v.mode==='waveform'?duration*(1+pre+post)*1e-6:windowUs*1e-6;
   const result={points,pulseCount,rateHz,rangeV,peakV,basePeakV,captureWindowS,windowS:windowUs*1e-6,loadOhms:v.loadOhms===''?null:n('loadOhms')};
+  // KXCI Rev F 7-11/7-5/7-14/7-15/7-30..7-33 options. Missing keys keep the previous behaviour.
+  const dual=(v.dualSweep??'0')==='1',average=(v.average??'0')==='1',acquireLow=(v.acquireLow??'0')==='1';
+  if(!['0','1'].includes(v.dualSweep??'0')||!['0','1'].includes(v.average??'0')||!['0','1'].includes(v.acquireLow??'0')||!['0','1'].includes(v.llec??'0')||!['off','short','offset','both'].includes(v.connectionComp??'off'))
+   throw Error('Invalid PMU dual sweep, averaging, base measurement, LLEC or compensation option');
+  if(dual&&points<2)invalidField('dualSweep','Dual sweep needs a multi-point Xsweep');
+  if(dual&&v.secondary!=null)invalidField('dualSweep','Dual sweep is not available with a Psweep terminal');
+  if(acquireLow&&v.mode!=='spot')invalidField('acquireLow','Base-level readings need spot mean acquisition');
+  result.dualSweep=dual;result.average=average;result.acquireLow=acquireLow;
+  if(dual)result.totalSweepPoints=points*2;
   if(v.secondary!==null){
    if(!v.secondary||typeof v.secondary!=='object'||Array.isArray(v.secondary)||v.secondary.terminal===v.terminal||!['S','D','G'].includes(v.secondary.terminal))throw Error('Select a distinct Psweep terminal');
    const required=['terminal','channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA'],optional=['sweep','basePeakV','rangePolicy','prePercent','postPercent'];

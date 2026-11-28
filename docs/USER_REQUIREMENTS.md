@@ -581,3 +581,9 @@ PR #8 旧宿主分支安全功能应与新 Core 验证一致后由归档记录�
 - 2026-11-28 原话：「继续吧 都要完成，你可以按顺序开发」；随后「我准备去休息，所以不用让我批准，你完成全部后我再看」。
 - 范围（按序）：1 实机自检（纯查询）；2 过压保护 OV；3 上电顺序 OS/OD；4 System Mode 固定源量程 SR；5 自定义测量速度 IT4/RF/RK；6 逐点状态（原提 `DO 'CH<n>S'`，Rev F 未列此名，改为解析每个读数自带的 N/C 状态字母）；7 原生对数扫描与多路 VAR2。小的设计选择按推荐方案自行决定并在交付总结中列出。
 - **验收标准**：继续在分支 `claude/project-thread-wntzw6` / PR #24 交付；每项有回归测试；不放宽任何 `safetyPolicies.kxci` 开关；不合并 PR。
+
+## R-20261128-004 · PMU 脉冲测试支持（分支 claude/project-thread-ctfnir）
+
+- 2026-11-28 原话：「1.做 PMU 支持 2.优化界面和细节」。项目协调方说明：基于 PR #24 分支另开分支与 PR，不合并；PMU 输出须与现有 `safetyPolicies.kxci` 门禁同样受控，不放宽任何门禁；界面另有线程并行优化，本线程只做 PMU 所需的界面改动。
+- 现状核对：脉冲扫描、双通道、Segment Arb、PMU 分段偏置的编译、执行、Data Center 与绘图链路已存在，只是 `allowPulseModeOutput`/`allowSegmentArbOutput` 为 false。本次依据 Rev F 第 7 节补齐手册已列、软件未接入的部分：双向扫描（dualSweep）、Spot Mean/波形平均模式（MEASURE:MODE 3/4）、基线低电平测量（MEASURE:PIV 低电平与 VL/IL/TL/SL）、负载线补偿（LLEC:CONFIGURE）、启用已存储的连接补偿（CONNECTION:COMP），以及测试类型中已有入口却未实现的 PUND（以 Segment Arb 波形采集实现）。
+- **验收标准**：每个新选项都有编译与解析回归测试，指令语法与 Rev F 7-5/7-11/7-14/7-15/7-30–7-33 一致；PUND 页面能生成方案、通过同一执行与 Data Center 路径；未经用户决定不修改 `allowPulseModeOutput`、`allowSegmentArbOutput`；文档列出需要实机确认的项目；通过独立 PR 交付，不合并。

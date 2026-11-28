@@ -11,6 +11,8 @@
   ['plannedXVoltageV','Xsweep 设定电压','V','raw'],['plannedPVoltageV','Psweep 设定电压','V','raw'],
   ['pulseChannelSequence','通道原始点序','','index'],['pulseRunSequence','任务接收顺序','','index'],
   ['pulseVoltageV','脉冲实测电压','V','x'],['pulseCurrentA','脉冲实测电流','A','y'],
+  ['pulseBaseVoltageV','基线实测电压','V','raw'],['pulseBaseCurrentA','基线实测电流','A','raw'],['pulseBaseTimeS','基线测量时间','s','raw'],
+  ['pulsePundIndex','PUND 脉冲序号','','index'],
   ['drainVoltageV','漏极电压','V','x'],['drainCurrentA','漏极电流','A','y'],
   ['gateVoltageV','栅极电压','V','group'],['gateCurrentA','栅极电流','A','y'],
   ['sourceVoltageV','源极电压','V','group'],['sourceCurrentA','源极电流','A','y'],['bodyVoltageV','衬底电压','V','group'],['bodyCurrentA','衬底电流','A','y'],
@@ -22,7 +24,7 @@
   ['complianceFlag','触及限流标记','','raw']
  ];
  const STRINGS=[
-  ['pulseResource','脉冲通道'],['pulseMode','脉冲采集方式'],['pulseProgram','脉冲任务类型'],['pulseStatusRaw','脉冲原始状态'],
+  ['pulseResource','脉冲通道'],['pulseMode','脉冲采集方式'],['pulseProgram','脉冲任务类型'],['pulseStatusRaw','脉冲原始状态'],['pulseBaseStatusRaw','基线原始状态'],['pulsePund','PUND 脉冲'],
   ['timeOrigin','时间来源'],['source','采集协议来源'],['measurementStatus','测量状态'],['measurementCompleteness','采样完整性'],
   ['complianceRole','触及限流端口'],['rawKxciResponse','KXCI 原始响应'],
   ['rawKxciResponses','各端口原始响应 JSON'],
@@ -74,7 +76,8 @@
    key,name,unit,role,dtype:'float64',
    values:rows.map(row=>key==='complianceFlag'?(row.measurementStatus==='C'?1:row.measurementStatus==='N'?0:NaN):row[key]==null?NaN:Number(row[key]))
   }));
-  for(const [key,name] of STRINGS.filter(([key])=>(pulseRun||!key.startsWith('pulse'))&&!(pulseRun&&STATUS_ROLES[key]))){
+  const optionalStrings=new Set(['pulseBaseStatusRaw','pulsePund']);
+  for(const [key,name] of STRINGS.filter(([key])=>(pulseRun||!key.startsWith('pulse'))&&!(pulseRun&&STATUS_ROLES[key])&&!(optionalStrings.has(key)&&!rows.some(row=>row[key]!=null)))){
    if(STATUS_ROLES[key]){columns.push({key,name,unit:'',role:'raw',dtype:'string',values:rows.map(row=>pointStatus(row,STATUS_ROLES[key]))});continue;}
    columns.push({key,name,unit:'',role:'raw',dtype:'string',
     values:rows.map(row=>

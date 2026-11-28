@@ -419,33 +419,45 @@ function compilePulse(input,hardware){
  check(!waveform||(begin===0&&Math.abs(window-flat)<1e-15),'波形采集需选择完整脉冲窗口');
  const multiplier=input.pointMultiplier??1;
  check(Number.isSafeInteger(multiplier)&&multiplier>=1&&multiplier<=4096,'外层点数无效');
- const totalSweep=points*multiplier;
+ // Rev F 7-30..7-33 dualSweep, 7-14 modes 3/4, 7-15 AcquireLow, 7-11 LLEC, 7-5 connection compensation.
+ const flag=(k,d='0')=>{const x=v[k]??d;check(['0','1'].includes(String(x)),'无效参数 '+k);return String(x)==='1'};
+ const dual=flag('dualSweep'),average=flag('average'),acquireLow=flag('acquireLow'),llec=flag('llec'),comp=v.connectionComp??'off';
+ check(['off','short','offset','both'].includes(comp),'连接补偿选项无效');
+ check(!dual||points>1&&v.secondary==null&&multiplier===1,'双向扫描需要单通道多点 Xsweep');
+ check(!acquireLow||!waveform,'基线测量仅用于 Spot Mean');
+ const totalSweep=points*multiplier*(dual?2:1);
  const pre=v.prePercent==null?0:n('prePercent'),post=v.postPercent==null?0:n('postPercent');
  check(pre>=0&&pre<=1&&post>=0&&post<=1,'波形前后采样比例为 0–1');
  check(!waveform||pre*duration<=delay+1e-15&&post*duration<=period-delay-duration+1e-15,'前后采样窗口超出基线时间');
  const dur=waveform?duration*(1+pre+post):window,budget=h.getPmuCaptureBudget(dur*totalSweep*bursts,dur,rate,{pulseCount:bursts,sweepPoints:points,stepPoints:multiplier});
  check(budget.kxciBoundaryStatus==='within-published-range','采样容量越界');
- const expected=waveform?null:totalSweep*bursts;check(expected===null||expected<=65536,'记录数越界');
+ const expected=waveform?null:average?totalSweep:totalSweep*bursts;check(expected===null||expected<=65536,'记录数越界');
  const ir=v.currentRangeA===''?null:n('currentRangeA');check(ir===null||h.getPmuCurrentRanges(range,rpm).some(z=>Math.abs(z-ir)<=z*1e-12),'电流量程不受支持');
  const policy=v.rangePolicy??'fixed';check(['fixed','limited-auto'].includes(policy),'量程模式无效');
  const power=h.calculateChassisPower({inventory,activePulseChannels:[{family:'PMU',cardIndex:card,rangeV:range}]});check(power.known&&power.withinLimit,'机箱功耗未核验');
  const cmd=(name,...args)=>':PMU:'+name+' '+args.map(z=>typeof z==='number'?systemNumber(z):z).join(',');
  const setup=['SS','ZE',':PMU:INIT 0'];
  if(rpm)setup.push(cmd('RPM:CONFIGURE',input.resource,0));
- setup.push(cmd('LOAD',ch,load),cmd('LLEC:CONFIGURE',ch,0),cmd('SOURCE:RANGE',ch,range),cmd('MEASURE:RANGE',ch,ir===null?0:policy==='limited-auto'?1:2,...(ir===null?[]:[ir])),cmd('MEASURE:MODE',waveform?2:1),cmd('SAMPLE:RATE',rate),cmd('PULSE:BURST:COUNT',bursts),points===1?cmd('PULSE:TRAIN',ch,base,topA):v.sweep==='base'?cmd('SWEEP:PULSE:BASE',ch,a,b,step,topA,0):cmd('SWEEP:PULSE:AMPLITUDE',ch,topA,topB,step,base,0),cmd('PULSE:TIMES',ch,period,width,rise,fall,delay));
- if(waveform)setup.push(cmd('TIMES:WAVEFORM',ch,pre,post));else setup.push(cmd('MEASURE:PIV',ch,1,0),cmd('TIMES:PIV',ch,begin/flat,(begin+window)/flat));
+ // Connection compensation is addressed by the lowest channel of the card (7-5).
+ const compChannel=2*(card-1)+1,compCommands=[...(['short','both'].includes(comp)?[cmd('CONNECTION:COMP',compChannel,1,1)]:[]),...(['offset','both'].includes(comp)?[cmd('CONNECTION:COMP',compChannel,3,1)]:[])];
+ setup.push(cmd('LOAD',ch,load),cmd('LLEC:CONFIGURE',ch,llec?1:0),...compCommands,cmd('SOURCE:RANGE',ch,range),cmd('MEASURE:RANGE',ch,ir===null?0:policy==='limited-auto'?1:2,...(ir===null?[]:[ir])),cmd('MEASURE:MODE',waveform?(average?4:2):(average?3:1)),cmd('SAMPLE:RATE',rate),cmd('PULSE:BURST:COUNT',bursts),points===1?cmd('PULSE:TRAIN',ch,base,topA):v.sweep==='base'?cmd('SWEEP:PULSE:BASE',ch,a,b,step,topA,dual?1:0):cmd('SWEEP:PULSE:AMPLITUDE',ch,topA,topB,step,base,dual?1:0),cmd('PULSE:TIMES',ch,period,width,rise,fall,delay));
+ if(waveform)setup.push(cmd('TIMES:WAVEFORM',ch,pre,post));else setup.push(cmd('MEASURE:PIV',ch,1,acquireLow?1:0),cmd('TIMES:PIV',ch,begin/flat,(begin+window)/flat));
  setup.push(cmd('OUTPUT:STATE',ch,1));
- const countQuery=cmd('DATA:COUNT?',ch),statusQuery=':PMU:TEST:STATUS?',fields=waveform?'V,I,T,S':'VH,IH,TH,SH',offCommand=cmd('OUTPUT:STATE',ch,0);
- const pulse=Object.freeze({setup,reads:[countQuery,statusQuery],cleanup:[offCommand,':PMU:ABORT'],rdNames:[],count:65536,pulseChannel:ch,fields,countQuery,statusQuery,offCommand,resource:input.resource,role,waveform,expected,points,bursts,rate,peak,base,baseEnd,topA,topB,withRpm:rpm,rangeV:range,card,estimatedRecords:waveform?budget.sampleCountAtSelectedRate:expected});
+ const countQuery=cmd('DATA:COUNT?',ch),statusQuery=':PMU:TEST:STATUS?',fields=waveform?'V,I,T,S':acquireLow?'VH,IH,TH,SH,VL,IL,TL,SL':'VH,IH,TH,SH',offCommand=cmd('OUTPUT:STATE',ch,0);
+ const estimatedRecords=waveform?(average?Math.ceil(budget.sampleCountAtSelectedRate/bursts):budget.sampleCountAtSelectedRate):expected;
+ const pulse=Object.freeze({setup,reads:[countQuery,statusQuery],cleanup:[offCommand,':PMU:ABORT'],rdNames:[],count:65536,pulseChannel:ch,fields,countQuery,statusQuery,offCommand,resource:input.resource,role,waveform,expected,points,bursts,rate,peak,base,baseEnd,topA,topB,withRpm:rpm,rangeV:range,card,estimatedRecords,dualSweep:dual,average,acquireLow,llec,connectionComp:comp,compCommands:Object.freeze(compCommands)});
  const physicalVerified=inventory?.physicalModelsVerified===true&&inventory?.hardwareLimitsVerified===true;
  return {plan:{kind:'pulse'},pulse,physicalVerified,capabilityVerified:true,requiresInterlock:peak>21,canExecute:physicalVerified&&peak<=21,channels:{[role]:ch},active:[role],totalPoints:pulse.estimatedRecords,commandMode:'KXCI-PMU'};
 }
 function parsePulseBlock(raw,p,offset){
  const src=String(raw??'').trim().replace(/;\s*$/,'');if(!src)return [];
  return src.split(';').map((record,i)=>{
- const f=record.split(',').map(x=>x.trim());if(f.length!==4||f.some(x=>!x))throw Error('PMU 字段错误');
- const [voltage,current,time]=f.slice(0,3).map(s=>{if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:E[+-]?\d+)?$/i.test(s))throw Error('PMU 数值格式错误');const n=Number(s);if(!Number.isFinite(n)||Math.abs(n)>=9e37)throw Error('PMU 读数无效');return n});if(time<0)throw Error('PMU 时间戳无效');
- return {sequence:offset+i+1,cycle:1,point:offset+i+1,timeS:time,source:'4200A-KXCI-PMU',measurementCompleteness:'complete',measurementStatus:'unknown',pulseStatusRaw:f[3],pulseResource:p.resource,pulseMode:p.waveform?'waveform':'spot',pulseProgram:p.arb?'segment-arb':'pulse-sweep',pulseVoltageV:voltage,pulseCurrentA:current,[p.role+'VoltageV']:voltage,[p.role+'CurrentA']:current,rawKxciResponse:record,rawKxciResponses:{[p.resource]:record}};
+ const width=String(p.fields||'V,I,T,S').split(',').length,f=record.split(',').map(x=>x.trim());if(f.length!==width||f.some(x=>!x))throw Error('PMU 字段错误');
+ const num=s=>{if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:E[+-]?\d+)?$/i.test(s))throw Error('PMU 数值格式错误');const n=Number(s);if(!Number.isFinite(n)||Math.abs(n)>=9e37)throw Error('PMU 读数无效');return n};
+ const [voltage,current,time]=f.slice(0,3).map(num);if(time<0)throw Error('PMU 时间戳无效');
+ // Rev F 7-7: spot mean low-level values follow the high-level values in request order.
+ const low=width===8?(()=>{const [lv,li,lt]=f.slice(4,7).map(num);if(lt<0)throw Error('PMU 时间戳无效');return {pulseBaseVoltageV:lv,pulseBaseCurrentA:li,pulseBaseTimeS:lt,pulseBaseStatusRaw:f[7]}})():null;
+ return {...(low||{}),...(p.average?{pulseAveraged:true}:{}),sequence:offset+i+1,cycle:1,point:offset+i+1,timeS:time,source:'4200A-KXCI-PMU',measurementCompleteness:'complete',measurementStatus:'unknown',pulseStatusRaw:f[3],pulseResource:p.resource,pulseMode:p.waveform?'waveform':'spot',pulseProgram:p.arb?'segment-arb':'pulse-sweep',pulseVoltageV:voltage,pulseCurrentA:current,[p.role+'VoltageV']:voltage,[p.role+'CurrentA']:current,rawKxciResponse:record,rawKxciResponses:{[p.resource]:record}};
  });
 }
 async function executePulseTask(p,io){
@@ -525,13 +537,14 @@ function compilePulsePair(input,hardware){
  const power=hardware.capabilities.calculateChassisPower({inventory:hardware.inventory,activePulseChannels:[x,p].map(z=>({family:'PMU',cardIndex:z.card,rangeV:z.rangeV}))});
  if(!power.known||!power.withinLimit)throw Error('双通道机箱功耗超限或未核验');
  const shared=/^:PMU:(?:INIT |MEASURE:MODE |SAMPLE:RATE |PULSE:BURST:COUNT )/;
- const channelSetup=z=>z.setup.filter(c=>c!=='SS'&&c!=='ZE'&&!shared.test(c)&&!c.startsWith(':PMU:OUTPUT:STATE '));
+ const channelSetup=z=>z.setup.filter(c=>c!=='SS'&&c!=='ZE'&&!shared.test(c)&&!c.startsWith(':PMU:OUTPUT:STATE ')&&!c.startsWith(':PMU:CONNECTION:COMP '));
+ const compSetup=[...new Set([...x.compCommands,...p.compCommands])];
  const xSetup=channelSetup(x),pSetup=channelSetup(p).map(c=>{
   if(!waveform&&bs.points>1&&/^:PMU:SWEEP:PULSE:(AMPLITUDE|BASE) /.test(c))return c.replace(':PMU:SWEEP:',':PMU:STEP:').replace(/,0$/,'');
   return c;
  });
  // Rev F example programs VAR2 before VAR1; both are configured before enabling either output.
- const setup=['SS','ZE',':PMU:INIT 0',...x.setup.filter(c=>shared.test(c)&&!c.startsWith(':PMU:INIT ')),...pSetup,...xSetup,`:PMU:OUTPUT:STATE ${x.pulseChannel},1`,`:PMU:OUTPUT:STATE ${p.pulseChannel},1`];
+ const setup=['SS','ZE',':PMU:INIT 0',...x.setup.filter(c=>shared.test(c)&&!c.startsWith(':PMU:INIT ')),...compSetup,...pSetup,...xSetup,`:PMU:OUTPUT:STATE ${x.pulseChannel},1`,`:PMU:OUTPUT:STATE ${p.pulseChannel},1`];
  const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,p.countQuery],cleanup:[x.offCommand,p.offCommand,':PMU:ABORT'],channels:[x,p],peak:Math.max(x.peak,p.peak),estimatedRecords:x.estimatedRecords+p.estimatedRecords,resources:[x.resource,p.resource],sweepPoints:waveform?as.points:as.points*bs.points,pairedMode:waveform?'parallel-waveform':'nested-spot'};
  return {...main,pulse,channels:{...main.channels,...outer.channels},active:[...main.active,...outer.active],totalPoints:pulse.estimatedRecords,requiresInterlock:main.requiresInterlock||outer.requiresInterlock,canExecute:main.canExecute&&outer.canExecute};
 }

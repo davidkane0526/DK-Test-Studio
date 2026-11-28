@@ -740,7 +740,13 @@
   }
   function renderTiming(host,p){
    const pulse=p.kind==='pulse',draft=editorPlan.draft,values=draft.settings;
-   const put=(key,value)=>{values[key]=value;updateEditorPlan(key);};
+   const put=(key,value)=>{
+    values[key]=value;
+    // Options that the new mode cannot use fall back to their KXCI defaults.
+    if(pulse&&key==='mode'&&value!=='spot'&&values.acquireLow==='1')values.acquireLow='0';
+    if(pulse&&key==='secondary'&&value&&values.dualSweep==='1')values.dualSweep='0';
+    updateEditorPlan(key);
+   };
    const panel=(zh,en,target=host)=>{
     const group=units.panel.create(target,{variant:'headed',title:tr(zh,en),sizing:'content',className:'dkts-timing-panel'});
     return units.layout.create(group.body,{variant:'identity',className:'dkts-timing-fields'});
@@ -832,6 +838,11 @@
       }});
      fields(advanced,[['riseUs','上升时间 (µs)','Rise (µs)'],['fallUs','下降时间 (µs)','Fall (µs)'],
       ['delayUs','首脉冲延迟 (µs)','First-pulse delay (µs)'],['pulseCount','每点脉冲数','Pulses per point']]);
+     // Rev F 7-30..7-33, 7-11 and 7-5. Compensation only enables data already stored on the 4200A.
+     const offOn=[['0',tr('关闭','Off')],['1',tr('开启','On')]];
+     if(!values.secondary)select(advanced,'dualSweep',tr('双向扫描','Dual sweep'),offOn);
+     select(advanced,'llec',tr('负载线补偿 (LLEC)','Load-line compensation (LLEC)'),offOn);
+     select(advanced,'connectionComp',tr('连接补偿','Connection compensation'),[['off',tr('关闭','Off')],['short',tr('短路','Short')],['offset',tr('偏置电流','Offset current')],['both',tr('短路 + 偏置电流','Short + offset')]]);
     }else{
      fields(input,[['conditionV','初始偏置 (V)','Initial bias (V)'],['conditionS','初始偏置时长 (s)','Initial bias duration (s)'],
       ['holdV','保持偏置 (V)','Hold bias (V)']]);
@@ -844,6 +855,8 @@
     if(pulse){
      select(event,'mode',tr('采样方式','Acquisition'),[['spot',tr('窗内均值（Pulse I–V）','Spot mean (Pulse I–V)')],['waveform',tr('窗内波形','Window waveform')]]);
      if(values.mode==='waveform')fields(event,[['prePercent','脉冲前采样比例 (0–1)','Pre-data fraction (0–1)'],['postPercent','脉冲后采样比例 (0–1)','Post-data fraction (0–1)']]);
+     select(event,'average',tr('脉冲处理','Pulse handling'),[['0',tr('逐个脉冲','Each pulse')],['1',tr('多脉冲平均','Average pulses')]]);
+     if(values.mode==='spot')select(event,'acquireLow',tr('读数位置','Readings'),[['0',tr('脉冲顶部','Pulse top')],['1',tr('顶部 + 基线','Top + base')]]);
      const presets=['1000','10000','100000','1000000','10000000','50000000','100000000','200000000'];
      let rates=[];
      try{
@@ -877,7 +890,7 @@
     summary.replaceChildren();
    try{
     const result=model.timedSummary(p.kind,values);
-    units.note.create(summary,{variant:'meta',text:pulse?`${result.points}${result.secondary?' × '+result.secondary.points:''} ${tr('扫描点','sweep points')} × ${result.pulseCount} ${tr('脉冲','pulses')}`:
+    units.note.create(summary,{variant:'meta',text:pulse?`${result.points}${result.secondary?' × '+result.secondary.points:''}${result.dualSweep?' × 2 ('+tr('双向','dual')+')':''} ${tr('扫描点','sweep points')} × ${result.pulseCount} ${tr('脉冲','pulses')}${result.average?' · '+tr('平均','averaged'):''}`:
      `${result.points} ${tr('次读出','reads')} · ${result.firstS}–${result.lastS} s · ${tr('窗口','Window')} ${result.windowS} s`});
     units.note.create(summary,{variant:'meta',text:resource+(slot?.physicalIdentityVerified===true?
      ' · '+String(slot.physicalModel||slot.family)+(withRpm?' + RPM':''):' · '+tr('模块待核验','Module unverified'))});
