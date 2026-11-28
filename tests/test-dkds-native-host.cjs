@@ -307,6 +307,17 @@ const ctx={
  pulseType().spec.onChange({target:{value:'pulse'}});
  assert.equal(pulseTiming().testMode,'sweep');
  assert.equal(pulseTiming().arb.segments[1].measureStartUs,'2');
+ const gatePulseRole=()=>record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='pulse-role-G');
+ assert.deepEqual(Array.from(gatePulseRole().spec.options,row=>row.value),['off','x','psweep','condition']);
+ gatePulseRole().spec.onChange({target:{value:'condition'}});
+ arbitraryField('secondary.conditionV').spec.onInput({target:{value:'1.2'}});
+ assert.equal(pulseTiming().secondary.terminal,'G');
+ assert.equal(pulseTiming().secondary.role,'condition');
+ assert.equal(pulseTiming().secondary.conditionV,'1.2');
+ gatePulseRole().spec.onChange({target:{value:'psweep'}});
+ assert.equal(pulseTiming().secondary.role,'psweep');
+ gatePulseRole().spec.onChange({target:{value:'condition'}});
+ assert.equal(arbitraryField('secondary.conditionV').control.value,'1.2');
  // Adding a DC test exposes its own controls and retains the existing I–V test.
  const oldIv=JSON.stringify(state.pages[0]);
  const beforeDc=record.fields.length;

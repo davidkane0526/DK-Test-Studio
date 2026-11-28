@@ -12,7 +12,7 @@
 - 当前运行器为主机逐点 `DV/TI` 模式，不等同于仪器内部扫描；在完成 KXCI Rev F 命令核对前，不得宣称可达到 20 ns 硬件扫描速度。
 
 验证：`node sdk/tools/dkds-plugin.js validate tools/4200a/dkds-native-workspace`。
-打包：`node tools/build-dkds-native-plugin.cjs`，输出 `dist/DKTS-4200A-native-v0.8.40.dkplugin`。
+打包：`node tools/build-dkds-native-plugin.cjs`，输出 `dist/DKTS-4200A-native-v0.8.41.dkplugin`。
 
 ## v0.8.2：FS-Pro 风格离线 X/P 双层扫描草稿
 

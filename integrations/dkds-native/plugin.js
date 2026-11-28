@@ -1,6 +1,6 @@
 (() => {
  'use strict';
- const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.40","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
+ const manifest={"id":"com.dkts.keithley-4200","name":"DK Test Studio - Keithley 4200A","version":"0.8.41","apiVersion":"1.19.0","entry":"plugin.js","scripts":["hardware-capabilities.js","kxci-protocol.js","identity-core.js","measurement-plan.js","kxci-measurement.js","model.js","measurement-data.js","measurement-runtime.js","ui-shell.js","plugin.js"],"enabled":true,"order":82,"description":"Native DKDS TOP workbench: FS-Pro scan editor, verified KXCI connection and guarded SMU execution; raw TI data is published to the DKDS Data Center.","pluginType":"workbench","requiresCore":["status","events","workspace","project","state","modules","io","data.model","data.sources","data.artifacts","ui.workspace","ui.dom","ui.unit-templates","ui.scientific-plot","ui.table","ui.activities","ui.toolbar","ui.context-menus","ui.top-workspace","ui.pages","capabilities","ui.settings","ui.dialogs"],"capabilities":["ui.page","ui.top-workspace","ui.plugin-workspace","ui.scientific-plot","data.scoped-sources","project.slice"],"platformPresentation":{"desktop":{"mode":"shared"},"mobile":{"mode":"adaptive"}},"workspace":{"role":"top","activity":"dkts-keithley-4200","icon":"▦","title":"4200A 测试","defaultSuper":true},"window":{"activity":"dkts-keithley-4200","title":"DK Test Studio 4200A","width":1380,"height":860,"minWidth":820,"minHeight":560,"dependencies":["scientific-renderer"],"prewarm":false,"reuse":true,"persistence":"project","artifactHydration":"live"},"data":{"accepts":["science.transport.iv","data.table"]},"styles":["ui-shell.css"],"pluginDependencies":[{"id":"builtin.connectivity-center"}]};
  DKDSPlugins.define(manifest,async ctx=>{
   const model=ctx.modules.require('model'),measurementData=ctx.modules.require('measurementData'),
    measurementRuntimeModule=ctx.modules.require('measurementRuntime'),units=ctx.ui.unitTemplates,
@@ -747,50 +747,76 @@
    return timingDrafts.get(p.id);
   }
   function renderPulseSweepInputs(host,page,values,put,refresh){
-   const axes=[{name:'Xsweep',config:values,excluded:values.secondary?.terminal},
-    {name:'Psweep',config:values.secondary,excluded:values.terminal}];
-   for(const {name,config,excluded} of axes){
-    const outer=name==='Psweep',prefix=outer?'secondary.':'';
+   const roles=[
+    {value:'off',label:tr('未启用','Off')},{value:'x',label:'Xsweep'},
+    {value:'psweep',label:'Psweep'},{value:'condition',label:tr('固定偏置','Fixed bias')}
+   ];
+   for(const logical of ['D','G','S']){
+    const mapping=page.terminals.find(term=>term.logical===logical)?.resource||'None';
+    const outer=values.secondary?.terminal===logical,primary=values.terminal===logical;
+    const config=primary?values:outer?values.secondary:null,prefix=outer?'secondary.':'';
+    if(!config&&mapping==='None')continue;
+    const ground=!config&&mapping==='GNDU',role=primary?'x':outer?config.role||'psweep':'off';
+    const condition=role==='condition';
+    const port=pulsePort(page,{...values,...config,terminal:logical});
     const band=dcLayout(host,'dkts-pulse-sweep-row');
-    band?.setAttribute?.('data-dkts-pulse-axis',name);
+    band?.setAttribute?.('data-dkts-pulse-terminal',logical);
+    band?.setAttribute?.('data-dkts-pulse-role',ground?'ground':role);
     const identity=dcLayout(band,'dkts-pulse-terminal');
     const heading=dcLayout(identity,'dkts-dc-terminal-label');
-    if(config?.terminal)renderTerminalBadge(heading,config.terminal);
-    units.note.create(heading,{variant:'meta',className:'dkts-dc-terminal-name',text:name});
+    renderTerminalBadge(heading,logical);
+    units.note.create(heading,{variant:'meta',className:'dkts-dc-terminal-resource',text:port.resource});
+    const mode=dcLayout(band,'dkts-pulse-config');
+    const label=t(logicalNames[logical]);
     const set=(key,value)=>{
      if(outer)put('secondary',{...values.secondary,[key]:String(value)});
      else put(key,value);
      refresh();
     };
-    const choices=['D','G','S'].filter(key=>key!==excluded).map(key=>({
-     value:key,label:t(logicalNames[key])+' · '+pulsePort(page,{...values,...config,terminal:key}).resource
-    }));
-    if(outer)choices.unshift({value:'None',label:tr('未启用','Off')});
-    dcSelect(identity,config?tr('端子','Terminal'):false,config?.terminal||'None',choices,terminal=>{
-     if(!outer)put('terminal',terminal);
-     else if(terminal==='None')put('secondary',null);
-     else if(config)set('terminal',terminal);
+    if(ground){
+     dcInput(mode,tr('角色','Role'),tr('接地','Ground'),null,{readOnly:true});
+     dcInput(dcLayout(band,'dkts-pulse-levels'),tr('设定值 (V)','Set value (V)'),'0',null,{readOnly:true});
+     continue;
+    }
+    const available=roles.filter(option=>primary?option.value==='x':
+     outer?option.value!=='x':!values.secondary||['off','x'].includes(option.value));
+    const roleField=dcSelect(mode,tr('角色','Role'),role,available,next=>{
+     if(next===role)return;
+     if(next==='x')put('terminal',logical);
+     else if(next==='off')put('secondary',null);
+     else if(outer)put('secondary',{...values.secondary,role:next,conditionV:values.secondary.conditionV??'0'});
      else{
       const keys=['channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs',
        'windowStartUs','windowTimeUs','currentRangeA','sweep','basePeakV','rangePolicy','prePercent','postPercent'];
       const initial=Object.fromEntries(keys.map(key=>[key,String(values[key])]));
-      put('secondary',{...initial,terminal,stop:String(values.start),step:'0',currentRangeA:''});
+      put('secondary',{...initial,terminal:logical,role:next,conditionV:'0',stop:String(values.start),step:'0',currentRangeA:''});
      }
      redrawDc();
-    },{key:outer?'pulse-p-terminal':'pulse-x-terminal',path:prefix+'terminal',ariaLabel:name+' '+tr('端子','Terminal')});
-    if(!config)continue;
-    const mode=dcLayout(band,'dkts-pulse-config');
+    },{key:'pulse-role-'+logical,ariaLabel:label+' '+tr('角色','Role')});
+    if(!config){
+     if(values.secondary)timeHelp(roleField.label,tr('端子角色','Terminal role'),tr(
+      '当前方案只支持一个伴随 PMU 通道。先停用已分配的伴随端子，再设置此端子。',
+      'This plan supports one companion PMU channel. Disable the assigned companion before configuring this terminal.'));
+     continue;
+    }
     const levels=dcLayout(band,'dkts-pulse-levels');
-    const port=pulsePort(page,{...values,...config});
     const select=(target,key,zh,en,options,redraw=false)=>dcSelect(target,tr(zh,en),config[key]??options[0].value,options,
-     value=>{set(key,value);if(redraw)redrawDc();},{key:'pulse-'+(outer?'p-':'x-')+key,path:prefix+key,ariaLabel:name+' '+tr(zh,en)});
+     value=>{set(key,value);if(redraw)redrawDc();},{key:'pulse-'+logical+'-'+key,path:prefix+key,ariaLabel:label+' '+tr(zh,en)});
     const number=(target,key,zh,en)=>scalarField(target,tr(zh,en),config[key]??'',value=>set(key,value),false,
-     {'data-dkts-timing-field':outer?undefined:key,'data-dkts-parameter-path':prefix+key,'aria-label':name+' '+tr(zh,en)},false,true);
-    select(mode,'sweep','方法','Method',[{value:'amplitude',label:tr('扫描幅值','Amplitude sweep')},
+     {'data-dkts-timing-field':outer?undefined:key,'data-dkts-parameter-path':prefix+key,'aria-label':label+' '+tr(zh,en)},false,true);
+    if(condition)dcInput(mode,tr('方法','Method'),tr('恒定电压','Constant voltage'),null,{readOnly:true});
+    else select(mode,'sweep','方法','Method',[{value:'amplitude',label:tr('扫描幅值','Amplitude sweep')},
      {value:'base',label:tr('扫描基线','Base sweep')}],true);
     select(mode,'rangeV','电压档','Voltage range',[{value:'10',label:'10 V'},{value:'40',label:'40 V'}],true);
-    if(!port.match?.[3])select(mode,'channel','卡内通道','Card channel',[{value:'1',label:'CH1'},{value:'2',label:'CH2'}],true);
+    if(/^PMU[1-9]$/.test(mapping))select(mode,'channel','卡内通道','Card channel',[{value:'1',label:'CH1'},{value:'2',label:'CH2'}],true);
     number(mode,'loadOhms','负载 (Ω)','Load (Ω)');
+    if(condition){
+     const voltage=number(levels,'conditionV','设定值 (V)','Set value (V)');
+     timeHelp(voltage.label,tr('固定偏置','Fixed bias'),tr(
+      '另一路 PMU 以相同基线和峰值给出固定电平。独立 SMU 的同步直流偏置尚未接入。',
+      'A second PMU channel uses equal base and peak levels. Concurrent standalone SMU bias is not available.'));
+     continue;
+    }
     const baseSweep=config.sweep==='base';
     for(const [key,zh,en] of [['start','起始 (V)','Start (V)'],['stop','终止 (V)','Stop (V)'],['step','步进 (V)','Step (V)'],
      baseSweep?['basePeakV','固定峰值 (V)','Fixed peak (V)']:['fixedV','基线 (V)','Base (V)']])number(levels,key,zh,en);
@@ -919,7 +945,7 @@
     summary.replaceChildren();
    try{
     const result=model.timedSummary(p.kind,values);
-    units.note.create(summary,{variant:'meta',text:pulse?`${result.points}${result.secondary?' × '+result.secondary.points:''} ${tr('扫描点','sweep points')} × ${result.pulseCount} ${tr('脉冲','pulses')}`:
+    units.note.create(summary,{variant:'meta',text:pulse?`${result.points}${result.secondary&&values.secondary?.role!=='condition'?' × '+result.secondary.points:''} ${tr('扫描点','sweep points')} × ${result.pulseCount} ${tr('脉冲','pulses')}`:
      `${result.points} ${tr('次读出','reads')} · ${result.firstS}–${result.lastS} s · ${tr('窗口','Window')} ${result.windowS} s`});
     units.note.create(summary,{variant:'meta',text:resource+(slot?.physicalIdentityVerified===true?
      ' · '+String(slot.physicalModel||slot.family)+(withRpm?' + RPM':''):' · '+tr('模块待核验','Module unverified'))});
@@ -927,6 +953,14 @@
     if(pulse){
      const budget=captureBudget(result,result.rateHz);
      units.note.create(summary,{variant:'meta',text:tr('每通道预计采样点','Estimated samples per channel')+' '+budget.sampleCountAtSelectedRate});
+     if(values.secondary?.role==='condition'){
+      const companion=pulsePort(p,model.pulseSecondarySettings(values));
+      const warning=companion.match?.[1]!=='PMU'?tr(
+       '固定偏置需另一路 4225-PMU 或已核验的 RPM 路由。当前 '+companion.resource+' 不能同步输出固定偏置。',
+       'Fixed bias needs a second 4225-PMU channel or a verified RPM route. '+companion.resource+' cannot supply simultaneous bias.'):
+       result.secondary?.loadOhms===null?tr('请填写固定偏置端子的负载。','Enter the fixed-bias terminal load.'):'';
+      if(warning)units.note.create(summary,{variant:'warning',text:warning});
+     }
      reason=pulseCompatibility(values,result,budget);
      if(!reason&&(Number(values.holdUs)!==0||Number(values.baseDelayUs)!==0))
       reason=tr('保留的旧保持或基线延迟暂无 KXCI 映射。','Legacy hold or base delay awaits KXCI mapping.');
@@ -1334,6 +1368,7 @@
     'Select exactly one Xsweep and at most one Psweep on mapped SMUs':'请在已映射 SMU 上选择一个 Xsweep，最多一个 Psweep。',
     'Switching Step must be positive':'切换步长须大于零。',
     'Sampling Step must be positive':'采样步长和频率须大于零。',
+    'Fixed bias exceeds the selected PMU voltage range':'固定偏置超过所选 PMU 电压档。',
     'The planned sampling grid exceeds 65,536 points per cycle':'每周期最多规划 65,536 个采样点。请降低采样频率或增大步长。',
     'The planned sampling grid needs at least one point per cycle':'每周期至少规划 1 个采样点。请提高采样频率或缩短步长。',
     'WT must be between 0 and 100 s':'首点前等待须为 0–100 s。',
@@ -1408,7 +1443,7 @@
     if(settings.testMode!=='sweep'){const port=pulsePort(page,settings);if(port.pmuVerified&&settings.currentRangeA&&!hardware.getPmuCurrentRanges(settings.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))throw Object.assign(Error(tr('该电流档与实装 PMU/RPM 不匹配。','This range is incompatible with installed PMU/RPM.')),{field:'currentRangeA'});return result;}
     const issue=pulseCompatibility(settings,result);
     if(issue)throw Error(issue);
-    if(settings.secondary){const secondary=model.pulseSecondarySettings(settings),summary={...result.secondary,totalSweepPoints:result.totalSweepPoints};const outerIssue=pulseCompatibility(secondary,summary);if(outerIssue)throw Error('Psweep: '+outerIssue);}
+    if(settings.secondary){const secondary=model.pulseSecondarySettings(settings),summary={...result.secondary,totalSweepPoints:result.totalSweepPoints};const outerIssue=pulseCompatibility(secondary,summary);if(outerIssue)throw Error((settings.secondary.role==='condition'?tr('固定偏置','Fixed bias'):'Psweep')+' · '+outerIssue);}
     const port=pulsePort(page,settings);
     if(port.pmuVerified&&settings.currentRangeA&&
        !hardware.getPmuCurrentRanges(settings.rangeV,port.withRpm).includes(Number(settings.currentRangeA)))

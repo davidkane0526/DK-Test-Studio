@@ -481,12 +481,16 @@ function compilePulsePair(input,hardware){
  if(a.mode!==b.mode||!['spot','waveform'].includes(a.mode))throw Error('两通道须共享采集模式');
  const waveform=a.mode==='waveform';
  if(waveform&&bs.points!==1&&bs.points!==as.points)throw Error('双通道波形需要等点数同步扫描或固定伴随脉冲');
- if(a.terminal===b.terminal||input.resource===input.secondary.resource)throw Error('Xsweep 与 Psweep 不能使用同一端子或通道');
+ if(a.terminal===b.terminal||input.resource===input.secondary.resource)throw Error('Xsweep 与伴随端子不能使用同一端子或通道');
  for(const field of ['periodUs','pulseCount','rateHz'])if(Number(a[field])!==Number(b[field]))throw Error('双通道必须共享周期、脉冲数和采样率');
  if(!waveform&&bs.points>1&&as.points===1)throw Error('Psweep 多点步进需要 Xsweep 多点扫描');
  const main=compilePulse({...input,secondary:undefined,pointMultiplier:waveform?1:bs.points},hardware);
  const outer=compilePulse({...input,...input.secondary,secondary:undefined,pointMultiplier:waveform?(bs.points===1?as.points:1):as.points},hardware);
- const x=main.pulse,p=outer.pulse;
+ const x=main.pulse,condition=b.role==='condition';
+ const companion=outer.pulse;
+ if(condition&&(companion.points!==1||companion.base!==companion.topA||companion.base!==companion.baseEnd))
+  throw Error('固定偏置须使用相同的 PMU 基线和峰值');
+ const p=condition?{...companion,skipRead:true,estimatedRecords:0}:companion;
  if(x.pulseChannel===p.pulseChannel)throw Error('PMU 通道重复');
  const power=hardware.capabilities.calculateChassisPower({inventory:hardware.inventory,activePulseChannels:[x,p].map(z=>({family:'PMU',cardIndex:z.card,rangeV:z.rangeV}))});
  if(!power.known||!power.withinLimit)throw Error('双通道机箱功耗超限或未核验');
@@ -498,7 +502,7 @@ function compilePulsePair(input,hardware){
  });
  // Rev F example programs VAR2 before VAR1; both are configured before enabling either output.
  const setup=['SS','ZE',':PMU:INIT 0',...x.setup.filter(c=>shared.test(c)&&!c.startsWith(':PMU:INIT ')),...pSetup,...xSetup,`:PMU:OUTPUT:STATE ${x.pulseChannel},1`,`:PMU:OUTPUT:STATE ${p.pulseChannel},1`];
- const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,p.countQuery],cleanup:[x.offCommand,p.offCommand,':PMU:ABORT'],channels:[x,p],peak:Math.max(x.peak,p.peak),estimatedRecords:x.estimatedRecords+p.estimatedRecords,resources:[x.resource,p.resource],sweepPoints:waveform?as.points:as.points*bs.points,pairedMode:waveform?'parallel-waveform':'nested-spot'};
+ const pulse={...x,setup,reads:[x.statusQuery,x.countQuery,...(condition?[]:[p.countQuery])],cleanup:[x.offCommand,p.offCommand,':PMU:ABORT'],channels:[x,p],peak:Math.max(x.peak,p.peak),estimatedRecords:x.estimatedRecords+p.estimatedRecords,resources:[x.resource,p.resource],sweepPoints:waveform?as.points:as.points*bs.points,pairedMode:condition?'fixed-bias':waveform?'parallel-waveform':'nested-spot'};
  return {...main,pulse,channels:{...main.channels,...outer.channels},active:[...main.active,...outer.active],totalPoints:pulse.estimatedRecords,requiresInterlock:main.requiresInterlock||outer.requiresInterlock,canExecute:main.canExecute&&outer.canExecute};
 }
 function compileSegmentArb(input,hardware){

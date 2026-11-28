@@ -817,9 +817,6 @@
 #dktsKeithley4200Page :is(.dkts-pulse-config,.dkts-pulse-levels){
  align-self:stretch;border-inline-start:1px solid var(--dkts-divider,var(--border-strong))
 }
-#dktsKeithley4200Page .dkts-pulse-sweep-row:not(:has(.dkts-pulse-config))>.dkts-pulse-terminal{
- grid-column:1/-1;grid-template-columns:minmax(80px,max-content) minmax(100px,160px);align-items:center
-}
 #dktsKeithley4200Page .dkts-pulse-config{grid-template-columns:repeat(2,minmax(0,1fr))}
 #dktsKeithley4200Page .dkts-pulse-levels{
  grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:min-content

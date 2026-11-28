@@ -68,7 +68,7 @@ function makeInstrumentContext(modules,options={}){
      if(command===':PMU:DATA:GET 1,0,2,VH,IH,TH,SH\0'){
       return reply(pulseReadCount++===0?'\0':'0.75,1E-6,0.00003,0;0.76,1.1E-6,0.000061,0\0');
      }
-     if(/^:PMU:(?:INIT |LOAD |LLEC:CONFIGURE |SOURCE:RANGE |MEASURE:(?:RANGE|MODE|PIV) |SAMPLE:RATE |PULSE:(?:BURST:COUNT|TIMES) |SWEEP:PULSE:AMPLITUDE |TIMES:PIV |SARB:|OUTPUT:STATE |ABORT\0)/.test(command))return reply('ACK\0');
+     if(/^:PMU:(?:INIT |LOAD |LLEC:CONFIGURE |SOURCE:RANGE |MEASURE:(?:RANGE|MODE|PIV) |SAMPLE:RATE |PULSE:(?:BURST:COUNT|TIMES|TRAIN) |SWEEP:PULSE:AMPLITUDE |TIMES:PIV |SARB:|OUTPUT:STATE |ABORT\0)/.test(command))return reply('ACK\0');
     }
     if(command==='US\0')measurementStarted=true;
     if(command==='ME1\0'){systemRun=true;measurementStarted=true;return reply('ACK\0');}
@@ -566,6 +566,51 @@ test('Pulse I–V switches from DC, restores both configurations, and publishes 
   const commands=fixture.commands.map(row=>row.command);
   assert.ok(commands.includes(':PMU:EXECUTE\0'));
   assert.ok(commands.indexOf(':PMU:OUTPUT:STATE 1,0\0')<commands.lastIndexOf(':PMU:DATA:GET 1,0,2,VH,IH,TH,SH\0'));
+ }finally{await runtime.dispose();}
+});
+
+test('Pulse I–V can accompany Xsweep with a constant gate bias and records only measured X data',async()=>{
+ const {modules}=loadModules(),model=modules.get('model');
+ let project=model.setIvType(model.initial(),'pulse');
+ project=model.edit(project,'D',{resource:'PMU1-1'});
+ const initial=project.pages.find(page=>page.id===project.activeId).timing;
+ const secondary={terminal:'G',role:'condition',conditionV:'1.2',channel:'2',rangeV:'10',loadOhms:'1000000',
+  fixedV:'0.25',start:'0.1',stop:'0.3',step:'0.1',widthUs:initial.widthUs,riseUs:initial.riseUs,
+  fallUs:initial.fallUs,delayUs:initial.delayUs,windowStartUs:initial.windowStartUs,
+  windowTimeUs:initial.windowTimeUs,currentRangeA:''};
+ project=model.editTiming(project,{secondary,start:'0.5',step:'0.5',loadOhms:'1000000',currentRangeA:'0.01'});
+ const endpoint={host:'169.254.111.118',port:1225,expectedSerial:'1498377'};
+ const fixture=makeInstrumentContext(modules,{pmu:true});
+ const runtime=modules.get('measurementRuntime').createRuntime(fixture.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect(endpoint);
+  const currentPage=()=>project.pages.find(page=>page.id===project.activeId);
+  assert.equal(model.timedSummary('pulse',currentPage().timing).totalSweepPoints,2);
+  const unsupported=runtime.prepare(currentPage());
+  assert.equal(unsupported.canExecute,false);
+  assert.match(unsupported.reason,/独立 SMU/);
+  assert.throws(()=>runtime.start(currentPage(),true),/独立 SMU/);
+  assert.ok(fixture.commands.every(row=>!row.command.startsWith(':PMU:')));
+  project=model.edit(project,'G',{resource:'PMU1-2'});
+  const prepared=runtime.prepare(currentPage());
+  assert.equal(prepared.canExecute,true,prepared.reason);
+  assert.equal(prepared.pointCount,2);
+  assert.equal(prepared.compiled.pulse.pairedMode,'fixed-bias');
+  assert.ok(prepared.compiled.pulse.setup.includes(':PMU:PULSE:TRAIN 2,1.2,1.2'));
+  assert.ok(prepared.compiled.pulse.setup.every(command=>!command.startsWith(':PMU:STEP:')));
+  const overvoltage={...currentPage(),timing:{...currentPage().timing,secondary:{...secondary,rangeV:'40',conditionV:'22'}}};
+  assert.match(runtime.prepare(overvoltage).reason,/高压互锁/);
+  runtime.start(currentPage(),true);
+  const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'completed',result.run.error);
+  assert.equal(result.run.shutdown,'commands-sent');
+  assert.equal(result.rows,2);
+  assert.ok(result.run.rows.every(row=>row.pulseResource==='PMU1-1'&&row.gateVoltageV===undefined));
+  const commands=fixture.commands.map(row=>row.command);
+  assert.ok(commands.includes(':PMU:OUTPUT:STATE 2,0\0'));
+  assert.ok(!commands.some(command=>/^:PMU:DATA:(?:COUNT\?|GET) 2/.test(command)));
+  const restored=model.editTiming(project,{secondary:{...secondary,role:'psweep'}});
+  assert.equal(model.timedSummary('pulse',restored.pages.find(page=>page.id===restored.activeId).timing).secondary.points,3);
  }finally{await runtime.dispose();}
 });
 

@@ -14,7 +14,7 @@
 - Windows 原生 Electron Core 工作区与多图窗的启动/截图回归在 `8533798df` 通过；Windows Portable 打包、Android API 36 模拟器和 APK 完整 CI 仍应以各次 Actions 最终结果为准。OPPO 平板及真实仪器未验收。
 - `npm start` 现在运行 `tools/launch-core-mainline.cjs`：若未设置 `DKTS_DKDS_SOURCE`，会在 DKTS 自己的 `.dkts-cache/` 内获取固定 SHA 的只读 DKDS 上游，暂存真实 Core、执行原生构建并启动 Electron；不会修改用户的 DKDS checkout。`npm run start:legacy` 和 `npm run dist:win:legacy` 保留旧壳作历史对照，**不作为新架构正式发布入口**。新 Core 构建由 [只读 Core 工作流](https://github.com/davidkane0526/DK-Test-Studio/actions/workflows/dkts-framework-contract.yml) 构建。
 - 当前改为**单一 DKTS 原生应用身份**：Windows/Android 共用 `V0.3.32 aNNN`，Android 包名为 `studio.dk.test`，使用原 DKTS 固定签名；不再发布 `studio.dk.test.corepreview` 第二套应用。一个 Release 同时包含 Windows Portable、固定签名 APK、硬件能力数据库和校验清单。CSS-only 修改额外把 `DKDS-UI-bundle.json` 放进同一个 Release，且仍会构建完整 EXE/APK。旧 `a159` 等 Core Preview Release 仅保留为历史记录，不再是当前更新源。真实设备安装、热更/全量升级与回退仍待 OPPO/Windows 实机验收。
-- 当前源码为 `V0.3.53`，原生插件版本 0.8.40。流程按所含测试类型提供图形选项，单项测试按自身模式提供图形。时间扫描、保持特性与脉冲扫描均可编辑、保存和校验方案。仪器执行路径和实机验收见 [P0 原厂指令审计](docs/P0_ORIGINAL_COMMAND_AUDIT.md)。
+- 当前源码为 `V0.3.53`，原生插件版本 0.8.41。流程按所含测试类型提供图形选项，单项测试按自身模式提供图形。时间扫描、保持特性与脉冲扫描均可编辑、保存和校验方案。仪器执行路径和实机验收见 [P0 原厂指令审计](docs/P0_ORIGINAL_COMMAND_AUDIT.md)。
 - 本轮 UI 阶段 `npm test` **224/224 通过**；DKTS 派生 Unit 与七标签/七列表格契约已加入。当前 Web FS-Pro 与 Core 原生宿主仍使用不同的渲染器，尚未完成真正共享的 UI renderer/DOM/CSS 抽取，因此不能称为像素级一致或 UI 最终完成。真实 Core 插件目录校验 12/12 通过；DKDS SDK 单插件 validator/runtime 均通过，64 个 canonical layout cases 通过；控件几何由 DKTS 派生 Field Unit 变体负责。Chromium 本地截图进程在当前云端环境挂起，尚未取得四视口真实截图，因此 UI 尚未签收。当前 GitHub 仍只有 `main`，本轮未推送。
 - V0.3.20 a200 本轮优化 PlotView 标题栏，图形类型改为带选中标记的 DKDS 原生“显示”菜单；数据源和原始 CSV 仍在“数据”菜单。980px 及以下标题栏收敛 S/D/G/B 为单一端口 Popover；数值、页面名称/备注、变量单位的无变化编辑不再触发工作区刷新；Sweep 删除重复说明。已完成 DKDS SDK 插件验证与离线 CSS 几何检查；真实 Windows/Android 视觉验收仍待执行。
 

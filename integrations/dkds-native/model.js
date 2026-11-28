@@ -224,7 +224,18 @@
   }
   return values;
  }
- function pulseSecondarySettings(v){return {...v,...v.secondary,secondary:null,sweep:v.secondary?.sweep??'amplitude',basePeakV:v.secondary?.basePeakV??'',rangePolicy:v.secondary?.rangePolicy??'fixed',prePercent:v.secondary?.prePercent??v.prePercent??'0',postPercent:v.secondary?.postPercent??v.postPercent??'0'};}
+ function pulseSecondarySettings(v){
+  const secondary=v.secondary;
+  const settings={...v,...secondary,secondary:null,sweep:secondary?.sweep??'amplitude',
+   basePeakV:secondary?.basePeakV??'',rangePolicy:secondary?.rangePolicy??'fixed',
+   prePercent:secondary?.prePercent??v.prePercent??'0',postPercent:secondary?.postPercent??v.postPercent??'0'};
+  if(secondary?.role==='condition')Object.assign(settings,{
+   sweep:'amplitude',fixedV:secondary.conditionV,start:'0',stop:'0',step:'0',
+   widthUs:v.widthUs,riseUs:v.riseUs,fallUs:v.fallUs,delayUs:v.delayUs,
+   windowStartUs:v.windowStartUs,windowTimeUs:v.windowTimeUs,prePercent:v.prePercent,postPercent:v.postPercent
+  });
+  return settings;
+ }
  function timedSummary(kind,settings,context){
   const defaults=TIMED_DEFAULTS[kind];
   if(!defaults)return null;
@@ -278,9 +289,14 @@
   const captureWindowS=v.mode==='waveform'?duration*(1+pre+post)*1e-6:windowUs*1e-6;
   const result={points,pulseCount,rateHz,rangeV,peakV,basePeakV,captureWindowS,windowS:windowUs*1e-6,loadOhms:v.loadOhms===''?null:n('loadOhms')};
   if(v.secondary!==null){
-   if(!v.secondary||typeof v.secondary!=='object'||Array.isArray(v.secondary)||v.secondary.terminal===v.terminal||!['S','D','G'].includes(v.secondary.terminal))throw Error('Select a distinct Psweep terminal');
-   const required=['terminal','channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA'],optional=['sweep','basePeakV','rangePolicy','prePercent','postPercent'];
-   if(Object.keys(v.secondary).some(k=>![...required,...optional].includes(k)||typeof v.secondary[k]!=='string')||required.some(k=>typeof v.secondary[k]!=='string'))throw Error('Invalid Psweep pulse parameters');
+   if(!v.secondary||typeof v.secondary!=='object'||Array.isArray(v.secondary)||v.secondary.terminal===v.terminal||!['S','D','G'].includes(v.secondary.terminal))throw Error('Select a distinct second pulse terminal');
+   const required=['terminal','channel','rangeV','loadOhms','fixedV','start','stop','step','widthUs','riseUs','fallUs','delayUs','windowStartUs','windowTimeUs','currentRangeA'],optional=['sweep','basePeakV','rangePolicy','prePercent','postPercent','role','conditionV'];
+   if(Object.keys(v.secondary).some(k=>![...required,...optional].includes(k)||typeof v.secondary[k]!=='string')||required.some(k=>typeof v.secondary[k]!=='string'))throw Error('Invalid second pulse terminal parameters');
+   if(v.secondary.role!==undefined&&!['psweep','condition'].includes(v.secondary.role))throw Error('Invalid second pulse terminal role');
+   if(v.secondary.role==='condition')atField('secondary.conditionV',()=>{
+    const voltage=numeric(v.secondary.conditionV,'Fixed bias');
+    if(Math.abs(voltage)>Number(v.secondary.rangeV))throw Error('Fixed bias exceeds the selected PMU voltage range');
+   });
    const outer=timedSummary('pulse',pulseSecondarySettings(v));
    if(v.mode==='waveform'&&outer.points!==1&&outer.points!==points)throw Error('Dual waveform requires equal-length simultaneous sweeps or a fixed companion pulse train');
    if(v.mode==='spot'&&outer.points>1&&points===1)throw Error('Psweep requires a multi-point Xsweep');

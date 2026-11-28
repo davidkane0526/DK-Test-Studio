@@ -4,7 +4,7 @@ const root=require('node:path').resolve(__dirname,'../integrations/dkds-native')
 const manifest=JSON.parse(fs.readFileSync(root+'/plugin.json','utf8'));
 const js=fs.readFileSync(root+'/plugin.js','utf8'),model=fs.readFileSync(root+'/model.js','utf8'),shell=fs.readFileSync(root+'/ui-shell.js','utf8'),css=fs.readFileSync(root+'/ui-shell.css','utf8');
 assert.equal(manifest.id,'com.dkts.keithley-4200');
-assert.equal(manifest.version,'0.8.40');
+assert.equal(manifest.version,'0.8.41');
 assert.ok(manifest.requiresCore.includes('ui.dom'),'native timing uses DKDS-owned lifecycle-managed timers');
 assert.equal(manifest.apiVersion,'1.19.0');
 assert.equal(manifest.pluginType,'workbench');

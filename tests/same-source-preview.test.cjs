@@ -20,7 +20,7 @@ test('same-source preview is pinned to the genuine DKDS Core and current DKTS pl
  assert.match(build,/hp\.dependencies=\{\};hp\.devDependencies=\{\}/);
  assert.match(build,/package-lock\.json/);
  assert.doesNotMatch(build,/dktsDesktopPreview/);
- assert.equal(manifest.version,'0.8.40');
+ assert.equal(manifest.version,'0.8.41');
  assert.doesNotMatch(build,/electron-builder|assembleRelease|gradlew/,
   'preview packaging must not compile native EXE/APK packages');
 });
