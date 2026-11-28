@@ -771,7 +771,7 @@
    if(pulse&&editorSection==='sweep'){
     const modePanel=panel('扫描类型','Sweep type');
     fsproField(modePanel,{kind:'select',label:tr('测试方式','Test mode'),value:values.testMode,attributes:{'data-dkts-timing-field':'testMode'},
-     options:[{value:'sweep',label:tr('脉冲扫描','Pulse sweep')},{value:'sequence',label:tr('任意波形','Arbitrary waveform')}],onChange:event=>{
+     options:[{value:'sweep',label:'Pulse I–V'},{value:'sequence',label:tr('任意波形','Arbitrary waveform')}],onChange:event=>{
      const mode=event.target.value;
      // Preserve mode-specific settings when switching modes.
      if(mode==='sequence'&&!values.arb)values.arb={loops:'1',segments:[{startV:'0',stopV:'1',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'},{startV:'1',stopV:'1',durationUs:'10',measure:true,measureStartUs:'2',measureStopUs:'8'},{startV:'1',stopV:'0',durationUs:'1',measure:false,measureStartUs:'0',measureStopUs:'0'}]};
@@ -1001,15 +1001,26 @@
     }
    });
   }
-  function reciprocal(value,scale){
-   const number=Number(value),result=scale/number;
-   return number>0&&Number.isFinite(result)&&result>0?String(result):'';
+  function samplingNumber(value){
+   const text=String(value??'').trim();
+   const number=/^\+?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(text)?Number(text):NaN;
+   return Number.isFinite(number)&&number>0?number:NaN;
   }
-  function renderSamplingField(host,draft,fields,read,write){
+  function reciprocal(value,scale){
+   const result=scale/samplingNumber(value);
+   return Number.isFinite(result)&&result>0?String(result):'';
+  }
+  function renderSamplingField(host,draft,fields,read,write,{scientificRate=false}={}){
    const showRate=draft.sampleAsRate===true;
    const [label,path]=fields[showRate?1:0];
-   const field=scalarField(host,label,read(showRate),value=>write(showRate,value),false,
+   const formatRate=value=>{
+    const rate=samplingNumber(value);
+    return Number.isFinite(rate)?Number(rate.toPrecision(12)).toExponential():value;
+   };
+   const value=read(showRate),format=showRate&&scientificRate;
+   const field=scalarField(host,label,format?formatRate(value):value,next=>write(showRate,next),false,
     {'data-dkts-parameter-path':path},false,true);
+   if(format)field.control?.addEventListener?.('blur',()=>field.setValue(formatRate(field.control.value)));
    const title=fields[showRate?0:1][0];
    const trigger=timeIcon(field.label,'⇄',tr('切换到','Switch to ')+title,'dkts-time-switch');
    if(!trigger)return;
@@ -1266,7 +1277,12 @@
     'Ref Node must be GND or a mapped voltage Condition with Ref set to GND':'请选择地，或参考设为 GND 的已映射电压恒定端子。',
     'Select exactly one Xsweep and at most one Psweep on mapped SMUs':'请在已映射 SMU 上选择一个 Xsweep，最多一个 Psweep。',
     'Switching Step must be positive':'切换步长须大于零。',
-    'Sampling Step must be positive':'采样步长须大于零。',
+    'Sampling Step must be positive':'采样步长和频率须大于零。',
+    'The planned sampling grid exceeds 65,536 points per cycle':'每周期最多规划 65,536 个采样点。请降低采样频率或增大步长。',
+    'The planned sampling grid needs at least one point per cycle':'每周期至少规划 1 个采样点。请提高采样频率或缩短步长。',
+    'WT must be between 0 and 100 s':'首点前等待须为 0–100 s。',
+    'IN must be between 0 and 10 s':'读数后等待须为 0–10 s。',
+    'DT must be between 0 and 6.553 s':'每点稳定等待须为 0–6.553 s。',
     'Segment duration must be a positive multiple of Switching Step':'持续时间须为切换步长的正整数倍。',
     'The SMU integration time must fit within a sampling step':'SMU 积分时间须能放进一个采样步长。',
     'Event start cannot be negative':'测量事件的起始时间不能为负。',
@@ -1291,7 +1307,7 @@
     ({start:'Start',stop:'Stop',step:'Step',points:'Points',value:tr('设定值','Value'),
      formula:tr('表达式','Expression'),range:tr('量程','Range')}[terminal]||terminal);
    return ({reference:'Ref Node',referenceV:'Ref (V)',outputs:'Outputs',
-    sampleStepS:tr('计划采样步长','Planned Sampling Step'),switchStepS:tr('切换步长','Switching Step'),
+    sampleStepS:tr('计划采样','Planned sampling'),listDelayS:tr('每点稳定等待','Settling delay per point'),switchStepS:tr('切换步长','Switching Step'),
     integrationPreset:tr('策略 · SMU 积分档','Strategy · SMU integration preset'),
     cycles:tr('循环次数','Cycles'),roles:tr('扫描角色','Scan role')}[path]||'');
   }
@@ -1352,7 +1368,14 @@
     const draft=page.kind==='dc'?dcDrafts.get(page.id):page.kind==='time'?timeDrafts.get(page.id):timingDrafts.get(page.id);
     const settings=draft?.settings||page.dc||page.timing;
     try{checkedPlan(page,settings);}
-    catch(error){return {path:error.field||draft?.issuePath||'',message:planMessage(error)};}
+    catch(error){
+     let label;
+     if(page.kind==='time'&&settings.mode==='native-fixed'){
+      if(error.field==='events.0.startS')label=tr('首点前等待','Wait before first reading');
+      if(error.field==='events.0.intervalS')label=tr('读数后等待','Wait after each reading');
+     }
+     return {path:error.field||draft?.issuePath||'',message:planMessage(error),label};
+    }
     if(page.kind==='time'&&settings.mode!==model.TIME_PMU_MODE){
      const unmapped=settings.events.findIndex(event=>!page.terminals.some(term=>term.logical===event.terminal&&isSmu(term)));
      if(unmapped>=0)return {path:'events.'+unmapped+'.terminal',message:tr(
@@ -1465,15 +1488,38 @@
    render();
    parameters.scrollTop=offset;
   }
+  function renderIvType(host,p){
+   const dc=p.kind==='dc',settings=editorPlan.draft.settings;
+   const value=dc?settings.preset:settings.testMode==='sweep'?'pulse':'pulse-sequence';
+   const options=[
+    {value:'optimized',label:tr('DC（优化加速）','DC Optimized Timing')},
+    {value:'point-by-point',label:tr('DC（逐点）','DC Point By Point')},
+    {value:'pulse',label:'Pulse I–V'}
+   ];
+   if(value==='pulse-sequence')options.push({value,label:tr('任意波形 · PMU','Arbitrary waveform · PMU')});
+   dcSelect(host,tr('类型','Type'),value,options,next=>{
+    if(dc&&next!=='pulse'){
+     settings.preset=next;
+     redrawDc();
+     return;
+    }
+    commitTransaction(()=>{
+     const updated=model.setIvType(state(),next);
+     // Preserve valid saved configurations and discard drafts when changing test families.
+     dcDrafts.delete(p.id);
+     timingDrafts.delete(p.id);
+     editorSection='sweep';
+     return updated;
+    });
+   },{key:'preset',path:dc?'preset':undefined});
+  }
   function renderDcControls(host,p){
    const dc=dcDraft(p).settings,terminals=model.dcTerminals(p);
    const row=dcLayout(host,'dkts-dc-reference');
    row?.setAttribute?.('data-dkts-dc-controls','true');
    const preset=dcLayout(row,'dkts-dc-preset');
    const referencesGroup=dcLayout(row,'dkts-dc-reference-fields');
-   const presets=[tr('DC（优化加速）','DC Optimized Timing'),tr('DC（逐点）','DC Point By Point')];
-   dcSelect(preset,tr('类型','Type'),dc.preset,model.DC_PRESETS.map((value,index)=>({value,label:presets[index]})),
-    value=>{dc.preset=value;redrawDc();},{key:'preset',path:'preset'});
+   renderIvType(preset,p);
    const isGround=key=>key==='GND'||terminals.find(term=>term.logical===key)?.resource==='GNDU';
    const references=terminals.filter(term=>term.resource==='GNDU'||
     (dc.terminals[term.logical].mode==='voltage'&&dc.terminals[term.logical].role==='CONDITION'));
@@ -1494,7 +1540,8 @@
    const row=dcLayout(host,'dkts-dc-reference dkts-page-reference');
    row?.setAttribute?.('data-dkts-parameter-controls','true');
    const type=dcLayout(row,'dkts-dc-preset');
-   dcInput(type,tr('类型','Type'),p.kind==='time'?tr('IVT · 时间扫描','IVT · Time sweep'):testTypeLabel(p.testType),
+   if(p.kind==='pulse')renderIvType(type,p);
+   else dcInput(type,tr('类型','Type'),p.kind==='time'?tr('IVT · 时间扫描','IVT · Time sweep'):testTypeLabel(p.testType),
     null,{readOnly:true,key:'test-type'});
    const refs=dcLayout(row,'dkts-dc-reference-fields');
    const ground=p.terminals.find(term=>term.resource==='GNDU');
@@ -1833,12 +1880,34 @@
      segmentCount=dcInput(controls,tr('切换步数','Switch count'),'—',null,{readOnly:true,key:'time-segments'}).control;
      renderSamplingField(controls,draft,[
       [tr('计划采样步长 (s)','Planned step (s)'),'sampleStepS'],
-      [tr('计划采样频率 (Hz)','Planned rate (Hz)'),'sampleRateHz']
+      [tr('计划采样频率 (Hz)','Planned rate (Hz)'),'sampleStepS']
      ],showRate=>showRate?reciprocal(settings.sampleStepS,1):settings.sampleStepS,(showRate,value)=>{
       settings.sampleStepS=showRate?reciprocal(value,1):value;
-      updateEditorPlan(showRate?'sampleRateHz':'sampleStepS');
+      updateEditorPlan('sampleStepS');
       refreshPlan();
+     },{scientificRate:true});
+    }
+    if(native){
+     const event=settings.events[0];
+     const shared=(key,zh,en)=>plannedText(controls,event,key,zh,en,'events.0.'+key,()=>{
+      for(const signal of settings.events)signal[key]=event[key];
      });
+     const start=shared('startS','首点前等待 (s)','Wait before first reading (s)');
+     const interval=shared('intervalS','读数后等待 (s)','Wait after each reading (s)');
+     const phaseRead=(zh,en)=>({label:tr(zh,en),read:true,detail:()=>tr('积分＋读出','Integration + readout')});
+     const phases=[
+      {label:tr('偏置后等待','Wait at bias'),detail:()=>event.startS+' s'},
+      phaseRead('读数 1','Read 1'),
+      {label:tr('读数后等待','Wait after reading'),detail:()=>event.intervalS+' s'},
+      phaseRead('读数 2','Read 2')
+     ];
+     timeWaitHelp(start,tr('首次读数前等待','Wait before first reading'),tr('设定偏置后，到开始第一次读数的等待。填 0 可省略这段等待。','Wait after setting bias and before the first reading. Enter 0 to omit this wait.'),phases,0);
+     timeWaitHelp(interval,tr('读数后等待','Wait after each reading'),tr('一次读数完成后，到开始下一次读数的等待。填 0 时仍需积分与读出。','Wait after one reading completes. At 0, integration and readout still take time.'),phases,2);
+    }else if(list){
+     const delay=plannedText(controls,settings,'listDelayS','每点稳定等待 (s)','Settling delay per point (s)');
+     const wait={label:tr('偏置后等待','Settle at bias'),detail:()=>settings.listDelayS+' s'};
+     const read={label:tr('读取本点','Read the point'),read:true,detail:()=>tr('积分＋读出','Integration + readout')};
+     timeWaitHelp(delay,tr('每点稳定等待','Settling delay per point'),tr('每点设置偏置后，先等待，再积分读出。','Each point sets bias, waits, then integrates and reads.'),[wait,read,{...wait,level:true},{...read,level:true}],0);
     }
     if(!native)samplePoints=dcInput(controls,tr('单周期总采样点','Total Time Points'),'—',null,{readOnly:true,key:'time-points'}).control;
     const repeat=dcPanel(input,tr('重复','Repeat'),'dkts-time-panel dkts-time-repeat');
@@ -1857,29 +1926,6 @@
     if((native||list)&&smus.some(term=>settings.sourceModes[term.logical]==='current')){
      const protection=dcLayout(inputs,'dkts-time-source-modes');
      for(const term of smus.filter(term=>settings.sourceModes[term.logical]==='current'))plannedText(protection,settings.voltageLimitsV,term.logical,term.logical+' · '+tr('电压保护 (V)','Voltage compliance (V)'),term.logical+' · Voltage compliance (V)','voltageLimitsV.'+term.logical);
-    }
-    const timing=dcLayout(inputs,'dkts-time-source-modes');
-    if(native){
-     const event=settings.events[0];
-     const shared=(key,zh,en)=>plannedText(timing,event,key,zh,en,'events.0.'+key,()=>{
-      for(const signal of settings.events)signal[key]=event[key];
-     });
-     const start=shared('startS','首点前等待 (s)','Wait before first reading (s)');
-     const interval=shared('intervalS','点间等待 (s)','Wait after each reading (s)');
-     const phaseRead=(zh,en)=>({label:tr(zh,en),read:true,detail:()=>tr('积分＋读出','Integration + readout')});
-     const phases=[
-      {label:tr('偏置后等待','Wait at bias'),detail:()=>event.startS+' s'},
-      phaseRead('读数 1','Read 1'),
-      {label:tr('读数后等待','Wait after reading'),detail:()=>event.intervalS+' s'},
-      phaseRead('读数 2','Read 2')
-     ];
-     timeWaitHelp(start,tr('首次读数前等待','Wait before first reading'),tr('设定偏置后，到开始第一次读数的等待。','The delay after setting bias and before the first reading.'),phases,0);
-     timeWaitHelp(interval,tr('读数后等待','Wait after each reading'),tr('一次读数完成后，到开始下一次读数的等待。','The delay after one reading completes and before the next begins.'),phases,2);
-    }else if(list){
-     const delay=plannedText(timing,settings,'listDelayS','每点稳定等待 (s)','Settling delay per point (s)');
-     const wait={label:tr('偏置后等待','Settle at bias'),detail:()=>settings.listDelayS+' s'};
-     const read={label:tr('读取本点','Read the point'),read:true,detail:()=>tr('积分＋读出','Integration + readout')};
-     timeWaitHelp(delay,tr('每点稳定等待','Settling delay per point'),tr('每点设置偏置后，先等待，再积分读出。','Each point sets bias, waits, then integrates and reads.'),[wait,read,{...wait,level:true},{...read,level:true}],0);
     }
     const table=dcLayout(inputs,'dkts-time-table');
     if(!smus.length)units.note.create(table,{variant:'warning',text:tr('请在工程顶栏分配 SMU 端子。','Assign an SMU terminal in the project toolbar.')});

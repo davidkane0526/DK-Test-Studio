@@ -67,7 +67,7 @@ function makeInstrumentContext(modules,options={}){
      if(command===':PMU:DATA:GET 1,0,2,VH,IH,TH,SH\0'){
       return reply(pulseReadCount++===0?'\0':'0.75,1E-6,0.00003,0;0.76,1.1E-6,0.000061,0\0');
      }
-     if(/^:PMU:(?:INIT |LOAD |SOURCE:RANGE |MEASURE:RANGE |SAMPLE:RATE |SARB:|OUTPUT:STATE |ABORT\0)/.test(command))return reply('ACK\0');
+     if(/^:PMU:(?:INIT |LOAD |LLEC:CONFIGURE |SOURCE:RANGE |MEASURE:(?:RANGE|MODE|PIV) |SAMPLE:RATE |PULSE:(?:BURST:COUNT|TIMES) |SWEEP:PULSE:AMPLITUDE |TIMES:PIV |SARB:|OUTPUT:STATE |ABORT\0)/.test(command))return reply('ACK\0');
     }
     if(command==='US\0')measurementStarted=true;
     if(command==='ME1\0'){systemRun=true;measurementStarted=true;return reply('ACK\0');}
@@ -485,6 +485,82 @@ test('segmented pulse uses the verified PMU port, exact hold profile and origina
   assert.equal(result.published.canonical,true);
   const commands=commissioned.commands.map(row=>row.command);
   assert.equal(commands.filter(c=>c===':PMU:EXECUTE\0').length,1);
+  assert.ok(commands.indexOf(':PMU:OUTPUT:STATE 1,0\0')<commands.lastIndexOf(':PMU:DATA:GET 1,0,2,VH,IH,TH,SH\0'));
+ }finally{await runtime.dispose();}
+});
+
+test('linear time sampling rejects oversized grids and can repair older saved plans',()=>{
+ const {modules}=loadModules(),model=modules.get('model');
+ const project=model.initial(),timePage=project.pages.find(page=>page.kind==='time');
+ project.activeId=timePage.id;
+ timePage.timing.mode='linear-step';
+ const timing=timePage.timing;
+ assert.equal(model.timeGrid({...timing,sampleStepS:'0.0000152587890625'}).samplePoints,65536);
+ for(const sampleStepS of ['1e-12','1e-100','0','2']){
+  assert.throws(()=>model.timeGrid({...timing,sampleStepS}),error=>error.field==='sampleStepS');
+ }
+ timing.sampleStepS='1e-12';
+ const restored=model.validate(JSON.parse(JSON.stringify(project)));
+ assert.equal(restored.pages.find(page=>page.id===timePage.id).timing.sampleStepS,'1e-12');
+ assert.throws(()=>model.editTiming(restored,{sampleStepS:'1e-9'}),error=>error.field==='sampleStepS');
+ const repaired=model.editTiming(restored,{sampleStepS:'0.001'});
+ assert.equal(model.timedSummary('time',repaired.pages.find(page=>page.id===timePage.id).timing).samplePoints,1000);
+});
+
+test('Pulse I–V switches from DC, restores both configurations, and publishes spot records from mocked instrument replies',async()=>{
+ const {modules}=loadModules(),model=modules.get('model'),capabilities=modules.get('dkts-capabilities');
+ const runtimeModule=modules.get('measurementRuntime');
+ const original=model.initial(),id=original.activeId;
+ const dc=model.setIvType(original,'point-by-point');
+ const dcProfile=dc.pages.find(p=>p.id===id).dc;
+ let project=model.setIvType(dc,'pulse');
+ assert.equal(project.activeId,id);
+ assert.equal(project.pages.find(p=>p.id===id).name,'Pulse I–V');
+ project=model.editTiming(project,{start:'0.5',step:'0.5',loadOhms:'1000000',currentRangeA:'0.01'});
+ const restored=model.setIvType(JSON.parse(JSON.stringify(project)),'point-by-point');
+ assert.deepEqual(restored.pages.find(p=>p.id===id).dc,dcProfile);
+ const both=model.setIvType(restored,'pulse');
+ const snapshot=model.templateSnapshot(both,'test',id);
+ const imported=model.insertSetup(original,snapshot);
+ assert.deepEqual(imported.pages.find(p=>p.id===imported.activeId).ivAlternate,dcProfile);
+ project=model.edit(both,'D',{resource:'PMU1-1'});
+ const page=project.pages.find(p=>p.id===id);
+ assert.equal(page.timing.start,'0.5');
+ const endpoint={host:'169.254.111.118',port:1225,expectedSerial:'1498377'};
+ const guarded=makeInstrumentContext(modules,{pmu:true});
+ const blocked=runtimeModule.createRuntime(guarded.ctx,{wait:async()=>{}});
+ try{
+  await blocked.connectAndInspect(endpoint);
+  const prepared=blocked.prepare(page);
+  assert.equal(prepared.ready,true,prepared.reason);
+  assert.equal(prepared.canExecute,false);
+  assert.throws(()=>blocked.start(page,true),/实机验收/);
+  assert.ok(guarded.commands.every(row=>!row.command.startsWith(':PMU:')));
+ }finally{await blocked.dispose();}
+ const database=JSON.parse(JSON.stringify(capabilities.DATABASE));
+ database.safetyPolicies.kxci.allowPulseModeOutput=true;
+ modules.set('dkts-capabilities',{...capabilities,DATABASE:database});
+ const fixture=makeInstrumentContext(modules,{pmu:true});
+ const runtime=runtimeModule.createRuntime(fixture.ctx,{wait:async()=>{}});
+ try{
+  await runtime.connectAndInspect(endpoint);
+  const prepared=runtime.prepare(page);
+  assert.equal(prepared.canExecute,true,prepared.reason);
+  assert.equal(prepared.compiled.pulse.expected,2);
+  assert.ok(prepared.compiled.pulse.setup.includes(':PMU:SWEEP:PULSE:AMPLITUDE 1,0.5,1,0.5,0,0'));
+  const spotWindow=prepared.compiled.pulse.setup.find(command=>command.startsWith(':PMU:TIMES:PIV 1,'));
+  assert.ok(spotWindow,prepared.compiled.pulse.setup.join('\n'));
+  const [,start,stop]=spotWindow.split(',').map(Number);
+  assert.ok(Math.abs(start-0.2)<1e-9&&Math.abs(stop-0.8)<1e-9,spotWindow);
+  runtime.start(page,true);
+  const result=await runtime.waitForCompletion();
+  assert.equal(result.run.state,'completed',result.run.error);
+  assert.equal(result.published.canonical,true);
+  assert.deepEqual(Array.from(result.run.rows,row=>[row.pulseProgram,row.timeS,row.rawKxciResponse]),[
+   ['pulse-sweep',0.00003,'0.75,1E-6,0.00003,0'],['pulse-sweep',0.000061,'0.76,1.1E-6,0.000061,0']
+  ]);
+  const commands=fixture.commands.map(row=>row.command);
+  assert.ok(commands.includes(':PMU:EXECUTE\0'));
   assert.ok(commands.indexOf(':PMU:OUTPUT:STATE 1,0\0')<commands.lastIndexOf(':PMU:DATA:GET 1,0,2,VH,IH,TH,SH\0'));
  }finally{await runtime.dispose();}
 });

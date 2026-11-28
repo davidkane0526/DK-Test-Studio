@@ -309,7 +309,7 @@ const ctx={
   ['Linear Step','Linear Points','Log Points','List']);
  methodFor('D').spec.onChange({target:{value:'points'}});
  const preset=dcFields.find(row=>row.spec.attributes?.['data-dkts-dc-field']==='preset');
- assert.deepEqual(Array.from(preset.spec.options,option=>option.value),['optimized','point-by-point']);
+ assert.deepEqual(Array.from(preset.spec.options,option=>option.value),['optimized','point-by-point','pulse']);
  preset.spec.onChange({target:{value:'point-by-point'}});
  assert.ok(record.fields.some(row=>row.spec.attributes?.['data-dkts-dc-field']==='range'&&row.control.value==='auto'));
  const dcPoints=record.fields.findLast(row=>row.spec.attributes?.['data-dkts-dc-field']==='points');

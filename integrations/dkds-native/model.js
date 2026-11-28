@@ -10,7 +10,7 @@
   {id:'retention',label:'保持特性',testType:'Time'},
   {id:'arb',label:'分段脉冲',testType:'Pulse'},
   {id:'time',label:'时间扫描',testType:'IVT'},
-  {id:'pulse',label:'脉冲扫描',testType:'Pulse'},
+  {id:'pulse',label:'Pulse I–V',testType:'Pulse'},
   {id:'cv',label:'C–V 扫描',testType:'CV'}
  ]);
  const clone=x=>JSON.parse(JSON.stringify(x));
@@ -48,6 +48,7 @@
   throw Object.assign(Error(message),{field});
  }
  const TIME_PMU_MODE='pmu-segmented';
+ const TIME_PLAN_MAX_POINTS=65536;
  const TIME_TERMINALS=['D','G','S','B'];
  const timeTerminalDefaults=value=>Object.fromEntries(TIME_TERMINALS.map(key=>[key,value]));
  const TIMED_DEFAULTS=Object.freeze({
@@ -82,7 +83,7 @@
  const PLOT_KINDS=Object.freeze(['iv','transfer','it','vt','raw','target','target-h']);
  const timeBiasKey=mode=>mode==='current'?'currentBias':'bias';
  const timeBias=(settings,segment,terminal)=>segment[timeBiasKey(settings.sourceModes?.[terminal])]?.[terminal];
- function timeGrid(v){
+ function timeGrid(v,{allowLegacySampleGrid=false}={}){
   if(v.mode!==undefined&&!['linear-step','native-fixed','native-list'].includes(v.mode))invalidField('mode','Select a supported time sweep mode');
   if(v.mode==='native-list'){
    if(!Array.isArray(v.segments)||!v.segments.length||v.segments.length>64)throw Error('Use 1–64 bias segments');
@@ -122,8 +123,12 @@
   const sampleRatio=durationS/sampleStep;
   const wholeSamples=Math.round(sampleRatio);
   const samplePoints=Math.abs(sampleRatio-wholeSamples)<1e-7?wholeSamples:Math.floor(sampleRatio);
-  if(!Number.isSafeInteger(segmentCount)||!Number.isSafeInteger(samplePoints))
-   throw Error('A cycle must have a finite number of switching and sampling steps');
+  if(!Number.isSafeInteger(segmentCount))
+   invalidField('switchStepS','A cycle must have a finite number of switching steps');
+  if(!Number.isSafeInteger(samplePoints)||(!allowLegacySampleGrid&&samplePoints>TIME_PLAN_MAX_POINTS))
+   invalidField('sampleStepS','The planned sampling grid exceeds 65,536 points per cycle');
+  if(!allowLegacySampleGrid&&samplePoints<1)
+   invalidField('sampleStepS','The planned sampling grid needs at least one point per cycle');
   return {starts,durationS,segmentCount,samplePoints,sampleStep};
  }
  function timePreviewGrid(settings,axis){
@@ -140,8 +145,8 @@
   });
   return {...grid,starts,origin:pointsAxis?1:0,durationS:readings.at(-1).at,pointsAxis,readings};
  }
- function timeSummary(v){
-  const grid=timeGrid(v),{durationS,sampleStep}=grid;
+ function timeSummary(v,context){
+  const grid=timeGrid(v,context),{durationS,sampleStep}=grid;
   if(!['','GND','S','D','G'].includes(v.reference))invalidField('reference','Select a ground reference');
   for(const key of TIME_TERMINALS){
    const mode=v.sourceModes[key];
@@ -193,7 +198,7 @@
     invalidField(field('points'),'A measurement event exceeds the cycle duration');
    points+=count;
   }
-  if(!Number.isFinite(durationS*cycles)||points*cycles>65536)invalidField('cycles','Time plan exceeds the offline planning limit');
+  if(!Number.isFinite(durationS*cycles)||points*cycles>TIME_PLAN_MAX_POINTS)invalidField('cycles','Time plan exceeds the offline planning limit');
   return {...grid,cycles,points:points*cycles};
  }
  function timingSettings(kind,settings){
@@ -220,14 +225,14 @@
   return values;
  }
  function pulseSecondarySettings(v){return {...v,...v.secondary,secondary:null,sweep:v.secondary?.sweep??'amplitude',basePeakV:v.secondary?.basePeakV??'',rangePolicy:v.secondary?.rangePolicy??'fixed',prePercent:v.secondary?.prePercent??v.prePercent??'0',postPercent:v.secondary?.postPercent??v.postPercent??'0'};}
- function timedSummary(kind,settings,pmuContext){
+ function timedSummary(kind,settings,context){
   const defaults=TIMED_DEFAULTS[kind];
   if(!defaults)return null;
   const v=timingSettings(kind,settings);
-  if(kind==='time')return v.mode===TIME_PMU_MODE?timedSummary('pulse',v.pmu,pmuContext):timeSummary(v);
+  if(kind==='time')return v.mode===TIME_PMU_MODE?timedSummary('pulse',v.pmu,context):timeSummary(v,context);
   if(kind==='pulse'&&['sequence','bias-steps'].includes(v.testMode)){
    const capabilities=window.DKDSPluginModules.require('com.dkts.keithley-4200','dkts-capabilities');
-   return v.testMode==='sequence'?capabilities.normalizeArbPair(v):capabilities.normalizeSegmentArb(v,pmuContext);
+   return v.testMode==='sequence'?capabilities.normalizeArbPair(v):capabilities.normalizeSegmentArb(v,context);
   }
   if(!['S','D','G'].includes(v.terminal))throw Error('Select a Source, Drain or Gate terminal');
   const n=key=>numeric(v[key],key);
@@ -964,6 +969,17 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
      throw Error('HARDWARE_RANGE_ENVELOPE: measurement range exceeds theoretical limit');
    }
    validateSweep(p);
+   if(p.ivAlternate!==undefined){
+    if(p.kind==='dc'){
+     p.ivAlternate=timingSettings('pulse',p.ivAlternate);
+     timedSummary('pulse',p.ivAlternate);
+    }else if(p.kind==='pulse'){
+     if(p.ivAlternate&&typeof p.ivAlternate==='object')migrateDcPreset(p.ivAlternate);
+     validateDcShape(p.ivAlternate);
+     if(p.ivAlternate.specIds.some(id=>specOwners.get(id)!==routineOwners.get(p.routineId)))
+      throw Error('DC Spec must belong to the same Device');
+    }else delete p.ivAlternate;
+   }
    if(p.kind==='dc'){
     if(p.dc===undefined)p.dc=defaultDc(p);
     else if(p.dc&&typeof p.dc==='object')migrateDcPreset(p.dc);
@@ -983,7 +999,9 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
    }
    if(TIMED_DEFAULTS[p.kind]){
     p.timing=timingSettings(p.kind,p.timing);
-    timedSummary(p.kind,p.timing);
+    // Older projects may contain a finite but oversized linear sampling grid.
+    // Let them reopen for repair. A changed plan still has to pass the current limit.
+    timedSummary(p.kind,p.timing,{allowLegacySampleGrid:true});
    }
   }
   // UI plot layout is canonical project state and survives Core workspace reopening.
@@ -1035,9 +1053,10 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   return {kind,name:routine.name,loops:routine.loops,pages:pages.map(templatePage)};
  }
  function templatePage(page){
-  const {kind,name,testType,note,terminals,sweep,dc,timing,target,targets,variables}=clone(page);
-  if(dc){dc.specIds=[];dc.bodyResource='None';}
-  return {kind,name,testType,note,terminals,sweep,dc,timing,target,targets,variables};
+  const {kind,name,testType,note,terminals,sweep,dc,timing,ivAlternate,target,targets,variables}=clone(page);
+  const dcConfig=dc||(kind==='pulse'?ivAlternate:null);
+  if(dcConfig){dcConfig.specIds=[];dcConfig.bodyResource='None';}
+  return {kind,name,testType,note,terminals,sweep,dc,timing,ivAlternate,target,targets,variables};
  }
  function numberedCopy(name,n){
   const suffix=' ('+n+')';
@@ -1078,9 +1097,9 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
    }
    for(const original of setup.pages){
     const page=copy?clone(original):templatePage(original);
-    const {kind,testType,note,terminals,sweep,dc,timing,target:measurementTarget,targets,variables,associateSpecId}=page;
+    const {kind,testType,note,terminals,sweep,dc,timing,ivAlternate,target:measurementTarget,targets,variables,associateSpecId}=page;
     const pageId='page-'+(++s.sequence);
-    newPages.push({id:pageId,routineId:target,name:routineMode?page.name:name,kind,testType,note,terminals,sweep,dc,timing,
+    newPages.push({id:pageId,routineId:target,name:routineMode?page.name:name,kind,testType,note,terminals,sweep,dc,timing,ivAlternate,
      target:measurementTarget,targets,variables,associateSpecId:copy?associateSpecId:null});
    }
   }
@@ -1205,12 +1224,38 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
    if(page.kind!==kind.id){
     delete page.timing;
     delete page.dc;
+    delete page.ivAlternate;
    }
    page.kind=kind.id;page.testType=kind.testType;
    if(patch.name===undefined)page.name=kind.label;
    delete patch.kind;
   }
   Object.assign(page,patch);
+  return validate(s);
+ }
+ function setIvType(s,value){
+  s=validate(s);
+  const page=s.pages.find(p=>p.id===s.activeId);
+  if(!['dc','pulse'].includes(page.kind)||(!DC_PRESETS.includes(value)&&value!=='pulse'))
+   throw Error('Unknown I–V test type');
+  const kind=value==='pulse'?'pulse':'dc';
+  if(page.kind!==kind){
+   const previous=KINDS.find(row=>row.id===page.kind),next=KINDS.find(row=>row.id===kind);
+   if(page.name===previous.label||(page.kind==='pulse'&&page.name==='脉冲扫描'))page.name=next.label;
+   const alternate=page.ivAlternate;
+   page.ivAlternate=kind==='pulse'?page.dc:page.timing;
+   if(kind==='pulse'){
+    page.timing={...alternate,testMode:'sweep'};
+    delete page.dc;
+   }else{
+    page.dc=alternate||defaultDc(page);
+    delete page.timing;
+   }
+   page.kind=kind;
+   page.testType=next.testType;
+  }
+  if(kind==='dc')page.dc.preset=value;
+  else page.timing.testMode='sweep';
   return validate(s);
  }
  function editDc(s,settings){
@@ -1237,6 +1282,7 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   if(!defaults||!changes||Object.keys(changes).some(key=>!Object.hasOwn(defaults,key)&&!(p.kind==='pulse'&&key==='windowStopUs')))
    throw Error('Invalid timing parameter');
   p.timing={...p.timing,...changes};
+  if(p.kind==='time')timedSummary(p.kind,p.timing);
   return validate(s);
  }
  function editDevice(s,changes,id){
@@ -1511,6 +1557,6 @@ function dcExpression(raw,variables,polarity,{generator=false,outer=false}={}){
   }
   return out;
  }
- const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,TIME_PMU_MODE,defaultPmuTimeSettings,templateSnapshot,insertSetup,duplicateSetup,reorderTests,pulseSecondarySettings,timeGrid,timePreviewGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
+ const api=Object.freeze({KINDS,PLOT_KINDS,DC_PRESETS,DC_METHODS,dcMethods,dcTerminals,dcOutputs,dcTargetColumns,evaluateTargetPoint,targetForAxis,targetExportRows,targetVectorRows,dcSummary,dcExpression,dcAffine,generatorEvaluator,setIvType,editDc,editDcBody,removeDcSpec,initial,validate,add,editSmuIntegration,addDevice,selectDevice,addRoutine,selectRoutine,setRoutineLoops,addSpec,associateSpec,remove,select,editPage,editDevice,editTiming,timedSummary,TIME_PMU_MODE,defaultPmuTimeSettings,templateSnapshot,insertSetup,duplicateSetup,reorderTests,pulseSecondarySettings,timeGrid,timePreviewGrid,timeGroundNodes,timeReference,SMU_INTEGRATION_PLC,editTarget,addTarget,removeTarget,addVariable,editVariable,removeVariable,edit,editSweep,editSegment,addSegment,removeSegment,summary,pointAt,visible:p=>p.terminals.filter(t=>!['None','GNDU'].includes(t.resource)),curvesFromArtifacts});
  window.DKDSPluginModules.define('com.dkts.keithley-4200','model',api,{replace:true});
 })();
